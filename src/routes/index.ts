@@ -56,7 +56,15 @@ export const routes = [
       title: '六上一起做-找邻居',
     },
     component: () => import('@/views/61-find-neighborhood/index.vue'),
-  }
+  },
+  {
+    path: '/threeD-terrain',
+    name: '3D-terrain',
+    meta: {
+      title: '3D等高线地形图',
+    },
+    component: () => import('@/views/threeD-terrain/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
