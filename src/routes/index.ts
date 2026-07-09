@@ -55,10 +55,7 @@ export const routes = [
     meta: {
       title: '找邻居',
     },
-<<<<<<< HEAD
     component: () => import('@/views/find-neighborhood/index.vue'),
-=======
-    component: () => import('@/views/61-find-neighborhood/index.vue'),
   },
   {
     path: '/threeD-terrain',
@@ -67,7 +64,6 @@ export const routes = [
       title: '3D等高线地形图',
     },
     component: () => import('@/views/threeD-terrain/index.vue'),
->>>>>>> 044d9750181fe5c4459d8df5dd17a2a1deeb1c7c
   },
 ]
 
