@@ -56,7 +56,7 @@ export const routes = [
       title: '六上一起做-找邻居',
     },
     component: () => import('@/views/61-find-neighborhood/index.vue'),
-  },
+  }
 ]
 
 export const routesNav = routes.map((route) => {
