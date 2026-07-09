@@ -125,8 +125,38 @@
           <div class="data-card highlight"><div class="data-card-label">平均密度(g/cm³)</div><div class="data-card-value">{{ focusedInfo.density }}</div></div>
           <div class="data-card highlight"><div class="data-card-label">表面温度(°C)</div><div class="data-card-value">{{ focusedInfo.temperature }}</div></div>
         </div>
-        <div style="font-size:11px; color:#e2e8f0; margin-top:8px; line-height:1.6;">{{ focusedInfo.desc }}</div>
+        <div class="planet-desc">
+          <div v-for="(line, li) in focusedInfo.desc.split('\n')" :key="li" class="desc-line" :class="{ 'desc-heading': line.startsWith('【') }">{{ line }}</div>
+        </div>
       </div>
+
+      <!-- 行星详情浮动卡（从右侧弹出） -->
+      <transition name="slide-right">
+        <div id="planet-detail-card" v-if="focusedPlanetDetail">
+          <div class="card-header">
+            <div class="card-planet-icon">{{ focusedPlanetDetail.icon }}</div>
+            <div class="card-title-group">
+              <div class="card-name">{{ focusedPlanetDetail.name }}</div>
+              <div class="card-type-tag" :class="focusedPlanetDetail.cat">{{ focusedPlanetDetail.typeShort }}</div>
+            </div>
+            <button class="card-close" @click="focusedPlanetDetail = null; hideAllAnnotations();">&times;</button>
+          </div>
+          <div class="card-stats">
+            <div class="stat-item"><span class="stat-label">距日距离</span><span class="stat-value">{{ focusedPlanetDetail.au }} AU</span></div>
+            <div class="stat-item"><span class="stat-label">公转周期</span><span class="stat-value">{{ focusedPlanetDetail.years }} 年</span></div>
+            <div class="stat-item"><span class="stat-label">自转周期</span><span class="stat-value">{{ focusedPlanetDetail.rotation }} 日</span></div>
+            <div class="stat-item"><span class="stat-label">质量</span><span class="stat-value">{{ focusedPlanetDetail.mass }} M⊕</span></div>
+            <div class="stat-item"><span class="stat-label">体积</span><span class="stat-value">{{ focusedPlanetDetail.volume }} V⊕</span></div>
+            <div class="stat-item"><span class="stat-label">密度</span><span class="stat-value">{{ focusedPlanetDetail.density }} g/cm³</span></div>
+            <div class="stat-item"><span class="stat-label">温度</span><span class="stat-value">{{ focusedPlanetDetail.temperature }} °C</span></div>
+            <div class="stat-item"><span class="stat-label">卫星</span><span class="stat-value">{{ focusedPlanetDetail.moons }} 颗</span></div>
+          </div>
+          <div class="card-desc">
+            <div v-for="(line, li) in focusedPlanetDetail.desc.split('\n')" :key="li" class="desc-line" :class="{ 'desc-heading': line.startsWith('【') }">{{ line }}</div>
+          </div>
+          <button class="card-unfocus" @click="focusedPlanetDetail = null; hideAllAnnotations(); setView('free')">✕ 关闭</button>
+        </div>
+      </transition>
 
       <!-- 课本表 1-1 太阳系八大行星主要数据 -->
       <div id="calc-panel">
@@ -210,43 +240,43 @@ const planetData: PlanetDef[] = [
     au: 0.39, years: 0.24, rotation: 58.79, orbitTilt: 7.00, eccentricity: 0.205,
     volume: 0.06, mass: 0.06, density: 5.43, temperature: '167',
     typeShort: '类地', cat: 'earth', type: '类地行星', moons: '0',
-    desc: '距日最近的行星，无大气，昼夜温差极大。水星在88个地球日绕太阳一周，但自转一周需58.79个地球日。' },
+    desc: '【基本数据】水星是距太阳最近（0.39 AU）、也是最小（直径4879 km）的行星。表面无大气，白天427°C，夜间-173°C，温差达600°C。\n【轨道与自转】公转周期88天，自转周期58.79天，水星上的一天约等于59个地球日。轨道偏心率0.205，是所有行星中轨道最扁的。\n【结构与磁场】核心占体积约85%，是一个巨大铁核，产生强度约为地球1%的磁场。表面布满陨石坑，外观类似月球。NASA信使号探测器获取了大量成分数据。' },
   { id: 'venus', name: '金星', color: 0xe6b87d, emissive: 0x3a2a10, sceneRadius: 0.52, sceneDistance: 12, rotSpeed: -0.002, tilt: 3.39,
     au: 0.72, years: 0.62, rotation: 243.69, orbitTilt: 3.39, eccentricity: 0.007,
     volume: 0.86, mass: 0.82, density: 5.24, temperature: '464',
     typeShort: '类地', cat: 'earth', type: '类地行星', moons: '0',
-    desc: '浓密CO₂大气产生强烈温室效应，表面温度约464℃，是太阳系最热行星。自转方向与公转相反（逆向自转）。' },
+    desc: '【基本数据】太阳系中最热行星，表面464°C。大小与地球相近（直径12104 km），被称为地球"姊妹星"。表面大气压为地球92倍。\n【极端环境】浓密CO₂大气产生极强温室效应。硫酸云层完全覆盖表面，雷达显示有大量火山和熔岩平原。\n【奇特自转】自转方向与公转相反（逆向自转），自转周期243.69天比公转周期224.7天还长。苏联探测器曾着陆，最长仅工作约2小时。' },
   { id: 'earth', name: '地球', color: 0x2e6fd6, sceneRadius: 0.55, sceneDistance: 15.5, rotSpeed: 0.02, tilt: 0.00, hasMoon: true,
     au: 1.00, years: 1.00, rotation: 1.00, orbitTilt: 0.00, eccentricity: 0.017,
     volume: 1.00, mass: 1.00, density: 5.51, temperature: '15',
     typeShort: '类地', cat: 'earth', type: '类地行星', moons: '1',
-    desc: '已知唯一存在生命的行星。有液态水、适宜温度与大气。表面平均温度约15℃。' },
+    desc: '【基本数据】目前已知唯一存在生命的行星。直径12742 km，质量5.97×10²⁴ kg，71%表面覆盖液态水。平均温度约15°C。\n【大气与磁场】氮氧大气层提供适宜呼吸环境。液态外核产生磁场保护生物免受太阳风侵害。臭氧层吸收紫外线，为生命提供关键保护。\n【地质活动】板块构造运动驱动地表演化，火山地震塑造大陆海洋。月球稳定了地球自转轴倾角，潮汐力影响海洋。' },
   { id: 'mars', name: '火星', color: 0xc1502e, sceneRadius: 0.42, sceneDistance: 19, rotSpeed: 0.019, tilt: 1.85,
     au: 1.52, years: 1.88, rotation: 1.03, orbitTilt: 1.85, eccentricity: 0.094,
     volume: 0.15, mass: 0.11, density: 3.93, temperature: '-63',
     typeShort: '类地', cat: 'earth', type: '类地行星', moons: '2',
-    desc: '红色星球，地表富含氧化铁。自转周期与地球相近（1.03天），存在四季。表面平均温度-63℃。' },
+    desc: '【基本数据】"红色星球"，直径6792 km。自转周期1.03天与地球极近，倾角25°有分明四季，但每季约地球两倍长。平均温度约-63°C。\n【地理特征】拥有太阳系最高峰奥林匹斯山（21.9 km）和最长峡谷水手号（4000 km）。稀薄CO₂大气（仅地球0.6%）无法保温。\n【探测历史】两颗卫星形状不规则，可能是捕获的小行星。多国探测器（含中国天问一号）已成功着陆火星表面。' },
   { id: 'jupiter', name: '木星', color: 0xd8a86a, sceneRadius: 1.7, sceneDistance: 28, rotSpeed: 0.045, tilt: 1.30,
     bandColors: [0xd8a86a, 0xb8854a, 0xe0c094, 0x9a6b3a, 0xc99a5a],
     au: 5.20, years: 11.86, rotation: 0.42, orbitTilt: 1.30, eccentricity: 0.049,
     volume: 1321.33, mass: 317.83, density: 1.33, temperature: '-161~108',
     typeShort: '巨行星', cat: 'giant', type: '巨行星', moons: '95',
-    desc: '太阳系最大行星（质量为地球的317.83倍），气态巨行星。大红斑是持续数百年的巨型风暴。密度仅1.33 g/cm³。' },
+    desc: '【基本数据】太阳系最大行星（直径142984 km），质量是地球317.83倍，超过其他行星质量之和的2倍。气态巨行星，无固态表面。\n【大气与风暴】主要由氢（90%）和氦（10%）组成。大红斑是一个持续至少350年的巨型风暴，比地球还大。自转极快（9.93小时），呈椭球状。\n【卫星系统】95颗已知卫星。伽利略卫星（伊奥、欧罗巴、盖尼米得、卡利斯托）由伽利略1610年发现。欧罗巴冰壳下或存在液态海洋。' },
   { id: 'saturn', name: '土星', color: 0xe6d4a0, sceneRadius: 1.45, sceneDistance: 37, rotSpeed: 0.04, tilt: 2.49, hasRings: true,
     au: 9.58, years: 29.46, rotation: 0.45, orbitTilt: 2.49, eccentricity: 0.057,
     volume: 763.59, mass: 95.16, density: 0.69, temperature: '-189~-139',
     typeShort: '巨行星', cat: 'giant', type: '巨行星', moons: '146',
-    desc: '以壮丽的光环系统著称，环由冰粒和岩石碎块组成。密度仅0.69 g/cm³，比水还小，是最"轻"的行星。' },
+    desc: '【基本数据】太阳系第二大行星（直径120536 km）。平均密度0.69 g/cm³，比水还小，理论上可漂浮在水面。光环含数十亿冰粒，厚度仅约10米。\n【大气与环】大气以氢和氦为主，风速可达1800 km/h。环由冰粒和岩石碎块组成（微米级到米级），跨度达28万公里。\n【卫星系统】146颗已知卫星。土卫六（泰坦）拥有太阳系唯一浓密大气层，大气压为地球1.5倍。卡西尼号探测器探测13年。' },
   { id: 'uranus', name: '天王星', color: 0x9fe0e6, sceneRadius: 1.0, sceneDistance: 45, rotSpeed: -0.03, tilt: 0.77,
     au: 19.20, years: 84.01, rotation: 0.72, orbitTilt: 0.77, eccentricity: 0.046,
     volume: 63.08, mass: 14.54, density: 1.27, temperature: '-220~-197',
     typeShort: '远日', cat: 'far', type: '远日行星', moons: '27',
-    desc: '冰巨行星，自转轴几乎"躺倒"在轨道面上（倾角约98°），呈侧向滚动公转。大气含甲烷呈青蓝色。' },
+    desc: '【基本数据】自转轴倾角约98°，几乎"躺倒"在轨道上滚动公转。直径51118 km，冰巨行星，内部以水、甲烷和氨的"冰"为主。\n【大气与颜色】外部大气甲烷赋予青蓝色。公转周期84年，每42年极昼/极夜交替。环系统暗淡狭窄，颗粒较暗。\n【卫星与探测】27颗卫星以莎士比亚剧中人物命名。磁场异常，磁轴与自转轴夹角60°。仅旅行者2号于1986年飞掠。' },
   { id: 'neptune', name: '海王星', color: 0x3a6ed8, sceneRadius: 0.95, sceneDistance: 52, rotSpeed: 0.032, tilt: 1.77,
     au: 30.05, years: 164.80, rotation: 0.67, orbitTilt: 1.77, eccentricity: 0.011,
     volume: 57.74, mass: 17.15, density: 1.64, temperature: '-218~-201',
     typeShort: '远日', cat: 'far', type: '远日行星', moons: '14',
-    desc: '太阳系最外层行星，深蓝色冰巨行星。风速可达2100 km/h，是太阳系风暴最猛烈的行星。' },
+    desc: '【基本数据】太阳系最外层行星，距太阳30 AU，直径49528 km。深蓝色来自大气甲烷吸收红光。风速可达2100 km/h，太阳系风暴最猛烈。\n【发现历史】唯一通过数学计算预言存在的行星——观测天王星轨道扰动后，勒维耶和亚当斯独立计算出其位置。1846年发现至今刚完成一圈公转。\n【卫星系统】14颗卫星，海卫一（特里同）以逆行轨道运行，可能是被捕获的柯伊伯带天体。旅行者2号是唯一造访的探测器（1989年）。' },
 ]
 
 const planetViews = planetData.map(p => ({ id: p.id, name: p.name }))
@@ -344,6 +374,26 @@ const focusedInfo = computed(() => {
   }
 })
 
+// 行星详情弹出卡
+const planetIcons: Record<string, string> = { mercury: '☿', venus: '♀', earth: '🌍', mars: '♂', jupiter: '♃', saturn: '♄', uranus: '♅', neptune: '♆' }
+const focusedPlanetDetail = ref<{
+  icon: string; name: string; typeShort: string; cat: string;
+  au: number; years: number; rotation: number; mass: number; volume: number; density: number; temperature: string; moons: string;
+  desc: string
+} | null>(null)
+
+// 监听聚焦行星变化，自动更新弹出卡
+watch(focusedPlanet, (id) => {
+  const p = planetData.find(x => x.id === id)
+  if (p) {
+    focusedPlanetDetail.value = {
+      icon: planetIcons[p.id] || '🪐', name: p.name, typeShort: p.typeShort, cat: p.cat,
+      au: p.au, years: p.years, rotation: p.rotation, mass: p.mass, volume: p.volume,
+      density: p.density, temperature: p.temperature, moons: p.moons, desc: p.desc,
+    }
+  }
+})
+
 // 当前聚焦小行星信息
 const focusedAsteroidInfo = computed(() => {
   if (!focusedAsteroid.value) return null
@@ -405,7 +455,7 @@ interface InteractiveAsteroidObj {
 const interactiveAsteroids: InteractiveAsteroidObj[] = []
 const focusedAsteroid = ref<string | null>(null)
 let asteroidInteractiveGroup: THREE.Group  // 容纳所有个体小行星的父组，随带旋转
-let asteroidAnnotation: THREE.Sprite | null = null // 共享注释精灵
+// 注释精灵已移除（文字不显示在场景中）
 
 // 普通小行星的通用描述
 const genericDescriptions: Record<string, string[]> = {
@@ -499,43 +549,7 @@ function makePlanetTexture(baseColor: number, bands?: number[], noise?: boolean)
   return tex
 }
 
-// 地球纹理（陆地海洋）
-function makeEarthTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas')
-  c.width = 512; c.height = 256
-  const ctx = c.getContext('2d')!
-  // 海洋
-  const grad = ctx.createLinearGradient(0, 0, 0, 256)
-  grad.addColorStop(0, '#1a3a6e')
-  grad.addColorStop(0.5, '#2e6fd6')
-  grad.addColorStop(1, '#1a3a6e')
-  ctx.fillStyle = grad
-  ctx.fillRect(0, 0, 512, 256)
-  // 陆地（简化形状）
-  ctx.fillStyle = '#3a8a3a'
-  const lands = [
-    [60, 80, 80, 60], [70, 60, 50, 40], [120, 100, 60, 50], // 欧亚
-    [180, 90, 70, 70], [250, 110, 40, 30], // 非洲
-    [300, 90, 60, 80], [330, 160, 30, 40], // 美洲
-    [400, 180, 50, 30], // 澳洲
-    [256, 10, 200, 20], [256, 226, 200, 20], // 极冠
-  ]
-  lands.forEach(([x, y, w, h]) => {
-    ctx.beginPath()
-    ctx.ellipse(x, y, w/2, h/2, 0, 0, Math.PI*2)
-    ctx.fill()
-  })
-  // 云层
-  ctx.fillStyle = 'rgba(255,255,255,0.35)'
-  for (let i = 0; i < 20; i++) {
-    ctx.beginPath()
-    ctx.ellipse(Math.random()*512, Math.random()*256, 20+Math.random()*40, 8+Math.random()*15, 0, 0, Math.PI*2)
-    ctx.fill()
-  }
-  const tex = new THREE.CanvasTexture(c)
-  tex.wrapS = THREE.RepeatWrapping
-  return tex
-}
+
 
 // 行星标签
 function makeLabelSprite(text: string, color = '#ffffff'): THREE.Sprite {
@@ -557,61 +571,77 @@ function makeLabelSprite(text: string, color = '#ffffff'): THREE.Sprite {
   return sp
 }
 
-// 小行星注释标签（含多行描述）
+// 注释标签（含多行描述，支持\\n分段和【】标题）
 function makeAnnotationSprite(title: string, desc: string, color = '#fbbf24'): THREE.Sprite {
-  const maxWidth = 22 // 每行最大字符数
-  const lines: string[] = []
-  let current = ''
-  for (const ch of desc) {
-    if (current.length >= maxWidth) { lines.push(current); current = ch }
-    else current += ch
+  const maxWidth = 24
+  const allLines: { text: string; isHeading: boolean }[] = []
+  // 先按\\n分段
+  const paragraphs = desc.split('\n')
+  for (const para of paragraphs) {
+    const isHeading = para.startsWith('【')
+    // 再按最大宽度折行
+    let current = ''
+    for (const ch of para) {
+      if (current.length >= maxWidth) { allLines.push({ text: current, isHeading }); current = ch }
+      else current += ch
+    }
+    if (current) allLines.push({ text: current, isHeading })
   }
-  if (current) lines.push(current)
-  const lineHeight = 22
+
+  const lineHeight = 20
+  const headingLineHeight = 22
   const padding = 12
-  const titleHeight = 30
-  const totalH = titleHeight + lines.length * lineHeight + padding * 2
+  const titleHeight = 28
+  let totalH = titleHeight + padding * 2
+  for (const line of allLines) {
+    totalH += line.isHeading ? headingLineHeight + 4 : lineHeight
+  }
+
   const c = document.createElement('canvas')
-  c.width = 350; c.height = Math.max(80, totalH)
+  c.width = 380; c.height = Math.max(90, totalH)
   const ctx = c.getContext('2d')!
   // 半透明背景
-  ctx.fillStyle = 'rgba(8, 12, 24, 0.88)'
-  ctx.beginPath()
-  const r = 8
+  ctx.fillStyle = 'rgba(8, 12, 24, 0.90)'
+  const rr = 8
   const w = c.width, h = c.height
-  ctx.moveTo(r, 0); ctx.lineTo(w - r, 0)
-  ctx.quadraticCurveTo(w, 0, w, r)
-  ctx.lineTo(w, h - r); ctx.quadraticCurveTo(w, h, w - r, h)
-  ctx.lineTo(r, h); ctx.quadraticCurveTo(0, h, 0, h - r)
-  ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0)
-  ctx.closePath()
-  ctx.fill()
-  ctx.strokeStyle = color
-  ctx.lineWidth = 2
-  ctx.stroke()
-  // 标题
-  ctx.font = 'bold 22px Arial'
-  ctx.textAlign = 'left'
-  ctx.textBaseline = 'top'
-  ctx.fillStyle = color
-  ctx.fillText('☄ ' + title, 12, padding)
-  // 分隔线
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'
   ctx.beginPath()
-  ctx.moveTo(12, padding + titleHeight - 4)
-  ctx.lineTo(c.width - 12, padding + titleHeight - 4)
-  ctx.stroke()
+  ctx.moveTo(rr, 0); ctx.lineTo(w - rr, 0)
+  ctx.quadraticCurveTo(w, 0, w, rr)
+  ctx.lineTo(w, h - rr); ctx.quadraticCurveTo(w, h, w - rr, h)
+  ctx.lineTo(rr, h); ctx.quadraticCurveTo(0, h, 0, h - rr)
+  ctx.lineTo(0, rr); ctx.quadraticCurveTo(0, 0, rr, 0)
+  ctx.closePath(); ctx.fill()
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke()
+
+  // 标题
+  ctx.font = 'bold 20px Arial'
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+  ctx.fillStyle = color
+  ctx.fillText(title, 12, padding)
+  // 分隔线
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'
+  ctx.beginPath(); ctx.moveTo(12, padding + titleHeight - 2); ctx.lineTo(w - 12, padding + titleHeight - 2); ctx.stroke()
+
   // 描述
-  ctx.font = '15px Arial'
-  ctx.textBaseline = 'top'
-  ctx.fillStyle = '#e2e8f0'
-  lines.forEach((line, i) => {
-    ctx.fillText(line, 12, padding + titleHeight + 4 + i * lineHeight)
-  })
+  let y = padding + titleHeight + 4
+  for (const line of allLines) {
+    if (line.isHeading) {
+      ctx.font = 'bold 15px Arial'
+      ctx.fillStyle = color
+      ctx.fillText(line.text, 16, y)
+      y += headingLineHeight + 4
+    } else {
+      ctx.font = '14px Arial'
+      ctx.fillStyle = '#e2e8f0'
+      ctx.fillText(line.text, 16, y)
+      y += lineHeight
+    }
+  }
+
   const tex = new THREE.CanvasTexture(c)
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true })
   const sp = new THREE.Sprite(mat)
-  sp.scale.set(8, 8 * (c.height / c.width), 1)
+  sp.scale.set(7, 7 * (c.height / c.width), 1)
   return sp
 }
 
@@ -820,8 +850,9 @@ function createPlanet(def: PlanetDef): PlanetObj {
   group.position.x = def.sceneDistance
 
   // 行星本体
-  let tex: THREE.CanvasTexture
-  if (def.id === 'earth') tex = makeEarthTexture()
+  const loader = new THREE.TextureLoader()
+  let tex: THREE.Texture
+  if (def.id === 'earth') tex = loader.load('/geo-resources-folder/images/earth.jpg')
   else if (def.id === 'jupiter') tex = makePlanetTexture(def.color, def.bandColors, false)
   else if (def.id === 'saturn') tex = makePlanetTexture(def.color, [0xe6d4a0, 0xd4be8a, 0xece0b8], false)
   else tex = makePlanetTexture(def.color, undefined, true)
@@ -837,6 +868,8 @@ function createPlanet(def: PlanetDef): PlanetObj {
   mesh.castShadow = true
   mesh.receiveShadow = true
   mesh.rotation.z = def.tilt
+  mesh.userData.isPlanet = true
+  mesh.userData.planetId = def.id
   group.add(mesh)
 
   // 土星环
@@ -950,10 +983,11 @@ function initThree() {
   solarGroup.scale.setScalar(SS)
   scene.add(solarGroup)
 
-  // 太阳
+  // 太阳（使用纹理贴图）
+  const loader = new THREE.TextureLoader()
   const sunGeo = new THREE.SphereGeometry(2.8, 64, 64)
-  const sunTex = makePlanetTexture(0xffaa33, [0xffcc55, 0xffaa33, 0xffdd77, 0xff9922], false)
-  const sunMat = new THREE.MeshBasicMaterial({ map: sunTex, color: 0xffcc55 })
+  const sunTex = loader.load('/geo-resources-folder/images/sun.png')
+  const sunMat = new THREE.MeshBasicMaterial({ map: sunTex })
   sunMesh = new THREE.Mesh(sunGeo, sunMat)
   solarGroup.add(sunMesh)
 
@@ -990,41 +1024,36 @@ function initThree() {
 
   // 所有可交互个体小行星（点击近看+注释）
   createInteractiveAsteroids()
-  // 共享注释精灵（初始隐藏）
-  asteroidAnnotation = makeAnnotationSprite('', '', '#fbbf24')
-  asteroidAnnotation.scale.set(0, 0, 1)
-  scene.add(asteroidAnnotation)
+  // 注释精灵已移除（文字不显示在场景中）
 
   loading.value = false
   focusPlanet('earth')
 }
 
-// ===== 聚焦行星 =====
+// ===== 聚焦行星（近看 + 注释弹出） =====
 function focusPlanet(id: string) {
   focusedPlanet.value = id
-  focusedAsteroid.value = null // 清除小行星聚焦
+  focusedAsteroid.value = null
   hideAllAnnotations()
   const obj = planetObjs.find(o => o.def.id === id)
   if (!obj) return
+
   const worldPos = new THREE.Vector3()
   obj.group.getWorldPosition(worldPos)
   const r = obj.def.sceneRadius * SS
-  const dist = Math.max(6, r * 8)
-  const offset = new THREE.Vector3(dist * 0.7, dist * 0.4, dist * 0.7)
+  const dist = Math.max(6, r * 10)
+  const offset = new THREE.Vector3(dist * 0.7, dist * 0.5, dist * 0.7)
   animateCamera(worldPos.clone().add(offset), worldPos)
 }
 
 // ===== 聚焦小行星（近看 + 注释） =====
 function hideAllAnnotations() {
-  if (asteroidAnnotation) {
-    asteroidAnnotation.scale.set(0, 0, 1)
-  }
+  focusedPlanetDetail.value = null
   // 重置所有高亮
   interactiveAsteroids.forEach(a => {
     if (a.mesh.material instanceof THREE.MeshPhongMaterial) {
       a.mesh.material.emissiveIntensity = 0.1
     }
-    // 恢复命名小行星的高亮强度
     if (a.isNamed) a.mesh.material.emissiveIntensity = 0.15
   })
 }
@@ -1034,29 +1063,10 @@ function focusAsteroid(id: string) {
   const obj = interactiveAsteroids.find(a => a.id === id)
   if (!obj) return
   focusedAsteroid.value = id
-  focusedPlanet.value = '' // 清除行星聚焦
+  focusedPlanet.value = ''
 
   // 高亮
   obj.mesh.material.emissiveIntensity = 0.6
-
-  // 更新共享注释精灵
-  const info = focusedAsteroidInfo.value
-  if (info && asteroidAnnotation) {
-    // 移除旧的
-    scene.remove(asteroidAnnotation)
-    asteroidAnnotation.material.map?.dispose()
-    asteroidAnnotation.material.dispose()
-    // 创建新的
-    const color = info.category === '矮行星' ? '#10b981' : '#fbbf24'
-    asteroidAnnotation = makeAnnotationSprite(info.name, info.desc, color)
-    scene.add(asteroidAnnotation)
-  }
-
-  // 将注释置于小行星上方
-  const worldPos = new THREE.Vector3()
-  obj.group.getWorldPosition(worldPos)
-  worldPos.y += 1.5
-  asteroidAnnotation?.position.copy(worldPos)
 
   // 聚焦相机
   const size = obj.isNamed ? (obj.def?.size || 0.3) : 0.2
@@ -1067,29 +1077,36 @@ function focusAsteroid(id: string) {
   animateCamera(targetPos.clone().add(offset), targetPos)
 }
 
-// ===== 点击检测小行星交互 =====
+// ===== 点击检测天体交互（行星 + 小行星） =====
 function onClickAsteroid(event: MouseEvent) {
-  // 计算鼠标位置归一化坐标
   const rect = renderer.domElement.getBoundingClientRect()
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
 
   raycaster.setFromCamera(mouse, camera)
 
-  // 检测所有个体小行星网格
-  const meshes = interactiveAsteroids.map(a => a.mesh)
-  const intersects = raycaster.intersectObjects(meshes)
+  // 检测所有可交互天体网格（行星 + 小行星）
+  const allMeshes = [
+    ...planetObjs.map(p => p.mesh),
+    ...interactiveAsteroids.map(a => a.mesh),
+  ]
+  const intersects = raycaster.intersectObjects(allMeshes)
 
   if (intersects.length > 0) {
     const hit = intersects[0].object
-    const id = hit.userData.asteroidId
-    if (id) {
-      focusAsteroid(id as string)
+    // 优先检测行星
+    const planetId = hit.userData.planetId
+    if (planetId) {
+      focusPlanet(planetId as string)
+      return
+    }
+    // 再检测小行星
+    const asteroidId = hit.userData.asteroidId
+    if (asteroidId) {
+      focusAsteroid(asteroidId as string)
       return
     }
   }
-
-  // 点击空白区域不取消小行星聚焦（保留在控制面板中取消）
 }
 
 // ===== 视角切换 =====
@@ -1226,18 +1243,12 @@ function animate() {
       controls.target.lerp(wp, 0.08)
     }
   }
-
-  // 聚焦小行星时：注释跟随 + 相机跟随
-  if (focusedAsteroid.value && asteroidAnnotation) {
+  // 聚焦小行星时相机跟随
+  if (focusedAsteroid.value) {
     const obj = interactiveAsteroids.find(a => a.id === focusedAsteroid.value)
     if (obj) {
       const wp = new THREE.Vector3()
       obj.group.getWorldPosition(wp)
-      // 注释位置跟随
-      const annPos = wp.clone()
-      annPos.y += 1.5
-      asteroidAnnotation.position.copy(annPos)
-      // 相机跟随
       controls.target.lerp(wp, 0.06)
     }
   }
@@ -1351,6 +1362,10 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 .data-card.highlight { background: rgba(46, 196, 182, 0.15); border-color: #2ec4b6; }
 .data-card-label { font-size: 9px; color: #cbd5e1; margin-bottom: 3px; }
 .data-card-value { font-size: 13px; color: #2ec4b6; font-weight: bold; }
+.planet-desc { margin-top: 8px; line-height: 1.7; }
+.desc-line { font-size: 11px; color: #e2e8f0; margin-bottom: 5px; padding-left: 4px; border-left: 2px solid transparent; }
+.desc-line.desc-heading { color: #2ec4b6; font-weight: bold; border-left-color: #2ec4b6; padding-left: 8px; margin-top: 8px; }
+.desc-line.desc-heading:first-child { margin-top: 0; }
 
 #calc-panel { background: rgba(30, 41, 59, 0.5); padding: 12px; border-radius: 6px; font-size: 11px; line-height: 1.7; border-left: 4px solid #f59e0b; margin-top: 12px; }
 #calc-panel strong { color: #fbbf24; }
@@ -1378,4 +1393,39 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+/* === 行星详情浮动卡（右侧弹出） === */
+#planet-detail-card {
+  position: fixed; top: 20px; right: 20px; z-index: 100;
+  width: 270px; max-height: calc(100vh - 40px); overflow-y: auto;
+  background: rgba(8, 12, 28, 0.95); backdrop-filter: blur(12px);
+  border: 1px solid #2ec4b6; border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.7), 0 0 30px rgba(46,196,182,0.15);
+  padding: 14px;
+}
+#planet-detail-card .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+#planet-detail-card .card-planet-icon { font-size: 26px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(46,196,182,0.12); border-radius: 10px; }
+#planet-detail-card .card-title-group { flex: 1; }
+#planet-detail-card .card-name { font-size: 17px; font-weight: bold; color: #e2e8f0; }
+#planet-detail-card .card-type-tag { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; margin-top: 4px; }
+#planet-detail-card .card-type-tag.earth { background: #2ec4b6; color: #0f172a; }
+#planet-detail-card .card-type-tag.giant { background: #f59e0b; color: #0f172a; }
+#planet-detail-card .card-type-tag.far { background: #3b82f6; color: #fff; }
+#planet-detail-card .card-close { background: none; border: none; color: #64748b; font-size: 28px; cursor: pointer; padding: 0 4px; line-height: 1; transition: color 0.2s; }
+#planet-detail-card .card-close:hover { color: #ef4444; }
+#planet-detail-card .card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 16px; }
+#planet-detail-card .stat-item { background: rgba(46,196,182,0.06); border: 1px solid rgba(46,196,182,0.15); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; }
+#planet-detail-card .stat-label { font-size: 10px; color: #94a3b8; margin-bottom: 2px; }
+#planet-detail-card .stat-value { font-size: 14px; color: #2ec4b6; font-weight: bold; }
+#planet-detail-card .card-desc { margin-bottom: 16px; }
+#planet-detail-card .card-desc .desc-line { font-size: 12px; margin-bottom: 6px; }
+#planet-detail-card .card-desc .desc-heading { font-size: 13px; }
+#planet-detail-card .card-unfocus { width: 100%; padding: 8px; background: rgba(46,196,182,0.15); border: 1px solid #2ec4b6; border-radius: 8px; color: #2ec4b6; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+#planet-detail-card .card-unfocus:hover { background: rgba(46,196,182,0.25); }
+
+/* 右侧滑入动画 */
+.slide-right-enter-active { transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+.slide-right-leave-active { transition: all 0.25s ease-in; }
+.slide-right-enter-from { transform: translateX(120%); opacity: 0; }
+.slide-right-leave-to { transform: translateX(120%); opacity: 0; }
 </style>
