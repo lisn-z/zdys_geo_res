@@ -129,7 +129,7 @@ const initMap = () => {
   }).addTo(map);
 
   // 使用 OpenStreetMap 瓦片
-  L.tileLayer('https://zdys.szjx.ai-study.net/geo-resources-folder/tiles/osm-tiles/{z}/{x}/{y}.png', {
+  L.tileLayer('https://zdys.szjx.ai-study.net/geo-resources-folder/tiles/otm-tiles/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
