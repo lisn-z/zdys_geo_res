@@ -140,7 +140,7 @@
         </div>
         <div class="data-card">
           <div class="data-card-label">时角 ω</div>
-          <div class="data-card-value">{{ currentHourAngle }}°</div>
+          <div class="data-card-value">{{ currentHourAngle.toFixed(2) }}°</div>
         </div>
         <div class="data-card highlight">
           <div class="data-card-label">正午太阳高度</div>
@@ -180,7 +180,7 @@
       <hr style="border-color:#475569; margin:8px 0;">
       <div class="step" style="color:#94a3b8;">任意时刻太阳高度（时角法）：</div>
       <div class="formula">sinH = sinφ·sinδ + cosφ·cosδ·cosω</div>
-      <div class="step">ω（时角）= {{ currentHourAngle }}°</div>
+      <div class="step">ω（时角）= {{ currentHourAngle.toFixed(2) }}°</div>
       <div class="step">sinφ·sinδ = {{ calcTerm1.toFixed(3) }}</div>
       <div class="step">cosφ·cosδ·cosω = {{ calcTerm2.toFixed(3) }}</div>
       <div class="step">sinH = {{ calcTerm1.toFixed(3) }} + {{ calcTerm2.toFixed(3) }} = {{ calcSinH.toFixed(3) }}</div>
