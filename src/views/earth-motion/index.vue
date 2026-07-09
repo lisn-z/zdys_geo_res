@@ -269,7 +269,7 @@ const YEAR_DAYS = 365
 const SPRING_EQUINOX_DAY = 80
 const SPIN_VISUAL_OFFSET = 0
 
-const TEXTURE_BASE = 'https://course-code.oss-cn-shanghai.aliyuncs.com/textures'
+const TEXTURE_BASE = '/geo-resources-folder/images'
 const RAW_TEXTURES = {
   sun: `${TEXTURE_BASE}/sun.png`,
   earth: `${TEXTURE_BASE}/Material.002_diffuse.jpg`,

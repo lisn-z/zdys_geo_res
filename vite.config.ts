@@ -34,6 +34,15 @@ export default defineConfig({
       },
     },
   ],
+  server: {
+    proxy: {
+      '/geo-resources-folder': {
+        target: 'https://zdys.szjx.ai-study.net/',
+        changeOrigin: true,
+      },
+
+    },
+  },
   base: './',
   resolve: {
     alias: {
@@ -41,7 +50,6 @@ export default defineConfig({
     },
   },
   assetsInclude: ['**/*.glb'],
-
   build: {
     target: 'es2018',
     // 关键：把 person.glb 内联成 data:base64
