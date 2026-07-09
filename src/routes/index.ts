@@ -50,13 +50,13 @@ export const routes = [
     component: () => import('@/views/solar-system/index.vue'),
   },
   {
-    path: '/61-find-neighborhood',
-    name: '61-find-neighborhood',
+    path: '/find-neighborhood',
+    name: 'find-neighborhood',
     meta: {
-      title: '六上一起做-找邻居',
+      title: '找邻居',
     },
-    component: () => import('@/views/61-find-neighborhood/index.vue'),
-  }
+    component: () => import('@/views/find-neighborhood/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {

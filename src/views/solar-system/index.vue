@@ -38,6 +38,7 @@
         <div class="toggle-row"><el-switch v-model="showAsteroids" size="small" /> 小行星带</div>
         <div class="toggle-row"><el-switch v-model="showKuiper" size="small" /> 柯伊伯带</div>
         <div class="toggle-row"><el-switch v-model="showTrails" size="small" /> 行星拖尾</div>
+        <div class="toggle-row"><el-switch v-model="showComet" size="small" /> 哈雷彗星</div>
       </div>
 
       <!-- 3. 视角/聚焦 -->
@@ -97,8 +98,23 @@
       <el-icon><ArrowLeft v-if="rightCollapsed" /><ArrowRight v-else /></el-icon>
     </button>
     <div v-show="!rightCollapsed" class="panel-content">
+      <!-- 哈雷彗星信息 -->
+      <div id="comet-panel" v-if="focusedComet">
+        <strong style="color:#88bbff;">☄️ 哈雷彗星</strong>
+        <div class="card-grid">
+          <div class="data-card"><div class="data-card-label">公转周期</div><div class="data-card-value" style="color:#88bbff;">{{ cometData.period }}</div></div>
+          <div class="data-card"><div class="data-card-label">近日点</div><div class="data-card-value" style="color:#88bbff;">{{ cometData.perihelion }}</div></div>
+          <div class="data-card"><div class="data-card-label">远日点</div><div class="data-card-value" style="color:#88bbff;">{{ cometData.aphelion }}</div></div>
+          <div class="data-card"><div class="data-card-label">偏心率</div><div class="data-card-value" style="color:#88bbff;">{{ cometData.eccentricity }}</div></div>
+          <div class="data-card"><div class="data-card-label">轨道倾角</div><div class="data-card-value" style="color:#88bbff;">{{ cometData.inclination }}</div></div>
+          <div class="data-card highlight"><div class="data-card-label">下次近日点</div><div class="data-card-value" style="color:#fbbf24;">{{ cometData.nextPerihelion }}</div></div>
+        </div>
+        <div style="font-size:11px; color:#e2e8f0; margin-top:8px; line-height:1.6;">{{ cometData.desc }}</div>
+        <button class="btn" style="margin-top:8px; width:100%;" @click="focusedComet=false; hideAllAnnotations(); activeView='free'; setView('free')">取消聚焦</button>
+      </div>
+
       <!-- 当前聚焦小行星信息 -->
-      <div id="asteroid-info-panel" v-if="focusedAsteroidInfo">
+      <div id="asteroid-info-panel" v-if="!focusedComet && focusedAsteroidInfo">
         <strong style="color:#fbbf24;">☄️ 当前关注小行星：{{ focusedAsteroidInfo.name }}</strong>
         <div class="card-grid">
           <div class="data-card"><div class="data-card-label">距日距离(AU)</div><div class="data-card-value" style="color:#fbbf24;">{{ focusedAsteroidInfo.au }}</div></div>
@@ -112,7 +128,7 @@
       </div>
 
       <!-- 当前聚焦行星信息（按课本表1-1） -->
-      <div id="params-panel" v-if="!focusedAsteroidInfo">
+      <div id="params-panel" v-if="!focusedComet && !focusedAsteroidInfo">
         <strong>🪐 当前关注：{{ focusedInfo.name }}</strong>
         <div class="card-grid">
           <div class="data-card"><div class="data-card-label">距日距离(地球=1)</div><div class="data-card-value">{{ focusedInfo.au }}</div></div>
@@ -349,6 +365,25 @@ const showLabels = ref(true)
 const showAsteroids = ref(true)
 const showKuiper = ref(true)
 const showTrails = ref(false)
+const showComet = ref(true)
+
+// 哈雷彗星轨道参数（场景单位）
+const COMET_A = 45     // 半长轴
+const COMET_E = 0.85   // 偏心率
+const COMET_INCL = 0.3 // 轨道倾角 ~17°（真实 162.2°=逆向 17.8°）
+const COMET_PERI = 75  // 公转周期（模拟天数比例）
+let cometAngle = 0     // 当前轨道角度
+let cometGroup: THREE.Group
+let cometNucleus: THREE.Mesh
+let cometTail: THREE.Sprite
+let cometOrbitLine: THREE.Line
+const cometData = {
+  name: '哈雷彗星', id: 'halley',
+  period: '约 75~76 年', perihelion: '0.59 AU', aphelion: '35.1 AU',
+  eccentricity: '0.967', inclination: '162.2°',
+  nextPerihelion: '2061 年 7 月 28 日',
+  desc: '哈雷彗星是唯一一颗能用肉眼直接从地球看到的短周期彗星，也是人类最早确认回归的彗星。英国天文学家爱德蒙·哈雷在 1705 年发现其轨道呈周期约 76 年的椭圆形。其核直径约 15 km，由冰、尘埃和岩石组成。最近一次过近日点是 1986 年，下一次预计在 2061 年。哈雷彗星的轨道倾角达 162°，是逆向公转（与行星公转方向相反）。每次回归时，太阳加热使彗核释放气体和尘埃，形成长达数百万公里的彗尾。'
+}
 const activeView = ref('free')
 const focusedPlanet = ref('earth')
 const loading = ref(true)
@@ -840,6 +875,79 @@ function createInteractiveAsteroids() {
   }
 }
 
+// ===== 创建哈雷彗星 =====
+function createComet() {
+  cometGroup = new THREE.Group()
+  solarGroup.add(cometGroup)
+
+  // 彗核（缩小尺寸）
+  const nucleusGeo = new THREE.SphereGeometry(0.18, 12, 12)
+  const nucleusMat = new THREE.MeshPhongMaterial({ color: 0x887766, emissive: 0x554433, emissiveIntensity: 0.2 })
+  cometNucleus = new THREE.Mesh(nucleusGeo, nucleusMat)
+  cometNucleus.userData.isComet = true
+  cometNucleus.userData.cometId = 'halley'
+  cometNucleus.scale.y = 0.7
+  cometNucleus.scale.z = 0.7
+  cometGroup.add(cometNucleus)
+
+  // 彗尾发光精灵
+  const tailCanvas = document.createElement('canvas')
+  tailCanvas.width = 128; tailCanvas.height = 256
+  const tctx = tailCanvas.getContext('2d')!
+  const grad = tctx.createLinearGradient(0, 0, 0, 256)
+  grad.addColorStop(0, 'rgba(255,255,255,0.0)')
+  grad.addColorStop(0.1, 'rgba(200,220,255,0.3)')
+  grad.addColorStop(0.4, 'rgba(180,200,255,0.15)')
+  grad.addColorStop(0.7, 'rgba(150,180,255,0.05)')
+  grad.addColorStop(1, 'rgba(100,150,255,0.0)')
+  tctx.fillStyle = grad
+  tctx.fillRect(0, 0, 128, 256)
+  const tailTex = new THREE.CanvasTexture(tailCanvas)
+  const tailMat = new THREE.SpriteMaterial({
+    map: tailTex, blending: THREE.AdditiveBlending,
+    transparent: true, depthWrite: false, opacity: 0.8,
+  })
+  cometTail = new THREE.Sprite(tailMat)
+  cometTail.scale.set(1.5, 8, 1)
+  cometTail.position.x = -2
+  cometGroup.add(cometTail)
+
+  // 轨道线（椭圆）
+  const orbitPoints: THREE.Vector3[] = []
+  const segments = 200
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2
+    const r = COMET_A * (1 - COMET_E * COMET_E) / (1 + COMET_E * Math.cos(angle))
+    const x = r * Math.cos(angle)
+    const z = r * Math.sin(angle)
+    const y = -z * Math.sin(COMET_INCL)
+    const zAdj = z * Math.cos(COMET_INCL)
+    orbitPoints.push(new THREE.Vector3(x, y, zAdj))
+  }
+  const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints)
+  const orbitMat = new THREE.LineBasicMaterial({ color: 0x88bbff, transparent: true, opacity: 0.4 })
+  cometOrbitLine = new THREE.Line(orbitGeo, orbitMat)
+  solarGroup.add(cometOrbitLine)
+
+  updateCometPosition(0)
+}
+
+function updateCometPosition(angle: number) {
+  const r = COMET_A * (1 - COMET_E * COMET_E) / (1 + COMET_E * Math.cos(angle))
+  const x = r * Math.cos(angle)
+  const z = r * Math.sin(angle)
+  // 轨道倾角（绕 X 轴旋转，保持轨道在 xz 平面附近）
+  const y = -z * Math.sin(COMET_INCL)
+  const zAdj = z * Math.cos(COMET_INCL)
+  cometGroup.position.set(x, y, zAdj)
+  // 彗尾指向太阳的反方向
+  const toSun = new THREE.Vector3().copy(cometGroup.position).negate().normalize()
+  cometTail.position.set(toSun.x * 2, toSun.y * 2, toSun.z * 2)
+  cometTail.lookAt(toSun.multiplyScalar(-1))
+  // 彗核自转
+  cometNucleus.rotation.y += 0.02
+}
+
 // ===== 创建行星 =====
 function createPlanet(def: PlanetDef): PlanetObj {
   const pivot = new THREE.Object3D()
@@ -849,25 +957,61 @@ function createPlanet(def: PlanetDef): PlanetObj {
   pivot.add(group)
   group.position.x = def.sceneDistance
 
-  // 行星本体
+  // 行星本体（图片纹理 + 着色器渲染）
   const loader = new THREE.TextureLoader()
-  let tex: THREE.Texture
-  if (def.id === 'earth') tex = loader.load('/geo-resources-folder/images/earth.jpg')
-  else if (def.id === 'jupiter') tex = makePlanetTexture(def.color, def.bandColors, false)
-  else if (def.id === 'saturn') tex = makePlanetTexture(def.color, [0xe6d4a0, 0xd4be8a, 0xece0b8], false)
-  else tex = makePlanetTexture(def.color, undefined, true)
+  const texMap: Record<string, string> = {
+    mercury: '/geo-resources-folder/images/mercury.jpg',
+    venus: '/geo-resources-folder/images/venus.jpg',
+    earth: '/geo-resources-folder/images/earth.jpg',
+    mars: '/geo-resources-folder/images/mars.jpg',
+    jupiter: '/geo-resources-folder/images/jupiter.jpg',
+    saturn: '/geo-resources-folder/images/saturn.jpg',
+    uranus: '/geo-resources-folder/images/uranus.jpg',
+    neptune: '/geo-resources-folder/images/neptune.jpg',
+  }
+  const planetTex = texMap[def.id] ? loader.load(texMap[def.id]!) : null
 
   const geo = new THREE.SphereGeometry(def.sceneRadius, 48, 48)
-  const mat = new THREE.MeshPhongMaterial({
-    map: tex,
-    emissive: def.emissive || 0x000000,
-    emissiveIntensity: def.emissive ? 0.3 : 0,
-    shininess: def.id === 'earth' ? 25 : 5,
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      tex: { value: planetTex },
+      lightDir: { value: new THREE.Vector3(0.5, 0.8, 0.3).normalize() },
+      ambientIntensity: { value: 0.45 },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      void main() {
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      uniform sampler2D tex;
+      uniform vec3 lightDir;
+      uniform float ambientIntensity;
+
+      void main() {
+        // 采样纹理
+        vec3 texColor = texture2D(tex, vUv).rgb;
+        // 简单漫反射光照
+        vec3 normal = normalize(vNormal);
+        float diff = max(0.0, dot(normal, lightDir));
+        float lighting = ambientIntensity + (1.0 - ambientIntensity) * diff;
+        gl_FragColor = vec4(texColor * lighting, 1.0);
+        // 追加自发光
+        ${def.emissive ? 'gl_FragColor.rgb += vec3(' + new THREE.Color(def.emissive).r.toFixed(3) + ', ' + new THREE.Color(def.emissive).g.toFixed(3) + ', ' + new THREE.Color(def.emissive).b.toFixed(3) + ') * 0.3;' : ''}
+      }
+    `,
   })
   const mesh = new THREE.Mesh(geo, mat)
   mesh.castShadow = true
   mesh.receiveShadow = true
-  mesh.rotation.z = def.tilt
+  mesh.rotation.z = def.tilt * Math.PI / 180
   mesh.userData.isPlanet = true
   mesh.userData.planetId = def.id
   group.add(mesh)
@@ -911,8 +1055,10 @@ function createPlanet(def: PlanetDef): PlanetObj {
   if (def.hasMoon) {
     moonPivot = new THREE.Object3D()
     group.add(moonPivot)
+    const moonLoader = new THREE.TextureLoader()
+    const moonTex = moonLoader.load('/geo-resources-folder/images/moon.jpg')
     const moonGeo = new THREE.SphereGeometry(0.15, 24, 24)
-    const moonMat = new THREE.MeshPhongMaterial({ color: 0xcccccc })
+    const moonMat = new THREE.MeshPhongMaterial({ map: moonTex })
     moon = new THREE.Mesh(moonGeo, moonMat)
     moon.castShadow = true
     moon.position.x = 1.2
@@ -1024,6 +1170,8 @@ function initThree() {
 
   // 所有可交互个体小行星（点击近看+注释）
   createInteractiveAsteroids()
+  // 哈雷彗星
+  createComet()
   // 注释精灵已移除（文字不显示在场景中）
 
   loading.value = false
@@ -1049,6 +1197,7 @@ function focusPlanet(id: string) {
 // ===== 聚焦小行星（近看 + 注释） =====
 function hideAllAnnotations() {
   focusedPlanetDetail.value = null
+  focusedComet.value = false
   // 重置所有高亮
   interactiveAsteroids.forEach(a => {
     if (a.mesh.material instanceof THREE.MeshPhongMaterial) {
@@ -1077,6 +1226,18 @@ function focusAsteroid(id: string) {
   animateCamera(targetPos.clone().add(offset), targetPos)
 }
 
+// ===== 聚焦哈雷彗星 =====
+let focusedComet = ref(false)
+function focusComet(id: string) {
+  focusedComet.value = true
+  focusedPlanet.value = ''
+  focusedAsteroid.value = null
+  focusedPlanetDetail.value = null
+  const wp = new THREE.Vector3()
+  cometGroup.getWorldPosition(wp)
+  animateCamera(wp.clone().add(new THREE.Vector3(10, 6, 10)), wp)
+}
+
 // ===== 点击检测天体交互（行星 + 小行星） =====
 function onClickAsteroid(event: MouseEvent) {
   const rect = renderer.domElement.getBoundingClientRect()
@@ -1085,16 +1246,23 @@ function onClickAsteroid(event: MouseEvent) {
 
   raycaster.setFromCamera(mouse, camera)
 
-  // 检测所有可交互天体网格（行星 + 小行星）
+  // 检测所有可交互天体网格（行星 + 小行星 + 彗星）
   const allMeshes = [
     ...planetObjs.map(p => p.mesh),
     ...interactiveAsteroids.map(a => a.mesh),
   ]
+  if (cometNucleus) allMeshes.push(cometNucleus)
   const intersects = raycaster.intersectObjects(allMeshes)
 
   if (intersects.length > 0) {
     const hit = intersects[0].object
-    // 优先检测行星
+    // 优先检测彗星
+    const cometId = hit.userData.cometId
+    if (cometId) {
+      focusComet(cometId as string)
+      return
+    }
+    // 再检测行星
     const planetId = hit.userData.planetId
     if (planetId) {
       focusPlanet(planetId as string)
@@ -1153,12 +1321,15 @@ function resetTime() {
 }
 
 // ===== 监听开关 =====
-watch([showOrbits, showLabels, showAsteroids, showKuiper, showTrails], () => {
+watch([showOrbits, showLabels, showAsteroids, showKuiper, showTrails, showComet], () => {
   orbitLines.forEach(l => l.visible = showOrbits.value)
   planetObjs.forEach(o => o.label.visible = showLabels.value)
   asteroidBelt.visible = showAsteroids.value
   kuiperBelt.visible = showKuiper.value
   planetObjs.forEach(o => { if (o.trail) o.trail.visible = showTrails.value })
+  // 哈雷彗星
+  if (cometGroup) { cometGroup.visible = showComet.value }
+  if (cometOrbitLine) { cometOrbitLine.visible = showComet.value }
   // 可交互小行星组可见性跟随对应的带开关
   if (asteroidInteractiveGroup) {
     asteroidInteractiveGroup.visible = showAsteroids.value || showKuiper.value
@@ -1228,6 +1399,11 @@ function animate() {
       a.mesh.rotation.y += 0.008 * dayStep
       a.mesh.rotation.x += 0.004 * dayStep
     })
+    // 哈雷彗星轨道运动（开普勒定律：近日点速度快）
+    if (showComet.value) {
+      cometAngle += dayStep * 0.0006
+      updateCometPosition(cometAngle)
+    }
   }
 
   // 太阳光晕脉动
@@ -1251,6 +1427,12 @@ function animate() {
       obj.group.getWorldPosition(wp)
       controls.target.lerp(wp, 0.06)
     }
+  }
+  // 聚焦彗星时相机跟随
+  if (focusedComet.value) {
+    const wp = new THREE.Vector3()
+    cometGroup.getWorldPosition(wp)
+    controls.target.lerp(wp, 0.06)
   }
 
   controls.update()
@@ -1351,6 +1533,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 .kp-tag.far { background: #3b82f6; color: #fff; }
 
 #asteroid-info-panel { background: rgba(120, 53, 15, 0.25); padding: 10px; border-radius: 6px; font-size: 11px; line-height: 1.6; border-left: 4px solid #fbbf24; }
+#comet-panel { background: rgba(30, 60, 90, 0.3); padding: 10px; border-radius: 6px; font-size: 11px; line-height: 1.6; border-left: 4px solid #88bbff; }
 .asteroid-cat-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-top: 6px; }
 .asteroid-cat-tag.dwarf { background: #10b981; color: #0f172a; }
 .asteroid-cat-tag.asteroid { background: #f59e0b; color: #0f172a; }
