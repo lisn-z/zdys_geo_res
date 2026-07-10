@@ -65,6 +65,14 @@ export const routes = [
     },
     component: () => import('@/views/threeD-terrain/index.vue'),
   },
+  {
+    path: '/topo-builder',
+    name: 'topo-builder',
+    meta: {
+      title: '智构地形',
+    },
+    component: () => import('@/views/topo-builder/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
