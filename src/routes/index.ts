@@ -53,7 +53,7 @@ export const routes = [
     path: '/find-neighborhood',
     name: 'find-neighborhood',
     meta: {
-      title: '找邻居',
+      title: '拼一拼（中国省级行政区）',
     },
     component: () => import('@/views/find-neighborhood/index.vue'),
   },
