@@ -45,38 +45,23 @@
       <div class="control-group">
         <label>🎥 视角与聚焦</label>
         <div class="btn-group">
-          <button
-            v-for="p in planetViews"
-            :key="p.id"
-            class="btn btn-planet"
-            :class="{ active: focusedPlanet === p.id }"
-            @click="focusPlanet(p.id)"
-          >
-            {{ p.name }}
-          </button>
+          <button v-for="p in planetViews" :key="p.id" class="btn btn-planet" :class="{ active: focusedPlanet === p.id }" @click="focusPlanet(p.id)">{{ p.name }}</button>
         </div>
         <div class="btn-group" style="margin-top:4px;">
           <button class="btn btn-view" :class="{ active: activeView === 'top' }" @click="setView('top')">俯瞰</button>
           <button class="btn btn-view" :class="{ active: activeView === 'side' }" @click="setView('side')">侧视</button>
           <button class="btn btn-view" :class="{ active: activeView === 'free' }" @click="setView('free')">自由</button>
+          <button class="btn" @click="focusComet('halley')" :class="{ active: focusedComet }" style="color:#88bbff;">☄️彗星</button>
         </div>
       </div>
 
-      <hr class="section-divider">
-
-      <!-- 3.5 著名小行星聚焦 -->
-      <div class="control-group">
-        <label>☄️ 著名小行星（点击近看）</label>
-        <div class="btn-group">
-          <button
-            v-for="a in asteroidData"
-            :key="a.id"
-            class="btn btn-asteroid"
-            :class="{ active: focusedAsteroid === a.id }"
-            @click="focusAsteroid(a.id)"
-          >
-            {{ a.name }}
-          </button>
+      <!-- 3.5 著名小行星聚焦（紧凑折叠） -->
+      <div class="control-group compact-asteroids">
+        <label class="collapsible-label" @click="asteroidOpen = !asteroidOpen">
+          ☄️ 著名小行星 <span style="font-size:10px;color:#64748b;">{{ asteroidOpen ? '▲' : '▼' }}</span>
+        </label>
+        <div v-show="asteroidOpen" class="btn-group">
+          <button v-for="a in asteroidData" :key="a.id" class="btn btn-asteroid" :class="{ active: focusedAsteroid === a.id }" @click="focusAsteroid(a.id)">{{ a.name }}</button>
         </div>
       </div>
 
@@ -353,7 +338,7 @@ const asteroidData: AsteroidDef[] = [
 ]
 
 // ===== 状态 =====
-const leftPanelWidth = ref(270)
+const leftPanelWidth = ref(260)
 const rightPanelWidth = ref(290)
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
@@ -366,6 +351,7 @@ const showAsteroids = ref(true)
 const showKuiper = ref(true)
 const showTrails = ref(false)
 const showComet = ref(true)
+const asteroidOpen = ref(false) // 著名小行星面板折叠
 
 // 哈雷彗星轨道参数（场景单位）
 const COMET_A = 45     // 半长轴
@@ -681,6 +667,17 @@ function makeAnnotationSprite(title: string, desc: string, color = '#fbbf24'): T
 }
 
 
+// 圆形点纹理（用于小行星带）
+function makeCircleTexture(): THREE.Texture {
+  const c = document.createElement('canvas'); c.width = 32; c.height = 32
+  const ctx = c.getContext('2d')!
+  const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16)
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.5, 'rgba(255,255,255,0.8)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 32, 32)
+  return new THREE.CanvasTexture(c)
+}
+
 // ===== 小行星带 =====
 function createAsteroidBelt(): { main: THREE.Points; kuiper: THREE.Points } {
   // 主小行星带（火星-木星之间 2.2-3.3 AU → 场景 20-25）
@@ -716,9 +713,34 @@ function createAsteroidBelt(): { main: THREE.Points; kuiper: THREE.Points } {
     // 亮度裁切0~1
     mainCol[i*3] = Math.min(1, mainCol[i*3]); mainCol[i*3+1] = Math.min(1, mainCol[i*3+1]); mainCol[i*3+2] = Math.min(1, mainCol[i*3+2])
   }
+  // 随机大小（逐顶点）
+  const mainSize = new Float32Array(mainCount)
+  for (let i = 0; i < mainCount; i++) mainSize[i] = (0.06 + Math.random() * 0.28) * SS
   mainGeo.setAttribute('position', new THREE.BufferAttribute(mainPos, 3))
   mainGeo.setAttribute('color', new THREE.BufferAttribute(mainCol, 3))
-  const mainMat = new THREE.PointsMaterial({ size: 0.22 * SS, vertexColors: true, transparent: true, opacity: 1.0 })
+  mainGeo.setAttribute('size', new THREE.BufferAttribute(mainSize, 1))
+  const mainMat = new THREE.ShaderMaterial({
+    uniforms: { pointTexture: { value: makeCircleTexture() } },
+    vertexShader: `
+      attribute float size;
+      attribute vec3 color;
+      varying vec3 vColor;
+      void main() {
+        vColor = color;
+        vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = size * (200.0 / -mvPos.z);
+        gl_Position = projectionMatrix * mvPos;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D pointTexture;
+      varying vec3 vColor;
+      void main() {
+        gl_FragColor = vec4(vColor, 1.0) * texture2D(pointTexture, gl_PointCoord);
+      }
+    `,
+    transparent: true, depthWrite: false,
+  })
   const main = new THREE.Points(mainGeo, mainMat)
 
   // 柯伊伯带（海王星外 30-50 AU → 场景 56-72）
@@ -748,9 +770,34 @@ function createAsteroidBelt(): { main: THREE.Points; kuiper: THREE.Points } {
     // 亮度裁切0~1
     kuipCol[i*3] = Math.min(1, kuipCol[i*3]); kuipCol[i*3+1] = Math.min(1, kuipCol[i*3+1]); kuipCol[i*3+2] = Math.min(1, kuipCol[i*3+2])
   }
+  // 随机大小（逐顶点）
+  const kuipSize = new Float32Array(kuipCount)
+  for (let i = 0; i < kuipCount; i++) kuipSize[i] = (0.08 + Math.random() * 0.30) * SS
   kuipGeo.setAttribute('position', new THREE.BufferAttribute(kuipPos, 3))
   kuipGeo.setAttribute('color', new THREE.BufferAttribute(kuipCol, 3))
-  const kuipMat = new THREE.PointsMaterial({ size: 0.25 * SS, vertexColors: true, transparent: true, opacity: 0.8 })
+  kuipGeo.setAttribute('size', new THREE.BufferAttribute(kuipSize, 1))
+  const kuipMat = new THREE.ShaderMaterial({
+    uniforms: { pointTexture: { value: makeCircleTexture() } },
+    vertexShader: `
+      attribute float size;
+      attribute vec3 color;
+      varying vec3 vColor;
+      void main() {
+        vColor = color;
+        vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = size * (200.0 / -mvPos.z);
+        gl_Position = projectionMatrix * mvPos;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D pointTexture;
+      varying vec3 vColor;
+      void main() {
+        gl_FragColor = vec4(vColor, 1.0) * texture2D(pointTexture, gl_PointCoord);
+      }
+    `,
+    transparent: true, depthWrite: false, opacity: 0.8,
+  })
   const kuiper = new THREE.Points(kuipGeo, kuipMat)
   return { main, kuiper }
 }
@@ -1117,7 +1164,7 @@ function initThree() {
   controls.update()
 
   // 环境光（提亮全局）
-  const ambient = new THREE.AmbientLight(0x5577aa, 1.5)
+  const ambient = new THREE.AmbientLight(0x88aadd, 3.0)
   scene.add(ambient)
 
   // 半球光（增加方向感——天蓝地暖）
@@ -1401,7 +1448,7 @@ function animate() {
     })
     // 哈雷彗星轨道运动（开普勒定律：近日点速度快）
     if (showComet.value) {
-      cometAngle += dayStep * 0.0006
+      cometAngle += dayStep * 0.006
       updateCometPosition(cometAngle)
     }
   }
@@ -1486,11 +1533,18 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
-.side-panel { position: absolute; top: 10px; background: rgba(8, 12, 24, 0.88); border-radius: 12px; border: 1px solid #2ec4b6; width: 270px; max-height: calc(100vh - 20px); overflow: visible; box-shadow: 0 4px 20px rgba(0,0,0,0.5); backdrop-filter: blur(6px); transition: width 0.3s ease; z-index: 10; }
+.side-panel {
+  position: absolute; top: 10px;
+  background: rgba(8, 12, 24, 0.88); border-radius: 12px; border: 1px solid #2ec4b6;
+  width: 270px; max-height: calc(100vh - 20px); overflow: visible;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5); backdrop-filter: blur(6px);
+  transition: width 0.3s ease; z-index: 10;
+  user-select: none; -webkit-user-select: none;
+}
 .side-panel.collapsed { width: 0; height: calc(100vh - 20px); background: transparent; border: none; box-shadow: none; backdrop-filter: none; }
 #left-panel { left: 10px; }
 #right-panel { right: 10px; }
-.panel-content { padding: 16px; max-height: calc(100vh - 20px); overflow-y: auto; }
+.panel-content { padding: 18px 16px; max-height: calc(100vh - 20px); overflow-y: auto; }
 .resize-handle { position: absolute; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 11; }
 .resize-handle:hover { background: rgba(46, 196, 182, 0.3); }
 .resize-right { right: -3px; border-radius: 0 12px 12px 0; }
@@ -1502,7 +1556,10 @@ onUnmounted(() => {
 .side-panel.collapsed .collapse-btn-right { right: auto; left: 10px; border-radius: 6px; }
 .side-panel.collapsed .collapse-btn-left { left: auto; right: 10px; border-radius: 6px; }
 .panel-title { margin-top: 0; color: #2ec4b6; font-size: 15px; border-bottom: 2px solid #2ec4b6; padding-bottom: 6px; }
-.control-group { margin-bottom: 14px; }
+.control-group { margin-bottom: 16px; }
+.compact-asteroids label { cursor: pointer; user-select: none; padding: 4px 8px; border-radius: 4px; transition: background 0.2s; }
+.compact-asteroids label:hover { background: rgba(255,255,255,0.05); }
+.collapsible-label { display: flex !important; align-items: center; justify-content: space-between; }
 label { display: block; margin-bottom: 6px; font-weight: bold; font-size: 11px; color: #e2e8f0; }
 .btn-group { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
 .btn { background: #1e293b; border: 1px solid #475569; color: #e2e8f0; padding: 5px 7px; border-radius: 6px; cursor: pointer; font-size: 11px; transition: all 0.2s; white-space: nowrap; }
