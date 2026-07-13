@@ -4,12 +4,7 @@
     <div v-if="route.path === '/'" class="home-page">
       <h1 class="home-title">地理资源</h1>
       <div class="nav-grid">
-        <div
-          v-for="item in navItems"
-          :key="item.path"
-          class="nav-card"
-          @click="router.push(item.path)"
-        >
+        <div v-for="item in navItems" :key="item.path" class="nav-card" @click="router.push(item.path)">
           <div class="nav-card-icon">📖</div>
           <div class="nav-card-title">{{ item.meta?.title || item.name }}</div>
         </div>
@@ -20,7 +15,8 @@
     <button class="back-home-btn" @click="router.push('/')">
       <el-icon :size="22">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          <path
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
         </svg>
       </el-icon>
     </button>
@@ -104,7 +100,7 @@ const navItems = computed(() => routesNav.filter((item) => item.path !== '/'))
 }
 
 .nav-card-title {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 600;
   text-align: center;
 }

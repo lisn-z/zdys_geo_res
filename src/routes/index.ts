@@ -73,6 +73,22 @@ export const routes = [
     },
     component: () => import('@/views/topo-builder/index.vue'),
   },
+  {
+    path: '/moon-phase',
+    name: 'moon-phase',
+    meta: {
+      title: '月相分析',
+    },
+    component: () => import('@/views/moon-phase/index.vue'),
+  },
+  {
+    path: '/soil-profile',
+    name: 'soil-profile',
+    meta: {
+      title: '土壤剖面',
+    },
+    component: () => import('@/views/soil-profile/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
