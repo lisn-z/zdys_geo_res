@@ -73,6 +73,14 @@ export const routes = [
     },
     component: () => import('@/views/topo-builder/index.vue'),
   },
+  {
+    path: '/earth-rotation',
+    name: 'earth-rotation',
+    meta: {
+      title: '地球自转',
+    },
+    component: () => import('@/views/earth-rotation/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
