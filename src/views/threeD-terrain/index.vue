@@ -89,6 +89,32 @@
       <div class="title-sub">Contour Map Projection</div>
     </div>
 
+    <!-- ===== 视角切换器（3D 立方体）===== -->
+    <div class="view-cube" ref="viewCube">
+      <div class="vc-face vc-face-front" data-view="front" title="前视图">前</div>
+      <div class="vc-face vc-face-back" data-view="back" title="后视图">后</div>
+      <div class="vc-face vc-face-right" data-view="right" title="右视图">右</div>
+      <div class="vc-face vc-face-left" data-view="left" title="左视图">左</div>
+      <div class="vc-face vc-face-top" data-view="top" title="顶视图">顶</div>
+      <div class="vc-face vc-face-bottom" data-view="bottom" title="底视图">底</div>
+    </div>
+
+    <!-- ===== 知识解读面板（右侧）===== -->
+    <div class="knowledge-panel">
+      <div class="kp-title">📚 知识解读</div>
+      <div class="kp-section-title">基本地形部位</div>
+      <ul class="kp-list">
+        <li><span class="kp-term">山顶</span>：闭合等高线，内高外低，常标海拔</li>
+        <li><span class="kp-term">鞍部</span>：两峰之间连鞍低凹，比两侧山顶低</li>
+        <li><span class="kp-term">山脊</span>：从山顶向低处延伸的分水岭，等高线向低处凸出</li>
+        <li><span class="kp-term">山谷</span>：等高线向高处凸出，常发育河流</li>
+        <li><span class="kp-term">陡崖</span>：等高线重合或极密，适合攀岩</li>
+        <li><span class="kp-term">陡坡</span>：等高线密集，高差变化大，坡度&gt;25°</li>
+        <li><span class="kp-term">缓坡</span>：等高线稀疏，高差变化小，坡度&lt;15°</li>
+        <li><span class="kp-term">盆地</span>：四周高中间低，等高线呈闭合状且外高内低</li>
+      </ul>
+    </div>
+
     <!-- ===== 操作提示 ===== -->
     <div class="controls-info">
       <span>🖱 拖拽旋转</span>
@@ -107,7 +133,7 @@
         <span>📊 地形剖面图</span>
         <button class="cp-close-btn" @click="clearProfile">✕</button>
       </div>
-      <canvas ref="profileCanvas" width="420" height="200"></canvas>
+      <canvas ref="profileCanvas" width="640" height="300"></canvas>
     </div>
 
     <!-- ===== 图例 (左下角) ===== -->
@@ -122,12 +148,13 @@
           </div>
         </div>
         <div class="legend-item"><span class="badge" style="background:#ff6b6b"></span>山顶</div>
-        <div class="legend-item"><span class="badge" style="background:#4ecdc4"></span>次峰</div>
         <div class="legend-item"><span class="badge" style="background:#f9ca24"></span>鞍部</div>
         <div class="legend-item"><span class="badge" style="background:#2bcbba"></span>山脊</div>
         <div class="legend-item"><span class="badge" style="background:#45aaf2"></span>山谷</div>
+        <div class="legend-item"><span class="badge" style="background:#fd7944"></span>陡崖</div>
         <div class="legend-item"><span class="badge" style="background:#fd9644"></span>陡坡</div>
         <div class="legend-item"><span class="badge" style="background:#778ca3"></span>缓坡</div>
+        <div class="legend-item"><span class="badge" style="background:#a78bfa"></span>盆地</div>
       </div>
     </div>
   </div>
@@ -159,14 +186,16 @@ const TERRAIN_SIZE = 3.0
 // ============================================================
 const container = ref<HTMLDivElement>()
 const profileCanvas = ref<HTMLCanvasElement>()
+const viewCube = ref<HTMLDivElement>()
 const contourInterval = ref(10)
 const showFeatureLabels = ref(true)
+const uiScale = ref(1)  // 整体 UI 缩放系数（根据分辨率自动调节）
 const showTerrain = ref(true)
 const showProjection = ref(true)
 const showProjectionLines = ref(true)
 const terrainTransparent = ref(false)
 const profileMode = ref(false)
-const showProjectionColoring = ref(false)
+const showProjectionColoring = ref(true)
 const profileClicks = ref(0)
 const profileData = ref<{ dist: number; elev: number }[]>([])
 
@@ -290,11 +319,30 @@ function getNormalizedHeight(x: number, z: number): number {
     const t = Math.max(0, Math.min(1, (0.36 - z) / 0.14))
     cliffDrop = -0.42 * cliffFactor * t * t
   }
+
+  // === 盆地（左下角，浅而平缓，无陡峭半山）===
+  // 平缓环形矮丘 + 中央低洼，整体高度较小，避免突兀
+  const basinCx = 0.20, basinCz = 0.20
+  const dx = x - basinCx, dz = z - basinCz
+  const dist = Math.sqrt(dx * dx + dz * dz)
+  // 环形矮丘（半径 0.12，幅度仅 0.18，避免半山突兀）
+  const ringR = 0.12
+  const ringWidth = 0.05  // 较宽的衰减让边缘更平缓
+  const ringHeight = 0.18
+  const ringFactor = Math.exp(-((dist - ringR) ** 2) / (2 * ringWidth ** 2))
+  // 中央浅凹（深度仅 0.15，平缓下降）
+  const bowlFactor = Math.exp(-(dist * dist) / (2 * 0.06 ** 2))
+  // 仅在盆地范围内（半径 0.20）生效，0.20 外为 0
+  const inBasin = dist < 0.20 ? 1 : 0
+  // 合并：环形矮丘 + 中央浅凹（无半山，无陡坡）
+  const basin = ringHeight * ringFactor * inBasin - 0.15 * bowlFactor * inBasin
+
   return Math.max(0, peak1 + peak2 + peak3 +
     hill1 + hill2 + hill3 + hill4 + hill5 + hill6 + hill7 + hill8 + hill9 + hill10 +
     ridge1 + ridge2 + ridge3 + ridge4 +
     saddle1 + saddle2 + valley1 + valley2 + valley3 +
-    detail + noiseVal + cliffDrop + 0.04)
+    detail + noiseVal + cliffDrop +
+    basin + 0.04)
 }
 
 function getRealHeight(x: number, z: number): number {
@@ -599,7 +647,8 @@ function initScene() {
 
   const aspect = container.value.clientWidth / container.value.clientHeight
   camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100)
-  camera.position.set(5.0, 3.0, 6.0)
+  // 默认前视图（正面对齐地形）
+  camera.position.set(0, 2.5, 7.0)
   camera.lookAt(0, 0.8, 0)
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
@@ -625,7 +674,9 @@ function initScene() {
   controls.dampingFactor = 0.08
   controls.minDistance = 1.5
   controls.maxDistance = 14
-  controls.maxPolarAngle = Math.PI / 2.05
+  // 允许完全俯视 (0) 和完全仰视 (π)，无角度限制
+  controls.minPolarAngle = 0
+  controls.maxPolarAngle = Math.PI
   controls.update()
 
   // 创建分组
@@ -1011,31 +1062,40 @@ function addElevationLabels() {
 function addFeatureLabels() {
   // 每种地形类型仅保留 1 个最典型标签，位置紧贴地形表面
   const features = [
-    { text: '山顶', x: 0.78, z: 0.81, color: '#ff6b6b' },
+    { text: '山顶', x: 0.78, z: 0.78, color: '#ff6b6b' },
     { text: '鞍部', x: 0.50, z: 0.52, color: '#f9ca24' },
     { text: '山脊', x: 0.48, z: 0.58, color: '#2bcbba' },
     { text: '山谷', x: 0.58, z: 0.38, color: '#45aaf2' },
     { text: '陡崖', x: 0.32, z: 0.26, color: '#fd7944' },
     { text: '陡坡', x: 0.28, z: 0.40, color: '#e67e22' },
     { text: '缓坡', x: 0.12, z: 0.50, color: '#778ca3' },
+    { text: '盆地', x: 0.18, z: 0.18, color: '#a78bfa' },
   ]
+  const baseFont = 16 * uiScale.value
   for (const f of features) {
     const realH = getRealHeight(f.x, f.z)
     const displayH = getDisplayHeight(realH)
+    // 标签位置（紧贴山顶）
+    const labelX = (f.x - 0.5) * TERRAIN_SIZE
+    const labelY = displayH + 0.08
+    const labelZ = (f.z - 0.5) * TERRAIN_SIZE
+
+    // 创建标签
     const div = document.createElement('div')
     div.textContent = f.text
+    div.className = 'feature-label'
     div.style.color = '#fff'
-    div.style.fontSize = '12px'
+    div.style.fontSize = `${baseFont}px`
     div.style.fontWeight = 'bold'
     div.style.fontFamily = '"Microsoft YaHei", sans-serif'
     div.style.background = f.color
-    div.style.padding = '2px 8px'
-    div.style.borderRadius = '10px'
+    div.style.padding = `${4 * uiScale.value}px ${12 * uiScale.value}px`
+    div.style.borderRadius = `${12 * uiScale.value}px`
     div.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)'
     div.style.whiteSpace = 'nowrap'
     div.style.textShadow = '0 1px 2px rgba(0,0,0,0.5)'
     const label = new CSS2DObject(div)
-    label.position.set((f.x - 0.5) * TERRAIN_SIZE, displayH + 0.03, (f.z - 0.5) * TERRAIN_SIZE)
+    label.position.set(labelX, labelY, labelZ)
     featureLabelGroup.add(label)
   }
 }
@@ -1061,6 +1121,81 @@ function onToggleTerrain() {
   terrainLabelGroup.visible = visible
   // 特征标签也跟随地形显示：地形关闭时隐藏，地形开启时由开关决定
   featureLabelGroup.visible = visible && showFeatureLabels.value
+}
+
+// ============================================================
+// 视角切换 — 前/后/左/右/顶/底
+// ============================================================
+const VIEW_PRESETS: Record<string, { pos: [number, number, number]; target: [number, number, number] }> = {
+  front: { pos: [0, 2.5, 7.0], target: [0, 0.8, 0] },
+  back: { pos: [0, 2.5, -7.0], target: [0, 0.8, 0] },
+  left: { pos: [-7.0, 2.5, 0], target: [0, 0.8, 0] },
+  right: { pos: [7.0, 2.5, 0], target: [0, 0.8, 0] },
+  // 标准俯视：相机正上方，看向中心，X/Z 严格归零保证完全正交
+  top: { pos: [0, 8.5, 0], target: [0, 0, 0] },
+  bottom: { pos: [0, -7.0, 0], target: [0, 0, 0] },
+}
+
+function setView(view: keyof typeof VIEW_PRESETS) {
+  if (!camera || !controls) return
+  const preset = VIEW_PRESETS[view]
+  if (!preset) return
+  camera.position.set(preset.pos[0], preset.pos[1], preset.pos[2])
+  controls.target.set(preset.target[0], preset.target[1], preset.target[2])
+  camera.lookAt(preset.target[0], preset.target[1], preset.target[2])
+  controls.update()
+}
+
+function updateViewCube() {
+  // 跟随相机实时旋转立方体（与参考图项目一致）
+  const el = viewCube.value
+  if (!el || !camera) return
+  const target = controls?.target ?? new THREE.Vector3(0, 0, 0)
+  const v = camera.position.clone().sub(target)
+  const p = Math.asin(Math.max(-1, Math.min(1, v.y / v.length())))
+  const y = Math.atan2(v.x, v.z)
+  // 立方体边长 60px（基础），响应式缩放
+  const halfSize = 30 * uiScale.value
+  el.style.transform = `translateZ(${-halfSize}px) rotateX(${-p}rad) rotateY(${-y}rad)`
+}
+
+function bindViewCube() {
+  const el = viewCube.value
+  if (!el) return
+  // 6 个面点击切换视角
+  const faces = el.querySelectorAll<HTMLDivElement>('.vc-face')
+  faces.forEach(face => {
+    face.addEventListener('click', () => {
+      const view = face.dataset.view as keyof typeof VIEW_PRESETS | undefined
+      if (view) setView(view)
+    })
+  })
+}
+
+// ============================================================
+// 响应式缩放 — 根据视口分辨率自动调节 UI 尺寸
+// ============================================================
+function applyResponsiveScale() {
+  if (!container.value) return
+  const w = container.value.clientWidth
+  const h = container.value.clientHeight
+
+  // 基准尺寸：1920×1080 → scale=1
+  // 平板端 (1024~1366) → scale ~0.9
+  // 小屏 (< 1024) → scale ~0.75
+  const diag = Math.hypot(w, h)
+  let scale = 1
+  if (diag >= 2200) scale = 1.2           // 大屏 2K+
+  else if (diag >= 1700) scale = 1.0      // 常规桌面
+  else if (diag >= 1400) scale = 0.9      // 13 寸笔记本
+  else if (diag >= 1100) scale = 0.8      // 平板横屏
+  else scale = 0.7                        // 平板竖/小屏
+
+  uiScale.value = scale
+  const root = container.value
+  if (root) {
+    root.style.setProperty('--ui-scale', String(scale))
+  }
 }
 
 function onToggleTransparent() {
@@ -1288,7 +1423,7 @@ function drawProfileChart() {
 
   const W = canvas.width
   const H = canvas.height
-  const pad = { top: 20, bottom: 25, left: 50, right: 20 }
+  const pad = { top: 20, bottom: 50, left: 50, right: 20 }
 
   const data = profileData.value
   const minElev = Math.floor(Math.min(...data.map(d => d.elev)) - 1)
@@ -1305,7 +1440,7 @@ function drawProfileChart() {
   ctx.clearRect(0, 0, W, H)
 
   // Background
-  ctx.fillStyle = 'rgba(10, 18, 30, 0.92)'
+  ctx.fillStyle = '#0a1220'
   ctx.roundRect ? ctx.roundRect(0, 0, W, H, 6) : ctx.rect(0, 0, W, H)
   ctx.fill()
 
@@ -1338,18 +1473,18 @@ function drawProfileChart() {
     ctx.fillText(`${e}m`, pad.left - 5, y + 3)
   }
 
-  // X-axis labels
+  // X-axis labels — 靠近横轴（类比纵坐标 pad.left-5 的间距）
   ctx.textAlign = 'center'
   for (let d = 0; d <= maxDist; d += 0.2) {
     const x = xScale(d)
-    ctx.fillText(`${d.toFixed(1)}`, x, H - 5)
+    ctx.fillText(`${d.toFixed(1)}`, x, H - 14)
   }
 
-  // Axis labels
+  // Axis labels — 放置底部，与数值分隔清晰
   ctx.fillStyle = '#8ab4c8'
   ctx.font = '11px "Microsoft YaHei", sans-serif'
   ctx.textAlign = 'center'
-  ctx.fillText('距离', W / 2, H - 2)
+  ctx.fillText('距离', W / 2, H - 3)
   ctx.save()
   ctx.translate(12, H / 2)
   ctx.rotate(-Math.PI / 2)
@@ -1406,6 +1541,7 @@ function drawProfileChart() {
 // ============================================================
 function animate() {
   controls.update()
+  updateViewCube()
   renderer.render(scene, camera)
   labelRenderer.render(scene, camera)
   animationId = requestAnimationFrame(animate)
@@ -1417,6 +1553,7 @@ function handleResize() {
   camera.aspect = w / h; camera.updateProjectionMatrix()
   renderer.setSize(w, h); labelRenderer.setSize(w, h)
   contourRes.set(w, h)
+  applyResponsiveScale()
 }
 
 onMounted(() => {
@@ -1428,6 +1565,8 @@ onMounted(() => {
   if (container.value) {
     contourRes.set(container.value.clientWidth, container.value.clientHeight)
   }
+  bindViewCube()
+  applyResponsiveScale()
   animate()
   window.addEventListener('resize', handleResize)
 })
@@ -1450,21 +1589,22 @@ onUnmounted(() => {
   background: #0b0f17;
   font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
   touch-action: none;
+  --ui-scale: 1;
 }
 
 /* ================================================================
-   左侧控制面板
+   左侧控制面板 — 响应式（基于 --ui-scale）
    ================================================================ */
 .control-panel {
   position: absolute;
-  top: 14px;
-  left: 14px;
+  top: calc(14px * var(--ui-scale));
+  left: calc(14px * var(--ui-scale));
   z-index: 30;
   background: rgba(8, 16, 30, 0.92);
   border: 1px solid rgba(46, 196, 182, 0.25);
-  border-radius: 12px;
-  padding: 14px 16px;
-  min-width: 190px;
+  border-radius: calc(14px * var(--ui-scale));
+  padding: calc(16px * var(--ui-scale)) calc(18px * var(--ui-scale));
+  min-width: calc(220px * var(--ui-scale));
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5),
     inset 0 0 60px rgba(46, 196, 182, 0.03);
   backdrop-filter: blur(8px);
@@ -1474,29 +1614,31 @@ onUnmounted(() => {
 .cp-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
+  gap: calc(8px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   color: #2ec4b6;
-  margin-bottom: 14px;
-  padding-bottom: 8px;
+  margin-bottom: calc(16px * var(--ui-scale));
+  padding-bottom: calc(10px * var(--ui-scale));
   border-bottom: 1px solid rgba(46, 196, 182, 0.2);
 }
 
-.cp-icon {
-  color: #2ec4b6;
-  flex-shrink: 0;
+.cp-header svg {
+  width: calc(20px * var(--ui-scale));
+  height: calc(20px * var(--ui-scale));
 }
+
+.cp-icon { color: #2ec4b6; flex-shrink: 0; }
 
 .cp-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 0;
+  padding: calc(8px * var(--ui-scale)) 0;
 }
 
 .cp-label {
-  font-size: 12px;
+  font-size: calc(14px * var(--ui-scale));
   color: #b0c8e0;
   flex-shrink: 0;
 }
@@ -1504,16 +1646,16 @@ onUnmounted(() => {
 .cp-slider-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: calc(10px * var(--ui-scale));
 }
 
 .cp-slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 72px;
-  height: 4px;
+  width: calc(88px * var(--ui-scale));
+  height: calc(5px * var(--ui-scale));
   background: linear-gradient(to right, #2ec4b6, #247cff);
-  border-radius: 2px;
+  border-radius: calc(2.5px * var(--ui-scale));
   outline: none;
   cursor: pointer;
 }
@@ -1521,59 +1663,53 @@ onUnmounted(() => {
 .cp-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: calc(16px * var(--ui-scale));
+  height: calc(16px * var(--ui-scale));
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #2ec4b6, #1a9a8e);
   cursor: pointer;
-  box-shadow: 0 0 6px rgba(46, 196, 182, 0.5);
+  box-shadow: 0 0 calc(8px * var(--ui-scale)) rgba(46, 196, 182, 0.5);
 }
 
 .cp-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: calc(16px * var(--ui-scale));
+  height: calc(16px * var(--ui-scale));
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #2ec4b6, #1a9a8e);
   cursor: pointer;
   border: none;
-  box-shadow: 0 0 6px rgba(46, 196, 182, 0.5);
+  box-shadow: 0 0 calc(8px * var(--ui-scale)) rgba(46, 196, 182, 0.5);
 }
 
 .cp-value {
-  font-size: 11px;
+  font-size: calc(13px * var(--ui-scale));
   font-weight: 600;
   color: #2ec4b6;
-  min-width: 30px;
+  min-width: calc(36px * var(--ui-scale));
   text-align: right;
 }
 
 .cp-divider {
   height: 1px;
   background: linear-gradient(to right, rgba(46, 196, 182, 0.15), rgba(36, 124, 255, 0.15));
-  margin: 4px 0;
+  margin: calc(6px * var(--ui-scale)) 0;
 }
 
-/* Toggle switch */
 .cp-switch {
   position: relative;
-  width: 36px;
-  height: 20px;
+  width: calc(40px * var(--ui-scale));
+  height: calc(22px * var(--ui-scale));
   flex-shrink: 0;
   cursor: pointer;
 }
 
-.cp-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-  position: absolute;
-}
+.cp-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
 
 .cp-slider-toggle {
   position: absolute;
   inset: 0;
   background: rgba(60, 80, 110, 0.5);
-  border-radius: 20px;
+  border-radius: calc(22px * var(--ui-scale));
   transition: all 0.25s ease;
   border: 1px solid rgba(100, 140, 180, 0.2);
 }
@@ -1581,8 +1717,8 @@ onUnmounted(() => {
 .cp-slider-toggle::before {
   content: '';
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: calc(16px * var(--ui-scale));
+  height: calc(16px * var(--ui-scale));
   left: 2px;
   bottom: 2px;
   background: #8899b0;
@@ -1596,28 +1732,32 @@ onUnmounted(() => {
 }
 
 .cp-switch input:checked + .cp-slider-toggle::before {
-  transform: translateX(16px);
+  transform: translateX(calc(18px * var(--ui-scale)));
   background: #fff;
-  box-shadow: 0 0 6px rgba(46, 196, 182, 0.4);
+  box-shadow: 0 0 calc(8px * var(--ui-scale)) rgba(46, 196, 182, 0.4);
 }
 
-/* 剖面按钮 */
 .cp-btn {
   width: 100%;
-  margin-top: 6px;
-  padding: 7px 12px;
-  font-size: 12px;
+  margin-top: calc(8px * var(--ui-scale));
+  padding: calc(9px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  font-size: calc(14px * var(--ui-scale));
   font-weight: 600;
   color: #b0c8e0;
   background: rgba(46, 196, 182, 0.08);
   border: 1px solid rgba(46, 196, 182, 0.2);
-  border-radius: 8px;
+  border-radius: calc(10px * var(--ui-scale));
   cursor: pointer;
   transition: all 0.25s ease;
   font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.cp-btn svg {
+  width: calc(18px * var(--ui-scale));
+  height: calc(18px * var(--ui-scale));
 }
 
 .cp-btn:hover {
@@ -1630,15 +1770,15 @@ onUnmounted(() => {
   background: linear-gradient(135deg, rgba(46, 196, 182, 0.25), rgba(36, 124, 255, 0.25));
   border-color: #2ec4b6;
   color: #2ec4b6;
-  box-shadow: 0 0 12px rgba(46, 196, 182, 0.2);
+  box-shadow: 0 0 calc(14px * var(--ui-scale)) rgba(46, 196, 182, 0.2);
 }
 
 /* ================================================================
-   顶部标题
+   顶部标题 — 响应式
    ================================================================ */
 .title-bar {
   position: absolute;
-  top: 14px;
+  top: calc(16px * var(--ui-scale));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
@@ -1647,156 +1787,267 @@ onUnmounted(() => {
 }
 
 .title-text {
-  font-size: 18px;
+  font-size: calc(22px * var(--ui-scale));
   font-weight: 700;
   color: #e0f0ff;
-  letter-spacing: 2px;
+  letter-spacing: calc(2px * var(--ui-scale));
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 
 .title-sub {
-  font-size: 11px;
+  font-size: calc(13px * var(--ui-scale));
   color: #88aabb;
-  letter-spacing: 1.5px;
-  margin-top: 2px;
+  letter-spacing: calc(2px * var(--ui-scale));
+  margin-top: calc(3px * var(--ui-scale));
   font-weight: 400;
 }
 
 /* ================================================================
-   操作提示
+   视角切换（3D 立方体）— 右上角
+   关键：perspective 设极大（近正交投影），保证 6 个面都是标准正方形，无透视变形
+   ================================================================ */
+.view-cube {
+  position: absolute;
+  top: calc(16px * var(--ui-scale));
+  right: calc(16px * var(--ui-scale));
+  z-index: 30;
+  width: calc(60px * var(--ui-scale));
+  height: calc(60px * var(--ui-scale));
+  /* perspective 极远（3000px 以上），几乎呈正交投影，确保立方体是标准正方形 */
+  perspective: calc(3000px);
+  perspective-origin: 50% 50%;
+  user-select: none;
+  transform-style: preserve-3d;
+  pointer-events: auto;
+}
+
+.vc-face {
+  position: absolute;
+  inset: 0;
+  background: rgba(40, 40, 40, 0.85);
+  border: 1px solid #475569;
+  color: #94a3b8;
+  font-size: calc(14px * var(--ui-scale));
+  font-weight: 700;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backface-visibility: visible;
+  font-family: 'Microsoft YaHei', sans-serif;
+}
+
+.vc-face:hover {
+  background: rgba(46, 196, 182, 0.6);
+  color: #fff;
+  border-color: #2ec4b6;
+  box-shadow: 0 0 8px rgba(46, 196, 182, 0.5);
+}
+
+.vc-face-front  { transform: rotateY(0deg) translateZ(calc(30px * var(--ui-scale))); }
+.vc-face-back   { transform: rotateY(180deg) translateZ(calc(30px * var(--ui-scale))); }
+.vc-face-right  { transform: rotateY(90deg) translateZ(calc(30px * var(--ui-scale))); }
+.vc-face-left   { transform: rotateY(-90deg) translateZ(calc(30px * var(--ui-scale))); }
+.vc-face-top    { transform: rotateX(90deg) translateZ(calc(30px * var(--ui-scale))); }
+.vc-face-bottom { transform: rotateX(-90deg) translateZ(calc(30px * var(--ui-scale))); }
+
+/* ================================================================
+   知识解读面板（右侧中间）
+   ================================================================ */
+.knowledge-panel {
+  position: absolute;
+  top: 50%;
+  right: calc(16px * var(--ui-scale));
+  transform: translateY(-50%);
+  z-index: 20;
+  background: rgba(8, 16, 30, 0.92);
+  border: 1px solid rgba(46, 196, 182, 0.3);
+  border-radius: calc(12px * var(--ui-scale));
+  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  width: calc(280px * var(--ui-scale));
+  max-height: 60vh;
+  overflow-y: auto;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.kp-title {
+  font-size: calc(16px * var(--ui-scale));
+  font-weight: 700;
+  color: #2ec4b6;
+  margin-bottom: calc(10px * var(--ui-scale));
+  padding-bottom: calc(8px * var(--ui-scale));
+  border-bottom: 1px solid rgba(46, 196, 182, 0.25);
+}
+
+.kp-section-title {
+  font-size: calc(14px * var(--ui-scale));
+  font-weight: 600;
+  color: #d0e8f8;
+  margin-bottom: calc(8px * var(--ui-scale));
+}
+
+.kp-list { list-style: none; padding: 0; margin: 0; }
+
+.kp-list li {
+  font-size: calc(13px * var(--ui-scale));
+  color: #bbd0e0;
+  line-height: 1.7;
+  padding: calc(5px * var(--ui-scale)) 0;
+  border-bottom: 1px dashed rgba(100, 140, 180, 0.15);
+  display: flex;
+  align-items: flex-start;
+  gap: calc(4px * var(--ui-scale));
+}
+
+.kp-list li:last-child { border-bottom: none; }
+
+.kp-term {
+  color: #2ec4b6;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-right: calc(2px * var(--ui-scale));
+}
+
+.knowledge-panel::-webkit-scrollbar { width: 6px; }
+.knowledge-panel::-webkit-scrollbar-thumb {
+  background: rgba(46, 196, 182, 0.4);
+  border-radius: 3px;
+}
+.knowledge-panel::-webkit-scrollbar-track { background: transparent; }
+
+/* ================================================================
+   操作提示 — 响应式
    ================================================================ */
 .controls-info {
   position: absolute;
-  bottom: 18px;
+  bottom: calc(20px * var(--ui-scale));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: calc(18px * var(--ui-scale));
   background: rgba(20, 30, 45, 0.88);
   border: 1px solid rgba(100, 150, 200, 0.15);
-  border-radius: 20px;
-  padding: 6px 20px;
+  border-radius: calc(22px * var(--ui-scale));
+  padding: calc(8px * var(--ui-scale)) calc(24px * var(--ui-scale));
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
-  font-size: 12px;
+  font-size: calc(14px * var(--ui-scale));
   color: #aaccee;
   pointer-events: none;
 }
 
 /* ================================================================
-   图例 (左下角)
+   图例 (左下角) — 响应式
    ================================================================ */
 .legend-panel {
   position: absolute;
-  bottom: 60px;
-  left: 16px;
+  bottom: calc(70px * var(--ui-scale));
+  left: calc(16px * var(--ui-scale));
   z-index: 10;
   background: rgba(8, 16, 30, 0.92);
-  border: 1px solid rgba(46, 196, 182, 0.2);
-  border-radius: 10px;
-  padding: 12px 14px;
+  border: 1px solid rgba(46, 196, 182, 0.25);
+  border-radius: calc(12px * var(--ui-scale));
+  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
-  min-width: 120px;
+  min-width: calc(160px * var(--ui-scale));
   backdrop-filter: blur(4px);
   pointer-events: none;
 }
 
 .legend-title {
-  font-size: 13px;
+  font-size: calc(15px * var(--ui-scale));
   font-weight: 700;
   color: #2ec4b6;
-  margin-bottom: 8px;
-  padding-bottom: 4px;
+  margin-bottom: calc(10px * var(--ui-scale));
+  padding-bottom: calc(6px * var(--ui-scale));
   border-bottom: 1px solid rgba(46, 196, 182, 0.2);
 }
 
 .legend-grid {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: calc(5px * var(--ui-scale));
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: calc(8px * var(--ui-scale));
+  font-size: calc(13px * var(--ui-scale));
   color: #bbd0e0;
-  padding: 2px 0;
+  padding: calc(2px * var(--ui-scale)) 0;
 }
 
-.legend-bar {
-  display: inline-block;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
+.legend-bar { display: inline-block; border-radius: 4px; flex-shrink: 0; }
 
 .legend-labels {
   display: flex;
   justify-content: space-between;
-  width: 50px;
-  font-size: 9px;
+  width: calc(60px * var(--ui-scale));
+  font-size: calc(11px * var(--ui-scale));
   color: #8aa0b8;
-  margin-top: 1px;
+  margin-top: calc(2px * var(--ui-scale));
 }
 
 .badge {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: calc(12px * var(--ui-scale));
+  height: calc(12px * var(--ui-scale));
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 /* ================================================================
-   剖面提示
+   剖面提示 — 响应式
    ================================================================ */
 .profile-hint {
   position: absolute;
-  top: 80px;
+  top: calc(90px * var(--ui-scale));
   left: 50%;
   transform: translateX(-50%);
   z-index: 25;
   background: rgba(8, 16, 30, 0.92);
   border: 1px solid #2ec4b6;
-  border-radius: 10px;
-  padding: 8px 18px;
+  border-radius: calc(12px * var(--ui-scale));
+  padding: calc(10px * var(--ui-scale)) calc(22px * var(--ui-scale));
   color: #2ec4b6;
-  font-size: 13px;
+  font-size: calc(15px * var(--ui-scale));
   box-shadow: 0 0 20px rgba(46, 196, 182, 0.2);
   pointer-events: none;
 }
 
-.profile-hint strong {
-  color: #fff;
-}
+.profile-hint strong { color: #fff; }
 
 /* ================================================================
-   剖面图
+   剖面图 — 更大尺寸 + 响应式
    ================================================================ */
 .profile-chart {
   position: absolute;
-  bottom: 60px;
+  bottom: calc(70px * var(--ui-scale));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 25;
-  border-radius: 10px;
+  z-index: 100;                /* 最高层级，覆盖所有 UI */
+  border-radius: calc(12px * var(--ui-scale));
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(46, 196, 182, 0.25);
+  border: 1px solid rgba(46, 196, 182, 0.3);
+  background: #0a1220;         /* 纯色背景，不透出下方 3D 场景 */
 }
 
 .profile-chart-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
-  background: rgba(8, 16, 30, 0.95);
-  font-size: 12px;
+  padding: calc(8px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  background: #0f1a2e;         /* 完全不透明 */
+  font-size: calc(14px * var(--ui-scale));
   font-weight: 600;
   color: #2ec4b6;
-  border-bottom: 1px solid rgba(46, 196, 182, 0.15);
+  border-bottom: 1px solid rgba(46, 196, 182, 0.2);
 }
 
 .cp-close-btn {
@@ -1804,264 +2055,73 @@ onUnmounted(() => {
   border: none;
   color: #6a8aa8;
   cursor: pointer;
-  font-size: 14px;
-  padding: 0 4px;
+  font-size: calc(16px * var(--ui-scale));
+  padding: 0 calc(6px * var(--ui-scale));
   transition: color 0.2s;
 }
 
-.cp-close-btn:hover {
-  color: #ff6b6b;
-}
+.cp-close-btn:hover { color: #ff6b6b; }
 
 .profile-chart canvas {
   display: block;
-  max-width: 100%;
+  width: calc(640px * var(--ui-scale));
+  height: calc(300px * var(--ui-scale));
+  max-width: 80vw;
 }
 
 /* ================================================================
-   移动端 / 平板端适配
+   响应式 — 基于宽度的辅助覆盖
    ================================================================ */
+@media (max-width: 1280px) {
+  .knowledge-panel { width: calc(240px * var(--ui-scale)); }
+  .profile-chart canvas { width: calc(520px * var(--ui-scale)); height: calc(240px * var(--ui-scale)); }
+}
 
-/* 平板端 (< 1024px) */
 @media (max-width: 1024px) {
-  .control-panel {
-    top: 10px;
-    left: 10px;
-    padding: 10px 12px;
-    min-width: 160px;
+  .knowledge-panel {
+    width: calc(220px * var(--ui-scale));
+    padding: calc(10px * var(--ui-scale)) calc(12px * var(--ui-scale));
   }
-
-  .cp-header {
-    font-size: 13px;
-    margin-bottom: 10px;
-    padding-bottom: 6px;
-  }
-
-  .cp-label {
-    font-size: 11px;
-  }
-
-  .cp-slider {
-    width: 56px;
-  }
-
-  .title-text {
-    font-size: 15px;
-  }
-
-  .title-sub {
-    font-size: 10px;
-  }
-
-  .legend-panel {
-    padding: 10px 12px;
-    min-width: 100px;
-  }
-
-  .legend-title {
-    font-size: 12px;
-  }
-
-  .legend-item {
-    font-size: 10px;
-  }
-
-  .controls-info {
-    font-size: 10px;
-    padding: 5px 14px;
-    gap: 10px;
-  }
-
-  .profile-chart canvas {
-    width: 320px;
-    height: 160px;
-  }
+  .kp-list li { font-size: calc(12px * var(--ui-scale)); line-height: 1.6; }
+  .profile-chart canvas { width: calc(420px * var(--ui-scale)); height: calc(200px * var(--ui-scale)); }
 }
 
-/* 手机端 (< 768px) */
 @media (max-width: 768px) {
-  .control-panel {
-    top: 8px;
-    left: 8px;
-    padding: 8px 10px;
-    min-width: 140px;
-    border-radius: 8px;
+  .view-cube { width: calc(48px * var(--ui-scale)); height: calc(48px * var(--ui-scale)); }
+  .vc-face { font-size: calc(12px * var(--ui-scale)); }
+  .vc-face-front, .vc-face-back, .vc-face-right, .vc-face-left {
+    transform: rotateY(0deg) translateZ(calc(24px * var(--ui-scale)));
   }
-
-  .cp-header {
-    font-size: 12px;
-    margin-bottom: 8px;
-    padding-bottom: 5px;
+  .vc-face-back { transform: rotateY(180deg) translateZ(calc(24px * var(--ui-scale))); }
+  .vc-face-right { transform: rotateY(90deg) translateZ(calc(24px * var(--ui-scale))); }
+  .vc-face-left { transform: rotateY(-90deg) translateZ(calc(24px * var(--ui-scale))); }
+  .vc-face-top { transform: rotateX(90deg) translateZ(calc(24px * var(--ui-scale))); }
+  .vc-face-bottom { transform: rotateX(-90deg) translateZ(calc(24px * var(--ui-scale))); }
+  .knowledge-panel {
+    width: calc(200px * var(--ui-scale));
+    top: auto;
+    bottom: calc(110px * var(--ui-scale));
+    right: calc(8px * var(--ui-scale));
+    transform: none;
+    max-height: 40vh;
   }
-
-  .cp-header svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .cp-item {
-    padding: 4px 0;
-  }
-
-  .cp-label {
-    font-size: 10px;
-  }
-
-  .cp-slider {
-    width: 44px;
-    height: 3px;
-  }
-
-  .cp-slider::-webkit-slider-thumb {
-    width: 12px;
-    height: 12px;
-  }
-
-  .cp-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-  }
-
-  .cp-value {
-    font-size: 10px;
-    min-width: 24px;
-  }
-
-  .cp-switch {
-    width: 30px;
-    height: 17px;
-  }
-
-  .cp-slider-toggle::before {
-    width: 11px;
-    height: 11px;
-    left: 2px;
-    bottom: 2px;
-  }
-
-  .cp-switch input:checked + .cp-slider-toggle::before {
-    transform: translateX(13px);
-  }
-
-  .cp-btn {
-    font-size: 10px;
-    padding: 5px 8px;
-  }
-
-  .cp-btn svg {
-    width: 12px;
-    height: 12px;
-  }
-
-  .title-bar {
-    top: 8px;
-  }
-
-  .title-text {
-    font-size: 13px;
-    letter-spacing: 1px;
-  }
-
-  .title-sub {
-    font-size: 9px;
-    letter-spacing: 1px;
-  }
-
-  .legend-panel {
-    bottom: 52px;
-    left: 8px;
-    padding: 8px 10px;
-    min-width: 88px;
-  }
-
-  .legend-title {
-    font-size: 11px;
-    margin-bottom: 5px;
-  }
-
-  .legend-item {
-    font-size: 9px;
-    padding: 1px 0;
-  }
-
-  .legend-bar {
-    width: 36px !important;
-    height: 6px !important;
-  }
-
-  .legend-labels {
-    width: 36px;
-    font-size: 8px;
-  }
-
-  .badge {
-    width: 8px;
-    height: 8px;
-  }
-
-  .controls-info {
-    font-size: 9px;
-    padding: 4px 10px;
-    gap: 6px;
-    bottom: 14px;
-    border-radius: 14px;
-  }
-
-  .profile-chart {
-    bottom: 48px;
-  }
-
-  .profile-chart canvas {
-    width: 260px;
-    height: 130px;
-  }
-
-  .profile-chart-header {
-    font-size: 10px;
-    padding: 4px 10px;
-  }
-
-  .profile-hint {
-    font-size: 11px;
-    padding: 6px 14px;
-    top: 68px;
-  }
+  .kp-list li { font-size: calc(11px * var(--ui-scale)); padding: calc(3px * var(--ui-scale)) 0; }
+  .profile-chart canvas { width: calc(320px * var(--ui-scale)); height: calc(160px * var(--ui-scale)); }
+  .profile-chart-header { font-size: calc(12px * var(--ui-scale)); }
+  .legend-panel { bottom: calc(60px * var(--ui-scale)); }
+  .controls-info { font-size: calc(11px * var(--ui-scale)); padding: calc(6px * var(--ui-scale)) calc(14px * var(--ui-scale)); }
 }
 
-/* 小屏手机 (< 480px) */
 @media (max-width: 480px) {
-  .control-panel {
-    min-width: 120px;
-    padding: 6px 8px;
-  }
-
-  .cp-header {
-    font-size: 10px;
-  }
-
-  .cp-label {
-    font-size: 9px;
-  }
-
-  .cp-slider {
-    width: 36px;
-  }
-
-  .title-text {
-    font-size: 11px;
-  }
-
-  .title-sub {
-    font-size: 8px;
-  }
-
-  .profile-chart canvas {
-    width: 220px;
-    height: 110px;
-  }
-
-  .controls-info span:nth-child(3) {
-    display: none;
-  }
+  .knowledge-panel { display: none; }
+  .view-cube { width: calc(40px * var(--ui-scale)); height: calc(40px * var(--ui-scale)); }
+  .vc-face { font-size: calc(10px * var(--ui-scale)); }
+  .vc-face-front { transform: rotateY(0deg) translateZ(calc(20px * var(--ui-scale))); }
+  .vc-face-back { transform: rotateY(180deg) translateZ(calc(20px * var(--ui-scale))); }
+  .vc-face-right { transform: rotateY(90deg) translateZ(calc(20px * var(--ui-scale))); }
+  .vc-face-left { transform: rotateY(-90deg) translateZ(calc(20px * var(--ui-scale))); }
+  .vc-face-top { transform: rotateX(90deg) translateZ(calc(20px * var(--ui-scale))); }
+  .vc-face-bottom { transform: rotateX(-90deg) translateZ(calc(20px * var(--ui-scale))); }
+  .profile-chart canvas { width: calc(260px * var(--ui-scale)); height: calc(130px * var(--ui-scale)); }
 }
 </style>
