@@ -30,44 +30,20 @@
     </header>
 
     <main class="zy-main">
-      <aside class="left-panel glass-panel">
-        <div class="panel-head compact">
-          <div>
-            <h2>计算类型</h2>
-            <p>选择对应地理公式</p>
+      <div class="left-bar glass-panel">
+        <div class="left-bar-head">
+          <h2>计算类型</h2>
+          <div class="type-select-wrapper">
+            <select v-model="activeId" class="type-select">
+              <option
+                v-for="tool in tools"
+                :key="tool.id"
+                :value="tool.id"
+              >{{ tool.icon }} {{ tool.title }}</option>
+            </select>
           </div>
-          <span>{{ activeTool.category }}</span>
         </div>
-
-        <div class="category-tabs">
-          <button
-            v-for="cat in categories"
-            :key="cat"
-            type="button"
-            :class="['category-tab', selectedCategory === cat ? 'active' : '']"
-            @click="selectedCategory = cat"
-          >
-            {{ cat }}
-          </button>
-        </div>
-
-        <div class="tool-list">
-          <button
-            v-for="tool in visibleTools"
-            :key="tool.id"
-            type="button"
-            :class="['tool-item', activeId === tool.id ? 'active' : '']"
-            @click="activeId = tool.id"
-          >
-            <span class="tool-icon">{{ tool.icon }}</span>
-            <span class="tool-text">
-              <strong>{{ tool.title }}</strong>
-              <em>{{ tool.desc }}</em>
-            </span>
-            <small>{{ tool.badge }}</small>
-          </button>
-        </div>
-      </aside>
+      </div>
 
       <section class="center-panel glass-panel">
         <div class="calc-title">
@@ -85,10 +61,10 @@
         </div>
 
         <div class="calc-workspace">
-          <section class="input-card">
+          <div class="input-area">
             <div class="card-head">
               <h3>输入参数</h3>
-              <span>实时计算</span>
+              <span>填写数据后点击"计算"</span>
             </div>
 
             <div class="form-grid">
@@ -125,56 +101,28 @@
             </div>
 
             <div class="buttons-row">
+              <el-button class="calc-btn" type="primary" @click="calculate">计算</el-button>
               <el-button class="primary-btn" type="primary" @click="resetForm">恢复默认</el-button>
               <el-button class="secondary-btn" @click="randomFill">随机练一题</el-button>
             </div>
-          </section>
-
-          <section class="result-card">
-            <div class="result-main">
-              <span>计算结果</span>
-              <h3>{{ calcResult.main }}</h3>
-              <p>{{ calcResult.sub }}</p>
-            </div>
-
-            <div class="highlight-grid">
-              <div v-for="item in calcResult.highlights" :key="item.label" class="highlight-item">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
+            <div class="result-area" v-if="showResult">
+              <div class="result-area-main">
+                <span>{{ calcResult.main }}</span>
+                <em>{{ calcResult.sub }}</em>
+              </div>
+              <div class="result-area-grid">
+                <div v-for="item in calcResult.highlights" :key="item.label" class="result-area-item">
+                  <small>{{ item.label }}</small>
+                  <strong>{{ item.value }}</strong>
+                </div>
               </div>
             </div>
-          </section>
+          </div>
         </div>
       </section>
 
-      <aside class="right-panel">
-        <section class="right-card glass-panel params-card">
-          <div class="card-head">
-            <h3>此刻的运算参数</h3>
-            <span>Current</span>
-          </div>
-          <div class="param-list">
-            <div v-for="field in activeTool.fields" :key="field.key" class="param-item">
-              <span>{{ field.label }}</span>
-              <strong>{{ formatParam(form[field.key]) }}{{ field.unit || '' }}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section class="right-card glass-panel dynamic-card">
-          <div class="card-head">
-            <h3>公式动态变化</h3>
-            <span>Dynamic</span>
-          </div>
-          <div class="dynamic-list">
-            <div v-for="(line, index) in calcResult.dynamicLines" :key="`${activeTool.id}-${index}`" class="dynamic-line">
-              <i>{{ index + 1 }}</i>
-              <span>{{ line }}</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="right-card glass-panel knowledge-card">
+      <div class="bottom-panels">
+        <section class="bottom-card glass-panel knowledge-card">
           <div class="card-head">
             <h3>知识点</h3>
             <span>Point</span>
@@ -184,21 +132,15 @@
           </ul>
         </section>
 
-        <section class="right-card glass-panel tip-card">
+        <section class="bottom-card glass-panel tip-card">
           <div class="card-head">
             <h3>学习提示</h3>
             <span>Tip</span>
           </div>
           <p>{{ calcResult.tip }}</p>
         </section>
-      </aside>
+      </div>
     </main>
-
-    <footer class="zy-footer">
-      <span>智地有申计算器</span>
-      <div class="progress"><i :style="progressStyle"></i></div>
-      <span>{{ activeTool.title }}</span>
-    </footer>
   </div>
 </template>
 
@@ -246,9 +188,6 @@ type CalcResult = {
   dynamicLines: string[]
 }
 
-type StyleObject = Record<string, string>
-
-const THEME_COLOR = '#2ec4b6'
 const EARTH_RADIUS_KM = 6371
 const OMEGA = 7.2921159e-5
 
@@ -282,7 +221,7 @@ const directionText = (value: number): string => {
 const invalidResult = (message = '请输入有效参数'): CalcResult => ({
   main: message,
   sub: '当前参数不足，暂时无法计算。',
-  tip: '检查输入框是否为空，角度统一使用“度”。',
+  tip: '检查输入框是否为空，角度统一使用"度"。',
   highlights: [],
   dynamicLines: [message],
 })
@@ -708,9 +647,9 @@ const tools = [
 
 const defaultTool = tools[0]!
 const activeId = ref<string>(defaultTool.id)
-const selectedCategory = ref<string>('全部')
 const copied = ref<boolean>(false)
 const form = reactive<Record<string, number>>({})
+const showResult = ref<boolean>(false)
 
 const activeTool = computed<any>(() => tools.find((item) => item.id === activeId.value) ?? defaultTool)
 const activeIndex = computed<number>(() => {
@@ -718,18 +657,7 @@ const activeIndex = computed<number>(() => {
   return index >= 0 ? index : 0
 })
 
-const categories = computed<string[]>(() => ['全部', ...Array.from(new Set(tools.map((item) => item.category)))])
-const visibleTools = computed<any[]>(() => {
-  if (selectedCategory.value === '全部') return tools
-  return tools.filter((item) => item.category === selectedCategory.value)
-})
-
 const calcResult = computed<CalcResult>(() => computeResult(activeTool.value.id, form))
-
-const progressStyle = computed<StyleObject>(() => ({
-  width: `${((activeIndex.value + 1) / tools.length) * 100}%`,
-  background: THEME_COLOR,
-}))
 
 function resetForm(): void {
   Object.keys(form).forEach((key) => {
@@ -738,12 +666,17 @@ function resetForm(): void {
   activeTool.value.fields.forEach((field: any) => {
     form[field.key] = activeTool.value.defaults[field.key] ?? 0
   })
+  showResult.value = false
 }
 
 function useExample(example: ExampleConfig): void {
   Object.entries(example.values).forEach(([key, value]) => {
     form[key] = value
   })
+}
+
+function calculate(): void {
+  showResult.value = true
 }
 
 function randomFill(): void {
@@ -756,19 +689,12 @@ function randomFill(): void {
   })
 }
 
-function formatParam(value: unknown): string {
-  return fmt(safeNumber(value))
-}
-
 async function copyResult(): Promise<void> {
   const text = [
     `【${activeTool.value.title}】`,
     `公式：${activeTool.value.formula}`,
     `结果：${calcResult.value.main}`,
     `说明：${calcResult.value.sub}`,
-    '',
-    '动态公式：',
-    ...calcResult.value.dynamicLines,
   ].join('\n')
 
   if (!navigator?.clipboard) return
@@ -779,7 +705,10 @@ async function copyResult(): Promise<void> {
   }, 1200)
 }
 
-watch(activeId, resetForm, { immediate: true })
+watch(activeId, () => {
+  resetForm()
+  showResult.value = false
+}, { immediate: true })
 
 function computeResult(id: string, values: Record<string, number>): CalcResult {
   const v = (key: string, fallback = 0): number => safeNumber(values[key], fallback)
@@ -1182,7 +1111,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
       return {
         main: `坡度 ${fmt(percent)}%，坡角 ${fmt(angle)}°`,
         sub: percent > 20 ? '坡度较大，地形较陡。' : '坡度较小，地形较缓。',
-        tip: '判断等高线疏密时，可把“单位水平距离内的高差”理解成坡度。',
+        tip: '判断等高线疏密时，可把"单位水平距离内的高差"理解成坡度。',
         highlights: [
           { label: '高差', value: `${fmt(heightDiff)} m` },
           { label: '水平距离', value: `${fmt(horizontalDistance)} m` },
@@ -1199,13 +1128,13 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
 </script>
 
 <style scoped>
-:global(*) {
+::global(*) {
   box-sizing: border-box;
 }
 
-:global(html),
-:global(body),
-:global(#app) {
+::global(html),
+::global(body),
+::global(#app) {
   width: 100%;
   min-width: 0;
   height: 100%;
@@ -1216,6 +1145,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
 .zy-page {
   --theme: #2ec4b6;
   --theme-dark: #129e93;
+  --theme-accent: #247cff;
   --text-main: #0d2f36;
   --text-soft: #4e7279;
   --panel: rgba(255, 255, 255, 0.78);
@@ -1223,22 +1153,23 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   --line: rgba(46, 196, 182, 0.26);
   position: relative;
   display: grid;
-  grid-template-rows: 92px minmax(0, 1fr) 20px;
-  gap: 10px;
+  grid-template-rows: 72px minmax(0, 1fr);
+  gap: 6px;
   width: 100%;
-  max-width: 100vw;
+  max-width: 760px;
   min-width: 0;
   height: 100vh;
   max-height: 100vh;
   overflow: hidden;
   overflow-x: clip;
-  padding: 12px;
+  margin: 0 auto;
+  padding: 8px 0;
   color: var(--text-main);
   background:
     radial-gradient(circle at 8% 6%, rgba(46, 196, 182, 0.24), transparent 30%),
-    radial-gradient(circle at 88% 0%, rgba(77, 166, 255, 0.2), transparent 32%),
+    radial-gradient(circle at 88% 0%, rgba(36, 124, 255, 0.18), transparent 32%),
     radial-gradient(circle at 52% 100%, rgba(46, 196, 182, 0.12), transparent 42%),
-    linear-gradient(135deg, #f3fffd 0%, #eaf8f8 48%, #f8fcff 100%);
+    linear-gradient(135deg, #f3fffd 0%, #eaf8f8 48%, #f0f6ff 100%);
   font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
 
@@ -1275,7 +1206,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
 .light-b {
   right: -110px;
   top: 8%;
-  background: rgba(80, 155, 255, 0.22);
+  background: rgba(36, 124, 255, 0.22);
 }
 
 .glass-panel {
@@ -1283,7 +1214,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   z-index: 1;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 16px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(245, 255, 253, 0.72)),
     var(--panel);
@@ -1297,10 +1228,10 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
   min-height: 0;
-  padding: 10px 16px;
+  padding: 8px 14px;
   overflow: hidden;
 }
 
@@ -1308,20 +1239,20 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 12px;
+  gap: 10px;
 }
 
 .brand-logo {
   display: grid;
-  flex: 0 0 50px;
-  width: 50px;
-  height: 50px;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   color: #04302f;
-  border-radius: 16px;
+  border-radius: 14px;
   background: linear-gradient(135deg, #2ec4b6, #b8fff8);
   box-shadow: 0 16px 32px rgba(46, 196, 182, 0.25);
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 900;
 }
 
@@ -1329,25 +1260,24 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   display: grid;
   min-width: 0;
   align-content: center;
-  gap: 2px;
+  gap: 1px;
   overflow: hidden;
 }
 
 .brand-text span,
 .calc-title span,
 .formula-strip span,
-.result-main span {
+.result-area-main span {
   color: var(--theme-dark);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.12em;
 }
 
-
 .brand-text span {
   overflow: hidden;
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1356,7 +1286,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
 .brand-text h1 {
   margin: 0;
   color: #072f35;
-  font-size: clamp(23px, 2.1vw, 30px);
+  font-size: clamp(20px, 1.8vw, 26px);
   line-height: 1.08;
 }
 
@@ -1365,7 +1295,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   overflow: hidden;
   margin: 0;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1376,23 +1306,14 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   align-items: center;
   justify-content: flex-end;
   min-width: 0;
-  gap: 10px;
-}
-
-.header-actions::before {
-  display: none;
-}
-
-.header-actions .mini-stat:nth-child(1),
-.header-actions .mini-stat:nth-child(2) {
-  display: block;
+  gap: 8px;
 }
 
 .mini-stat {
-  min-width: 72px;
-  padding: 6px 10px;
+  min-width: 62px;
+  padding: 4px 8px;
   border: 1px solid rgba(46, 196, 182, 0.2);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.64);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
@@ -1400,28 +1321,29 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
 .mini-stat strong {
   display: block;
   color: var(--theme-dark);
-  font-size: 20px;
+  font-size: 17px;
   line-height: 1;
 }
 
 .mini-stat span {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--text-soft);
-  font-size: 11px;
+  font-size: 10px;
   white-space: nowrap;
 }
 
 .copy-btn.el-button {
   flex: 0 0 auto;
-  min-width: 104px;
-  height: 34px;
+  min-width: 90px;
+  height: 30px;
   margin-left: 0;
   border: 0;
   color: #06312f;
   background: linear-gradient(135deg, #2ec4b6, #9afff4);
   box-shadow: 0 14px 28px rgba(46, 196, 182, 0.24);
   font-weight: 900;
+  font-size: 12px;
 }
 
 .copy-btn.el-button:hover,
@@ -1442,188 +1364,58 @@ button {
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: 292px minmax(0, 1fr) 352px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) minmax(160px, auto);
+  gap: 6px;
   overflow: hidden;
 }
 
-.left-panel,
-.center-panel,
-.right-card {
+.left-bar {
+  padding: 8px 12px;
   min-height: 0;
-  padding: 12px;
 }
 
-.left-panel {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  overflow: hidden;
-}
-
-.panel-head,
-.card-head,
-.calc-title {
+.left-bar-head {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
-  align-items: flex-start;
 }
 
-.panel-head h2,
-.card-head h3,
-.calc-title h2 {
+.left-bar-head h2 {
   margin: 0;
   color: var(--text-main);
+  font-size: 15px;
+  white-space: nowrap;
 }
 
-.panel-head h2 {
-  font-size: 18px;
-}
-
-.panel-head p {
-  margin: 3px 0 0;
-  color: var(--text-soft);
-  font-size: 12px;
-}
-
-.panel-head > span,
-.card-head > span,
-.tool-item small {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  min-height: 21px;
-  padding: 3px 8px;
-  color: #06312f;
-  border-radius: 999px;
-  background: rgba(46, 196, 182, 0.18);
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.category-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 10px 0;
-}
-
-.category-tab {
-  padding: 5px 8px;
-  color: #39666d;
-  border: 1px solid rgba(46, 196, 182, 0.18);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.66);
-  font-size: 12px;
-}
-
-.category-tab.active {
-  color: #052f2e;
-  background: #2ec4b6;
-  box-shadow: 0 8px 20px rgba(46, 196, 182, 0.2);
-}
-
-.tool-list,
-.right-panel,
-.dynamic-list,
-.highlight-grid,
-.knowledge-card ul {
-  min-height: 0;
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(46, 196, 182, 0.55) transparent;
-}
-
-.tool-list::-webkit-scrollbar,
-.right-panel::-webkit-scrollbar,
-.dynamic-list::-webkit-scrollbar,
-.highlight-grid::-webkit-scrollbar,
-.knowledge-card ul::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.tool-list::-webkit-scrollbar-thumb,
-.right-panel::-webkit-scrollbar-thumb,
-.dynamic-list::-webkit-scrollbar-thumb,
-.highlight-grid::-webkit-scrollbar-thumb,
-.knowledge-card ul::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(46, 196, 182, 0.45);
-}
-
-.tool-list {
-  display: grid;
-  align-content: start;
-  gap: 7px;
-  padding-right: 3px;
-}
-
-.tool-item {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px;
-  color: var(--text-main);
-  text-align: left;
-  border: 1px solid rgba(46, 196, 182, 0.16);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.68);
-  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-}
-
-.tool-item:hover {
-  transform: translateY(-1px);
-  border-color: rgba(46, 196, 182, 0.45);
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.tool-item.active {
-  border-color: rgba(46, 196, 182, 0.88);
-  background: linear-gradient(135deg, rgba(46, 196, 182, 0.2), rgba(255, 255, 255, 0.9));
-  box-shadow: 0 12px 26px rgba(46, 196, 182, 0.13);
-}
-
-.tool-icon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 12px;
-  background: rgba(46, 196, 182, 0.14);
-  font-size: 18px;
-}
-
-.tool-text {
+.type-select-wrapper {
+  flex: 1;
   min-width: 0;
 }
 
-.tool-text strong,
-.tool-text em {
-  display: block;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.tool-text strong {
+.type-select {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
   color: var(--text-main);
   font-size: 13px;
+  font-weight: 700;
+  border: 1px solid rgba(46, 196, 182, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  outline: none;
+  cursor: pointer;
 }
 
-.tool-text em {
-  margin-top: 2px;
-  color: var(--text-soft);
-  font-size: 11px;
-  font-style: normal;
+.type-select:focus {
+  border-color: #2ec4b6;
+  box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.1);
 }
 
-.tool-item small {
-  color: var(--theme-dark);
-  background: rgba(46, 196, 182, 0.12);
+.center-panel,
+.bottom-card {
+  min-height: 0;
+  padding: 10px;
 }
 
 .center-panel {
@@ -1631,41 +1423,56 @@ button {
   min-width: 0;
   min-height: 0;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 10px;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.bottom-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  min-height: 160px;
+}
+
+.bottom-card {
+  min-height: 0;
   overflow: hidden;
 }
 
 .calc-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
   align-items: center;
 }
 
 .calc-title h2 {
   margin: 4px 0;
   color: #082f36;
-  font-size: clamp(22px, 2vw, 30px);
+  font-size: clamp(20px, 1.8vw, 26px);
 }
 
 .calc-icon {
   display: grid;
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   flex: 0 0 auto;
   border: 1px solid rgba(46, 196, 182, 0.22);
-  border-radius: 18px;
+  border-radius: 14px;
   background: rgba(46, 196, 182, 0.1);
-  font-size: 28px;
+  font-size: 22px;
 }
 
 .formula-strip {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
-  min-height: 42px;
+  gap: 10px;
+  min-height: 40px;
   padding: 8px 12px;
   border: 1px solid rgba(46, 196, 182, 0.2);
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.72);
 }
 
@@ -1673,7 +1480,7 @@ button {
   min-width: 0;
   overflow: hidden;
   color: #082f36;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.35;
   text-overflow: ellipsis;
 }
@@ -1682,51 +1489,64 @@ button {
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.92fr);
-  gap: 10px;
-  overflow: hidden;
+  grid-template-columns: 1fr;
+  gap: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.input-card,
-.result-card {
-  min-height: 0;
-  overflow: hidden;
-  padding: 12px;
-  border: 1px solid rgba(46, 196, 182, 0.2);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.72);
+.input-area {
+  padding: 0;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
 }
 
 .card-head h3 {
+  margin: 0;
+  color: var(--text-main);
   font-size: 16px;
 }
 
 .card-head > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 20px;
+  padding: 2px 8px;
   color: var(--theme-dark);
+  border-radius: 999px;
   background: rgba(46, 196, 182, 0.12);
+  font-size: 10px;
+  font-weight: 900;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .field-card {
   display: grid;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
-  padding: 9px;
+  padding: 7px;
   border: 1px solid rgba(46, 196, 182, 0.16);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
 }
 
 .field-card span {
   display: flex;
   justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
   color: var(--text-main);
   font-size: 12px;
   font-weight: 800;
@@ -1742,8 +1562,8 @@ button {
 }
 
 .field-number :deep(.el-input__wrapper) {
-  height: 34px;
-  border-radius: 10px;
+  height: 30px;
+  border-radius: 8px;
   background: rgba(245, 255, 253, 0.92);
   box-shadow: 0 0 0 1px rgba(46, 196, 182, 0.2) inset;
 }
@@ -1755,6 +1575,7 @@ button {
 .field-number :deep(.el-input__inner) {
   color: var(--text-main);
   font-weight: 700;
+  font-size: 13px;
 }
 
 .field-card small {
@@ -1770,20 +1591,20 @@ button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 5px;
+  margin-top: 8px;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .example-btn.el-button {
-  height: 26px;
+  height: 24px;
   margin-left: 0;
-  padding: 0 9px;
+  padding: 0 8px;
   color: var(--theme-dark);
   border-color: rgba(46, 196, 182, 0.28);
   background: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -1795,18 +1616,33 @@ button {
 
 .buttons-row {
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: flex-start;
 }
 
+.calc-btn.el-button,
 .primary-btn.el-button,
 .secondary-btn.el-button {
-  height: 34px;
+  height: 30px;
   margin-left: 0;
   padding: 0 12px;
-  border-radius: 11px;
-  font-size: 13px;
+  border-radius: 10px;
+  font-size: 12px;
   font-weight: 900;
+}
+
+.calc-btn.el-button {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
+  box-shadow: 0 6px 16px rgba(36, 124, 255, 0.2);
+}
+
+.calc-btn.el-button:hover,
+.calc-btn.el-button:focus {
+  background: linear-gradient(135deg, #38d8ca, #3b8aff);
 }
 
 .primary-btn.el-button {
@@ -1821,150 +1657,76 @@ button {
   background: rgba(255, 255, 255, 0.64);
 }
 
-.result-card {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+.result-area {
+  margin-top: 8px;
+  padding: 14px 16px;
+  border: 1px solid rgba(46, 196, 182, 0.2);
+  border-radius: 12px;
   background:
-    radial-gradient(circle at 100% 0%, rgba(46, 196, 182, 0.2), transparent 38%),
+    radial-gradient(circle at 100% 0%, rgba(46, 196, 182, 0.15), transparent 38%),
+    radial-gradient(circle at 0% 100%, rgba(36, 124, 255, 0.08), transparent 38%),
     rgba(255, 255, 255, 0.76);
+  animation: fadeInUp 0.3s ease;
 }
 
-.result-main h3 {
-  margin: 6px 0;
-  color: #062c32;
-  font-size: clamp(22px, 2.1vw, 32px);
-  line-height: 1.15;
+.result-area-main {
+  margin-bottom: 10px;
 }
 
-.result-main p {
-  margin: 0;
-  color: var(--text-soft);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.highlight-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-content: start;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.highlight-item {
-  min-height: 60px;
-  padding: 9px;
-  border: 1px solid rgba(46, 196, 182, 0.16);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.64);
-}
-
-.highlight-item span {
+.result-area-main span {
   display: block;
-  color: var(--text-soft);
-  font-size: 11px;
+  color: #062c32;
+  font-size: clamp(20px, 1.8vw, 28px);
+  font-weight: 800;
+  line-height: 1.2;
 }
 
-.highlight-item strong {
+.result-area-main em {
   display: block;
   margin-top: 6px;
-  color: var(--text-main);
-  font-size: 15px;
-  line-height: 1.24;
+  color: var(--text-soft);
+  font-size: 14px;
+  font-style: normal;
+  line-height: 1.4;
 }
 
-.right-panel {
-  display: grid;
+.result-area-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.result-area-item {
   min-width: 0;
-  min-height: 0;
-  grid-template-rows: auto minmax(130px, 1.05fr) minmax(118px, 0.9fr) auto;
-  gap: 10px;
-  overflow: hidden;
+  padding: 6px 12px;
+  border: 1px solid rgba(46, 196, 182, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
 }
 
-.right-card {
-  overflow: hidden;
-}
-
-.param-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-  margin-top: 10px;
-}
-
-.param-item {
-  min-width: 0;
-  padding: 8px;
-  border: 1px solid rgba(46, 196, 182, 0.16);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.62);
-}
-
-.param-item span,
-.param-item strong {
+.result-area-item small {
   display: block;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.param-item span {
   color: var(--text-soft);
   font-size: 11px;
 }
 
-.param-item strong {
-  margin-top: 4px;
+.result-area-item strong {
+  display: block;
+  margin-top: 3px;
   color: var(--text-main);
-  font-size: 13px;
+  font-size: 15px;
+  line-height: 1.3;
 }
 
-.dynamic-card {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  background:
-    linear-gradient(135deg, rgba(46, 196, 182, 0.16), rgba(255, 255, 255, 0.72)),
-    rgba(255, 255, 255, 0.78);
-}
-
-.dynamic-list {
-  display: grid;
-  align-content: start;
-  gap: 7px;
-  margin-top: 10px;
-  padding-right: 3px;
-}
-
-.dynamic-line {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  padding: 8px;
-  border: 1px solid rgba(46, 196, 182, 0.16);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.62);
-}
-
-.dynamic-line i {
-  display: grid;
-  width: 22px;
-  height: 22px;
-  place-items: center;
-  color: #06312f;
-  border-radius: 999px;
-  background: var(--theme);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 900;
-}
-
-.dynamic-line span {
-  color: var(--text-main);
-  font-size: 12px;
-  line-height: 1.45;
-  word-break: break-word;
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .knowledge-card {
@@ -1975,18 +1737,20 @@ button {
 .knowledge-card ul {
   display: grid;
   align-content: start;
-  gap: 7px;
-  margin: 10px 0 0;
+  gap: 5px;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
+  min-height: 0;
+  overflow: auto;
 }
 
 .knowledge-card li {
   position: relative;
-  padding-left: 15px;
+  padding-left: 14px;
   color: #315b63;
-  font-size: 12px;
-  line-height: 1.44;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .knowledge-card li::before {
@@ -2001,69 +1765,27 @@ button {
 }
 
 .tip-card p {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: #315b63;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-.zy-footer {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: auto minmax(120px, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  min-height: 0;
-  color: #5c7b81;
-  font-size: 12px;
-}
-
-.progress {
-  height: 6px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(46, 196, 182, 0.12);
-}
-
-.progress i {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  box-shadow: 0 0 18px rgba(46, 196, 182, 0.58);
-  transition: width 0.25s ease;
-}
-
-@media (max-width: 1360px) {
-  .zy-main {
-    grid-template-columns: 274px minmax(0, 1fr) 326px;
-  }
-
-  .calc-workspace {
-    grid-template-columns: 1fr;
-    overflow: auto;
-  }
-
-  .result-card {
-    min-height: 220px;
-  }
-}
-
-@media (max-width: 1100px) {
+@media (max-width: 768px) {
   .zy-page {
     grid-template-rows: auto auto auto;
     height: auto;
     min-height: 100vh;
     max-height: none;
-    padding: 10px;
+    padding: 8px;
     overflow-y: auto;
     overflow-x: clip;
   }
 
   .zy-header {
     grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
   }
 
   .header-actions {
@@ -2071,39 +1793,20 @@ button {
     width: 100%;
   }
 
-  .zy-main {
-    grid-template-columns: minmax(0, 1fr);
-    overflow: visible;
-  }
-
-  .brand {
-    align-items: flex-start;
-  }
-
   .brand-logo {
-    flex-basis: 48px;
-    width: 48px;
-    height: 48px;
-    border-radius: 16px;
-    font-size: 26px;
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
   }
 
   .brand-text span {
     display: none;
   }
 
-  
-.brand-text span {
-  overflow: hidden;
-  font-size: 10px;
-  line-height: 1;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.brand-text h1 {
+  .brand-text h1 {
     margin-top: 0;
-    font-size: clamp(24px, 6vw, 30px);
+    font-size: clamp(20px, 5vw, 24px);
   }
 
   .brand-text p,
@@ -2112,34 +1815,35 @@ button {
     overflow: hidden;
     white-space: normal;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
   }
 
-  .left-panel,
-  .center-panel,
-  .right-card {
-    padding: 10px;
-    border-radius: 18px;
+  .zy-main {
+    overflow: visible;
   }
 
-  .tool-list {
-    max-height: 260px;
+  .left-bar,
+  .center-panel,
+  .bottom-card {
+    padding: 8px;
+    border-radius: 14px;
   }
 
   .center-panel,
   .calc-workspace,
-  .right-panel {
+  .bottom-panels {
     overflow: visible;
   }
 
-  .right-panel {
-    grid-template-rows: none;
+  .bottom-panels {
+    grid-template-columns: 1fr;
   }
 
   .formula-strip {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 4px;
+    gap: 3px;
   }
 
   .formula-strip strong {
@@ -2148,43 +1852,22 @@ button {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 600px) {
   .zy-page {
-    padding: 8px;
-    gap: 8px;
-  }
-
-  .zy-header {
-    border-radius: 18px;
-  }
-
-  .brand {
-    gap: 10px;
+    padding: 6px;
+    gap: 6px;
   }
 
   .brand-logo {
-    flex-basis: 42px;
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
-    font-size: 23px;
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    font-size: 19px;
   }
 
-  
-.brand-text span {
-  overflow: hidden;
-  font-size: 10px;
-  line-height: 1;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.brand-text h1 {
-    font-size: 22px;
-  }
-
-  .brand-text p {
-    font-size: 12px;
+  .brand-text h1 {
+    font-size: 19px;
   }
 
   .header-actions {
@@ -2196,9 +1879,9 @@ button {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
-    padding: 8px 10px;
+    padding: 6px 8px;
   }
 
   .mini-stat span {
@@ -2209,81 +1892,31 @@ button {
     width: 100%;
   }
 
-  .panel-head,
-  .card-head,
-  .calc-title {
-    gap: 8px;
-  }
-
   .calc-icon {
     display: none;
   }
 
-  .calc-title h2 {
-    font-size: 22px;
-  }
-
-  .form-grid,
-  .param-list,
-  .highlight-grid {
+  .form-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .buttons-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    flex-direction: column;
   }
 
+  .calc-btn.el-button,
   .primary-btn.el-button,
   .secondary-btn.el-button {
     width: 100%;
   }
 
-  .tool-item {
-    grid-template-columns: 32px minmax(0, 1fr);
+  .result-area {
+    flex-direction: column;
+    width: 100%;
   }
 
-  .tool-item small {
-    display: none;
-  }
-
-  .result-main h3 {
-    font-size: 22px;
-    word-break: break-word;
-  }
-
-  .zy-footer {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-}
-
-@media (max-width: 420px) {
-  .zy-page {
-    padding: 6px;
-  }
-
-  .glass-panel {
-    border-radius: 16px;
-  }
-
-  .brand-logo {
-    display: none;
-  }
-
-  .category-tabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scrollbar-width: none;
-  }
-
-  .category-tabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  .category-tab {
-    flex: 0 0 auto;
+  .result-area-grid {
+    width: 100%;
   }
 }
 </style>
