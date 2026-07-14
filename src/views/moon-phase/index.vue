@@ -933,9 +933,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .moon-phase-container {
   position: relative;
-  min-height: 100%;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  color: #e2e8f0;
+  color: #2ec4b6;
   background:
     radial-gradient(circle at 50% 0%, rgba(30, 64, 175, 0.16), transparent 42%),
     #020617;
@@ -953,9 +954,14 @@ onBeforeUnmount(() => {
 .page-shell {
   position: relative;
   z-index: 1;
-  width: min(1180px, calc(100% - 32px));
+  width: 100%;
+  max-width: 1920px;
+  height: 100%;
   margin: 0 auto;
-  padding: 28px 0 38px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .page-header {
@@ -968,16 +974,17 @@ onBeforeUnmount(() => {
 
 .page-header h1 {
   margin: 0 0 8px;
-  color: #fff;
-  font-size: clamp(28px, 3.2vw, 42px);
+  color: #2ec4b6;
+  font-size: clamp(24px, 2.5vw, 36px);
   line-height: 1.1;
   letter-spacing: 0.04em;
 }
 
 .page-header p {
   margin: 0;
-  color: #94a3b8;
-  font-size: 14px;
+  color: #2ec4b6;
+  opacity: 0.7;
+  font-size: clamp(13px, 1vw, 16px);
 }
 
 .sun-source-tip {
@@ -986,11 +993,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 9px;
   padding: 9px 15px;
-  color: #facc15;
-  font-size: 13px;
+  color: #2ec4b6;
+  font-size: clamp(12px, 0.9vw, 14px);
   font-weight: 600;
-  background: rgba(250, 204, 21, 0.1);
-  border: 1px solid rgba(250, 204, 21, 0.22);
+  background: rgba(46, 196, 182, 0.1);
+  border: 1px solid rgba(46, 196, 182, 0.22);
   border-radius: 999px;
 }
 
@@ -1002,7 +1009,10 @@ onBeforeUnmount(() => {
 .main-grid {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(290px, 1fr);
-  gap: 22px;
+  grid-template-rows: 1fr auto auto;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 .panel {
@@ -1034,8 +1044,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 9px;
   margin: 0;
-  color: #fff;
-  font-size: 17px;
+  color: #2ec4b6;
+  font-size: clamp(15px, 1.2vw, 20px);
 }
 
 .panel-icon {
@@ -1055,11 +1065,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 7px;
   padding: 8px 13px;
-  color: #fff;
-  font-size: 12px;
+  color: #2ec4b6;
+  font-size: clamp(12px, 0.9vw, 14px);
   cursor: pointer;
-  background: #334155;
-  border: 1px solid #475569;
+  background: rgba(46, 196, 182, 0.1);
+  border: 1px solid rgba(46, 196, 182, 0.3);
   border-radius: 999px;
   transition:
     background 0.2s ease,
@@ -1067,7 +1077,7 @@ onBeforeUnmount(() => {
 }
 
 .pill-button:hover {
-  background: #475569;
+  background: rgba(46, 196, 182, 0.2);
   transform: translateY(-1px);
 }
 
@@ -1076,10 +1086,10 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   padding: 7px 11px;
-  color: #cbd5e1;
-  font-size: 12px;
+  color: #2ec4b6;
+  font-size: clamp(12px, 0.9vw, 14px);
   background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(71, 85, 105, 0.75);
+  border: 1px solid rgba(46, 196, 182, 0.25);
   border-radius: 999px;
 }
 
@@ -1178,11 +1188,11 @@ onBeforeUnmount(() => {
   z-index: 5;
   top: 50%;
   right: 12px;
-  color: #facc15;
-  font-size: 14px;
+  color: #2ec4b6;
+  font-size: clamp(12px, 1vw, 15px);
   font-weight: 700;
   letter-spacing: 0.28em;
-  text-shadow: 0 0 10px rgba(250, 204, 21, 0.85);
+  text-shadow: 0 0 10px rgba(46, 196, 182, 0.6);
   pointer-events: none;
   writing-mode: vertical-rl;
   transform: translateY(-50%);
@@ -1245,15 +1255,16 @@ onBeforeUnmount(() => {
 }
 
 .orbit-label strong {
-  color: #cbd5e1;
-  font-size: 11px;
+  color: #2ec4b6;
+  font-size: clamp(10px, 0.8vw, 13px);
   line-height: 1.2;
 }
 
 .orbit-label span {
   margin-top: 2px;
-  color: rgba(251, 191, 36, 0.82);
-  font-size: 9px;
+  color: #2ec4b6;
+  opacity: 0.6;
+  font-size: clamp(8px, 0.65vw, 10px);
 }
 
 .orbit-label.label-right {
@@ -1274,11 +1285,11 @@ onBeforeUnmount(() => {
   top: 50%;
   left: 50%;
   display: grid;
-  width: 72px;
-  height: 72px;
+  width: clamp(60px, 5vw, 80px);
+  height: clamp(60px, 5vw, 80px);
   place-items: center;
-  color: rgba(255, 255, 255, 0.86);
-  font-size: 11px;
+  color: #2ec4b6;
+  font-size: clamp(10px, 0.85vw, 13px);
   font-weight: 700;
   background:
     linear-gradient(to right, #0f172a 50%, rgba(59, 130, 246, 0.96) 50%);
@@ -1307,8 +1318,9 @@ onBeforeUnmount(() => {
   position: absolute;
   top: -21px;
   left: 50%;
-  color: #94a3b8;
-  font-size: 9px;
+  color: #2ec4b6;
+  opacity: 0.7;
+  font-size: clamp(8px, 0.7vw, 10px);
   white-space: nowrap;
   transform: translateX(-50%);
 }
@@ -1362,8 +1374,9 @@ onBeforeUnmount(() => {
 
 .hemisphere-note {
   margin-top: 8px;
-  color: #64748b;
-  font-size: 11px;
+  color: #2ec4b6;
+  opacity: 0.5;
+  font-size: clamp(10px, 0.8vw, 12px);
 }
 
 .data-panel {
@@ -1373,8 +1386,9 @@ onBeforeUnmount(() => {
 
 .data-panel h3 {
   margin: 0 0 14px;
-  color: #94a3b8;
-  font-size: 12px;
+  color: #2ec4b6;
+  opacity: 0.8;
+  font-size: clamp(12px, 1vw, 14px);
   letter-spacing: 0.12em;
 }
 
@@ -1389,8 +1403,9 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 14px;
   padding: 15px 0;
-  color: #cbd5e1;
-  border-bottom: 1px solid rgba(71, 85, 105, 0.56);
+  color: #2ec4b6;
+  opacity: 0.85;
+  border-bottom: 1px solid rgba(46, 196, 182, 0.15);
 }
 
 .data-row:last-child {
@@ -1398,15 +1413,16 @@ onBeforeUnmount(() => {
 }
 
 .data-row strong {
-  color: #fff;
+  color: #2ec4b6;
   font-family: "JetBrains Mono", Consolas, monospace;
-  font-size: 19px;
+  font-size: clamp(16px, 1.3vw, 22px);
   white-space: nowrap;
 }
 
 .data-row small {
-  color: #94a3b8;
-  font-size: 12px;
+  color: #2ec4b6;
+  opacity: 0.6;
+  font-size: clamp(11px, 0.85vw, 13px);
   font-weight: 400;
 }
 
@@ -1471,8 +1487,9 @@ onBeforeUnmount(() => {
 
 .speed-group button {
   padding: 7px 11px;
-  color: #94a3b8;
-  font-size: 12px;
+  color: #2ec4b6;
+  opacity: 0.6;
+  font-size: clamp(11px, 0.85vw, 13px);
   font-weight: 700;
   cursor: pointer;
   background: transparent;
@@ -1482,6 +1499,7 @@ onBeforeUnmount(() => {
 
 .speed-group button.active {
   color: #fff;
+  opacity: 1;
   background: #2ec4b6;
 }
 
@@ -1494,8 +1512,9 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   margin-bottom: 10px;
-  color: #94a3b8;
-  font-size: 11px;
+  color: #2ec4b6;
+  opacity: 0.7;
+  font-size: clamp(10px, 0.8vw, 12px);
 }
 
 .timeline input[type="range"] {
@@ -1565,13 +1584,14 @@ onBeforeUnmount(() => {
 .knowledge-card h3 {
   margin: 0 0 8px;
   color: #2ec4b6;
-  font-size: 14px;
+  font-size: clamp(13px, 1vw, 16px);
 }
 
 .knowledge-card p {
   margin: 0;
-  color: #94a3b8;
-  font-size: 12px;
+  color: #2ec4b6;
+  opacity: 0.7;
+  font-size: clamp(11px, 0.85vw, 13px);
   line-height: 1.72;
   text-align: justify;
 }
@@ -1593,6 +1613,113 @@ onBeforeUnmount(() => {
 
   .knowledge-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 希沃大屏适配 (1920×1080+) */
+@media (min-width: 1500px) {
+  .page-shell {
+    padding: 28px 40px;
+  }
+
+  .main-grid {
+    gap: 24px;
+  }
+
+  .global-panel {
+    padding: 28px;
+  }
+
+  .observation-panel,
+  .data-panel {
+    padding: 28px;
+  }
+
+  .control-panel {
+    padding: 24px 32px;
+  }
+
+  .knowledge-grid {
+    gap: 20px;
+  }
+
+  .knowledge-card {
+    padding: 24px;
+  }
+
+  .viewport-container {
+    width: min(100%, 720px);
+  }
+
+  .moon-preview {
+    width: min(260px, 80%);
+  }
+
+  .play-button {
+    width: 64px;
+    height: 64px;
+  }
+
+  .play-icon {
+    font-size: 24px;
+  }
+
+  .pause-icon {
+    font-size: 22px;
+  }
+}
+
+@media (min-width: 2200px) {
+  .page-shell {
+    max-width: 2560px;
+    padding: 36px 56px;
+  }
+
+  .page-header h1 {
+    font-size: 42px;
+  }
+
+  .page-header p {
+    font-size: 18px;
+  }
+
+  .panel-header h2,
+  .observation-panel h2 {
+    font-size: 24px;
+  }
+
+  .global-panel {
+    padding: 36px;
+  }
+
+  .observation-panel,
+  .data-panel {
+    padding: 36px;
+  }
+
+  .viewport-container {
+    width: min(100%, 860px);
+  }
+
+  .moon-preview {
+    width: min(320px, 82%);
+  }
+
+  .knowledge-card {
+    padding: 32px;
+  }
+
+  .knowledge-card h3 {
+    font-size: 18px;
+  }
+
+  .knowledge-card p {
+    font-size: 15px;
+  }
+
+  .play-button {
+    width: 72px;
+    height: 72px;
   }
 }
 

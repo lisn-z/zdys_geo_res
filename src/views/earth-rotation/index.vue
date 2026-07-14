@@ -31,18 +31,99 @@
         >{{ g.text }}</div>
     </div>
 
+    <!-- Timezone Labels Overlay -->
+    <div class="grid-labels-overlay">
+      <div
+        v-for="(t, i) in tzLabelScreenData"
+        :key="'tz'+i"
+        v-show="t.visible"
+        class="grid-label tz-label"
+        :style="{ left: t.x + 'px', top: t.y + 'px' }"
+      >{{ t.text }}</div>
+    </div>
+
+    <!-- A/B 时间对比卡（可拖动） -->
+    <div class="ab-compare-panel" :style="{ left: abPanelPos.x + 'px', top: abPanelPos.y + 'px', right: 'auto' }">
+      <div class="ab-drag-handle" @mousedown="onAbDragStart">⏱ A / B 同时刻对比 ⠿</div>
+      <div class="ab-cards">
+        <div class="ab-card ab-a">
+          <div class="ab-badge a">A</div>
+          <div class="ab-lon">{{ formatLon(pointA.lon) }}</div>
+          <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointA.lon)) }}</div>
+          <div class="ab-status" :class="{ day: isPointDaytime(pointA.lon) }">{{ isPointDaytime(pointA.lon) ? '☀️' : '🌙' }}</div>
+        </div>
+        <div class="ab-divider">
+          <div class="ab-diff">{{ formatTimeDiff(calcLonDiff(pointA.lon, pointB.lon) / 15) }}</div>
+          <div class="ab-arrow">{{ pointA.lon > pointB.lon ? 'A早' : 'B早' }}</div>
+        </div>
+        <div class="ab-card ab-b">
+          <div class="ab-badge b">B</div>
+          <div class="ab-lon">{{ formatLon(pointB.lon) }}</div>
+          <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointB.lon)) }}</div>
+          <div class="ab-status" :class="{ day: isPointDaytime(pointB.lon) }">{{ isPointDaytime(pointB.lon) ? '☀️' : '🌙' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 城市预览卡 -->
+    <transition name="slide-left">
+      <div v-if="selectedCity" class="city-preview-panel">
+        <div class="preview-header">
+          <span class="preview-name">{{ selectedCity.name }}</span>
+          <button class="preview-close" @click="selectedCity = null">✕</button>
+        </div>
+        <div class="preview-body">
+          <div class="preview-row">
+            <span class="preview-label">📍 坐标</span>
+            <span class="preview-val">{{ Math.abs(selectedCity.lat) }}°{{ selectedCity.lat >= 0 ? 'N' : 'S' }}, {{ Math.abs(selectedCity.lon) }}°{{ selectedCity.lon >= 0 ? 'E' : 'W' }}</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">🌍 国家</span>
+            <span class="preview-val">{{ selectedCity.country }}</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">🕐 地方时</span>
+            <span class="preview-val highlight">{{ formatLocalTime(getCityLocalHour(selectedCity)) }}</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">🌐 时区</span>
+            <span class="preview-val">{{ getCityTimezoneInfo(selectedCity).label }}</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">🇨🇳 与北京</span>
+            <span class="preview-val">{{ getCityTimezoneInfo(selectedCity).beijingDiff }}</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">☀️🌙 昼夜</span>
+            <span class="preview-val" :class="{ day: isCityDaytime(selectedCity) }">{{ isCityDaytime(selectedCity) ? '白昼' : '黑夜' }}</span>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 图例 -->
+    <div class="legend-panel" :style="{ left: legendPos.x + 'px', top: legendPos.y + 'px', bottom: 'auto' }">
+      <div class="legend-drag-handle" @mousedown="onLegendDragStart">📖 图例 ⠿</div>
+      <div class="legend-list">
+        <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>A 点</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#247cff"></span>B 点</div>
+        <div class="legend-item"><span class="legend-line" style="background:#fbbf24"></span>经度弧</div>
+        <div class="legend-item"><span class="legend-line" style="background:#ff8800"></span>晨线（日出）</div>
+        <div class="legend-item"><span class="legend-line" style="background:#6366f1"></span>昏线（日落）</div>
+        <div class="legend-item"><span class="legend-line" style="background:#fbbf24"></span>本初子午线 0°</div>
+        <div class="legend-item"><span class="legend-line" style="background:#ef4444"></span>日界线 180°</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#fbbf24"></span>城市标记</div>
+        <div class="legend-item"><span class="legend-line" style="background:#2ec4b6"></span>时区线</div>
+      </div>
+    </div>
+
     <!-- Header -->
     <div class="app-header">
-      <span class="header-title">🌍 地球自转专项训练器</span>
+      <span class="header-title">地球自转专项训练器</span>
       <div class="training-tabs">
         <div class="tab-group">
-          <button v-for="m in [{k:'learn',l:'📖 学习'},{k:'practice',l:'✏️ 练习'},{k:'test',l:'📝 测试'}]" :key="m.k"
+          <button v-for="m in [{k:'learn',l:'📖 学习'},{k:'test',l:'📝 测试'}]" :key="m.k"
             class="tab-btn" :class="{active: trainingMode === m.k}" @click="trainingMode = m.k as any">{{ m.l }}</button>
-        </div>
-        <div class="tab-group">
-          <button v-for="p in phaseDefs" :key="p.key"
-            class="tab-btn phase" :class="{active: trainingPhase === p.key}" @click="trainingPhase = p.key as any"
-            :title="p.desc">{{ p.label }}</button>
         </div>
       </div>
     </div>
@@ -98,6 +179,11 @@
       <div v-show="!knowledgeCollapsed" class="panel-scroll">
         <!-- 训练题目区 -->
         <div class="ctrl-title">🎯 训练题目</div>
+        <div class="phase-filters">
+          <button v-for="p in phaseDefs" :key="p.key"
+            class="filter-btn" :class="{active: trainingPhase === p.key}" @click="trainingPhase = p.key as any"
+            :title="p.desc">{{ p.label }}</button>
+        </div>
         <div v-if="currentProblem" class="problem-card">
           <div class="problem-text">{{ currentProblem.text }}</div>
         </div>
@@ -194,29 +280,6 @@
           </div>
         </transition>
 
-        <!-- 诊断统计 -->
-        <div class="ctrl-title kp-section-title">📊 诊断统计</div>
-        <div class="diag-card">
-          <div class="diag-row">
-            <span>总题数</span><b>{{ diagnostics.total }}</b>
-          </div>
-          <div class="diag-row">
-            <span>正确数</span><b style="color:#2ec4b6">{{ diagnostics.correct }}</b>
-          </div>
-          <div class="diag-row">
-            <span>正确率</span><b>{{ diagnostics.total ? Math.round(diagnostics.correct / diagnostics.total * 100) : 0 }}%</b>
-          </div>
-          <div class="diag-skills">
-            <div v-for="(s, k) in diagnostics.skillStats" :key="k" class="diag-skill">
-              <span>{{ skillLabels[k] || k }}</span>
-              <div class="skill-bar">
-                <div class="skill-bar-fill" :style="{ width: (s.total ? s.correct / s.total * 100 : 0) + '%' }"></div>
-              </div>
-              <b>{{ s.correct }}/{{ s.total }}</b>
-            </div>
-          </div>
-        </div>
-
         <!-- 城市快捷选择 -->
         <div class="ctrl-title kp-section-title">🏙 城市快捷</div>
         <input v-model="citySearch" class="city-search" placeholder="🔍 搜索城市..." />
@@ -231,41 +294,6 @@
       </div>
     </div>
 
-    <!-- Bottom Info Bar -->
-    <transition name="slide-up">
-      <div v-if="selectedCity" class="info-bar">
-        <div class="info-section">
-          <span class="info-icon">📍</span>
-          <div>
-            <div class="info-main">{{ selectedCity.name }}</div>
-            <div class="info-sub">{{ selectedCity.country }} · {{ Math.abs(selectedCity.lat) }}°{{ selectedCity.lat >= 0 ? 'N' : 'S' }}, {{ Math.abs(selectedCity.lon) }}°{{ selectedCity.lon >= 0 ? 'E' : 'W' }}</div>
-          </div>
-        </div>
-        <div class="info-section">
-          <span class="info-icon">🕐</span>
-          <div>
-            <div class="info-main">{{ formatLocalTime(getCityLocalHour(selectedCity)) }}</div>
-            <div class="info-sub">地方时</div>
-          </div>
-        </div>
-        <div class="info-section">
-          <span class="info-icon">🌐</span>
-          <div>
-            <div class="info-main">{{ getCityTimezoneInfo(selectedCity).label }}</div>
-            <div class="info-sub">时区 · {{ getCityTimezoneInfo(selectedCity).beijingDiff }}</div>
-          </div>
-        </div>
-        <div class="info-section">
-          <span class="info-icon">{{ isCityDaytime(selectedCity) ? '☀️' : '🌙' }}</span>
-          <div>
-            <div class="info-main">{{ isCityDaytime(selectedCity) ? '白昼' : '黑夜' }}</div>
-            <div class="info-sub">{{ isCityDaytime(selectedCity) ? '处于昼半球' : '处于夜半球' }}</div>
-          </div>
-        </div>
-        <button class="info-close" @click="selectedCity = null">✕</button>
-      </div>
-    </transition>
-
     <!-- 底部经度轴 -->
     <div class="longitude-axis">
       <div class="axis-label">🌍 经度轴 · 拖动 A / B 标记</div>
@@ -277,13 +305,13 @@
           </div>
         </div>
         <!-- A 点 -->
-        <div class="axis-point point-a" :style="{ left: getAxisPercent(pointA.lon) + '%' }"
+        <div class="axis-point point-a" :class="{ disabled: trainingMode === 'test' }" :style="{ left: getAxisPercent(pointA.lon) + '%' }"
           @mousedown="onAxisMouseDown('A')">
           <span class="point-badge a">A</span>
           <span class="point-lon">{{ formatLon(pointA.lon) }}</span>
         </div>
         <!-- B 点 -->
-        <div class="axis-point point-b" :style="{ left: getAxisPercent(pointB.lon) + '%' }"
+        <div class="axis-point point-b" :class="{ disabled: trainingMode === 'test' }" :style="{ left: getAxisPercent(pointB.lon) + '%' }"
           @mousedown="onAxisMouseDown('B')">
           <span class="point-badge b">B</span>
           <span class="point-lon">{{ formatLon(pointB.lon) }}</span>
@@ -342,12 +370,12 @@ const knowledgePoints = [
 const layerDefs = [
   { key: 'graticule', label: '经纬网' },
   { key: 'gridLabels', label: '经纬标注' },
-  { key: 'dateLine', label: '日界线' },
+  { key: 'dateLine', label: '日界线/本初子午线' },
   { key: 'dayNight', label: '昼夜半球' },
   { key: 'terminator', label: '晨昏线' },
   { key: 'timeZones', label: '时区线' },
+  { key: 'tzLabels', label: '时区名称' },
   { key: 'cities', label: '世界城市' },
-  { key: 'coriolis', label: '地转偏向力' },
   { key: 'rotationArrow', label: '自转方向' },
   { key: 'stars', label: '星空背景' },
 ] as const
@@ -407,6 +435,22 @@ const filteredCities = computed(() => {
 const cityScreenData = ref(cityData.map(c => ({ name: c.name, x: 0, y: 0, visible: false, daytime: true })))
 const gridLabelScreenData = ref(gridLabelDefs.map(l => ({ text: l.text, x: 0, y: 0, visible: false, special: !!l.special })))
 
+// 时区名称标注
+const tzLabelDefs = (() => {
+  const labels: { text: string; lat: number; lon: number }[] = []
+  for (let lon = -180; lon <= 180; lon += 15) {
+    const tz = lon / 15
+    let text: string
+    if (tz === 0) text = '中时区'
+    else if (lon === 180) text = '东西十二区'
+    else if (tz > 0) text = `东${tz}区`
+    else text = `西${Math.abs(tz)}区`
+    labels.push({ text, lat: 0, lon })
+  }
+  return labels
+})()
+const tzLabelScreenData = ref(tzLabelDefs.map(l => ({ text: l.text, x: 0, y: 0, visible: false })))
+
 const layers = reactive({
   graticule: true,
   gridLabels: true,
@@ -414,6 +458,7 @@ const layers = reactive({
   dayNight: true,
   terminator: true,
   timeZones: false,
+  tzLabels: false,
   cities: true,
   coriolis: false,
   rotationArrow: true,
@@ -435,7 +480,7 @@ let cityMarkers: THREE.Mesh[] = []
 let graticuleGroup: THREE.Group
 let dateLineGroup: THREE.Group
 let timeZoneGroup: THREE.Group
-let terminatorLine: THREE.Line
+let terminatorLine: THREE.Group
 let coriolisGroup: THREE.Group
 let rotationArrowGroup: THREE.Group
 let starsField: THREE.Points
@@ -489,6 +534,21 @@ function getCityTimezoneInfo(city: typeof cityData[0]): { label: string; beijing
       ? `比北京早${beijingOffset}h`
       : `比北京晚${Math.abs(beijingOffset)}h`
   return { label, beijingDiff }
+}
+
+// A/B 点的地方时和昼夜判断
+function getPointLocalHour(lon: number): number {
+  const sunLon = -THREE.MathUtils.radToDeg(rotationAngle)
+  let diff = lon - sunLon
+  diff = ((diff + 540) % 360) - 180
+  return (12 + diff / 15 + 24) % 24
+}
+
+function isPointDaytime(lon: number): boolean {
+  const sunLon = -THREE.MathUtils.radToDeg(rotationAngle)
+  let diff = Math.abs(lon - sunLon)
+  diff = Math.min(diff, 360 - diff)
+  return diff < 90
 }
 
 // ===================== 地球纹理生成 =====================
@@ -604,13 +664,49 @@ function createGraticule(): THREE.Group {
 // ===================== 日界线 =====================
 function createDateLine(): THREE.Group {
   const group = new THREE.Group()
-  // 180°经线 - 国际日界线（红色加粗）
   const idlMat = new THREE.LineBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.9 })
-  const idlPts: THREE.Vector3[] = []
-  for (let lat = -90; lat <= 90; lat += 2) {
-    idlPts.push(latLonToVec3(lat, 180, EARTH_RADIUS * 1.005))
-  }
+
+  // 国际日界线（按教材）：大致沿180°经线，但在白令海峡附近偏折
+  // 从北极 (90°N, 180°) → 白令海峡偏折 → 180° → 南极 (90°S, 180°)
+  // 教材中日界线在白令海峡处偏离180°，绕过俄罗斯(西)和美国(东)领土
+  const idlPath: [number, number][] = [
+    [90, 180],        // 北极
+    [75, 180],        // 北冰洋
+    [70, 180],        // 
+    [65, 180],        // 
+    [60, 180],        // 
+    // 白令海峡区域：日界线在此偏折
+    [55, 178],        // 偏离180°，绕过俄罗斯楚科奇半岛
+    [52, 175],        // 白令海峡中部偏西
+    [50, 170],        // 偏折最大处（绕过美国阿留申群岛）
+    [48, 175],        // 回归180°附近
+    [45, 178],        // 
+    [40, 180],        // 太平洋中部回到180°
+    [30, 180],
+    [20, 180],
+    [10, 180],
+    [0, 180],         // 赤道
+    [-10, 180],
+    [-20, 180],
+    [-30, 180],
+    [-40, 180],
+    [-50, 180],
+    // 新西兰附近偏折：日界线绕过新西兰东部
+    [-55, 178],
+    [-60, 175],       // 偏折绕过新西兰
+    [-65, 178],
+    [-70, 180],
+    [-75, 180],
+    [-80, 180],
+    [-85, 180],
+    [-90, 180],       // 南极
+  ]
+
+  const idlPts: THREE.Vector3[] = idlPath.map(([lat, lon]) =>
+    latLonToVec3(lat, lon, EARTH_RADIUS * 1.006)
+  )
   group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(idlPts), idlMat))
+
   // 0°经线 - 本初子午线（黄色加粗）
   const pmMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.8 })
   const pmPts: THREE.Vector3[] = []
@@ -638,19 +734,27 @@ function createTimeZones(): THREE.Group {
 }
 
 // ===================== 晨昏线 =====================
-function createTerminator(): THREE.Line {
-  const pts: THREE.Vector3[] = []
+function createTerminator(): THREE.Group {
+  const group = new THREE.Group()
   const segments = 128
-  const r = EARTH_RADIUS * 1.006
-  // 晨昏线是垂直于太阳方向的大圆
-  // 太阳方向为 (1,0,0)，大圆在 YZ 平面
+  const r = EARTH_RADIUS * 1.008
+  // 晨昏线是垂直于太阳方向的大圆，太阳方向 (1,0,0)，大圆在 YZ 平面
+  // Z > 0 半圆 = 晨线（日出），Z < 0 半圆 = 昏线（日落）
+  const dawnPts: THREE.Vector3[] = []   // 晨线
+  const duskPts: THREE.Vector3[] = []   // 昏线
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2
-    pts.push(new THREE.Vector3(0, r * Math.cos(angle), r * Math.sin(angle)))
+    const pt = new THREE.Vector3(0, r * Math.cos(angle), r * Math.sin(angle))
+    if (pt.z >= 0) dawnPts.push(pt)
+    if (pt.z <= 0) duskPts.push(pt)
   }
-  const geo = new THREE.BufferGeometry().setFromPoints(pts)
-  const mat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.8 })
-  return new THREE.Line(geo, mat)
+  // 晨线 - 橙色
+  const dawnMat = new THREE.LineBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.95 })
+  group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(dawnPts), dawnMat))
+  // 昏线 - 蓝紫色
+  const duskMat = new THREE.LineBasicMaterial({ color: 0x6366f1, transparent: true, opacity: 0.95 })
+  group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(duskPts), duskMat))
+  return group
 }
 
 // ===================== 地转偏向力箭头 =====================
@@ -807,15 +911,27 @@ function initThree() {
   earthGroup.rotation.z = TILT
   scene.add(earthGroup)
 
-  // 地球网格
+  // 地球网格 - 使用贴图 /geo-resources-folder/images/earth.jpg
   const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64)
   const earthMat = new THREE.MeshPhongMaterial({
-    map: createEarthTexture(),
+    map: createEarthTexture(), // 先用程序化纹理作为默认
     shininess: 12,
     specular: 0x444444,
     emissive: 0x1a2a44,
     emissiveIntensity: 0.35,
   })
+  // 异步加载地球贴图，加载成功后替换
+  const texLoader = new THREE.TextureLoader()
+  texLoader.load(
+    '/geo-resources-folder/images/earth.jpg',
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace
+      earthMat.map = tex
+      earthMat.needsUpdate = true
+    },
+    undefined,
+    (err) => { console.warn('地球贴图加载失败，使用程序化纹理:', err) }
+  )
   earthMesh = new THREE.Mesh(earthGeo, earthMat)
   earthGroup.add(earthMesh)
 
@@ -875,6 +991,10 @@ function initThree() {
   window.addEventListener('resize', onResize)
   window.addEventListener('mousemove', onAxisMouseMove)
   window.addEventListener('mouseup', onAxisMouseUp)
+  window.addEventListener('mousemove', onAbDragMove)
+  window.addEventListener('mouseup', onAbDragEnd)
+  window.addEventListener('mousemove', onLegendDragMove)
+  window.addEventListener('mouseup', onLegendDragEnd)
 
   applyLayerVisibility()
   generateProblem()
@@ -901,6 +1021,30 @@ function animate() {
   // 更新城市标签
   updateCityLabels()
   updateGridLabels()
+  updateTzLabels()
+}
+
+// ===================== 时区标注更新 =====================
+function updateTzLabels() {
+  const container = containerRef.value
+  if (!container) return
+  const w = container.clientWidth
+  const h = container.clientHeight
+  const camDir = camera.position.clone().normalize()
+  const rotAxis = new THREE.Vector3(0, 1, 0)
+  const tiltAxis = new THREE.Vector3(0, 0, 1)
+
+  tzLabelScreenData.value = tzLabelDefs.map(label => {
+    const localPos = latLonToVec3(label.lat, label.lon, EARTH_RADIUS * 1.01)
+    localPos.applyAxisAngle(rotAxis, rotationAngle)
+    localPos.applyAxisAngle(tiltAxis, TILT)
+    const dot = localPos.clone().normalize().dot(camDir)
+    const visible = dot > 0.1 && layers.tzLabels
+    const screenPos = localPos.clone().project(camera)
+    const x = (screenPos.x * 0.5 + 0.5) * w
+    const y = (-screenPos.y * 0.5 + 0.5) * h
+    return { text: label.text, x, y, visible }
+  })
 }
 
 // ===================== 经纬标注更新 =====================
@@ -1011,7 +1155,7 @@ function selectCityByName(name: string) {
 }
 
 // ===================== 地方时训练系统 =====================
-type TrainingMode = 'learn' | 'practice' | 'test'
+type TrainingMode = 'learn' | 'test'
 type TrainingPhase = 'direction' | 'longitudeDiff' | 'timeConversion' | 'fullChain' | 'dateCrossing'
 
 const trainingMode = ref<TrainingMode>('learn')
@@ -1282,7 +1426,56 @@ function updateABMarkers() {
 // 经度轴拖拽
 const axisDragging = ref<'A' | 'B' | null>(null)
 
+// A/B 面板拖动
+const abPanelPos = reactive({ x: window.innerWidth - 520, y: 80 })
+let abDragging = false
+let abDragOffset = { x: 0, y: 0 }
+
+function onAbDragStart(event: MouseEvent) {
+  abDragging = true
+  const panel = event.currentTarget as HTMLElement
+  const rect = panel.parentElement!.getBoundingClientRect()
+  abDragOffset.x = event.clientX - rect.left
+  abDragOffset.y = event.clientY - rect.top
+  event.preventDefault()
+}
+
+function onAbDragMove(event: MouseEvent) {
+  if (!abDragging) return
+  abPanelPos.x = Math.max(0, Math.min(window.innerWidth - 300, event.clientX - abDragOffset.x))
+  abPanelPos.y = Math.max(0, Math.min(window.innerHeight - 100, event.clientY - abDragOffset.y))
+}
+
+function onAbDragEnd() {
+  abDragging = false
+}
+
+// 图例面板拖动
+const legendPos = reactive({ x: 300, y: window.innerHeight - 280 })
+let legendDragging = false
+let legendDragOffset = { x: 0, y: 0 }
+
+function onLegendDragStart(event: MouseEvent) {
+  legendDragging = true
+  const panel = event.currentTarget as HTMLElement
+  const rect = panel.parentElement!.getBoundingClientRect()
+  legendDragOffset.x = event.clientX - rect.left
+  legendDragOffset.y = event.clientY - rect.top
+  event.preventDefault()
+}
+
+function onLegendDragMove(event: MouseEvent) {
+  if (!legendDragging) return
+  legendPos.x = Math.max(0, Math.min(window.innerWidth - 220, event.clientX - legendDragOffset.x))
+  legendPos.y = Math.max(0, Math.min(window.innerHeight - 100, event.clientY - legendDragOffset.y))
+}
+
+function onLegendDragEnd() {
+  legendDragging = false
+}
+
 function onAxisMouseDown(point: 'A' | 'B') {
+  if (trainingMode.value === 'test') return
   axisDragging.value = point
 }
 
@@ -1309,7 +1502,7 @@ function getAxisPercent(lon: number): number {
 function applyLayerVisibility() {
   if (graticuleGroup) graticuleGroup.visible = layers.graticule
   if (dateLineGroup) dateLineGroup.visible = layers.dateLine
-  if (timeZoneGroup) timeZoneGroup.visible = layers.timeZones
+  if (timeZoneGroup) timeZoneGroup.visible = layers.timeZones || layers.tzLabels
   if (terminatorLine) terminatorLine.visible = layers.terminator
   if (coriolisGroup) coriolisGroup.visible = layers.coriolis
   if (rotationArrowGroup) rotationArrowGroup.visible = layers.rotationArrow
@@ -1319,9 +1512,13 @@ function applyLayerVisibility() {
   if (earthMesh) {
     const mat = earthMesh.material as THREE.MeshPhongMaterial
     if (mat.emissiveIntensity !== undefined) mat.emissiveIntensity = 0.35 * brightness.value
+    // 昼夜交替时地球半透明，透出另一侧的昼夜状态
+    mat.transparent = layers.dayNight
+    mat.opacity = layers.dayNight ? 0.75 : 1.0
+    mat.depthWrite = !layers.dayNight
   }
   if (axisLine) axisLine.visible = layers.rotationArrow
-  if (subsolarMarker) subsolarMarker.visible = layers.dayNight
+  if (subsolarMarker) subsolarMarker.visible = false
 }
 
 // 监听图层变化
@@ -1340,6 +1537,10 @@ onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   window.removeEventListener('mousemove', onAxisMouseMove)
   window.removeEventListener('mouseup', onAxisMouseUp)
+  window.removeEventListener('mousemove', onAbDragMove)
+  window.removeEventListener('mouseup', onAbDragEnd)
+  window.removeEventListener('mousemove', onLegendDragMove)
+  window.removeEventListener('mouseup', onLegendDragEnd)
   renderer?.domElement.removeEventListener('click', onCanvasClick)
   controls?.dispose()
   renderer?.dispose()
@@ -1368,9 +1569,9 @@ body { margin: 0; overflow: hidden; background: #000511; }
 /* Header */
 .app-header {
   position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-  z-index: 20; text-align: center; padding: 10px 24px;
+  z-index: 20; text-align: center; padding: 16px 40px;
   background: rgba(8, 12, 28, 0.7);
-  border-radius: 0 0 14px 14px;
+  border-radius: 0 0 16px 16px;
   border: 1px solid transparent;
   border-top: none;
   backdrop-filter: blur(8px);
@@ -1389,25 +1590,25 @@ body { margin: 0; overflow: hidden; background: #000511; }
 
 /* Panels */
 .control-panel, .knowledge-panel {
-  position: absolute; top: 64px; bottom: 0;
+  position: absolute; top: 80px; bottom: 0;
   z-index: 15;
   display: flex; flex-direction: column;
 }
-.control-panel { left: 0; width: 270px; }
-.knowledge-panel { right: 0; width: 310px; }
+.control-panel { left: 0; width: 280px; }
+.knowledge-panel { right: 0; width: 320px; }
 
 .panel-scroll {
   flex: 1; overflow-y: auto; overflow-x: hidden;
-  padding: 14px 16px;
+  padding: 24px 24px;
   background: rgba(8, 12, 28, 0.85);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(46, 196, 182, 0.15);
 }
-.control-panel .panel-scroll { border-left: none; border-right: 1px solid rgba(46, 196, 182, 0.15); border-radius: 0 14px 14px 0; }
-.knowledge-panel .panel-scroll { border-right: none; border-left: 1px solid rgba(46, 196, 182, 0.15); border-radius: 14px 0 0 14px; }
+.control-panel .panel-scroll { border-left: none; border-right: 1px solid rgba(46, 196, 182, 0.15); border-radius: 0 16px 16px 0; }
+.knowledge-panel .panel-scroll { border-right: none; border-left: 1px solid rgba(46, 196, 182, 0.15); border-radius: 16px 0 0 16px; }
 
 .collapse-btn {
-  position: absolute; top: 14px; width: 28px; height: 40px;
+  position: absolute; top: 20px; width: 28px; height: 40px;
   border: 1px solid transparent;
   background: rgba(8, 12, 28, 0.9); color: #2ec4b6;
   border-radius: 6px; cursor: pointer; z-index: 16;
@@ -1425,10 +1626,10 @@ body { margin: 0; overflow: hidden; background: #000511; }
 .control-panel.collapsed .panel-scroll, .knowledge-panel.collapsed .panel-scroll { display: none; }
 
 /* Control groups */
-.ctrl-group { margin-bottom: 16px; }
+.ctrl-group { margin-bottom: 26px; }
 .ctrl-title {
   font-size: 15px; font-weight: 700;
-  margin-bottom: 10px; padding-bottom: 6px;
+  margin-bottom: 14px; padding-bottom: 10px;
   border-bottom: 1px solid transparent;
   border-image: linear-gradient(90deg, #2ec4b6, #247cff) 1;
   background: linear-gradient(135deg, #2ec4b6, #247cff);
@@ -1436,12 +1637,12 @@ body { margin: 0; overflow: hidden; background: #000511; }
   -webkit-text-fill-color: transparent;
 }
 .ctrl-row {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 14px; color: #94a3b8; margin-top: 8px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 14px; color: #94a3b8; margin-top: 12px;
 }
 .ctrl-val { color: #fbbf24; min-width: 36px; text-align: right; font-size: 14px; }
 .ctrl-btn {
-  width: 100%; padding: 9px 12px; border-radius: 8px;
+  width: 100%; padding: 11px 14px; border-radius: 8px;
   border: 1px solid rgba(46, 196, 182, 0.3);
   background: rgba(46, 196, 182, 0.08); color: #cbd5e1;
   font-size: 14px; cursor: pointer; transition: all 0.2s;
@@ -1450,17 +1651,17 @@ body { margin: 0; overflow: hidden; background: #000511; }
 .ctrl-btn.primary { background: linear-gradient(135deg, #2ec4b6, #247cff); color: #fff; font-weight: 600; border: none; }
 .ctrl-btn.primary:hover { background: linear-gradient(135deg, #3dd4c4, #3b8cff); }
 .ctrl-btn.active { background: linear-gradient(135deg, rgba(46,196,182,0.25), rgba(36,124,255,0.25)); border-color: transparent; border-image: linear-gradient(135deg, #2ec4b6, #247cff) 1; }
-.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-.toggle-list { display: flex; flex-direction: column; gap: 8px; }
+.toggle-list { display: flex; flex-direction: column; gap: 12px; }
 .toggle-item {
   display: flex; justify-content: space-between; align-items: center;
-  font-size: 14px; color: #cbd5e1; cursor: pointer;
+  font-size: 14px; color: #cbd5e1; cursor: pointer; padding: 4px 0;
 }
 
 /* Knowledge panel */
-.kp-section-title { margin-top: 16px; }
-.knowledge-list { display: flex; flex-direction: column; gap: 10px; }
+.kp-section-title { margin-top: 26px; }
+.knowledge-list { display: flex; flex-direction: column; gap: 12px; }
 .kp-card {
   background: linear-gradient(135deg, rgba(46,196,182,0.06), rgba(36,124,255,0.06));
   border: 1px solid rgba(46, 196, 182, 0.15);
@@ -1477,18 +1678,22 @@ body { margin: 0; overflow: hidden; background: #000511; }
 
 /* City list */
 .city-search {
-  width: 100%; padding: 8px 12px; border-radius: 8px;
+  width: 100%; padding: 10px 14px; border-radius: 8px;
   background: rgba(8, 12, 28, 0.8);
   border: 1px solid rgba(46, 196, 182, 0.2);
   color: #e2e8f0; font-size: 13px; outline: none;
-  margin-bottom: 8px; transition: border-color 0.2s;
+  margin-bottom: 12px; transition: border-color 0.2s;
 }
 .city-search::placeholder { color: #475569; }
 .city-search:focus { border-color: #2ec4b6; }
 
-.city-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.city-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.phase-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.phase-filters .filter-btn {
+  padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 500;
+}
 .filter-btn {
-  padding: 4px 10px; border-radius: 6px;
+  padding: 6px 12px; border-radius: 6px;
   border: 1px solid rgba(46, 196, 182, 0.2);
   background: rgba(8, 12, 28, 0.6); color: #94a3b8;
   font-size: 12px; cursor: pointer; transition: all 0.15s;
@@ -1554,6 +1759,12 @@ body { margin: 0; overflow: hidden; background: #000511; }
   background: rgba(8, 12, 28, 0.8); padding: 2px 8px;
   border: 1px solid rgba(251, 191, 36, 0.3);
 }
+.grid-label.tz-label {
+  font-size: 12px; font-weight: 600; color: #2ec4b6;
+  background: rgba(8, 12, 28, 0.85); padding: 2px 8px;
+  border: 1px solid rgba(46, 196, 182, 0.35);
+  border-radius: 4px;
+}
 
 /* Info bar */
 .info-bar {
@@ -1593,14 +1804,100 @@ body { margin: 0; overflow: hidden; background: #000511; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #2ec4b6, #247cff); border-radius: 2px; }
 
+/* ===================== A/B 对比面板 ===================== */
+.ab-compare-panel {
+  position: absolute; z-index: 18;
+  background: rgba(8,12,28,0.92); backdrop-filter: blur(8px);
+  border: 1px solid transparent; border-radius: 12px; padding: 0;
+  background-image: linear-gradient(rgba(8,12,28,0.92), rgba(8,12,28,0.92)),
+    linear-gradient(135deg, #2ec4b6, #247cff);
+  background-origin: border-box; background-clip: padding-box, border-box;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); user-select: none;
+}
+.ab-drag-handle {
+  padding: 8px 14px; font-size: 12px; color: #2ec4b6; font-weight: 600;
+  cursor: move; text-align: center; border-bottom: 1px solid rgba(46,196,182,0.12);
+}
+.ab-cards { display: flex; align-items: stretch; gap: 8px; padding: 10px 12px; }
+.ab-card { text-align: center; min-width: 72px; padding: 4px 6px; }
+.ab-badge {
+  width: 22px; height: 22px; border-radius: 50%; margin: 0 auto 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+}
+.ab-badge.a { background: #ef4444; }
+.ab-badge.b { background: #247cff; }
+.ab-lon { font-size: 10px; color: #94a3b8; margin-bottom: 2px; }
+.ab-time { font-size: 18px; color: #fbbf24; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ab-status { font-size: 14px; margin-top: 2px; }
+.ab-divider {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 0 6px; min-width: 56px;
+  border-left: 1px solid rgba(46,196,182,0.12);
+  border-right: 1px solid rgba(46,196,182,0.12);
+}
+.ab-diff { font-size: 14px; color: #2ec4b6; font-weight: 700; margin: 2px 0; }
+.ab-arrow { font-size: 10px; color: #fbbf24; }
+
+/* ===================== 城市预览面板 ===================== */
+.city-preview-panel {
+  position: absolute; top: 200px; right: 340px; z-index: 18; width: 220px;
+  background: rgba(8,12,28,0.92); backdrop-filter: blur(8px);
+  border: 1px solid transparent; border-radius: 14px; overflow: hidden;
+  background-image: linear-gradient(rgba(8,12,28,0.92), rgba(8,12,28,0.92)),
+    linear-gradient(135deg, #2ec4b6, #247cff);
+  background-origin: border-box; background-clip: padding-box, border-box;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+.preview-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; border-bottom: 1px solid rgba(46,196,182,0.15);
+  background: linear-gradient(135deg, rgba(46,196,182,0.08), rgba(36,124,255,0.08));
+}
+.preview-name { font-size: 16px; font-weight: 700; color: #e2e8f0; }
+.preview-close { background: none; border: none; color: #64748b; cursor: pointer; font-size: 14px; }
+.preview-close:hover { color: #ef4444; }
+.preview-body { padding: 12px 16px; }
+.preview-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+.preview-label { font-size: 13px; color: #94a3b8; }
+.preview-val { font-size: 13px; color: #e2e8f0; }
+.preview-val.highlight { color: #fbbf24; font-size: 18px; font-weight: 700; }
+.preview-val.day { color: #fbbf24; }
+
+/* ===================== 图例面板 ===================== */
+.legend-panel {
+  position: absolute; z-index: 18;
+  background: rgba(8,12,28,0.9); backdrop-filter: blur(8px);
+  border: 1px solid rgba(46,196,182,0.2); border-radius: 10px;
+  padding: 0; max-width: 200px; user-select: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.legend-drag-handle {
+  padding: 8px 14px; font-size: 12px; font-weight: 700; color: #2ec4b6;
+  cursor: move; text-align: center; border-bottom: 1px solid rgba(46,196,182,0.12);
+}
+.legend-list { display: flex; flex-direction: column; gap: 5px; padding: 10px 14px; }
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; }
+.legend-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: 0 0 4px currentColor;
+}
+.legend-line {
+  width: 16px; height: 3px; border-radius: 2px; flex-shrink: 0;
+}
+
+/* Slide-left transition */
+.slide-left-enter-active, .slide-left-leave-active { transition: all 0.3s ease; }
+.slide-left-enter-from, .slide-left-leave-to { opacity: 0; transform: translateX(20px); }
+
 /* ===================== 训练系统样式 ===================== */
 
 /* Training tabs */
 .training-tabs { display: flex; gap: 12px; margin-top: 6px; }
-.tab-group { display: flex; gap: 4px; }
+.tab-group { display: flex; gap: 12px; }
 .tab-btn {
-  padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(46,196,182,0.2);
-  background: rgba(8,12,28,0.6); color: #94a3b8; font-size: 12px;
+  padding: 8px 20px; border-radius: 8px; border: 1px solid rgba(46,196,182,0.2);
+  background: rgba(8,12,28,0.6); color: #94a3b8; font-size: 14px;
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
 .tab-btn:hover { border-color: #2ec4b6; color: #cbd5e1; }
@@ -1614,15 +1911,15 @@ body { margin: 0; overflow: hidden; background: #000511; }
 .problem-card {
   background: linear-gradient(135deg, rgba(46,196,182,0.08), rgba(36,124,255,0.08));
   border: 1px solid rgba(46,196,182,0.2); border-radius: 10px;
-  padding: 14px 16px; margin-bottom: 10px;
+  padding: 16px 18px; margin-bottom: 14px;
 }
-.problem-text { font-size: 15px; color: #e2e8f0; line-height: 1.7; }
+.problem-text { font-size: 15px; color: #e2e8f0; line-height: 1.8; }
 
 /* Answer area */
-.answer-area { margin-bottom: 12px; }
-.answer-btn-row { display: flex; gap: 8px; }
+.answer-area { margin-bottom: 16px; }
+.answer-btn-row { display: flex; gap: 10px; }
 .answer-btn {
-  flex: 1; padding: 10px 16px; border-radius: 8px;
+  flex: 1; padding: 12px 16px; border-radius: 8px;
   border: 1px solid rgba(46,196,182,0.3);
   background: rgba(46,196,182,0.08); color: #cbd5e1;
   font-size: 14px; cursor: pointer; transition: all 0.2s;
@@ -1630,9 +1927,9 @@ body { margin: 0; overflow: hidden; background: #000511; }
 .answer-btn:hover { background: linear-gradient(135deg, rgba(46,196,182,0.2), rgba(36,124,255,0.2)); border-color: #2ec4b6; }
 .answer-btn.small { flex: none; padding: 6px 14px; font-size: 13px; }
 
-.answer-input-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.answer-input-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .answer-input {
-  flex: 1; padding: 8px 12px; border-radius: 8px;
+  flex: 1; padding: 10px 14px; border-radius: 8px;
   background: rgba(8,12,28,0.8); border: 1px solid rgba(46,196,182,0.25);
   color: #e2e8f0; font-size: 14px; outline: none;
 }
@@ -1642,11 +1939,11 @@ body { margin: 0; overflow: hidden; background: #000511; }
 /* Step card */
 .step-card {
   background: rgba(8,12,28,0.6); border: 1px solid rgba(46,196,182,0.15);
-  border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+  border-radius: 10px; padding: 16px 18px; margin-bottom: 12px;
 }
-.step-label { font-size: 13px; color: #2ec4b6; font-weight: 600; margin-bottom: 6px; }
-.step-q { font-size: 14px; color: #cbd5e1; margin-bottom: 10px; }
-.step-progress { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+.step-label { font-size: 13px; color: #2ec4b6; font-weight: 600; margin-bottom: 8px; }
+.step-q { font-size: 14px; color: #cbd5e1; margin-bottom: 14px; }
+.step-progress { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
 .step-dot {
   width: 24px; height: 6px; border-radius: 3px;
   background: rgba(255,255,255,0.1); transition: all 0.3s;
@@ -1656,8 +1953,8 @@ body { margin: 0; overflow: hidden; background: #000511; }
 
 /* Feedback */
 .feedback-card {
-  border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
-  display: flex; flex-direction: column; gap: 8px;
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;
+  display: flex; flex-direction: column; gap: 10px;
 }
 .feedback-card.correct { background: rgba(46,196,182,0.12); border: 1px solid #2ec4b6; }
 .feedback-card.wrong { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; }
@@ -1687,16 +1984,16 @@ body { margin: 0; overflow: hidden; background: #000511; }
 /* ===================== 底部经度轴 ===================== */
 .longitude-axis {
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 18;
-  padding: 8px 20px 10px;
+  padding: 6px 20px 8px;
   background: rgba(8,12,28,0.9); backdrop-filter: blur(8px);
   border-top: 1px solid rgba(46,196,182,0.2);
 }
-.axis-label { font-size: 12px; color: #64748b; margin-bottom: 6px; text-align: center; }
+.axis-label { font-size: 11px; color: #64748b; margin-bottom: 4px; text-align: center; }
 
 .longitude-axis-bar {
-  position: relative; height: 36px; margin: 0 20px;
+  position: relative; height: 24px; margin: 0 40px;
   background: linear-gradient(90deg, rgba(239,68,68,0.1), rgba(148,163,184,0.1), rgba(36,124,255,0.1));
-  border-radius: 8px; border: 1px solid rgba(46,196,182,0.15);
+  border-radius: 6px; border: 1px solid rgba(46,196,182,0.15);
 }
 .axis-ticks { position: absolute; inset: 0; }
 .axis-tick {
@@ -1704,7 +2001,7 @@ body { margin: 0; overflow: hidden; background: #000511; }
   border-left: 1px dashed rgba(148,163,184,0.2);
 }
 .tick-label {
-  position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%);
+  position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%);
   font-size: 10px; color: #64748b; white-space: nowrap;
 }
 
@@ -1713,29 +2010,30 @@ body { margin: 0; overflow: hidden; background: #000511; }
   cursor: grab; z-index: 5; display: flex; flex-direction: column; align-items: center;
 }
 .axis-point:active { cursor: grabbing; }
+.axis-point.disabled { cursor: not-allowed; opacity: 0.7; }
+.axis-point.disabled .point-badge { filter: grayscale(0.4); }
 .point-badge {
-  width: 24px; height: 24px; border-radius: 50%;
+  width: 20px; height: 20px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700; color: #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  font-size: 11px; font-weight: 700; color: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
 .point-badge.a { background: #ef4444; }
 .point-badge.b { background: #247cff; }
 .point-lon {
-  position: absolute; top: -18px; font-size: 11px; font-weight: 600;
-  white-space: nowrap; background: rgba(8,12,28,0.9); padding: 1px 5px;
+  position: absolute; top: -15px; font-size: 10px; font-weight: 600;
+  white-space: nowrap; background: rgba(8,12,28,0.9); padding: 1px 4px;
   border-radius: 3px;
 }
 .point-a .point-lon { color: #ef4444; }
 .point-b .point-lon { color: #247cff; }
 
 .axis-info {
-  display: flex; justify-content: center; gap: 20px; margin-top: 20px;
-  font-size: 12px; color: #94a3b8;
+  display: flex; justify-content: center; gap: 16px; margin-top: 16px;
+  font-size: 11px; color: #94a3b8;
 }
 .axis-info-item b { color: #e2e8f0; }
 
 /* Adjust panels to not overlap with bottom axis */
-.control-panel, .knowledge-panel { bottom: 90px !important; }
-.info-bar { bottom: 100px !important; }
+.control-panel, .knowledge-panel { bottom: 80px !important; }
 </style>

@@ -15,14 +15,6 @@
       </div>
 
       <div class="header-actions">
-        <div class="mini-stat">
-          <strong>{{ tools.length }}</strong>
-          <span>公式模型</span>
-        </div>
-        <div class="mini-stat">
-          <strong>{{ activeIndex + 1 }}</strong>
-          <span>当前模型</span>
-        </div>
         <el-button class="copy-btn" type="primary" round @click="copyResult">
           {{ copied ? '已复制' : '复制结果' }}
         </el-button>
@@ -101,9 +93,9 @@
             </div>
 
             <div class="buttons-row">
-              <el-button class="calc-btn" type="primary" @click="calculate">计算</el-button>
-              <el-button class="primary-btn" type="primary" @click="resetForm">恢复默认</el-button>
-              <el-button class="secondary-btn" @click="randomFill">随机练一题</el-button>
+              <el-button class="calc-btn full-btn" type="primary" @click="calculate">计算</el-button>
+              <el-button class="primary-btn full-btn" type="primary" @click="resetForm">恢复默认</el-button>
+              <el-button class="secondary-btn full-btn" @click="randomFill">随机练一题</el-button>
             </div>
             <div class="result-area" v-if="showResult">
               <div class="result-area-main">
@@ -652,11 +644,6 @@ const form = reactive<Record<string, number>>({})
 const showResult = ref<boolean>(false)
 
 const activeTool = computed<any>(() => tools.find((item) => item.id === activeId.value) ?? defaultTool)
-const activeIndex = computed<number>(() => {
-  const index = tools.findIndex((item) => item.id === activeId.value)
-  return index >= 0 ? index : 0
-})
-
 const calcResult = computed<CalcResult>(() => computeResult(activeTool.value.id, form))
 
 function resetForm(): void {
@@ -1153,24 +1140,24 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   --line: rgba(46, 196, 182, 0.26);
   position: relative;
   display: grid;
-  grid-template-rows: 72px minmax(0, 1fr);
+  grid-template-rows: 68px minmax(0, 1fr);
   gap: 6px;
   width: 100%;
-  max-width: 760px;
+  max-width: min(820px, calc(100vw - 32px));
   min-width: 0;
   height: 100vh;
   max-height: 100vh;
   overflow: hidden;
   overflow-x: clip;
   margin: 0 auto;
-  padding: 8px 0;
+  padding: 10px 0;
   color: var(--text-main);
-  background:
-    radial-gradient(circle at 8% 6%, rgba(46, 196, 182, 0.24), transparent 30%),
-    radial-gradient(circle at 88% 0%, rgba(36, 124, 255, 0.18), transparent 32%),
-    radial-gradient(circle at 52% 100%, rgba(46, 196, 182, 0.12), transparent 42%),
-    linear-gradient(135deg, #f3fffd 0%, #eaf8f8 48%, #f0f6ff 100%);
+  background: transparent;
   font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+}
+
+::global(body) {
+  background: linear-gradient(135deg, #1aa89b 0%, #1a6bdd 100%);
 }
 
 .bg-grid,
@@ -1222,17 +1209,6 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
     0 18px 50px rgba(23, 81, 88, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(18px);
-}
-
-.zy-header {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  min-height: 0;
-  padding: 8px 14px;
-  overflow: hidden;
 }
 
 .brand {
@@ -1290,13 +1266,24 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   line-height: 1.08;
 }
 
+.zy-header {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 0;
+  padding: 6px 12px;
+  overflow: hidden;
+}
+
 .brand-text p,
 .calc-title p {
   overflow: hidden;
   margin: 0;
   color: var(--text-soft);
-  font-size: 11px;
-  line-height: 1.2;
+  font-size: 12px;
+  line-height: 1.4;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -1309,29 +1296,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   gap: 8px;
 }
 
-.mini-stat {
-  min-width: 62px;
-  padding: 4px 8px;
-  border: 1px solid rgba(46, 196, 182, 0.2);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.64);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-}
 
-.mini-stat strong {
-  display: block;
-  color: var(--theme-dark);
-  font-size: 17px;
-  line-height: 1;
-}
-
-.mini-stat span {
-  display: block;
-  margin-top: 2px;
-  color: var(--text-soft);
-  font-size: 10px;
-  white-space: nowrap;
-}
 
 .copy-btn.el-button {
   flex: 0 0 auto;
@@ -1365,7 +1330,7 @@ button {
   min-width: 0;
   min-height: 0;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) minmax(160px, auto);
+  grid-template-rows: auto minmax(0, 1fr) minmax(100px, auto);
   gap: 6px;
   overflow: hidden;
 }
@@ -1415,15 +1380,15 @@ button {
 .center-panel,
 .bottom-card {
   min-height: 0;
-  padding: 10px;
+  padding: 14px;
 }
 
 .center-panel {
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 6px;
+  grid-template-rows: auto auto 1fr;
+  gap: 8px;
   overflow: hidden;
 }
 
@@ -1431,7 +1396,6 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
-  min-height: 160px;
 }
 
 .bottom-card {
@@ -1447,21 +1411,22 @@ button {
 }
 
 .calc-title h2 {
-  margin: 4px 0;
+  margin: 10px 0 6px;
   color: #082f36;
   font-size: clamp(20px, 1.8vw, 26px);
+  line-height: 1.4;
 }
 
 .calc-icon {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   flex: 0 0 auto;
   border: 1px solid rgba(46, 196, 182, 0.22);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(46, 196, 182, 0.1);
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .formula-strip {
@@ -1469,8 +1434,8 @@ button {
   min-width: 0;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
-  padding: 8px 12px;
+  min-height: 48px;
+  padding: 10px 16px;
   border: 1px solid rgba(46, 196, 182, 0.2);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.72);
@@ -1486,17 +1451,19 @@ button {
 }
 
 .calc-workspace {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: 1fr;
-  gap: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .input-area {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 8px;
 }
 
 .card-head {
@@ -1510,6 +1477,7 @@ button {
   margin: 0;
   color: var(--text-main);
   font-size: 16px;
+  line-height: 1.5;
 }
 
 .card-head > span {
@@ -1528,16 +1496,16 @@ button {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .field-card {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
-  padding: 7px;
+  padding: 12px;
   border: 1px solid rgba(46, 196, 182, 0.16);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
@@ -1550,6 +1518,7 @@ button {
   color: var(--text-main);
   font-size: 12px;
   font-weight: 800;
+  line-height: 1.4;
 }
 
 .field-card em {
@@ -1591,8 +1560,8 @@ button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 12px;
   color: var(--text-soft);
   font-size: 11px;
 }
@@ -1616,20 +1585,24 @@ button {
 
 .buttons-row {
   display: flex;
+  gap: 8px;
+  margin-top: 14px;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-  align-items: flex-start;
+}
+
+.buttons-row .full-btn {
+  flex: 1;
+  min-width: 0;
 }
 
 .calc-btn.el-button,
 .primary-btn.el-button,
 .secondary-btn.el-button {
-  height: 30px;
+  height: 34px;
   margin-left: 0;
   padding: 0 12px;
   border-radius: 10px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
 }
 
@@ -1658,64 +1631,67 @@ button {
 }
 
 .result-area {
-  margin-top: 8px;
-  padding: 14px 16px;
+  margin-top: 6px;
+  padding: 8px 12px;
   border: 1px solid rgba(46, 196, 182, 0.2);
-  border-radius: 12px;
+  border-radius: 10px;
   background:
     radial-gradient(circle at 100% 0%, rgba(46, 196, 182, 0.15), transparent 38%),
     radial-gradient(circle at 0% 100%, rgba(36, 124, 255, 0.08), transparent 38%),
     rgba(255, 255, 255, 0.76);
   animation: fadeInUp 0.3s ease;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .result-area-main {
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 .result-area-main span {
   display: block;
   color: #062c32;
-  font-size: clamp(20px, 1.8vw, 28px);
+  font-size: clamp(17px, 1.5vw, 22px);
   font-weight: 800;
   line-height: 1.2;
 }
 
 .result-area-main em {
   display: block;
-  margin-top: 6px;
+  margin-top: 2px;
   color: var(--text-soft);
-  font-size: 14px;
+  font-size: 12px;
   font-style: normal;
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 .result-area-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
 }
 
 .result-area-item {
   min-width: 0;
-  padding: 6px 12px;
+  padding: 3px 8px;
   border: 1px solid rgba(46, 196, 182, 0.12);
-  border-radius: 8px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.6);
 }
 
 .result-area-item small {
   display: block;
   color: var(--text-soft);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .result-area-item strong {
   display: block;
-  margin-top: 3px;
+  margin-top: 1px;
   color: var(--text-main);
-  font-size: 15px;
-  line-height: 1.3;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
 @keyframes fadeInUp {
@@ -1731,14 +1707,14 @@ button {
 
 .knowledge-card {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
 }
 
 .knowledge-card ul {
   display: grid;
   align-content: start;
-  gap: 5px;
-  margin: 8px 0 0;
+  gap: 8px;
+  margin: 10px 0 0;
   padding: 0;
   list-style: none;
   min-height: 0;
@@ -1747,16 +1723,16 @@ button {
 
 .knowledge-card li {
   position: relative;
-  padding-left: 14px;
+  padding-left: 16px;
   color: #315b63;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .knowledge-card li::before {
   position: absolute;
   left: 0;
-  top: 7px;
+  top: 8px;
   width: 6px;
   height: 6px;
   border-radius: 999px;
@@ -1765,10 +1741,31 @@ button {
 }
 
 .tip-card p {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   color: #315b63;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+@media (max-width: 1200px) {
+  .zy-page {
+    grid-template-rows: 64px minmax(0, 1fr);
+    gap: 5px;
+    padding: 8px 0;
+  }
+}
+
+@media (max-width: 1024px) {
+  .zy-page {
+    grid-template-rows: 60px minmax(0, 1fr);
+    gap: 5px;
+  }
+}
+
+@media (max-width: 900px) {
+  .zy-page {
+    max-width: min(680px, calc(100vw - 24px));
+  }
 }
 
 @media (max-width: 768px) {
@@ -1875,19 +1872,6 @@ button {
     flex-direction: column;
   }
 
-  .mini-stat {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
-    padding: 6px 8px;
-  }
-
-  .mini-stat span {
-    margin-top: 0;
-  }
-
   .copy-btn.el-button {
     width: 100%;
   }
@@ -1917,6 +1901,47 @@ button {
 
   .result-area-grid {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .zy-page {
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .brand-logo {
+    flex-basis: 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: 17px;
+  }
+
+  .brand-text h1 {
+    font-size: 17px;
+  }
+
+  .brand-text p {
+    display: none;
+  }
+
+  .left-bar,
+  .center-panel,
+  .bottom-card {
+    padding: 6px;
+    border-radius: 12px;
+  }
+
+  .field-card {
+    padding: 6px;
+  }
+
+  .calc-btn.el-button,
+  .primary-btn.el-button,
+  .secondary-btn.el-button {
+    height: 32px;
+    font-size: 12px;
   }
 }
 </style>

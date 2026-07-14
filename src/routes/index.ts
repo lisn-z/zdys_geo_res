@@ -106,6 +106,14 @@ export const routes = [
     component: () =>
       import('@/views/skeleton/index.vue'),
   },
+  {
+    path: '/temperature-and-precipitation',
+    name: 'temperature-and-precipitation',
+    meta: {
+      title: '气温和降水量',
+    },
+    component: () => import('@/views/temperature-and-precipitation/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
