@@ -412,10 +412,6 @@
     );
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color:
-    rgba(46, 196, 182, 0.58)
-    var(--scrollbar-track);
 }
 
 .panel-scroll::-webkit-scrollbar {
@@ -1653,14 +1649,6 @@
       #2ec4b6,
       #247cff
     );
-}
-
-/* 全局滚动条 */
-.geo-template-page * {
-  scrollbar-width: thin;
-  scrollbar-color:
-    rgba(46, 196, 182, 0.58)
-    var(--scrollbar-track);
 }
 
 .geo-template-page
