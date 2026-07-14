@@ -81,7 +81,7 @@ export const routes = [
     },
     component: () => import('@/views/earth-rotation/index.vue'),
   },
-  {  
+  {
     path: '/moon-phase',
     name: 'moon-phase',
     meta: {
@@ -96,6 +96,15 @@ export const routes = [
       title: '土壤剖面',
     },
     component: () => import('@/views/soil-profile/index.vue'),
+  },
+  {
+    path: '/skeleton',
+    name: 'skeleton',
+    meta: {
+      title: '骨架屏（非课件）',
+    },
+    component: () =>
+      import('@/views/skeleton/index.vue'),
   },
 ]
 

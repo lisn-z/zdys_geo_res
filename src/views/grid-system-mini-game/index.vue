@@ -41,22 +41,13 @@
       <div v-if="feedbackMsg" class="feedback-msg" :class="feedbackStatus">
         {{ feedbackMsg }}
       </div>
-      
-      <button 
-        v-if="gameState === 'idle' || gameState === 'game-over'" 
-        class="action-btn" 
-        @click="startGame"
-      >
+
+      <button v-if="gameState === 'idle' || gameState === 'game-over'" class="action-btn" @click="startGame">
         {{ gameState === 'idle' ? '生成点位 (开始游戏)' : '重新开始' }}
       </button>
-      
-      <button 
-        v-if="gameState === 'round-ended'" 
-        class="action-btn next-btn" 
-        @click="nextRound"
-      >
-        {{ round < 10 ? '生成下一题' : '查看最终结果' }}
-      </button>
+
+      <button v-if="gameState === 'round-ended'" class="action-btn next-btn" @click="nextRound">
+        {{ round < 10 ? '生成下一题' : '查看最终结果' }} </button>
     </div>
   </div>
 </template>
@@ -71,11 +62,11 @@ const gameState = ref('idle'); // idle, playing, round-ended, game-over
 const round = ref(0);
 const score = ref(0);
 const totalTime = ref(0);
-const countdown = ref(20); 
+const countdown = ref(20);
 const targetLat = ref(0);
 const targetLng = ref(0);
 const feedbackMsg = ref('');
-const feedbackStatus = ref(''); 
+const feedbackStatus = ref('');
 
 // 计时器引用
 let countdownInterval = null;
@@ -117,7 +108,7 @@ const initMap = () => {
     center: [20, 0],
     zoom: 3,
     minZoom: 2,
-    maxZoom: 10,
+    maxZoom: 8,
     maxBounds: [[-85, -180], [85, 180]],
     maxBoundsViscosity: 1.0,
     zoomControl: false // 1. 禁用默认的左上角放大缩小控件
@@ -129,7 +120,7 @@ const initMap = () => {
   }).addTo(map);
 
   // 使用 OpenStreetMap 瓦片
-  L.tileLayer('https://zdys.szjx.ai-study.net/geo-resources-folder/tiles/otm-tiles/{z}/{x}/{y}.png', {
+  L.tileLayer('/geo-resources-folder/tiles/arcgis-tiles/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
@@ -142,16 +133,16 @@ const initMap = () => {
 const drawGraticule = () => {
   graticuleLayerGroup.clearLayers();
 
-  const lineColor = 'rgba(0, 0, 0, 0.45)'; 
-  const labelColor = '#333333';            
+  const lineColor = 'rgba(0, 0, 0, 0.45)';
+  const labelColor = '#333333';
 
   // 1. 绘制纬线 (从-75到75，每15度一条) 并在 0度经线 处添加度数标注
   for (let lat = -75; lat <= 75; lat += 15) {
     const isEquator = lat === 0;
-    L.polyline([[lat, -180], [lat, 180]], { 
-      color: isEquator ? '#333' : lineColor, 
-      weight: isEquator ? 2 : 1.2, 
-      dashArray: isEquator ? '' : '6, 6' 
+    L.polyline([[lat, -180], [lat, 180]], {
+      color: isEquator ? '#333' : lineColor,
+      weight: isEquator ? 2 : 1.2,
+      dashArray: isEquator ? '' : '6, 6'
     }).addTo(graticuleLayerGroup);
 
     let latLabel = lat === 0 ? '0° (赤道)' : (lat > 0 ? `${lat}°N` : `${Math.abs(lat)}°S`);
@@ -159,7 +150,7 @@ const drawGraticule = () => {
       className: 'graticule-text-label',
       html: `<span style="color: ${isEquator ? '#c1121f' : labelColor}; font-weight: bold;">${latLabel}</span>`,
       iconSize: [60, 20],
-      iconAnchor: [-5, 12] 
+      iconAnchor: [-5, 12]
     });
     L.marker([lat, 0], { icon: txtIcon, interactive: false }).addTo(graticuleLayerGroup);
   }
@@ -167,26 +158,26 @@ const drawGraticule = () => {
   // 2. 绘制经线 (从-180到180，每15度一条) 并在 0度纬线(赤道) 处添加度数标注
   for (let lng = -180; lng <= 180; lng += 15) {
     const isPrimeMeridian = lng === 0;
-    L.polyline([[-85, lng], [85, lng]], { 
-      color: isPrimeMeridian ? '#333' : lineColor, 
-      weight: isPrimeMeridian ? 2 : 1.2, 
-      dashArray: isPrimeMeridian ? '' : '6, 6' 
+    L.polyline([[-85, lng], [85, lng]], {
+      color: isPrimeMeridian ? '#333' : lineColor,
+      weight: isPrimeMeridian ? 2 : 1.2,
+      dashArray: isPrimeMeridian ? '' : '6, 6'
     }).addTo(graticuleLayerGroup);
 
     let lngLabel = lng === 0 ? '0°' : (lng > 0 ? `${lng}°E` : `${Math.abs(lng)}°W`);
     if (lng === 180 || lng === -180) lngLabel = '180°';
-    
+
     const txtIcon = L.divIcon({
       className: 'graticule-text-label',
       html: `<span style="color: ${isPrimeMeridian ? '#c1121f' : labelColor}; font-weight: bold;">${lngLabel}</span>`,
       iconSize: [50, 20],
-      iconAnchor: [25, -2] 
+      iconAnchor: [25, -2]
     });
     L.marker([0, lng], { icon: txtIcon, interactive: false }).addTo(graticuleLayerGroup);
   }
 
   // 3. 绘制回归线 (北回归线 23.26, 南回归线 -23.26)
-  const tropicColor = '#e76f51'; 
+  const tropicColor = '#e76f51';
   L.polyline([[23.26, -180], [23.26, 180]], { color: tropicColor, weight: 2 }).addTo(graticuleLayerGroup);
   const ntLabel = L.divIcon({
     className: 'graticule-text-label tropic-label',
@@ -213,7 +204,7 @@ const startGame = () => {
   totalTime.value = 0;
   feedbackMsg.value = '';
   gameState.value = 'playing';
-  
+
   clearInterval(totalTimeInterval);
   totalTimeInterval = setInterval(() => {
     if (gameState.value === 'playing') {
@@ -236,13 +227,13 @@ const nextRound = () => {
   round.value++;
   gameState.value = 'playing';
   feedbackMsg.value = '';
-  countdown.value = 20; 
+  countdown.value = 20;
 
   // 1. 随机生成 10 个候选点位
   const points = [];
   for (let i = 0; i < 10; i++) {
-    const lat = (Math.random() * 140) - 70; 
-    const lng = (Math.random() * 320) - 160; 
+    const lat = (Math.random() * 140) - 70;
+    const lng = (Math.random() * 320) - 160;
     points.push({ lat, lng, id: i + 1 });
   }
 
@@ -262,7 +253,7 @@ const nextRound = () => {
     });
 
     const marker = L.marker([pt.lat, pt.lng], { icon: numberIcon }).addTo(map);
-    
+
     marker.on('click', () => {
       if (gameState.value === 'playing') {
         handleChoice(pt);
@@ -298,12 +289,12 @@ const handleRoundEnd = (isCorrect, reason, chosenPoint) => {
   // 修改所有点的样式揭晓答案
   candidateMarkers.forEach(({ marker, pt }) => {
     const isThisTarget = (pt.lat === targetLat.value && pt.lng === targetLng.value);
-    
+
     let bgClass = '';
     if (isThisTarget) {
-      bgClass = 'marker-peer-correct'; 
+      bgClass = 'marker-peer-correct';
     } else if (chosenPoint && pt.id === chosenPoint.id) {
-      bgClass = 'marker-peer-wrong';   
+      bgClass = 'marker-peer-wrong';
     }
 
     marker.setIcon(L.divIcon({
@@ -324,7 +315,7 @@ const handleRoundEnd = (isCorrect, reason, chosenPoint) => {
   } else {
     feedbackStatus.value = 'error';
     feedbackMsg.value = `答错了！你选的是 ${chosenPoint.id} 号，正确答案是标绿的那个。`;
-    
+
     const chosenLatLng = L.latLng(chosenPoint.lat, chosenPoint.lng);
     resultLine = L.polyline([chosenLatLng, targetLatLng], {
       color: '#ff3366',
@@ -363,12 +354,14 @@ const clearRoundLayers = () => {
   box-shadow: none !important;
   font-size: 12px;
   white-space: nowrap;
-  text-shadow: 1px 1px 1px #ffffff, -1px -1px 1px #ffffff, 1px -1px 1px #ffffff, -1px 1px 1px #ffffff; 
+  text-shadow: 1px 1px 1px #ffffff, -1px -1px 1px #ffffff, 1px -1px 1px #ffffff, -1px 1px 1px #ffffff;
 }
+
 .custom-number-icon {
   background: none !important;
   border: none !important;
 }
+
 .marker-peer {
   width: 32px;
   height: 32px;
@@ -380,20 +373,23 @@ const clearRoundLayers = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
   cursor: pointer;
   transition: all 0.2s ease;
 }
+
 .marker-peer:hover {
   transform: scale(1.2);
   background: #2ec4b6;
 }
+
 .marker-peer-correct {
   background: #2ec4b6 !important;
   border-color: #fff !important;
   box-shadow: 0 0 15px #2ec4b6;
   transform: scale(1.2);
 }
+
 .marker-peer-wrong {
   background: #ff3366 !important;
   border-color: #fff !important;
@@ -426,7 +422,7 @@ const clearRoundLayers = () => {
 .panel {
   position: absolute;
   z-index: 1000;
-  background: rgba(1, 22, 39, 0.88); 
+  background: rgba(1, 22, 39, 0.88);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(46, 196, 182, 0.35);
   border-radius: 12px;
@@ -441,17 +437,20 @@ const clearRoundLayers = () => {
   left: 20px;
   min-width: 240px;
 }
+
 .panel-title {
   margin: 0 0 12px 0;
   font-size: 15px;
   color: #2ec4b6;
   letter-spacing: 0.5px;
 }
+
 .coord-box p {
   margin: 4px 0;
   font-size: 14px;
   color: #a0c4c4;
 }
+
 .coord-box .highlight-coord {
   font-size: 20px;
   font-weight: bold;
@@ -462,11 +461,12 @@ const clearRoundLayers = () => {
   margin: 6px 0;
   border-left: 3px solid #2ec4b6;
 }
+
 .tip-box {
   margin-top: 12px;
   font-size: 12px;
   color: #94a3b8;
-  border-top: 1px dashed rgba(255,255,255,0.15);
+  border-top: 1px dashed rgba(255, 255, 255, 0.15);
   padding-top: 10px;
   line-height: 1.4;
 }
@@ -478,20 +478,24 @@ const clearRoundLayers = () => {
   transform: translateX(-50%);
   padding: 10px 30px;
 }
+
 .stats-box {
   display: flex;
   gap: 30px;
 }
+
 .stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
+
 .stat-item .label {
   font-size: 12px;
   color: #a0c4c4;
   margin-bottom: 4px;
 }
+
 .stat-item .value {
   font-size: 18px;
   font-weight: bold;
@@ -512,16 +516,19 @@ const clearRoundLayers = () => {
   border: 3px solid #2ec4b6;
   background: linear-gradient(135deg, #011627, #0a4b52);
 }
+
 .countdown-wrapper {
   display: flex;
   align-items: baseline;
   transition: all 0.3s ease;
 }
+
 .countdown-wrapper .time {
   font-size: 32px;
   font-weight: bold;
   color: #2ec4b6;
 }
+
 .countdown-wrapper .unit {
   font-size: 14px;
   color: #a0c4c4;
@@ -533,16 +540,31 @@ const clearRoundLayers = () => {
 .danger-pulse .unit {
   color: #ff3366 !important;
 }
+
 .danger-pulse {
   animation: pulse-shake 0.4s infinite;
 }
 
 @keyframes pulse-shake {
-  0% { transform: scale(1) rotate(0deg); }
-  25% { transform: scale(1.2) rotate(-3deg); }
-  50% { transform: scale(1) rotate(0deg); }
-  75% { transform: scale(1.2) rotate(3deg); }
-  100% { transform: scale(1) rotate(0deg); }
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+
+  25% {
+    transform: scale(1.2) rotate(-3deg);
+  }
+
+  50% {
+    transform: scale(1) rotate(0deg);
+  }
+
+  75% {
+    transform: scale(1.2) rotate(3deg);
+  }
+
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
 }
 
 /* 下方中间 */
@@ -571,17 +593,21 @@ const clearRoundLayers = () => {
   transition: transform 0.2s, box-shadow 0.2s;
   letter-spacing: 1px;
 }
+
 .action-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(46, 196, 182, 0.6);
 }
+
 .action-btn:active {
   transform: translateY(1px);
 }
+
 .next-btn {
   background: linear-gradient(135deg, #ff9f1c, #e76f51);
   box-shadow: 0 4px 15px rgba(255, 159, 28, 0.4);
 }
+
 .next-btn:hover {
   box-shadow: 0 6px 20px rgba(255, 159, 28, 0.6);
 }
@@ -593,17 +619,26 @@ const clearRoundLayers = () => {
   font-size: 16px;
   animation: fadeIn 0.3s ease;
 }
+
 .feedback-msg.success {
   background-color: rgba(46, 196, 182, 0.9);
   color: #fff;
 }
+
 .feedback-msg.error {
   background-color: rgba(255, 51, 102, 0.9);
   color: #fff;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>
