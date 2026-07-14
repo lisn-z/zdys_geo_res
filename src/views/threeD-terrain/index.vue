@@ -81,6 +81,27 @@
         <svg viewBox="0 0 24 24" width="16" height="16" style="margin-right:4px;vertical-align:middle"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" fill="currentColor"/></svg>
         剖面切割
       </button>
+
+      <div class="cp-divider"></div>
+
+      <!-- 随机地形生成 -->
+      <div class="cp-item">
+        <span class="cp-label">地形生成</span>
+        <select v-model="terrainGenType" class="cp-select">
+          <option value="all">全部</option>
+          <option value="peak">山顶</option>
+          <option value="saddle">鞍部</option>
+          <option value="ridge">山脊</option>
+          <option value="valley">山谷</option>
+          <option value="cliff">陡崖</option>
+          <option value="steep">陡坡</option>
+          <option value="gentle">缓坡</option>
+          <option value="basin">盆地</option>
+        </select>
+      </div>
+      <button class="cp-btn" :disabled="generatingTerrain" @click="generateRandomTerrain">
+        {{ generatingTerrain ? '生成中...' : '随机生成' }}
+      </button>
     </div>
 
     <!-- ===== 顶部标题 ===== -->
@@ -88,6 +109,9 @@
       <div class="title-text">等高线地形图 · 三维投影</div>
       <div class="title-sub">Contour Map Projection</div>
     </div>
+
+    <!-- ===== 关闭面板按钮 ===== -->
+    <button class="toggle-panels-btn" @click="toggleAllPanels">☰</button>
 
     <!-- ===== 视角切换器（3D 立方体）===== -->
     <div class="view-cube" ref="viewCube">
@@ -113,13 +137,6 @@
         <li><span class="kp-term">缓坡</span>：等高线稀疏，高差变化小，坡度&lt;15°</li>
         <li><span class="kp-term">盆地</span>：四周高中间低，等高线呈闭合状且外高内低</li>
       </ul>
-    </div>
-
-    <!-- ===== 操作提示 ===== -->
-    <div class="controls-info">
-      <span>🖱 拖拽旋转</span>
-      <span>🔄 滚轮缩放</span>
-      <span>✋ 右键平移</span>
     </div>
 
     <!-- ===== 剖面提示 ===== -->
@@ -198,6 +215,8 @@ const profileMode = ref(false)
 const showProjectionColoring = ref(true)
 const profileClicks = ref(0)
 const profileData = ref<{ dist: number; elev: number }[]>([])
+const terrainGenType = ref('all')
+const generatingTerrain = ref(false)
 
 // ============================================================
 // Three.js 场景变量
@@ -643,7 +662,6 @@ function initScene() {
 
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x101520)
-  scene.fog = new THREE.Fog(0x101520, 8, 18)
 
   const aspect = container.value.clientWidth / container.value.clientHeight
   camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100)
@@ -793,14 +811,18 @@ function buildContoursAndProjection() {
 
   const SMOOTH_ITER = 2
 
-  // 1. 3D 地形表面等高线 — 深紫色，加粗连续
+  // 1. 3D 地形表面等高线 — 使用 Line2 贴合地形（深紫色）
   for (const level of levels) {
     const y = getDisplayHeight(level)
     const rawPolylines = connectContourPolylines(segments, level, y)
     for (const pts of rawPolylines) {
       const smoothPts = chaikinSmooth(pts, SMOOTH_ITER)
-      const thickLine = createThickContourLine(smoothPts, 0x5a0d9a, 3.0, 0.85)
-      contourGroup3D.add(thickLine)
+      // 用 LineBasicMaterial 创建普通等高线（无 polygonOffset 依赖，直接嵌入地形表面）
+      const lineGeo = new THREE.BufferGeometry()
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(smoothPts, 3))
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x5a0d9a, transparent: true, opacity: 0.85 })
+      const line = new THREE.Line(lineGeo, lineMat)
+      contourGroup3D.add(line)
     }
   }
 
@@ -822,13 +844,16 @@ function buildContoursAndProjection() {
   gridHelper.position.y = BASE_PLANE_Y + 0.003
   projectionGroup.add(gridHelper)
 
-  // 4. 2D 投影等高线 — 紫红色，加粗连续
+  // 4. 2D 投影等高线 — 紫红色
   for (const level of levels) {
     const rawPolylines = connectContourPolylines(segments, level, BASE_PLANE_Y + 0.005)
     for (const pts of rawPolylines) {
       const smoothPts = chaikinSmooth(pts, SMOOTH_ITER)
-      const thickLine = createThickContourLine(smoothPts, 0x8833aa, 2.5, 0.9)
-      projectionGroup.add(thickLine)
+      const lineGeo = new THREE.BufferGeometry()
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(smoothPts, 3))
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x8833aa, transparent: true, opacity: 0.9 })
+      const line = new THREE.Line(lineGeo, lineMat)
+      projectionGroup.add(line)
     }
   }
 
@@ -843,36 +868,32 @@ function buildContoursAndProjection() {
 // 山脊线 & 山谷线绘制 — 紧贴地形表面
 // ============================================================
 function buildRidges(segments: ContourSegment[]) {
-  // ---- 山脊线（红色）：取一段贴合地形的等高线，凸向低处 ----
+  // ---- 山脊线（红色） ----
   const ridgePts = traceRidgeLine(segments)
   if (ridgePts) {
-    const ridgeLine = createThickContourLine(ridgePts, 0xff2222, 4.0, 0.95)
-    ridgeGroup.add(ridgeLine)
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(ridgePts, 3))
+    ridgeGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xff2222 })))
 
-    const projRidgePts = new Float32Array(ridgePts.length)
-    for (let k = 0; k < ridgePts.length; k += 3) {
-      projRidgePts[k] = ridgePts[k]
-      projRidgePts[k + 1] = BASE_PLANE_Y + 0.006
-      projRidgePts[k + 2] = ridgePts[k + 2]
-    }
-    const projRidgeLine = createThickContourLine(projRidgePts, 0xff4444, 3.0, 0.8)
-    projectionGroup.add(projRidgeLine)
+    const proj = new Float32Array(ridgePts.length)
+    for (let k = 0; k < ridgePts.length; k += 3) { proj[k] = ridgePts[k]; proj[k + 1] = BASE_PLANE_Y + 0.006; proj[k + 2] = ridgePts[k + 2] }
+    const pGeo = new THREE.BufferGeometry()
+    pGeo.setAttribute('position', new THREE.BufferAttribute(proj, 3))
+    projectionGroup.add(new THREE.Line(pGeo, new THREE.LineBasicMaterial({ color: 0xff4444 })))
   }
 
-  // ---- 山谷线（蓝色）：取一段贴合地形的等高线，凸向高处 ----
+  // ---- 山谷线（蓝色） ----
   const valleyPts = traceValleyLine(segments)
   if (valleyPts) {
-    const valleyLine = createThickContourLine(valleyPts, 0x2266ff, 4.0, 0.95)
-    ridgeGroup.add(valleyLine)
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(valleyPts, 3))
+    ridgeGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x2266ff })))
 
-    const projValleyPts = new Float32Array(valleyPts.length)
-    for (let k = 0; k < valleyPts.length; k += 3) {
-      projValleyPts[k] = valleyPts[k]
-      projValleyPts[k + 1] = BASE_PLANE_Y + 0.006
-      projValleyPts[k + 2] = valleyPts[k + 2]
-    }
-    const projValleyLine = createThickContourLine(projValleyPts, 0x4488ff, 3.0, 0.8)
-    projectionGroup.add(projValleyLine)
+    const proj = new Float32Array(valleyPts.length)
+    for (let k = 0; k < valleyPts.length; k += 3) { proj[k] = valleyPts[k]; proj[k + 1] = BASE_PLANE_Y + 0.006; proj[k + 2] = valleyPts[k + 2] }
+    const pGeo = new THREE.BufferGeometry()
+    pGeo.setAttribute('position', new THREE.BufferAttribute(proj, 3))
+    projectionGroup.add(new THREE.Line(pGeo, new THREE.LineBasicMaterial({ color: 0x4488ff })))
   }
 }
 
@@ -997,7 +1018,7 @@ function addElevationLabels() {
     const div = document.createElement('div')
     div.textContent = `${level}m`
     div.style.color = '#ffffff'
-    div.style.fontSize = '12px'
+    div.style.fontSize = `${14 * uiScale.value}px`
     div.style.fontWeight = 'bold'
     div.style.fontFamily = '"Microsoft YaHei", sans-serif'
     div.style.textShadow = '0 0 3px rgba(0,0,0,0.8)'
@@ -1047,7 +1068,7 @@ function addElevationLabels() {
     const div = document.createElement('div')
     div.textContent = `${m.level}m`
     div.style.color = '#ffffff'
-    div.style.fontSize = '11px'
+    div.style.fontSize = `${13 * uiScale.value}px`
     div.style.fontWeight = 'bold'
     div.style.fontFamily = '"Microsoft YaHei", sans-serif'
     div.style.whiteSpace = 'nowrap'
@@ -1060,27 +1081,32 @@ function addElevationLabels() {
 }
 
 function addFeatureLabels() {
-  // 每种地形类型仅保留 1 个最典型标签，位置紧贴地形表面
-  const features = [
-    { text: '山顶', x: 0.78, z: 0.78, color: '#ff6b6b' },
-    { text: '鞍部', x: 0.50, z: 0.52, color: '#f9ca24' },
-    { text: '山脊', x: 0.48, z: 0.58, color: '#2bcbba' },
-    { text: '山谷', x: 0.58, z: 0.38, color: '#45aaf2' },
-    { text: '陡崖', x: 0.32, z: 0.26, color: '#fd7944' },
-    { text: '陡坡', x: 0.28, z: 0.40, color: '#e67e22' },
-    { text: '缓坡', x: 0.12, z: 0.50, color: '#778ca3' },
-    { text: '盆地', x: 0.18, z: 0.18, color: '#a78bfa' },
+  // 根据当前地形生成类型，只显示对应标签
+  const allFeatures = [
+    { type: 'peak', text: '山顶', x: 0.78, z: 0.78, color: '#ff6b6b' },
+    { type: 'saddle', text: '鞍部', x: 0.50, z: 0.52, color: '#f9ca24' },
+    { type: 'ridge', text: '山脊', x: 0.48, z: 0.58, color: '#2bcbba' },
+    { type: 'valley', text: '山谷', x: 0.58, z: 0.38, color: '#45aaf2' },
+    { type: 'cliff', text: '陡崖', x: 0.32, z: 0.26, color: '#fd7944' },
+    { type: 'steep', text: '陡坡', x: 0.28, z: 0.40, color: '#e67e22' },
+    { type: 'gentle', text: '缓坡', x: 0.12, z: 0.50, color: '#778ca3' },
+    { type: 'basin', text: '盆地', x: 0.18, z: 0.18, color: '#a78bfa' },
   ]
+  const currentType = terrainGenType.value
+  // "全部"显示所有标签，否则只显示对应的那一个
+  const showTypes = currentType === 'all'
+    ? allFeatures.map(f => f.type)
+    : [currentType]
+
   const baseFont = 16 * uiScale.value
-  for (const f of features) {
+  for (const f of allFeatures) {
+    if (!showTypes.includes(f.type)) continue
     const realH = getRealHeight(f.x, f.z)
     const displayH = getDisplayHeight(realH)
-    // 标签位置（紧贴山顶）
     const labelX = (f.x - 0.5) * TERRAIN_SIZE
     const labelY = displayH + 0.08
     const labelZ = (f.z - 0.5) * TERRAIN_SIZE
 
-    // 创建标签
     const div = document.createElement('div')
     div.textContent = f.text
     div.className = 'feature-label'
@@ -1205,9 +1231,20 @@ function onToggleTransparent() {
     terrainMaterial.color.setHex(0x88ccaa)
     terrainMaterial.vertexColors = false
   } else {
+    // 恢复时完全重建地形几何（保证颜色与原始完全一致）
     terrainMaterial.transparent = false
     terrainMaterial.opacity = 1
+    terrainMaterial.color.setHex(0xffffff)
     terrainMaterial.vertexColors = true
+    // 直接从 heightsData 重建地形和颜色（与 buildTerrain 逻辑一致）
+    const { positions, colors, indices, maxHeight } = generateTerrainData()
+    terrainMesh.geometry.dispose()
+    const newGeo = new THREE.BufferGeometry()
+    newGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    newGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    newGeo.setIndex(indices)
+    newGeo.computeVertexNormals()
+    terrainMesh.geometry = newGeo
   }
   terrainMaterial.needsUpdate = true
 }
@@ -1224,6 +1261,178 @@ function onToggleProjectionLines() {
 
 function onToggleProjectionColoring() {
   projectionColoringGroup.visible = showProjectionColoring.value && showProjection.value
+}
+
+let panelsVisible = true
+function toggleAllPanels() {
+  panelsVisible = !panelsVisible
+  const el = container.value
+  if (!el) return
+  const cp = el.querySelector<HTMLDivElement>('.control-panel')
+  const legend = el.querySelector<HTMLDivElement>('.legend-panel')
+  const kp = el.querySelector<HTMLDivElement>('.knowledge-panel')
+  const title = el.querySelector<HTMLDivElement>('.title-bar')
+  const btn = el.querySelector<HTMLButtonElement>('.toggle-panels-btn')
+  if (cp) cp.style.display = panelsVisible ? '' : 'none'
+  if (legend) legend.style.display = panelsVisible ? '' : 'none'
+  if (kp) kp.style.display = panelsVisible ? '' : 'none'
+  if (title) title.style.display = panelsVisible ? '' : 'none'
+  if (btn) btn.textContent = panelsVisible ? '☰' : '✕'
+}
+
+// ============================================================
+// 随机地形生成
+// ============================================================
+const TERRAIN_SEEDS: Record<string, (x: number, z: number, params?: { cx: number; cz: number }) => number> = {
+  peak: (x, z, p) => {
+    const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
+    return 0.95 * gauss2d(x, z, cx, cz, 0.14, 0.16) + 0.50 * gauss2d(x, z, cx - 0.05, cz - 0.05, 0.10, 0.10) + 0.04
+  },
+  saddle: (x, z, p) => {
+    // 两座山 + 中间鞍部低谷
+    const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
+    const peak1 = 0.80 * gauss2d(x, z, cx - 0.15, cz, 0.10, 0.12)
+    const peak2 = 0.80 * gauss2d(x, z, cx + 0.15, cz, 0.10, 0.12)
+    const dip = -0.45 * gauss2d(x, z, cx, cz, 0.10, 0.10)
+    return Math.max(0, peak1 + peak2 + dip + 0.04)
+  },
+  ridge: (x, z, p) => {
+    // 从高处向低处延伸的细长山脊（等高线向低处凸出）
+    const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
+    return 0.55 * gauss2d(x, z, cx, cz, 0.35, 0.06) + 0.04
+  },
+  valley: (x, z, p) => {
+    // 等高线向高处凸出的河谷：U 型低洼带 + 两侧高坡
+    const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
+    // 两侧高坡（x 方向距离谷中心 0.15 处的山脊）
+    const leftHill = 0.50 * gauss2d(x, z, cx - 0.18, cz, 0.08, 0.20)
+    const rightHill = 0.50 * gauss2d(x, z, cx + 0.18, cz, 0.08, 0.20)
+    // 中央河谷（z 方向长条低洼）
+    const valley = -0.55 * gauss2d(x, z, cx, cz, 0.05, 0.18)
+    return Math.max(0, leftHill + rightHill + valley + 0.04)
+  },
+  cliff: (x, z, p) => {
+    const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
+    const cf = Math.exp(-((x - cx) ** 2) / (2 * 0.08 ** 2))
+    let drop = 0
+    if (z < cz + 0.05 && cf > 0.06) { const t = Math.max(0, (cz + 0.05 - z) / 0.14); drop = -0.45 * cf * t * t }
+    return Math.max(0, 0.55 + drop + 0.04)
+  },
+  steep: (x, z, p) => {
+    const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
+    return 0.35 * gauss2d(x, z, cx, cz, 0.12, 0.12) + 0.04
+  },
+  gentle: (x, z, p) => {
+    const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
+    return 0.15 * gauss2d(x, z, cx, cz, 0.20, 0.20) + 0.04
+  },
+  basin: (x, z, p) => {
+    const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
+    const dx = x - cx, dz = z - cz
+    const dist = Math.sqrt(dx * dx + dz * dz)
+    const ring = 0.20 * Math.exp(-((dist - 0.12) ** 2) / (2 * 0.05 ** 2))
+    const bowl = 0.18 * Math.exp(-(dist * dist) / (2 * 0.06 ** 2))
+    return Math.max(0, ring - bowl + 0.04)
+  },
+  all: (x, z) => getNormalizedHeight(x, z),
+}
+
+function generateRandomTerrain() {
+  if (generatingTerrain.value) return
+  generatingTerrain.value = true
+
+  const type = terrainGenType.value
+  const genFn = TERRAIN_SEEDS[type]
+  if (!genFn) { generatingTerrain.value = false; return }
+
+  // 异步生成防止 UI 卡死
+  setTimeout(() => {
+    const newHeights: number[][] = []
+    let newMax = 0
+
+    if (type === 'all') {
+      // "全部"：用随机偏移/缩放变异 getNormalizedHeight，每次不同
+      const shiftX = Math.random() * 0.2 - 0.1
+      const shiftZ = Math.random() * 0.2 - 0.1
+      const scale = 0.7 + Math.random() * 0.6
+      for (let j = 0; j < GRID_SIZE; j++) {
+        newHeights[j] = []
+        for (let i = 0; i < GRID_SIZE; i++) {
+          const x = i / (GRID_SIZE - 1)
+          const z = 1 - j / (GRID_SIZE - 1)
+          const h = getNormalizedHeight(x + shiftX, z + shiftZ) * scale + 0.02 * Math.random()
+          const realH = BASE_ELEVATION + h * MAX_RELIEF
+          newHeights[j][i] = realH
+          if (realH > newMax) newMax = realH
+        }
+      }
+    } else {
+      // 单类型：随机位置 + TERRAIN_SEEDS 函数，每次不同
+      const cx = 0.15 + Math.random() * 0.70
+      const cz = 0.15 + Math.random() * 0.70
+      for (let j = 0; j < GRID_SIZE; j++) {
+        newHeights[j] = []
+        for (let i = 0; i < GRID_SIZE; i++) {
+          const x = i / (GRID_SIZE - 1)
+          const z = 1 - j / (GRID_SIZE - 1)
+          const h = genFn(x, z, { cx, cz })
+          const realH = BASE_ELEVATION + h * MAX_RELIEF
+          newHeights[j][i] = realH
+          if (realH > newMax) newMax = realH
+        }
+      }
+    }
+
+    // 更新全局数据
+    heightsData = newHeights
+    maxHeightValue = newMax
+
+    // 构建地形网格
+    const positions = new Float32Array(GRID_SIZE * GRID_SIZE * 3)
+    const colors = new Float32Array(GRID_SIZE * GRID_SIZE * 3)
+    for (let j = 0; j < GRID_SIZE; j++) {
+      for (let i = 0; i < GRID_SIZE; i++) {
+        const idx = (j * GRID_SIZE + i) * 3
+        const x = (i / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
+        const z = (j / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
+        const realH = newHeights[j][i]
+        const displayH = getDisplayHeight(realH)
+        positions[idx] = x
+        positions[idx + 1] = displayH
+        positions[idx + 2] = z
+        const norm = (realH - BASE_ELEVATION) / (newMax - BASE_ELEVATION)
+        const col = getTerrainColor(Math.max(0, Math.min(1, norm)))
+        colors[idx] = col.r
+        colors[idx + 1] = col.g
+        colors[idx + 2] = col.b
+      }
+    }
+    const indices: number[] = []
+    for (let j = 0; j < GRID_SIZE - 1; j++) {
+      for (let i = 0; i < GRID_SIZE - 1; i++) {
+        const a = j * GRID_SIZE + i
+        const b = j * GRID_SIZE + i + 1
+        const c = (j + 1) * GRID_SIZE + i
+        const d = (j + 1) * GRID_SIZE + i + 1
+        indices.push(a, b, c)
+        indices.push(b, d, c)
+      }
+    }
+
+    // 重建地形网格
+    terrainMesh.geometry.dispose()
+    const newGeo = new THREE.BufferGeometry()
+    newGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    newGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    newGeo.setIndex(indices)
+    newGeo.computeVertexNormals()
+    terrainMesh.geometry = newGeo
+
+    // 重建等高线和标签
+    buildContoursAndProjection()
+    buildLabels()
+    generatingTerrain.value = false
+  }, 50)
 }
 
 function toggleProfileMode() {
@@ -1534,6 +1743,43 @@ function drawProfileChart() {
   ctx.fillText(`${data[0].elev.toFixed(1)}m`, xScale(data[0].dist) + 4, yScale(data[0].elev) - 2)
   ctx.textAlign = 'right'
   ctx.fillText(`${data[data.length - 1].elev.toFixed(1)}m`, xScale(data[data.length - 1].dist) - 4, yScale(data[data.length - 1].elev) - 2)
+
+  // 两点高度差 — ▵ 符号更大，使用单独绘制
+  const elevDiff = Math.abs(data[0].elev - data[data.length - 1].elev)
+  const textY = pad.top - 3
+  const mainText = `两点高度差`
+  const triSymbol = `▵`
+  const eqNum = `= ${elevDiff.toFixed(1)}m`
+
+  ctx.fillStyle = '#2ec4b6'
+  ctx.textAlign = 'right'
+  ctx.textBaseline = 'middle'
+  // 先量出"两点高度差"宽度
+  ctx.font = 'bold 14px "Microsoft YaHei", sans-serif'
+  const mainW = ctx.measureText(mainText).width
+  // ▵ 用大号
+  ctx.font = 'bold 22px "Microsoft YaHei", sans-serif'
+  const triW = ctx.measureText(triSymbol).width
+  // = 数字用普通大小
+  ctx.font = 'bold 14px "Microsoft YaHei", sans-serif'
+  const eqW = ctx.measureText(eqNum).width
+
+  const totalW = mainW + 6 + triW + 6 + eqW
+  let xCursor = W / 2 - totalW / 2
+
+  ctx.font = 'bold 14px "Microsoft YaHei", sans-serif'
+  ctx.fillText(mainText, xCursor + mainW, textY)
+  xCursor += mainW + 6
+
+  ctx.font = 'bold 22px "Microsoft YaHei", sans-serif'
+  // ▵ 字符需要 baseline 调整让三角形与大写字基线对齐
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillText(triSymbol, xCursor + triW, textY + 2)
+  xCursor += triW + 6
+
+  ctx.font = 'bold 14px "Microsoft YaHei", sans-serif'
+  ctx.fillText(eqNum, xCursor + eqW, textY)
+  ctx.textBaseline = 'alphabetic'
 }
 
 // ============================================================
@@ -1845,6 +2091,47 @@ onUnmounted(() => {
   border-color: #2ec4b6;
   box-shadow: 0 0 8px rgba(46, 196, 182, 0.5);
 }
+
+/* 关闭面板按钮 */
+.toggle-panels-btn {
+  position: absolute;
+  top: calc(16px * var(--ui-scale));
+  right: calc(86px * var(--ui-scale));
+  z-index: 30;
+  width: calc(36px * var(--ui-scale));
+  height: calc(36px * var(--ui-scale));
+  border: 1px solid #475569;
+  border-radius: calc(6px * var(--ui-scale));
+  background: rgba(40, 40, 40, 0.85);
+  color: #94a3b8;
+  font-size: calc(18px * var(--ui-scale));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.toggle-panels-btn:hover {
+  background: rgba(46, 196, 182, 0.6);
+  color: #fff;
+  border-color: #2ec4b6;
+}
+
+/* 下拉选择框 */
+.cp-select {
+  background: rgba(30, 40, 60, 0.9);
+  border: 1px solid rgba(46, 196, 182, 0.3);
+  color: #b0c8e0;
+  font-size: calc(13px * var(--ui-scale));
+  font-family: 'Microsoft YaHei', sans-serif;
+  padding: calc(4px * var(--ui-scale)) calc(6px * var(--ui-scale));
+  border-radius: calc(6px * var(--ui-scale));
+  outline: none;
+  cursor: pointer;
+  max-width: calc(100px * var(--ui-scale));
+}
+.cp-select option { background: rgba(20, 30, 50, 0.95); color: #b0c8e0; }
 
 .vc-face-front  { transform: rotateY(0deg) translateZ(calc(30px * var(--ui-scale))); }
 .vc-face-back   { transform: rotateY(180deg) translateZ(calc(30px * var(--ui-scale))); }
