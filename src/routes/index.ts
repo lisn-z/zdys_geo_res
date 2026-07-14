@@ -50,12 +50,12 @@ export const routes = [
     component: () => import('@/views/solar-system/index.vue'),
   },
   {
-    path: '/find-neighborhood',
-    name: 'find-neighborhood',
+    path: '/put-it-together',
+    name: 'put-it-together',
     meta: {
       title: '拼一拼（中国省级行政区）',
     },
-    component: () => import('@/views/find-neighborhood/index.vue'),
+    component: () => import('@/views/put-it-together/index.vue'),
   },
   {
     path: '/threeD-terrain',
