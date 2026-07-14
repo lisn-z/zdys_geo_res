@@ -1302,14 +1302,17 @@ const TERRAIN_SEEDS: Record<string, (x: number, z: number, params?: { cx: number
     return 0.55 * gauss2d(x, z, cx, cz, 0.35, 0.06) + 0.04
   },
   valley: (x, z, p) => {
-    // 等高线向高处凸出的河谷：U 型低洼带 + 两侧高坡
+    // 真实 U 型河谷：沿 z 方向的长条低洼，两侧由渐变到中央形成 V 形剖面
     const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
-    // 两侧高坡（x 方向距离谷中心 0.15 处的山脊）
-    const leftHill = 0.50 * gauss2d(x, z, cx - 0.18, cz, 0.08, 0.20)
-    const rightHill = 0.50 * gauss2d(x, z, cx + 0.18, cz, 0.08, 0.20)
-    // 中央河谷（z 方向长条低洼）
-    const valley = -0.55 * gauss2d(x, z, cx, cz, 0.05, 0.18)
-    return Math.max(0, leftHill + rightHill + valley + 0.04)
+    // 基础地形：两侧高，中央低
+    const baseH = 0.55
+    // 沿 x 方向的横截面曲线：距谷中心越远越高
+    const distX = Math.abs(x - cx)
+    // 高斯形状的横截面（z 方向延伸，x 方向收口）
+    const crossSection = 0.30 * Math.exp(-(distX * distX) / (2 * 0.10 * 0.10)) - 0.20
+    // 沿 z 方向有起伏（谷底不是平直的）
+    const alongZ = 0.08 * Math.sin((z - cz) * 8) * Math.exp(-(distX * distX) / (2 * 0.15 * 0.15))
+    return Math.max(0, baseH + crossSection + alongZ)
   },
   cliff: (x, z, p) => {
     const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
@@ -1744,7 +1747,7 @@ function drawProfileChart() {
   ctx.textAlign = 'right'
   ctx.fillText(`${data[data.length - 1].elev.toFixed(1)}m`, xScale(data[data.length - 1].dist) - 4, yScale(data[data.length - 1].elev) - 2)
 
-  // 两点高度差 — ▵ 符号更大，使用单独绘制
+  // 两点高度差 — ▵ 符号单独绘制，统一 baseline
   const elevDiff = Math.abs(data[0].elev - data[data.length - 1].elev)
   const textY = pad.top - 3
   const mainText = `两点高度差`
@@ -1753,33 +1756,33 @@ function drawProfileChart() {
 
   ctx.fillStyle = '#2ec4b6'
   ctx.textAlign = 'right'
-  ctx.textBaseline = 'middle'
-  // 先量出"两点高度差"宽度
+  // 统一使用 top baseline，避免不同字号 baseline 差异
+  ctx.textBaseline = 'top'
+
+  // 先量出三段宽度
   ctx.font = 'bold 14px "Microsoft YaHei", sans-serif'
   const mainW = ctx.measureText(mainText).width
-  // ▵ 用大号
   ctx.font = 'bold 22px "Microsoft YaHei", sans-serif'
   const triW = ctx.measureText(triSymbol).width
-  // = 数字用普通大小
   ctx.font = 'bold 14px "Microsoft YaHei", sans-serif'
   const eqW = ctx.measureText(eqNum).width
 
   const totalW = mainW + 6 + triW + 6 + eqW
   let xCursor = W / 2 - totalW / 2
 
+  // 绘制"两点高度差"（14px 顶部对齐）
   ctx.font = 'bold 14px "Microsoft YaHei", sans-serif'
   ctx.fillText(mainText, xCursor + mainW, textY)
   xCursor += mainW + 6
 
+  // 绘制 ▵（22px 大号，top 对齐，整体高于 14px 文字）
   ctx.font = 'bold 22px "Microsoft YaHei", sans-serif'
-  // ▵ 字符需要 baseline 调整让三角形与大写字基线对齐
-  ctx.textBaseline = 'alphabetic'
-  ctx.fillText(triSymbol, xCursor + triW, textY + 2)
+  ctx.fillText(triSymbol, xCursor + triW, textY - 5)
   xCursor += triW + 6
 
+  // 绘制"=数字"（14px 顶部对齐）
   ctx.font = 'bold 14px "Microsoft YaHei", sans-serif'
   ctx.fillText(eqNum, xCursor + eqW, textY)
-  ctx.textBaseline = 'alphabetic'
 }
 
 // ============================================================
