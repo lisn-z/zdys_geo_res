@@ -1397,12 +1397,6 @@
 .el-switch:not(.is-checked
   .el-switch__core
 ) {
-  background:
-    linear-gradient(
-      90deg,
-      var(--switch-off-start),
-      var(--switch-off-end)
-    ) !important;
   border-color:
     var(--inactive-border) !important;
 }

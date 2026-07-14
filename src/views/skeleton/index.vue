@@ -1,128 +1,95 @@
 <template>
-  <div class="skeleton-container geo-template-page theme-dark">
-    <header class="skeleton-page-header">
+  <div class="skeleton-template-page">
+    <header class="gallery-header">
       <div>
         <h1>页面模板骨架预览</h1>
-        <p>
-          点击模板查看选中效果，创建页面前可以直观看到布局结构
-        </p>
+        <p>点击模板查看布局结构，所有区域都直接标明用途</p>
       </div>
 
-      <div class="selected-template">
-        当前选择：
-        <strong>{{ selectedTemplate!.label }}</strong>
+      <div class="current-template">
+        当前选择：<strong>{{ selectedTemplate!.label }}</strong>
       </div>
     </header>
 
-    <main class="skeleton-gallery">
-      <button v-for="item in templates" :key="item.value" type="button" class="template-preview-card" :class="{
-        active: modelValue === item.value,
-      }" @click="selectTemplate(item.value)">
-        <div class="template-card-heading">
-          <div>
-            <span class="template-index">
-              {{ item.index }}
-            </span>
-
-            <strong>{{ item.label }}</strong>
+    <main class="template-gallery">
+      <button v-for="item in templates" :key="item.value" type="button" class="template-card"
+        :class="{ active: currentValue === item.value }" @click="selectTemplate(item.value)">
+        <div class="template-card-header">
+          <div class="template-name">
+            <span class="template-index">{{ item.index }}</span>
+            <div>
+              <strong>{{ item.label }}</strong>
+              <small>{{ item.description }}</small>
+            </div>
           </div>
-
-          <span class="template-code">
-            {{ item.value }}
+          <span class="template-status">
+            {{ currentValue === item.value ? '已选择' : '点击选择' }}
           </span>
         </div>
 
-        <div class="template-screen" :class="[
-          `preview-${item.value}`,
-          {
-            'has-header': item.hasHeader,
-            'has-left': item.hasLeft,
-            'has-right': item.hasRight,
-            'has-timeline': item.hasTimeline,
-          },
-        ]">
+        <div class="template-preview" :class="{
+          'has-header': item.hasHeader,
+          'has-left': item.hasLeft,
+          'has-right': item.hasRight,
+        }">
           <div v-if="item.hasHeader" class="preview-header">
-            <div class="preview-logo">
-              <i></i>
-              <i></i>
-              <i></i>
-            </div>
-
-            <div class="preview-title"></div>
-
-            <div class="preview-header-action"></div>
+            <div class="preview-logo">LOGO</div>
+            <div class="preview-title">页面大标题</div>
+            <div class="preview-header-action">面板按钮</div>
           </div>
 
-          <div class="preview-workspace">
-            <aside v-if="item.hasLeft" class="preview-side-panel preview-left-panel">
-              <div class="preview-panel-heading">
-                <i></i>
-                <span></span>
-              </div>
-
-              <div v-for="row in 4" :key="`left-${row}`" class="preview-control-row">
-                <span></span>
-                <i></i>
-              </div>
+          <div class="preview-body">
+            <aside v-if="item.hasLeft" class="preview-panel preview-left">
+              <div class="area-title">左侧控制面板</div>
+              <div class="panel-item">参数控件</div>
+              <div class="panel-item">滑块 / 开关</div>
+              <div class="panel-item">场景设置</div>
             </aside>
 
-            <section class="preview-main-stage">
-              <div v-if="item.value === 'blank'" class="blank-preview-message">
-                <div class="blank-preview-icon">
-                  +
+            <section class="preview-main">
+              <template v-if="item.value === 'blank'">
+                <div class="blank-copy">
+                  <strong>空白开发区域</strong>
+                  <span>只保留主题背景，不生成 Header、面板和时间轴</span>
                 </div>
-                <strong>空白开发区域</strong>
-                <span>只保留主题背景</span>
-              </div>
+              </template>
 
               <template v-else>
-                <div class="preview-scene-object scene-object-one"></div>
-                <div class="preview-scene-object scene-object-two"></div>
-                <div class="preview-scene-object scene-object-three"></div>
+                <div class="main-title">主场景</div>
+                <div class="main-subtitle">Three.js / ECharts / Leaflet</div>
 
-                <div class="preview-center-copy">
-                  <strong></strong>
-                  <span></span>
-                  <span></span>
+                <div class="scene-demo">
+                  <div class="demo-box">3D</div>
+                  <div class="demo-circle">图表</div>
+                  <div class="demo-map">地图</div>
                 </div>
 
-                <div v-if="item.hasTimeline" class="preview-timeline">
-                  <i></i>
-                  <span></span>
-                  <b></b>
-                  <b></b>
-                  <b></b>
+                <div class="preview-timeline">
+                  <span class="play-icon">▶</span>
+                  <div>
+                    <strong>底部时间轴</strong>
+                    <i></i>
+                  </div>
+                  <span>1×</span>
                 </div>
               </template>
             </section>
 
-            <aside v-if="item.hasRight" class="preview-side-panel preview-right-panel">
-              <div class="preview-panel-heading">
-                <i></i>
-                <span></span>
-              </div>
-
-              <div class="preview-data-grid">
-                <i v-for="cell in 4" :key="`right-${cell}`"></i>
-              </div>
-
-              <div v-for="row in 3" :key="`analysis-${row}`" class="preview-analysis-row">
-                <span></span>
+            <aside v-if="item.hasRight" class="preview-panel preview-right">
+              <div class="area-title">右侧数据面板</div>
+              <div class="data-grid">
+                <div>实时数据</div>
+                <div>计算结果</div>
+                <div>知识说明</div>
+                <div>图例信息</div>
               </div>
             </aside>
           </div>
         </div>
 
-        <div class="template-card-footer">
-          <span>{{ item.description }}</span>
-
-          <strong>
-            {{
-              modelValue === item.value
-                ? '已选择'
-                : '点击选择'
-            }}
-          </strong>
+        <div class="layout-description">
+          <span>布局结构</span>
+          <strong>{{ item.layoutText }}</strong>
         </div>
       </button>
     </main>
@@ -130,13 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  computed,
-  ref,
-  watch,
-} from 'vue'
-
-import '@/styles/geo-page-template.css'
+import { computed, ref, watch } from 'vue'
 
 export type SkeletonTemplateValue =
   | 'blank'
@@ -150,260 +111,195 @@ interface TemplateItem {
   value: SkeletonTemplateValue
   label: string
   description: string
+  layoutText: string
   hasHeader: boolean
   hasLeft: boolean
   hasRight: boolean
-  hasTimeline: boolean
 }
 
 const props = withDefaults(
-  defineProps<{
-    modelValue?: SkeletonTemplateValue
-  }>(),
-  {
-    modelValue: 'header-left-main-right',
-  }
+  defineProps<{ modelValue?: SkeletonTemplateValue }>(),
+  { modelValue: 'header-left-main-right' }
 )
 
 const emit = defineEmits<{
-  (
-    event: 'update:modelValue',
-    value: SkeletonTemplateValue
-  ): void
-  (
-    event: 'change',
-    value: SkeletonTemplateValue
-  ): void
+  (event: 'update:modelValue', value: SkeletonTemplateValue): void
+  (event: 'change', value: SkeletonTemplateValue): void
 }>()
 
-const internalValue =
-  ref<SkeletonTemplateValue>(
-    props.modelValue
-  )
+const currentValue = ref<SkeletonTemplateValue>(props.modelValue)
 
 const templates: TemplateItem[] = [
   {
     index: '01',
     value: 'blank',
     label: '空白模板',
-    description:
-      '无 Header、无面板，只保留主题背景',
+    description: '只保留主题背景',
+    layoutText: '空白主区',
     hasHeader: false,
     hasLeft: false,
     hasRight: false,
-    hasTimeline: false,
   },
   {
     index: '02',
     value: 'header-main',
     label: 'Header + 主区',
-    description:
-      '适合单一地图、图表或 3D 主场景',
+    description: '适合单一可视化场景',
+    layoutText: 'Header + 主场景 + 时间轴',
     hasHeader: true,
     hasLeft: false,
     hasRight: false,
-    hasTimeline: true,
   },
   {
     index: '03',
     value: 'header-left-main',
     label: '左侧控制布局',
-    description:
-      '左侧放置参数控制，右侧为主展示区',
+    description: '左侧放置控制参数',
+    layoutText: 'Header + 左侧控制面板 + 主场景',
     hasHeader: true,
     hasLeft: true,
     hasRight: false,
-    hasTimeline: true,
   },
   {
     index: '04',
     value: 'header-main-right',
     label: '右侧数据布局',
-    description:
-      '主区展示内容，右侧放置数据和说明',
+    description: '右侧展示数据说明',
+    layoutText: 'Header + 主场景 + 右侧数据面板',
     hasHeader: true,
     hasLeft: false,
     hasRight: true,
-    hasTimeline: true,
   },
   {
     index: '05',
     value: 'header-left-main-right',
     label: '完整双侧栏布局',
-    description:
-      '左侧控制、中央主场景、右侧数据分析',
+    description: '控制、展示、分析完整布局',
+    layoutText: 'Header + 左侧控制面板 + 主场景 + 右侧数据面板',
     hasHeader: true,
     hasLeft: true,
     hasRight: true,
-    hasTimeline: true,
   },
 ]
 
-const modelValue = computed(() => {
-  return internalValue.value
-})
-
-const selectedTemplate = computed(() => {
-  return (
-    templates.find(
-      (item) =>
-        item.value === modelValue.value
-    ) || templates[4]
-  )
-})
+const selectedTemplate = computed(() =>
+  templates.find((item) => item.value === currentValue.value) || templates[4]
+)
 
 watch(
   () => props.modelValue,
   (value) => {
-    internalValue.value = value
+    currentValue.value = value
   }
 )
 
-function selectTemplate(
-  value: SkeletonTemplateValue
-) {
-  internalValue.value = value
-
-  emit(
-    'update:modelValue',
-    value
-  )
-
-  emit(
-    'change',
-    value
-  )
+function selectTemplate(value: SkeletonTemplateValue) {
+  currentValue.value = value
+  emit('update:modelValue', value)
+  emit('change', value)
 }
 </script>
 
 <style scoped>
-/* =========================================================
-   页面模板骨架预览
-   文件位置：src/styles/skeleton-template-preview.css
-   ========================================================= */
+.skeleton-template-page {
+  --primary: #2ec4b6;
+  --secondary: #247cff;
+  --text-primary: #eaf8ff;
+  --text-secondary: #b8ccda;
+  --text-muted: #7894a8;
+  --panel: rgba(8, 20, 34, 0.82);
+  --card: rgba(8, 20, 34, 0.68);
+  --border: rgba(116, 234, 229, 0.18);
 
-.skeleton-container {
   display: grid;
-  grid-template-rows:
-    auto minmax(0, 1fr);
-  gap: 0;
-  padding: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  color: var(--text-primary);
+  background:
+    radial-gradient(circle at 50% -10%, rgba(36, 124, 255, 0.18), transparent 42%),
+    linear-gradient(145deg, #06111f, #0a1d30 52%, #071623);
 }
 
-.skeleton-page-header {
-  position: relative;
-  z-index: 10;
+.gallery-header {
   display: flex;
-  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding:
-    clamp(18px, 2vw, 28px) clamp(20px, 2.6vw, 40px);
-  background:
-    var(--panel-background);
-  border-bottom:
-    1px solid var(--panel-border);
-  backdrop-filter:
-    blur(18px);
-  -webkit-backdrop-filter:
-    blur(18px);
-  box-shadow:
-    var(--panel-shadow);
+  padding: clamp(18px, 2vw, 28px) clamp(20px, 2.6vw, 40px);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
 }
 
-.skeleton-page-header h1 {
+.gallery-header h1 {
   margin: 0;
-  color: var(--text-primary);
-  font-size:
-    clamp(20px, 2vw, 30px);
-  line-height: 1.2;
+  font-size: clamp(20px, 2vw, 30px);
 }
 
-.skeleton-page-header p {
+.gallery-header p {
   margin: 7px 0 0;
   color: var(--text-muted);
-  font-size:
-    clamp(11px, 0.9vw, 14px);
+  font-size: clamp(11px, 0.9vw, 14px);
 }
 
-.selected-template {
-  flex: 0 0 auto;
-  padding:
-    10px 14px;
+.current-template {
+  padding: 10px 14px;
   color: var(--text-secondary);
-  font-size:
-    clamp(10px, 0.85vw, 13px);
-  background:
-    var(--inactive-background);
-  border:
-    1px solid var(--inactive-border);
+  font-size: 12px;
+  background: rgba(15, 35, 54, 0.8);
+  border: 1px solid var(--border);
   border-radius: 10px;
 }
 
-.selected-template strong {
-  color: #2ec4b6;
+.current-template strong {
+  color: var(--primary);
 }
 
-.skeleton-gallery {
+.template-gallery {
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns:
-    repeat(2,
-      minmax(0, 1fr));
-  gap:
-    clamp(14px, 1.5vw, 22px);
-  padding:
-    clamp(16px, 2vw, 30px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(16px, 1.5vw, 24px);
+  padding: clamp(18px, 2vw, 30px);
   overflow: auto;
 }
 
-.template-preview-card {
+.template-card {
   display: grid;
   min-width: 0;
-  grid-template-rows:
-    auto minmax(220px, 1fr) auto;
+  grid-template-rows: auto minmax(270px, 1fr) auto;
   gap: 12px;
-  padding:
-    clamp(12px, 1.2vw, 18px);
+  padding: clamp(12px, 1.2vw, 18px);
   color: inherit;
   text-align: left;
   cursor: pointer;
-  background:
-    var(--card-background);
-  border:
-    1px solid var(--panel-border);
-  border-radius:
-    clamp(12px, 1vw, 16px);
-  box-shadow:
-    var(--card-shadow);
-  transition:
-    transform 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  transition: 0.2s ease;
 }
 
-.template-preview-card:hover {
-  transform:
-    translateY(-3px);
-  border-color:
-    rgba(46, 196, 182, 0.5);
-  box-shadow:
-    0 18px 34px rgba(0, 0, 0, 0.2),
-    0 0 20px rgba(46, 196, 182, 0.08);
+.template-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(46, 196, 182, 0.56);
 }
 
-.template-preview-card.active {
-  border-color: #2ec4b6;
+.template-card.active {
+  border-color: var(--primary);
   box-shadow:
     0 0 0 1px rgba(46, 196, 182, 0.36),
-    0 18px 38px rgba(0, 0, 0, 0.24),
-    0 0 24px rgba(46, 196, 182, 0.16);
+    0 16px 34px rgba(0, 0, 0, 0.24),
+    0 0 24px rgba(46, 196, 182, 0.14);
 }
 
-.template-card-heading,
-.template-card-footer {
+.template-card-header,
+.layout-description {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -411,549 +307,411 @@ function selectTemplate(
   gap: 12px;
 }
 
-.template-card-heading>div {
+.template-name {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
 
-.template-card-heading strong {
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size:
-    clamp(12px, 1vw, 15px);
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.template-name>div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.template-name strong {
+  font-size: 14px;
+}
+
+.template-name small {
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .template-index {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
   place-items: center;
-  color: #ffffff;
   font-size: 9px;
   font-weight: 900;
-  background:
-    linear-gradient(135deg,
-      #2ec4b6,
-      #247cff);
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
   border-radius: 8px;
 }
 
-.template-code {
-  color: var(--text-muted);
-  font-size:
-    clamp(8px, 0.65vw, 10px);
+.template-status {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-size: 10px;
 }
 
-.template-screen {
+.template-preview {
   position: relative;
   min-width: 0;
-  min-height: 220px;
+  min-height: 270px;
   overflow: hidden;
-  background:
-    radial-gradient(circle at center,
-      rgba(46, 196, 182, 0.1),
-      transparent 42%),
-    linear-gradient(145deg,
-      #071624,
-      #0a2135);
-  border:
-    1px solid rgba(116, 234, 229, 0.18);
-  border-radius: 11px;
+  background: #071624;
+  border: 1px solid var(--border);
+  border-radius: 12px;
 }
 
 .preview-header {
   position: relative;
-  z-index: 5;
+  z-index: 4;
   display: flex;
-  height: 34px;
+  height: 46px;
   align-items: center;
   justify-content: space-between;
-  padding: 0 9px;
-  background:
-    rgba(8, 20, 34, 0.84);
-  border-bottom:
-    1px solid rgba(116, 234, 229, 0.16);
+  padding: 0 10px;
+  background: rgba(8, 20, 34, 0.95);
+  border-bottom: 1px solid var(--border);
 }
 
 .preview-logo {
-  display: flex;
-  width: 52px;
-  align-items: flex-end;
-  gap: 3px;
-}
-
-.preview-logo i {
-  display: block;
-  width: 8px;
-  background:
-    linear-gradient(180deg,
-      #2ec4b6,
-      #247cff);
-  border-radius: 2px 2px 0 0;
-}
-
-.preview-logo i:nth-child(1) {
-  height: 11px;
-}
-
-.preview-logo i:nth-child(2) {
-  height: 17px;
-}
-
-.preview-logo i:nth-child(3) {
-  height: 13px;
+  display: grid;
+  width: 78px;
+  height: 27px;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 900;
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.72), rgba(36, 124, 255, 0.72));
+  border-radius: 6px;
 }
 
 .preview-title {
   position: absolute;
   left: 50%;
-  width: 72px;
-  height: 7px;
-  background:
-    linear-gradient(90deg,
-      #2ec4b6,
-      #247cff);
-  border-radius: 999px;
-  transform:
-    translateX(-50%);
+  font-size: 12px;
+  font-weight: 900;
+  transform: translateX(-50%);
 }
 
 .preview-header-action {
-  width: 42px;
-  height: 16px;
-  background:
-    rgba(46, 196, 182, 0.12);
-  border:
-    1px solid rgba(46, 196, 182, 0.22);
-  border-radius: 5px;
+  display: grid;
+  width: 64px;
+  height: 25px;
+  place-items: center;
+  color: var(--text-secondary);
+  font-size: 8px;
+  background: rgba(46, 196, 182, 0.08);
+  border: 1px solid rgba(46, 196, 182, 0.18);
+  border-radius: 6px;
 }
 
-.preview-workspace {
+.preview-body {
   display: grid;
-  height:
-    calc(100% - 34px);
+  height: calc(100% - 46px);
   min-width: 0;
   min-height: 0;
 }
 
-.template-screen:not(.has-header) .preview-workspace {
+.template-preview:not(.has-header) .preview-body {
   height: 100%;
 }
 
-.template-screen.has-left.has-right .preview-workspace {
-  grid-template-columns:
-    25% minmax(0, 1fr) 27%;
+.template-preview.has-left.has-right .preview-body {
+  grid-template-columns: 25% minmax(0, 1fr) 27%;
 }
 
-.template-screen.has-left:not(.has-right) .preview-workspace {
-  grid-template-columns:
-    27% minmax(0, 1fr);
+.template-preview.has-left:not(.has-right) .preview-body {
+  grid-template-columns: 28% minmax(0, 1fr);
 }
 
-.template-screen.has-right:not(.has-left) .preview-workspace {
-  grid-template-columns:
-    minmax(0, 1fr) 29%;
+.template-preview.has-right:not(.has-left) .preview-body {
+  grid-template-columns: minmax(0, 1fr) 30%;
 }
 
-.template-screen:not(.has-left):not(.has-right) .preview-workspace {
-  grid-template-columns:
-    minmax(0, 1fr);
+.template-preview:not(.has-left):not(.has-right) .preview-body {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.preview-side-panel {
+.preview-panel {
   position: relative;
-  z-index: 3;
-  padding: 9px 7px;
-  background:
-    rgba(8, 20, 34, 0.76);
+  z-index: 2;
+  min-width: 0;
+  padding: 10px 8px;
+  background: rgba(8, 20, 34, 0.88);
 }
 
-.preview-left-panel {
-  border-right:
-    1px solid rgba(116, 234, 229, 0.16);
+.preview-left {
+  border-right: 1px solid var(--border);
 }
 
-.preview-right-panel {
-  border-left:
-    1px solid rgba(116, 234, 229, 0.16);
+.preview-right {
+  border-left: 1px solid var(--border);
 }
 
-.preview-panel-heading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-bottom: 8px;
-}
-
-.preview-panel-heading i {
-  width: 16px;
-  height: 16px;
-  background:
-    linear-gradient(135deg,
-      #2ec4b6,
-      #247cff);
-  border-radius: 5px;
-}
-
-.preview-panel-heading span {
-  width: 56%;
-  height: 6px;
-  background:
-    rgba(184, 204, 218, 0.42);
-  border-radius: 999px;
-}
-
-.preview-control-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 7px;
-  margin-top: 7px;
-  padding: 7px 6px;
-  background:
-    rgba(255, 255, 255, 0.035);
-  border:
-    1px solid rgba(116, 234, 229, 0.09);
+.area-title {
+  padding: 7px 5px;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+  background: rgba(46, 196, 182, 0.08);
+  border: 1px solid rgba(46, 196, 182, 0.16);
   border-radius: 6px;
 }
 
-.preview-control-row span {
-  width: 55%;
-  height: 5px;
-  background:
-    rgba(184, 204, 218, 0.30);
-  border-radius: 999px;
+.panel-item {
+  margin-top: 8px;
+  padding: 9px 5px;
+  color: var(--text-secondary);
+  font-size: 8px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(116, 234, 229, 0.08);
+  border-radius: 6px;
 }
 
-.preview-control-row i {
-  width: 21px;
-  height: 9px;
-  background:
-    linear-gradient(90deg,
-      #2ec4b6,
-      #247cff);
-  border-radius: 999px;
-}
-
-.preview-main-stage {
+.preview-main {
   position: relative;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 48% 44%,
-      rgba(36, 124, 255, 0.16),
-      transparent 32%);
+    radial-gradient(circle at 50% 42%, rgba(36, 124, 255, 0.18), transparent 34%),
+    linear-gradient(145deg, #0a2236, #071522);
 }
 
-.preview-main-stage::before {
+.preview-main::before {
   position: absolute;
   inset: 0;
   content: '';
-  opacity: 0.22;
+  opacity: 0.18;
   background-image:
-    linear-gradient(rgba(46, 196, 182, 0.15) 1px,
-      transparent 1px),
-    linear-gradient(90deg,
-      rgba(36, 124, 255, 0.15) 1px,
-      transparent 1px);
-  background-size:
-    22px 22px;
+    linear-gradient(rgba(46, 196, 182, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(36, 124, 255, 0.16) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
-.preview-scene-object {
+.main-title {
+  position: absolute;
+  z-index: 3;
+  top: 14px;
+  left: 50%;
+  padding: 6px 13px;
+  font-size: 12px;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border-radius: 999px;
+  transform: translateX(-50%);
+}
+
+.main-subtitle {
+  position: absolute;
+  z-index: 3;
+  top: 51px;
+  left: 50%;
+  color: var(--text-secondary);
+  font-size: 9px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.scene-demo {
   position: absolute;
   z-index: 2;
-  border:
-    1px solid rgba(234, 255, 255, 0.45);
-  box-shadow:
-    0 0 18px rgba(46, 196, 182, 0.18);
+  top: 51%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transform: translate(-50%, -50%);
 }
 
-.scene-object-one {
-  top: 27%;
-  left: 22%;
-  width: 34px;
-  height: 34px;
-  background:
-    linear-gradient(135deg,
-      #2ec4b6,
-      #247cff);
-  transform:
-    rotate(18deg);
+.demo-box,
+.demo-circle,
+.demo-map {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 900;
 }
 
-.scene-object-two {
-  top: 25%;
-  left: 48%;
+.demo-box {
   width: 38px;
   height: 38px;
-  background:
-    radial-gradient(circle at 35% 30%,
-      #8ffff4,
-      #247cff);
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  transform: rotate(12deg);
+}
+
+.demo-circle {
+  width: 42px;
+  height: 42px;
+  background: radial-gradient(circle at 35% 30%, #8ffff4, #247cff);
   border-radius: 50%;
 }
 
-.scene-object-three {
-  top: 28%;
-  right: 18%;
-  width: 0;
-  height: 0;
-  background: transparent;
-  border-right:
-    21px solid transparent;
-  border-bottom:
-    38px solid #6f7cff;
-  border-left:
-    21px solid transparent;
-  box-shadow: none;
-}
-
-.preview-center-copy {
-  position: absolute;
-  z-index: 3;
-  top: 57%;
-  left: 50%;
-  display: flex;
-  width: 46%;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 10px;
-  background:
-    rgba(8, 20, 34, 0.66);
-  border:
-    1px solid rgba(116, 234, 229, 0.14);
-  border-radius: 8px;
-  transform:
-    translate(-50%, -50%);
-}
-
-.preview-center-copy strong {
-  width: 58%;
-  height: 7px;
-  background:
-    linear-gradient(90deg,
-      #2ec4b6,
-      #247cff);
-  border-radius: 999px;
-}
-
-.preview-center-copy span {
-  width: 82%;
-  height: 4px;
-  background:
-    rgba(184, 204, 218, 0.26);
-  border-radius: 999px;
-}
-
-.preview-center-copy span:last-child {
-  width: 64%;
+.demo-map {
+  width: 54px;
+  height: 38px;
+  background: linear-gradient(145deg, #2f7f78, #245d9d);
+  clip-path: polygon(7% 25%, 35% 5%, 62% 20%, 88% 12%, 96% 48%, 75% 82%, 43% 93%, 15% 72%);
 }
 
 .preview-timeline {
   position: absolute;
   z-index: 4;
-  right: 10%;
-  bottom: 9px;
-  left: 10%;
-  display: flex;
-  height: 24px;
+  right: 8%;
+  bottom: 10px;
+  left: 8%;
+  display: grid;
+  height: 35px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  padding: 0 7px;
-  background:
-    rgba(8, 20, 34, 0.82);
-  border:
-    1px solid rgba(116, 234, 229, 0.16);
-  border-radius: 8px;
+  gap: 8px;
+  padding: 0 9px;
+  background: rgba(8, 20, 34, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 9px;
 }
 
-.preview-timeline i {
-  width: 12px;
-  height: 12px;
-  background:
-    linear-gradient(135deg,
-      #2ec4b6,
-      #247cff);
+.play-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  font-size: 8px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
   border-radius: 50%;
 }
 
-.preview-timeline span {
+.preview-timeline strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+  font-size: 8px;
+}
+
+.preview-timeline i {
+  display: block;
+  width: 100%;
   height: 4px;
-  flex: 1;
-  background:
-    linear-gradient(90deg,
-      #2ec4b6 45%,
-      rgba(184, 204, 218, 0.16) 45%);
+  background: linear-gradient(90deg, var(--primary) 48%, rgba(184, 204, 218, 0.16) 48%);
   border-radius: 999px;
 }
 
-.preview-timeline b {
-  width: 15px;
-  height: 9px;
-  background:
-    rgba(46, 196, 182, 0.12);
-  border:
-    1px solid rgba(46, 196, 182, 0.18);
-  border-radius: 3px;
+.preview-timeline>span:last-child {
+  color: var(--primary);
+  font-size: 8px;
+  font-weight: 900;
 }
 
-.preview-data-grid {
+.data-grid {
   display: grid;
-  grid-template-columns:
-    repeat(2, minmax(0, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 10px;
 }
 
-.preview-data-grid i {
-  display: block;
-  height: 32px;
-  background:
-    linear-gradient(145deg,
-      rgba(46, 196, 182, 0.12),
-      rgba(36, 124, 255, 0.08));
-  border:
-    1px solid rgba(116, 234, 229, 0.11);
+.data-grid>div {
+  display: grid;
+  min-height: 42px;
+  place-items: center;
+  padding: 4px;
+  color: var(--text-secondary);
+  font-size: 7px;
+  text-align: center;
+  background: linear-gradient(145deg, rgba(46, 196, 182, 0.1), rgba(36, 124, 255, 0.06));
+  border: 1px solid rgba(116, 234, 229, 0.1);
   border-radius: 6px;
 }
 
-.preview-analysis-row {
-  margin-top: 7px;
-  padding: 8px 6px;
-  background:
-    rgba(255, 255, 255, 0.035);
-  border:
-    1px solid rgba(116, 234, 229, 0.09);
-  border-radius: 6px;
-}
-
-.preview-analysis-row span {
-  display: block;
-  width: 70%;
-  height: 5px;
-  background:
-    rgba(184, 204, 218, 0.28);
-  border-radius: 999px;
-}
-
-.blank-preview-message {
+.blank-copy {
   position: absolute;
   z-index: 2;
   top: 50%;
   left: 50%;
   display: flex;
-  width: 70%;
+  width: 72%;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
-  padding: 18px;
-  color: var(--text-secondary);
-  background:
-    rgba(8, 20, 34, 0.52);
-  border:
-    1px dashed rgba(116, 234, 229, 0.24);
+  gap: 8px;
+  padding: 22px 14px;
+  text-align: center;
+  background: rgba(8, 20, 34, 0.62);
+  border: 1px dashed rgba(116, 234, 229, 0.26);
   border-radius: 10px;
-  transform:
-    translate(-50%, -50%);
+  transform: translate(-50%, -50%);
 }
 
-.blank-preview-icon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  color: #ffffff;
-  font-size: 22px;
-  background:
-    linear-gradient(135deg,
-      #2ec4b6,
-      #247cff);
-  border-radius: 10px;
+.blank-copy strong {
+  font-size: 13px;
 }
 
-.blank-preview-message strong {
-  color: var(--text-primary);
-  font-size: 12px;
-}
-
-.blank-preview-message span {
+.blank-copy span {
   color: var(--text-muted);
   font-size: 9px;
+  line-height: 1.6;
 }
 
-.template-card-footer {
+.layout-description {
   color: var(--text-muted);
-  font-size:
-    clamp(9px, 0.72vw, 11px);
+  font-size: 10px;
 }
 
-.template-card-footer>span {
+.layout-description strong {
   overflow: hidden;
+  color: var(--text-secondary);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.template-card-footer strong {
-  flex: 0 0 auto;
-  color: #2ec4b6;
-  font-size:
-    clamp(9px, 0.72vw, 11px);
+.template-card:last-child {
+  grid-column: 1 / -1;
 }
 
-.template-preview-card:last-child {
-  grid-column:
-    1 / -1;
-}
-
-.template-preview-card:last-child .template-screen {
-  min-height: 290px;
+.template-card:last-child .template-preview {
+  min-height: 320px;
 }
 
 @media (max-width: 1080px) {
-  .skeleton-gallery {
-    grid-template-columns:
-      minmax(0, 1fr);
+  .template-gallery {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .template-preview-card:last-child {
+  .template-card:last-child {
     grid-column: auto;
   }
 }
 
 @media (max-width: 720px) {
-  .skeleton-page-header {
+  .gallery-header {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .selected-template {
+  .current-template {
     width: 100%;
     box-sizing: border-box;
   }
 
-  .template-preview-card {
-    grid-template-rows:
-      auto minmax(190px, 1fr) auto;
+  .template-card {
+    grid-template-rows: auto minmax(230px, 1fr) auto;
   }
 
-  .template-screen {
-    min-height: 190px;
+  .template-preview {
+    min-height: 230px;
   }
 
-  .template-screen.has-left.has-right .preview-workspace {
-    grid-template-columns:
-      23% minmax(0, 1fr) 25%;
+  .template-preview.has-left.has-right .preview-body {
+    grid-template-columns: 24% minmax(0, 1fr) 26%;
   }
 
-  .preview-center-copy {
-    width: 58%;
+  .preview-logo {
+    width: 58px;
+  }
+
+  .preview-header-action {
+    width: 52px;
+    font-size: 7px;
+  }
+
+  .preview-title {
+    font-size: 10px;
   }
 }
 </style>
