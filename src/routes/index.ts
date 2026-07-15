@@ -123,42 +123,6 @@ export const routes = [
     component: () =>
       import('@/views/general-atmospheric-circulation/index.vue'),
   },
-  {
-    path: '/aaa',
-    name: 'aaa',
-    meta: {
-      title: 'aaa',
-    },
-    component: () =>
-      import('@/views/aaa/index.vue'),
-  },
-  {
-    path: '/bbb',
-    name: 'bbb',
-    meta: {
-      title: 'bbb',
-    },
-    component: () =>
-      import('@/views/bbb/index.vue'),
-  },
-  {
-    path: '/ccc',
-    name: 'ccc',
-    meta: {
-      title: 'ccc',
-    },
-    component: () =>
-      import('@/views/ccc/index.vue'),
-  },
-  {
-    path: '/ddd',
-    name: 'ddd',
-    meta: {
-      title: 'ddd',
-    },
-    component: () =>
-      import('@/views/ddd/index.vue'),
-  },
 ]
 
 export const routesNav = routes.map((route) => {
