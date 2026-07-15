@@ -24,15 +24,15 @@
       'has-left': hasLeftPanel,
       'has-right': hasRightPanel,
     }" :style="{
-        '--left-panel-width':
-          leftCollapsed
-            ? '0px'
-            : leftPanelWidth + 'px',
-        '--right-panel-width':
-          rightCollapsed
-            ? '0px'
-            : rightPanelWidth + 'px',
-      }">
+      '--left-panel-width':
+        leftCollapsed
+          ? '0px'
+          : leftPanelWidth + 'px',
+      '--right-panel-width':
+        rightCollapsed
+          ? '0px'
+          : rightPanelWidth + 'px',
+    }">
       <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
         <div class="panel-scroll">
           <div class="panel-heading">
@@ -350,6 +350,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import '@/styles/geo-page-template.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
@@ -2223,6 +2224,90 @@ onUnmounted(() => {
 <style scoped>
 .terrain-projection-template {
   --ui-scale: 1;
+
+  /*
+   * 5号模板公共 CSS 必须提供主布局。
+   * 这里仅做当前组件的最小兜底，避免公共 CSS 未及时加载、
+   * 加载顺序异常时，左右面板按文档流掉到主场景下方。
+   */
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.terrain-projection-template>.top-toolbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 120;
+}
+
+.terrain-projection-template>.workspace {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  min-height: 0;
+}
+
+.terrain-projection-template .center-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.terrain-projection-template .stage-content {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.terrain-projection-template .side-panel {
+  position: absolute;
+  top:
+    var(--floating-panel-top-offset,
+      74px);
+  bottom:
+    clamp(14px,
+      1.6vh,
+      22px);
+  z-index: 90;
+}
+
+.terrain-projection-template .left-panel {
+  left:
+    clamp(14px,
+      1.4vw,
+      22px);
+}
+
+.terrain-projection-template .right-panel {
+  right:
+    clamp(14px,
+      1.4vw,
+      22px);
+}
+
+.terrain-projection-template .side-panel.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  overflow: visible;
+}
+
+.terrain-projection-template .left-panel.collapsed {
+  transform:
+    translateX(calc(-100% - 18px));
+}
+
+.terrain-projection-template .right-panel.collapsed {
+  transform:
+    translateX(calc(100% + 18px));
 }
 
 .terrain-scene-host {
@@ -2272,11 +2357,11 @@ onUnmounted(() => {
 .view-cube {
   position: absolute;
   top:
-    clamp(70px,
+    clamp(80px,
       8vh,
       92px);
   right:
-    calc(var(--scene-right-safe) + var(--scene-overlay-gap));
+    calc(var(--scene-right-safe) + var(--scene-overlay-gap) + 20px);
   z-index: 40;
   width:
     calc(60px * var(--ui-scale));
@@ -2366,7 +2451,7 @@ onUnmounted(() => {
 .legend-panel {
   position: absolute;
   left:
-    calc(var(--scene-left-safe) + var(--scene-overlay-gap));
+    calc(var(--scene-left-safe) + var(--scene-overlay-gap) + 10px);
   bottom:
     clamp(14px,
       1.6vh,
