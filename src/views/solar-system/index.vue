@@ -1,5 +1,5 @@
 <template>
-  <div ref="pageRef" class="solar-system-container geo-template-page geo-page theme-dark"
+  <div ref="pageRef" class="solar-system-container geo-template-page geo-page theme-dark layout-floating"
     :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">

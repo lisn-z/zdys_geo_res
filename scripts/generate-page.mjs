@@ -62,6 +62,17 @@ const THEME_OPTIONS = {
   },
 }
 
+const FLOATING_OPTIONS = {
+  1: {
+    key: 'yes',
+    label: '是，启用悬浮毛玻璃布局',
+  },
+  2: {
+    key: 'no',
+    label: '否，使用普通面板布局',
+  },
+}
+
 const SCENE_OPTIONS = {
   1: {
     key: 'three',
@@ -100,6 +111,7 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
 }
+
 
 async function askChoice(
   question,
@@ -263,6 +275,229 @@ function getThemeTokens(themeKey) {
     leafletControlBackground: 'rgba(8, 20, 34, 0.92)',
   }
 }
+
+function buildTemplateUsagePrompt({
+  title,
+  layoutKey,
+  themeKey,
+  sceneKey,
+  useFloating,
+}) {
+  const hasLeftPanel =
+    layoutKey === 'header-left-main' ||
+    layoutKey === 'header-left-main-right'
+
+  const hasRightPanel =
+    layoutKey === 'header-main-right' ||
+    layoutKey === 'header-left-main-right'
+
+  const layoutDescriptionMap = {
+    'header-main':
+      'Header + 主场景：适合只需要大画布展示、少量顶部操作的页面。',
+    'header-left-main':
+      'Header + 左侧控制面板 + 主场景：适合交互参数较多，但右侧不需要数据说明的页面。',
+    'header-main-right':
+      'Header + 主场景 + 右侧数据面板：适合主场景展示为主，右侧补充数据、图例和知识说明的页面。',
+    'header-left-main-right':
+      'Header + 左侧控制面板 + 主场景 + 右侧数据面板：适合完整互动课件，左控参数，中间展示，右侧解释。',
+  }
+
+  const sceneDescriptionMap = {
+    three:
+      '当前主场景是 Three.js。center-stage 里应主要放 WebGL 容器、3D 模型、相机、光照、动画和点击交互；不要把复杂说明堆在主场景上。',
+    echarts:
+      '当前主场景是 ECharts。center-stage 里应主要放图表容器、地图、柱线图、统计图和图层展示；控制项放左侧，数据解释放右侧。',
+    leaflet:
+      '当前主场景是 Leaflet。center-stage 里应主要放地图容器、瓦片底图、点线面图层和地图交互；图层开关放左侧，点位信息和图例放右侧。',
+    empty:
+      '当前主场景是空内容。可以按业务接入 Three.js、ECharts、Leaflet、Canvas、SVG 或普通 HTML 互动内容。',
+  }
+
+  const floatingText =
+    useFloating
+      ? '当前页面启用了 layout-floating 悬浮毛玻璃布局：Header、左右面板和时间轴会悬浮在主场景上方，主场景铺满整个页面。不要再给面板、Header、时间轴重新写背景、透明度、毛玻璃和阴影。'
+      : '当前页面使用普通模板布局：Header 在顶部，面板和主场景按模板布局排列。不要额外改 workspace、side-panel、center-stage 的基础布局。'
+
+  const areaLines = [
+    '- top-toolbar：放 Logo、页面标题、全局按钮，例如“收起面板 / 展开面板”。不要放业务表单和大段说明。',
+  ]
+
+  if (hasLeftPanel) {
+    areaLines.push(
+      '- left-panel：放“控制类内容”，例如开关、滑块、下拉、颜色选择、数字输入、视角按钮、图层按钮、参数预设。不要放长篇知识讲解。'
+    )
+  } else {
+    areaLines.push(
+      '- 当前模板没有 left-panel。不要强行创建左侧面板；控制项少时可以放到 Header 按钮或主场景内的轻量工具条。'
+    )
+  }
+
+  areaLines.push(
+    '- center-stage：放主场景主体，例如 Three.js、ECharts、Leaflet、Canvas、SVG 或核心互动区域。'
+  )
+
+  if (hasRightPanel) {
+    areaLines.push(
+      '- right-panel：放“解释和反馈类内容”，例如实时数据、计算结果、图例、知识说明、过程解读、教材表格、课堂提示。不要重复左侧控制项。'
+    )
+  } else {
+    areaLines.push(
+      '- 当前模板没有 right-panel。不要强行创建右侧面板；少量说明可以用主场景角标或折叠说明卡承载。'
+    )
+  }
+
+  areaLines.push(
+    '- timeline-dock：放播放 / 暂停、进度条、速度切换、过程演示时间轴。没有过程演示时可以删除整个 timeline-dock 及相关状态。'
+  )
+
+  const leftPanelPrompt = hasLeftPanel
+    ? [
+      '【左侧面板使用要求】',
+      '- 左侧只放控制项，不放大段说明。',
+      '- 一个控制主题用一个 <section class="geo-card control-section">。',
+      '- 开关统一用 switch-row + control-copy + el-switch。',
+      '- 滑块统一用 section-title-row + control-value + el-slider。',
+      '- 下拉统一用 el-select.theme-select。',
+      '- 数字输入统一用 el-input-number.theme-input-number。',
+      '- 颜色选择统一放在 color-control-row 中，el-color-picker 不需要自己配色。',
+      '- 多个选项按钮统一放在 option-grid 或自定义布局容器中，但按钮本身仍用 theme-btn option-btn。',
+    ].join('\n')
+    : [
+      '【控制区处理】',
+      '- 当前模板没有左侧面板，控制项不要硬塞出一整栏。',
+      '- 如果只有 1—2 个控制按钮，可以放到 top-toolbar 的 toolbar-actions。',
+      '- 如果控制项较多，应该先建议用户切换到带 left-panel 的模板。',
+    ].join('\n')
+
+  const rightPanelPrompt = hasRightPanel
+    ? [
+      '【右侧面板使用要求】',
+      '- 右侧只放数据、说明、图例、结论和课堂提示。',
+      '- data-card 用于关键指标，每个卡片只放一个核心值。',
+      '- analysis-collapse 用于较长的知识说明或过程解读。',
+      '- 不要把左侧已有的开关、滑块、按钮再复制到右侧。',
+      '- 点击主场景对象后的详细数据优先更新到右侧面板，不要再额外弹一个重复弹窗。',
+    ].join('\n')
+    : [
+      '【说明区处理】',
+      '- 当前模板没有右侧面板，不要硬塞出一整栏。',
+      '- 如果必须展示图例或说明，可以用主场景内的小型浮层，但不要覆盖核心画面。',
+      '- 如果说明内容很多，应该先建议用户切换到带 right-panel 的模板。',
+    ].join('\n')
+
+  const scenePromptMap = {
+    three: [
+      '【Three.js 主场景开发要求】',
+      '- Three.js 只挂载到 scene-host / three-host 容器中。',
+      '- 相机、渲染器、OrbitControls、动画循环、ResizeObserver 放在 script 中。',
+      '- 不要用 fixed 定位 canvas；canvas 尺寸跟随容器。',
+      '- 左侧控制模型、光照、速度、图层、视角；右侧展示当前对象数据、教学说明和过程结果。',
+      '- 不用到的几何体、材质、预设、控制状态、watch 和 dispose 逻辑可以删除。',
+    ].join('\n'),
+    echarts: [
+      '【ECharts 主场景开发要求】',
+      '- ECharts 只挂载到 scene-host / chart-host 容器中。',
+      '- 图表实例、option 构建、resize、dispose 放在 script 中。',
+      '- 左侧控制图层、配色、缩放、标签、数据口径；右侧展示指标、图例、区域说明和结论。',
+      '- 不用到的地图预设、颜色变量、visualMap、roam 状态可以删除。',
+    ].join('\n'),
+    leaflet: [
+      '【Leaflet 主场景开发要求】',
+      '- Leaflet 只挂载到 scene-host / leaflet-host 容器中。',
+      '- 地图实例、瓦片层、图层组、标记、比例尺、invalidateSize、dispose 放在 script 中。',
+      '- 左侧控制底图、图层、点线面显示、透明度、缩放视图；右侧展示点位信息、图例和地理解释。',
+      '- 不用到的图层、标记、比例尺、区域预设和 watch 可以删除。',
+    ].join('\n'),
+    empty: [
+      '【空主场景开发要求】',
+      '- 当前主场景没有预设库，按业务自行接入 Three.js、ECharts、Leaflet、Canvas 或普通 HTML。',
+      '- 接入新库时仍然使用 scene-host 作为主容器。',
+      '- 不用到的示例状态、示例卡片、时间轴状态可以删除。',
+    ].join('\n'),
+  }
+
+  return [
+    `请基于这个地理互动页面公共模板继续开发《${title}》。`,
+    '',
+    '【当前模板信息】',
+    `- 主题：theme-${themeKey}。`,
+    `- 布局：${layoutKey}。${layoutDescriptionMap[layoutKey] || ''}`,
+    `- 主场景：${sceneKey}。${sceneDescriptionMap[sceneKey] || ''}`,
+    `- ${floatingText}`,
+    '',
+    '【区域职责】',
+    ...areaLines,
+    '',
+    leftPanelPrompt,
+    '',
+    rightPanelPrompt,
+    '',
+    scenePromptMap[sceneKey] || scenePromptMap.empty,
+    '',
+    '【按钮使用规范，重点遵守】',
+    '- 普通选项按钮：使用 class="theme-btn option-btn"。',
+    '- 顶部工具栏按钮：使用 class="theme-btn toolbar-btn"。',
+    '- 恢复默认 / 重置类按钮：使用 class="theme-btn reset-scene-btn" 或在业务里只补宽度类。',
+    '- 速度按钮：使用 class="theme-btn speed-btn"。',
+    '- 时间轴圆形播放按钮：使用 class="timeline-icon-btn"。',
+    '- 面板收起 / 展开按钮使用模板已有 panel-collapse-btn、panel-entry-btn，不要自己重做。',
+    '- 按钮选中态只加 active，例如 :class="{ active: currentValue === item.value }"。',
+    '- 不要给按钮重新写 background、linear-gradient、border、box-shadow、hover、active 颜色，这些公共 CSS 已经配好。',
+    '- 如果要新增一种按钮类型，只新增一个语义布局类，例如 class="theme-btn option-btn season-btn"，这个新类只允许控制宽度、间距、排列，不要控制颜色。',
+    '',
+    '【按钮新增类型示例】',
+    'const viewOptions = [',
+    "  { label: '太阳', value: 'sun' },",
+    "  { label: '地球', value: 'earth' },",
+    "  { label: '月球', value: 'moon' },",
+    ']',
+    '',
+    '<button',
+    '  v-for="item in viewOptions"',
+    '  :key="item.value"',
+    '  type="button"',
+    '  class="theme-btn option-btn"',
+    '  :class="{ active: currentView === item.value }"',
+    '  @click="currentView = item.value"',
+    '>',
+    '  {{ item.label }}',
+    '</button>',
+    '',
+    '【表单控件使用规范】',
+    '- el-switch：放在 switch-row 中，左侧用 control-copy 写标题和说明。',
+    '- el-slider：上方用 section-title-row 显示标题和值，值用 control-value。',
+    '- el-select：使用 class="theme-select"，并设置 popper-class="geo-select-popper geo-select-popper-dark" 或 geo-select-popper-light。',
+    '- el-input-number：使用 class="theme-input-number"，不要自己写宽度颜色。',
+    '- el-color-picker：直接放在 color-control-row，不要自己配色。',
+    '- el-collapse：说明类内容使用 analysis-collapse。',
+    '- 新增表单类型时，优先套用这些行容器，不要重新造一套表单样式。',
+    '',
+    '【公共样式边界】',
+    '- 不要重写 theme-btn、option-btn、toolbar-btn、timeline-icon-btn 的颜色、渐变、边框、阴影和 hover。',
+    '- 不要重写 top-toolbar、side-panel、panel-scroll、geo-card、timeline-dock 的背景、毛玻璃、阴影和边框。',
+    '- 不要在业务组件里写 ::-webkit-scrollbar、scrollbar-color、scrollbar-width。',
+    '- 业务组件只补当前业务独有的布局、尺寸、定位、图形和动画样式。',
+    '',
+    '【可以删除的内容】',
+    '- 当前业务没用到的左侧控制卡片可以删除。',
+    '- 没用到的右侧 dataCards、analysis-collapse 项可以删除。',
+    '- 没有播放过程时，可以删除 timeline-dock、isPlaying、progress、playbackSpeed、speedOptions。',
+    '- 没用到的示例 scene state、watch、preset、resetControls、dispose 逻辑可以删除。',
+    '- 删除时要同步删除 template、script、style 中对应的无用代码，避免残留变量报错。',
+    '',
+    '【开发目标】',
+    '- 保持模板结构清晰：控制在左、展示在中、说明在右、过程在底部。',
+    '- 优先复用公共类名。',
+    '- 少写样式，多复用模板。',
+    '- 不要重复造按钮、面板、滚动条、表单控件和毛玻璃效果。',
+    '',
+    '【需求如下】',
+    '请在这里补充你的具体业务需求，例如：课件主题、学段、学科、交互功能、数据来源、视觉风格、必须保留或删除的模块。',
+    '',
+    '需求如下：',
+  ].join('\n')
+}
+
 
 function buildBlankTemplate(
   routeName,
@@ -3013,6 +3248,7 @@ function buildVueTemplate({
   layoutKey,
   themeKey,
   sceneKey,
+  useFloating,
 }) {
   const hasLeft =
     layoutKey === 'header-left-main' ||
@@ -3084,10 +3320,22 @@ function buildVueTemplate({
     )
     .join('\n')
 
+  const rawTemplatePrompt =
+    buildTemplateUsagePrompt({
+      title,
+      layoutKey,
+      themeKey,
+      sceneKey,
+      useFloating,
+    })
+
+  const templatePromptScript =
+    JSON.stringify(rawTemplatePrompt)
+
   return `<template>
   <div
     ref="pageRef"
-    class="${routeName}-container geo-template-page geo-page theme-${themeKey}"
+    class="${routeName}-container geo-template-page geo-page theme-${themeKey}${useFloating ? ' layout-floating' : ''}"
     :class="'layout-' + layoutMode"
   >
     <header class="top-toolbar">
@@ -3129,13 +3377,36 @@ function buildVueTemplate({
         <div class="stage-content">
           ${buildSceneHost(sceneKey)}
 
-          <div class="stage-placeholder">
-            <h2>${sceneMeta.title}</h2>
+          <div class="stage-placeholder template-prompt-card">
+            <div class="template-prompt-head">
+              <div>
+                <h2>AI 开发提示词</h2>
 
-            <p>${sceneMeta.description}</p>
+                <p>
+                  复制下面内容给 AI，让它按这个模板理解页面结构、
+                  面板职责和控件写法。
+                </p>
+              </div>
+
+              <button
+                type="button"
+                class="theme-btn option-btn copy-prompt-btn"
+                @click="copyTemplatePrompt"
+              >
+                {{ copyPromptText }}
+              </button>
+            </div>
+
+            <pre
+              class="template-prompt-text"
+              v-text="aiTemplatePrompt"
+            ></pre>
 
             <div class="stage-tags">
-${tags}
+              <span>模板说明</span>
+              <span>面板职责</span>
+              <span>控件规范</span>
+              <span>补充需求</span>
             </div>
           </div>
         </div>
@@ -3236,6 +3507,39 @@ type LayoutMode =
 
 const pageRef =
   ref<HTMLElement | null>(null)
+
+const aiTemplatePrompt =
+  ${templatePromptScript}
+
+const copyPromptText =
+  ref('复制提示词')
+
+async function copyTemplatePrompt() {
+  try {
+    await navigator.clipboard.writeText(
+      aiTemplatePrompt
+    )
+
+    copyPromptText.value = '已复制'
+
+    window.setTimeout(() => {
+      copyPromptText.value =
+        '复制提示词'
+    }, 1400)
+  } catch (error) {
+    copyPromptText.value = '复制失败'
+
+    window.setTimeout(() => {
+      copyPromptText.value =
+        '复制提示词'
+    }, 1400)
+
+    console.error(
+      '复制提示词失败：',
+      error
+    )
+  }
+}
 
 const hasLeftPanel = ${hasLeft}
 const hasRightPanel = ${hasRight}
@@ -3653,6 +3957,134 @@ onBeforeUnmount(() => {
 })
 </script>
 
+<style scoped>
+.template-prompt-card {
+  display: flex;
+  width:
+    min(
+      90%,
+      760px
+    );
+  max-height:
+    min(
+      72vh,
+      620px
+    );
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.template-prompt-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap:
+    clamp(
+      10px,
+      1.2vw,
+      16px
+    );
+  text-align: left;
+}
+
+.template-prompt-head h2 {
+  margin: 0;
+}
+
+.template-prompt-head p {
+  margin:
+    clamp(
+      6px,
+      0.7vw,
+      9px
+    )
+    0 0;
+}
+
+.copy-prompt-btn {
+  flex: 0 0 auto;
+  min-width:
+    clamp(
+      76px,
+      7vw,
+      98px
+    );
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .template-prompt-head {
+    flex-direction: column;
+  }
+
+  .copy-prompt-btn {
+    width: 100%;
+  }
+}
+
+.template-prompt-text {
+  width: 100%;
+  min-height: 220px;
+  max-height:
+    min(
+      42vh,
+      360px
+    );
+  box-sizing: border-box;
+  margin:
+    clamp(
+      9px,
+      1vw,
+      13px
+    )
+    0 0;
+  padding:
+    clamp(
+      9px,
+      1vw,
+      13px
+    );
+  overflow: auto;
+  color:
+    var(--text-secondary);
+  font-family:
+    "Microsoft YaHei",
+    "PingFang SC",
+    "Noto Sans CJK SC",
+    sans-serif;
+  font-size:
+    clamp(
+      8px,
+      0.72vw,
+      11px
+    );
+  line-height: 1.72;
+  text-align: left;
+  white-space: pre-wrap;
+  user-select: text;
+  background:
+    var(--inactive-background);
+  border:
+    1px solid
+    var(--inactive-border);
+  border-radius:
+    clamp(
+      9px,
+      0.8vw,
+      12px
+    );
+}
+
+.template-prompt-card
+.stage-tags {
+  margin-top:
+    clamp(
+      9px,
+      1vw,
+      13px
+    );
+}
+</style>
 
 `
 }
@@ -3708,6 +4140,7 @@ async function main() {
   )
 
   let scene = SCENE_OPTIONS[4]
+  let useFloating = false
 
   if (layout.key !== 'blank') {
     scene = await askChoice(
@@ -3715,6 +4148,15 @@ async function main() {
       SCENE_OPTIONS,
       '1'
     )
+
+    const floating = await askChoice(
+      '\n🧊 是否启用悬浮毛玻璃风格：',
+      FLOATING_OPTIONS,
+      '2'
+    )
+
+    useFloating =
+      floating.key === 'yes'
   }
 
   rl.close()
@@ -3778,6 +4220,7 @@ async function main() {
         layoutKey: layout.key,
         themeKey: theme.key,
         sceneKey: scene.key,
+        useFloating,
       })
 
   writeFileSync(
@@ -3801,6 +4244,12 @@ async function main() {
   if (layout.key !== 'blank') {
     console.log(
       `✅ 主场景案例: ${scene.label}`
+    )
+  }
+
+  if (layout.key !== 'blank') {
+    console.log(
+      `✅ 悬浮毛玻璃: ${useFloating ? '已启用' : '未启用'}`
     )
   }
 
