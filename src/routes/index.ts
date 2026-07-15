@@ -114,24 +114,6 @@ export const routes = [
     },
     component: () => import('@/views/temperature-and-precipitation/index.vue'),
   },
-  {
-    path: '/aaa',
-    name: 'aaa',
-    meta: {
-      title: 'aaa',
-    },
-    component: () =>
-      import('@/views/aaa/index.vue'),
-  },
-  {
-    path: '/bbb',
-    name: 'bbb',
-    meta: {
-      title: 'bbb',
-    },
-    component: () =>
-      import('@/views/bbb/index.vue'),
-  },
 ]
 
 export const routesNav = routes.map((route) => {
