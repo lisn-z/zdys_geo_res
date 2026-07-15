@@ -114,6 +114,15 @@ export const routes = [
     },
     component: () => import('@/views/temperature-and-precipitation/index.vue'),
   },
+  {
+    path: '/general-atmospheric-circulation',
+    name: 'general-atmospheric-circulation',
+    meta: {
+      title: '大气环流',
+    },
+    component: () =>
+      import('@/views/general-atmospheric-circulation/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
