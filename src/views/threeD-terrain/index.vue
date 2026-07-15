@@ -1,184 +1,355 @@
 <template>
-  <div ref="container" class="terrain-container" @click="onTerrainClick" @touchend="onTerrainTouchEnd">
-    <!-- ===== 左侧控制面板 ===== -->
-    <div class="control-panel">
-      <div class="cp-header">
-        <svg class="cp-icon" viewBox="0 0 24 24" width="18" height="18"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="currentColor"/></svg>
-        <span>控制面板</span>
+  <div ref="pageRef" class="terrain-projection-template geo-template-page geo-page theme-dark layout-floating"
+    :class="'layout-' + layoutMode">
+    <header class="top-toolbar">
+      <div class="brand-area">
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
-      <!-- 等高距 -->
-      <div class="cp-item">
-        <span class="cp-label">等高距</span>
-        <div class="cp-slider-row">
-          <input type="range" class="cp-slider" :min="5" :max="50" :step="5" v-model.number="contourInterval" @input="onContourIntervalChange" />
-          <span class="cp-value">{{ contourInterval }}m</span>
+      <h1 class="page-title">等高线地形图 · 三维投影</h1>
+
+      <div class="toolbar-actions">
+        <button type="button" class="theme-btn toolbar-btn" @click="setView('front')">
+          前视图
+        </button>
+
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
+          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        </button>
+      </div>
+    </header>
+
+    <main class="workspace" :class="{
+      'has-left': hasLeftPanel,
+      'has-right': hasRightPanel,
+    }" :style="{
+        '--left-panel-width':
+          leftCollapsed
+            ? '0px'
+            : leftPanelWidth + 'px',
+        '--right-panel-width':
+          rightCollapsed
+            ? '0px'
+            : rightPanelWidth + 'px',
+      }">
+      <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
+        <div class="panel-scroll">
+          <div class="panel-heading">
+            <div>
+              <h2>地形控制</h2>
+              <p>调整等高线、投影、标签和随机地形</p>
+            </div>
+
+            <span class="panel-badge">CONTROL</span>
+          </div>
+
+          <section class="geo-card control-section">
+            <div class="section-title-row">
+              <h3 class="section-title">等高距</h3>
+              <strong class="control-value">
+                {{ contourInterval }}m
+              </strong>
+            </div>
+
+            <el-slider v-model="contourInterval" :min="5" :max="50" :step="5" :show-tooltip="false"
+              @input="onContourIntervalChange" />
+
+            <div class="switch-row">
+              <div class="control-copy">
+                <strong>地形标签</strong>
+                <span>显示山顶、山脊、山谷等判读标签</span>
+              </div>
+
+              <el-switch v-model="showFeatureLabels" @change="onToggleFeatureLabels" />
+            </div>
+
+            <div class="switch-row">
+              <div class="control-copy">
+                <strong>地形显示</strong>
+                <span>控制三维地形和表面等高线</span>
+              </div>
+
+              <el-switch v-model="showTerrain" @change="onToggleTerrain" />
+            </div>
+
+            <div class="switch-row">
+              <div class="control-copy">
+                <strong>地形透明</strong>
+                <span>降低地形不透明度，便于观察投影</span>
+              </div>
+
+              <el-switch v-model="terrainTransparent" @change="onToggleTransparent" />
+            </div>
+          </section>
+
+          <section class="geo-card control-section">
+            <h3 class="section-title">投影设置</h3>
+
+            <div class="switch-row first-control-row">
+              <div class="control-copy">
+                <strong>投影显示</strong>
+                <span>显示底部二维投影面</span>
+              </div>
+
+              <el-switch v-model="showProjection" @change="onToggleProjection" />
+            </div>
+
+            <div class="switch-row">
+              <div class="control-copy">
+                <strong>投影线</strong>
+                <span>连接三维等高线与投影面</span>
+              </div>
+
+              <el-switch v-model="showProjectionLines" @change="onToggleProjectionLines" />
+            </div>
+
+            <div class="switch-row">
+              <div class="control-copy">
+                <strong>分层设色投影</strong>
+                <span>在投影面显示海拔分层色</span>
+              </div>
+
+              <el-switch v-model="showProjectionColoring" @change="onToggleProjectionColoring" />
+            </div>
+          </section>
+
+          <section class="geo-card control-section">
+            <h3 class="section-title">剖面与地形生成</h3>
+
+            <button type="button" class="theme-btn reset-scene-btn profile-mode-btn" :class="{ active: profileMode }"
+              @click="toggleProfileMode">
+              {{ profileMode ? '退出剖面切割' : '剖面切割' }}
+            </button>
+
+            <div class="number-control-row terrain-type-row">
+              <div class="control-copy">
+                <strong>地形生成</strong>
+                <span>按指定地形部位生成随机样例</span>
+              </div>
+
+              <el-select v-model="terrainGenType" class="theme-select terrain-type-select"
+                popper-class="geo-select-popper geo-select-popper-dark" placeholder="地形类型">
+                <el-option label="全部" value="all" />
+                <el-option label="山顶" value="peak" />
+                <el-option label="鞍部" value="saddle" />
+                <el-option label="山脊" value="ridge" />
+                <el-option label="山谷" value="valley" />
+                <el-option label="陡崖" value="cliff" />
+                <el-option label="陡坡" value="steep" />
+                <el-option label="缓坡" value="gentle" />
+                <el-option label="盆地" value="basin" />
+              </el-select>
+            </div>
+
+            <button type="button" class="theme-btn reset-scene-btn" :disabled="generatingTerrain"
+              @click="generateRandomTerrain">
+              {{ generatingTerrain ? '生成中...' : '随机生成' }}
+            </button>
+          </section>
         </div>
-      </div>
 
-      <div class="cp-divider"></div>
+        <div class="resize-handle resize-right" @pointerdown.prevent="
+          startResize('left', $event)
+          "></div>
 
-      <!-- 地形标签 (山顶/山脊等特征) -->
-      <div class="cp-item">
-        <span class="cp-label">地形标签</span>
-        <label class="cp-switch">
-          <input type="checkbox" v-model="showFeatureLabels" checked @change="onToggleFeatureLabels" />
-          <span class="cp-slider-toggle"></span>
-        </label>
-      </div>
+        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
+          @click="leftCollapsed = true">
+          ‹
+        </button>
+      </aside>
 
-      <!-- 地形显示 -->
-      <div class="cp-item">
-        <span class="cp-label">地形显示</span>
-        <label class="cp-switch">
-          <input type="checkbox" v-model="showTerrain" checked @change="onToggleTerrain" />
-          <span class="cp-slider-toggle"></span>
-        </label>
-      </div>
+      <section class="center-stage">
+        <div class="stage-content">
+          <div ref="threeContainerRef" class="scene-host terrain-scene-host" @click="onTerrainClick"
+            @touchend="onTerrainTouchEnd"></div>
 
-      <!-- 地形透明 -->
-      <div class="cp-item">
-        <span class="cp-label">地形透明</span>
-        <label class="cp-switch">
-          <input type="checkbox" v-model="terrainTransparent" @change="onToggleTransparent" />
-          <span class="cp-slider-toggle"></span>
-        </label>
-      </div>
+          <div class="terrain-scene-overlay">
+            <div ref="viewCube" class="view-cube">
+              <div class="vc-face vc-face-front" data-view="front" title="前视图">
+                前
+              </div>
+              <div class="vc-face vc-face-back" data-view="back" title="后视图">
+                后
+              </div>
+              <div class="vc-face vc-face-right" data-view="right" title="右视图">
+                右
+              </div>
+              <div class="vc-face vc-face-left" data-view="left" title="左视图">
+                左
+              </div>
+              <div class="vc-face vc-face-top" data-view="top" title="顶视图">
+                顶
+              </div>
+              <div class="vc-face vc-face-bottom" data-view="bottom" title="底视图">
+                底
+              </div>
+            </div>
 
-      <div class="cp-divider"></div>
+            <div class="legend-panel">
+              <div class="legend-title">地形判读</div>
 
-      <!-- 投影显示 -->
-      <div class="cp-item">
-        <span class="cp-label">投影显示</span>
-        <label class="cp-switch">
-          <input type="checkbox" v-model="showProjection" checked @change="onToggleProjection" />
-          <span class="cp-slider-toggle"></span>
-        </label>
-      </div>
+              <div class="legend-grid">
+                <div class="legend-item legend-color-scale-item">
+                  <div>
+                    <div class="legend-bar"></div>
+                    <div class="legend-labels">
+                      <span>低</span>
+                      <span>高</span>
+                    </div>
+                  </div>
+                </div>
 
-      <!-- 投影线 -->
-      <div class="cp-item">
-        <span class="cp-label">投影线</span>
-        <label class="cp-switch">
-          <input type="checkbox" v-model="showProjectionLines" checked @change="onToggleProjectionLines" />
-          <span class="cp-slider-toggle"></span>
-        </label>
-      </div>
+                <div class="legend-item">
+                  <span class="badge" style="background:#ff6b6b"></span>
+                  山顶
+                </div>
+                <div class="legend-item">
+                  <span class="badge" style="background:#f9ca24"></span>
+                  鞍部
+                </div>
+                <div class="legend-item">
+                  <span class="badge" style="background:#2bcbba"></span>
+                  山脊
+                </div>
+                <div class="legend-item">
+                  <span class="badge" style="background:#45aaf2"></span>
+                  山谷
+                </div>
+                <div class="legend-item">
+                  <span class="badge" style="background:#fd7944"></span>
+                  陡崖
+                </div>
+                <div class="legend-item">
+                  <span class="badge" style="background:#fd9644"></span>
+                  陡坡
+                </div>
+                <div class="legend-item">
+                  <span class="badge" style="background:#778ca3"></span>
+                  缓坡
+                </div>
+                <div class="legend-item">
+                  <span class="badge" style="background:#a78bfa"></span>
+                  盆地
+                </div>
+              </div>
+            </div>
 
-      <!-- 投影分层设色 -->
-      <div class="cp-item">
-        <span class="cp-label">分层设色投影</span>
-        <label class="cp-switch">
-          <input type="checkbox" v-model="showProjectionColoring" @change="onToggleProjectionColoring" />
-          <span class="cp-slider-toggle"></span>
-        </label>
-      </div>
+            <div v-if="profileMode && profileClicks < 2" class="profile-hint">
+              点击地形上
+              <strong>两个点</strong>
+              定义切割线
+            </div>
 
-      <div class="cp-divider"></div>
+            <div v-if="profileData.length > 1" class="profile-chart">
+              <div class="profile-chart-header">
+                <span>地形剖面图</span>
 
-      <!-- 剖面切割 -->
-      <button class="cp-btn" :class="{ active: profileMode }" @click="toggleProfileMode">
-        <svg viewBox="0 0 24 24" width="16" height="16" style="margin-right:4px;vertical-align:middle"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" fill="currentColor"/></svg>
-        剖面切割
-      </button>
+                <button type="button" class="profile-close-btn" @click="clearProfile">
+                  ✕
+                </button>
+              </div>
 
-      <div class="cp-divider"></div>
-
-      <!-- 随机地形生成 -->
-      <div class="cp-item">
-        <span class="cp-label">地形生成</span>
-        <select v-model="terrainGenType" class="cp-select">
-          <option value="all">全部</option>
-          <option value="peak">山顶</option>
-          <option value="saddle">鞍部</option>
-          <option value="ridge">山脊</option>
-          <option value="valley">山谷</option>
-          <option value="cliff">陡崖</option>
-          <option value="steep">陡坡</option>
-          <option value="gentle">缓坡</option>
-          <option value="basin">盆地</option>
-        </select>
-      </div>
-      <button class="cp-btn" :disabled="generatingTerrain" @click="generateRandomTerrain">
-        {{ generatingTerrain ? '生成中...' : '随机生成' }}
-      </button>
-    </div>
-
-    <!-- ===== 顶部标题 ===== -->
-    <div class="title-bar">
-      <div class="title-text">等高线地形图 · 三维投影</div>
-      <div class="title-sub">Contour Map Projection</div>
-    </div>
-
-    <!-- ===== 关闭面板按钮 ===== -->
-    <button class="toggle-panels-btn" @click="toggleAllPanels">☰</button>
-
-    <!-- ===== 视角切换器（3D 立方体）===== -->
-    <div class="view-cube" ref="viewCube">
-      <div class="vc-face vc-face-front" data-view="front" title="前视图">前</div>
-      <div class="vc-face vc-face-back" data-view="back" title="后视图">后</div>
-      <div class="vc-face vc-face-right" data-view="right" title="右视图">右</div>
-      <div class="vc-face vc-face-left" data-view="left" title="左视图">左</div>
-      <div class="vc-face vc-face-top" data-view="top" title="顶视图">顶</div>
-      <div class="vc-face vc-face-bottom" data-view="bottom" title="底视图">底</div>
-    </div>
-
-    <!-- ===== 知识解读面板（右侧）===== -->
-    <div class="knowledge-panel">
-      <div class="kp-title">📚 知识解读</div>
-      <div class="kp-section-title">基本地形部位</div>
-      <ul class="kp-list">
-        <li><span class="kp-term">山顶</span>：闭合等高线，内高外低，常标海拔</li>
-        <li><span class="kp-term">鞍部</span>：两峰之间连鞍低凹，比两侧山顶低</li>
-        <li><span class="kp-term">山脊</span>：从山顶向低处延伸的分水岭，等高线向低处凸出</li>
-        <li><span class="kp-term">山谷</span>：等高线向高处凸出，常发育河流</li>
-        <li><span class="kp-term">陡崖</span>：等高线重合或极密，适合攀岩</li>
-        <li><span class="kp-term">陡坡</span>：等高线密集，高差变化大，坡度&gt;25°</li>
-        <li><span class="kp-term">缓坡</span>：等高线稀疏，高差变化小，坡度&lt;15°</li>
-        <li><span class="kp-term">盆地</span>：四周高中间低，等高线呈闭合状且外高内低</li>
-      </ul>
-    </div>
-
-    <!-- ===== 剖面提示 ===== -->
-    <div class="profile-hint" v-if="profileMode && profileClicks < 2">
-      点击地形上<strong>两个点</strong>定义切割线
-    </div>
-
-    <!-- ===== 剖面图 ===== -->
-    <div class="profile-chart" v-if="profileData.length > 1">
-      <div class="profile-chart-header">
-        <span>📊 地形剖面图</span>
-        <button class="cp-close-btn" @click="clearProfile">✕</button>
-      </div>
-      <canvas ref="profileCanvas" width="640" height="300"></canvas>
-    </div>
-
-    <!-- ===== 图例 (左下角) ===== -->
-    <div class="legend-panel">
-      <div class="legend-title">地形判读</div>
-      <div class="legend-grid">
-        <div class="legend-item">
-          <div class="legend-bar" style="background:linear-gradient(to right, #1a5c1a, #2e8b2e, #6ab04c, #d4d47a, #e8c84a, #d4a030, #c08040, #a06030, #704020, #d2c8b9, #f0eee4, #fffcf0);width:80px;height:10px;border-radius:4px"></div>
-          <div class="legend-labels">
-            <span>低</span>
-            <span>高</span>
+              <canvas ref="profileCanvas" width="640" height="300"></canvas>
+            </div>
           </div>
         </div>
-        <div class="legend-item"><span class="badge" style="background:#ff6b6b"></span>山顶</div>
-        <div class="legend-item"><span class="badge" style="background:#f9ca24"></span>鞍部</div>
-        <div class="legend-item"><span class="badge" style="background:#2bcbba"></span>山脊</div>
-        <div class="legend-item"><span class="badge" style="background:#45aaf2"></span>山谷</div>
-        <div class="legend-item"><span class="badge" style="background:#fd7944"></span>陡崖</div>
-        <div class="legend-item"><span class="badge" style="background:#fd9644"></span>陡坡</div>
-        <div class="legend-item"><span class="badge" style="background:#778ca3"></span>缓坡</div>
-        <div class="legend-item"><span class="badge" style="background:#a78bfa"></span>盆地</div>
-      </div>
-    </div>
+      </section>
+
+      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: rightCollapsed }">
+        <div class="panel-scroll">
+          <div class="panel-heading">
+            <div>
+              <h2>知识解读</h2>
+              <p>结合图例读取地形部位与判读方法</p>
+            </div>
+
+            <span class="panel-badge">KNOWLEDGE</span>
+          </div>
+
+          <div class="data-grid">
+            <article class="geo-card data-card cyan-card">
+              <span>等高距</span>
+              <strong>{{ contourInterval }}m</strong>
+              <small>相邻等高线海拔差</small>
+            </article>
+
+            <article class="geo-card data-card blue-card">
+              <span>地形类型</span>
+              <strong>{{ terrainGenType }}</strong>
+              <small>当前随机生成目标</small>
+            </article>
+
+            <article class="geo-card data-card purple-card">
+              <span>投影线</span>
+              <strong>{{ showProjectionLines ? '显示' : '隐藏' }}</strong>
+              <small>三维与二维对应关系</small>
+            </article>
+
+            <article class="geo-card data-card orange-card">
+              <span>剖面</span>
+              <strong>{{ profileMode ? '切割中' : '未开启' }}</strong>
+              <small>点击两点生成剖面图</small>
+            </article>
+          </div>
+
+          <el-collapse class="analysis-collapse" :model-value="[
+            'terrain',
+            'rule',
+            'profile',
+          ]">
+            <el-collapse-item title="基本地形部位" name="terrain">
+              <div class="collapse-content terrain-knowledge">
+                <p><strong>山顶：</strong>闭合等高线，内高外低，常标海拔。</p>
+                <p><strong>鞍部：</strong>两峰之间低凹部位，比两侧山顶低。</p>
+                <p><strong>山脊：</strong>分水岭，等高线向低处凸出。</p>
+                <p><strong>山谷：</strong>集水线，等高线向高处凸出，常发育河流。</p>
+              </div>
+            </el-collapse-item>
+
+            <el-collapse-item title="坡度与设色" name="rule">
+              <div class="collapse-content terrain-knowledge">
+                <p><strong>陡崖：</strong>等高线重合或极密，高差变化显著。</p>
+                <p><strong>陡坡：</strong>等高线密集，坡度较大。</p>
+                <p><strong>缓坡：</strong>等高线稀疏，坡度较小。</p>
+                <p><strong>分层设色：</strong>颜色由绿色逐渐过渡到黄褐色和高处浅色。</p>
+              </div>
+            </el-collapse-item>
+
+            <el-collapse-item title="剖面图使用" name="profile">
+              <div class="collapse-content terrain-knowledge">
+                <p>开启剖面切割后，在地形上点击两个点，即可生成两点之间的海拔变化曲线。</p>
+                <p>剖面图可以帮助学生理解地形起伏、坡度变化和等高线疏密之间的关系。</p>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
+
+        <div class="resize-handle resize-left" @pointerdown.prevent="
+          startResize('right', $event)
+          "></div>
+
+        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
+          @click="rightCollapsed = true">
+          ›
+        </button>
+      </aside>
+
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left" aria-label="展开左侧面板"
+        @click="leftCollapsed = false">
+        ›
+      </button>
+
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+        aria-label="展开右侧面板" @click="rightCollapsed = false">
+        ‹
+      </button>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
@@ -201,9 +372,10 @@ const TERRAIN_SIZE = 3.0
 // ============================================================
 // 响应式状态
 // ============================================================
-const container = ref<HTMLDivElement>()
-const profileCanvas = ref<HTMLCanvasElement>()
-const viewCube = ref<HTMLDivElement>()
+const pageRef = ref<HTMLElement | null>(null)
+const threeContainerRef = ref<HTMLDivElement | null>(null)
+const profileCanvas = ref<HTMLCanvasElement | null>(null)
+const viewCube = ref<HTMLDivElement | null>(null)
 const contourInterval = ref(10)
 const showFeatureLabels = ref(true)
 const uiScale = ref(1)  // 整体 UI 缩放系数（根据分辨率自动调节）
@@ -217,6 +389,179 @@ const profileClicks = ref(0)
 const profileData = ref<{ dist: number; elev: number }[]>([])
 const terrainGenType = ref('all')
 const generatingTerrain = ref(false)
+
+type LayoutMode =
+  | 'large'
+  | 'medium'
+  | 'small'
+
+const hasLeftPanel = true
+const hasRightPanel = true
+
+const layoutMode =
+  ref<LayoutMode>('large')
+
+const leftPanelWidth = ref(300)
+const rightPanelWidth = ref(340)
+
+const leftCollapsed = ref(false)
+const rightCollapsed = ref(false)
+
+const allPanelsCollapsed =
+  computed(() =>
+    leftCollapsed.value &&
+    rightCollapsed.value
+  )
+
+let pageResizeObserver:
+  | ResizeObserver
+  | null = null
+
+let resizeTarget:
+  | 'left'
+  | 'right'
+  | null = null
+
+let resizeStartX = 0
+let resizeStartWidth = 0
+
+function getLayoutMode(width: number): LayoutMode {
+  if (width < 800) {
+    return 'small'
+  }
+
+  if (width < 1440) {
+    return 'medium'
+  }
+
+  return 'large'
+}
+
+function syncTemplateLayout() {
+  const width =
+    pageRef.value?.clientWidth ||
+    window.innerWidth
+
+  const nextMode =
+    getLayoutMode(width)
+
+  layoutMode.value = nextMode
+
+  if (nextMode === 'large') {
+    leftPanelWidth.value =
+      Math.min(
+        Math.max(leftPanelWidth.value, 280),
+        360
+      )
+
+    rightPanelWidth.value =
+      Math.min(
+        Math.max(rightPanelWidth.value, 300),
+        390
+      )
+  } else if (nextMode === 'medium') {
+    leftPanelWidth.value =
+      Math.min(
+        leftPanelWidth.value,
+        292
+      )
+
+    rightPanelWidth.value =
+      Math.min(
+        rightPanelWidth.value,
+        308
+      )
+  } else {
+    leftPanelWidth.value =
+      Math.min(
+        leftPanelWidth.value,
+        220
+      )
+
+    rightPanelWidth.value =
+      Math.min(
+        rightPanelWidth.value,
+        236
+      )
+  }
+}
+
+function toggleAllPanels() {
+  const shouldExpand =
+    allPanelsCollapsed.value
+
+  leftCollapsed.value =
+    !shouldExpand
+
+  rightCollapsed.value =
+    !shouldExpand
+}
+
+function startResize(
+  target: 'left' | 'right',
+  event: PointerEvent
+) {
+  resizeTarget = target
+  resizeStartX = event.clientX
+  resizeStartWidth =
+    target === 'left'
+      ? leftPanelWidth.value
+      : rightPanelWidth.value
+
+  window.addEventListener(
+    'pointermove',
+    handlePanelResize
+  )
+
+  window.addEventListener(
+    'pointerup',
+    stopPanelResize,
+    {
+      once: true,
+    }
+  )
+}
+
+function handlePanelResize(event: PointerEvent) {
+  if (!resizeTarget) {
+    return
+  }
+
+  const delta =
+    event.clientX - resizeStartX
+
+  if (resizeTarget === 'left') {
+    leftPanelWidth.value =
+      Math.min(
+        420,
+        Math.max(
+          240,
+          resizeStartWidth + delta
+        )
+      )
+  } else {
+    rightPanelWidth.value =
+      Math.min(
+        460,
+        Math.max(
+          260,
+          resizeStartWidth - delta
+        )
+      )
+  }
+
+  handleResize()
+}
+
+function stopPanelResize() {
+  resizeTarget = null
+
+  window.removeEventListener(
+    'pointermove',
+    handlePanelResize
+  )
+}
+
 
 // ============================================================
 // Three.js 场景变量
@@ -329,8 +674,8 @@ function getNormalizedHeight(x: number, z: number): number {
   // 分形噪声 — 微地表细节（增强复杂度使地形更自然）
   const noiseScale = 5.5
   const noiseVal = fbm(x * noiseScale, z * noiseScale, 6) * 0.25 +
-                   fbm(x * noiseScale * 2.3, z * noiseScale * 2.3, 4) * 0.08 +
-                   fbm(x * noiseScale * 4.7, z * noiseScale * 4.7, 3) * 0.04
+    fbm(x * noiseScale * 2.3, z * noiseScale * 2.3, 4) * 0.08 +
+    fbm(x * noiseScale * 4.7, z * noiseScale * 4.7, 3) * 0.04
 
   const cliffFactor = Math.exp(-((x - 0.32) ** 2) / (2 * 0.08 ** 2))
   let cliffDrop = 0
@@ -378,12 +723,12 @@ function getDisplayHeight(realHeight: number): number {
 // ============================================================
 function getTerrainColor(t: number): { r: number; g: number; b: number } {
   const stops = [
-    { pos: 0.000, r: 26 / 255,  g: 92 / 255,  b: 26 / 255  },  // 深绿
-    { pos: 0.125, r: 46 / 255,  g: 139 / 255, b: 46 / 255  },  // 绿
-    { pos: 0.250, r: 106 / 255, g: 176 / 255, b: 76 / 255  },  // 浅绿
+    { pos: 0.000, r: 26 / 255, g: 92 / 255, b: 26 / 255 },  // 深绿
+    { pos: 0.125, r: 46 / 255, g: 139 / 255, b: 46 / 255 },  // 绿
+    { pos: 0.250, r: 106 / 255, g: 176 / 255, b: 76 / 255 },  // 浅绿
     { pos: 0.375, r: 212 / 255, g: 212 / 255, b: 122 / 255 },  // 浅黄
-    { pos: 0.500, r: 232 / 255, g: 200 / 255, b: 74 / 255  },  // 黄
-    { pos: 0.625, r: 212 / 255, g: 160 / 255, b: 48 / 255  },  // 深黄
+    { pos: 0.500, r: 232 / 255, g: 200 / 255, b: 74 / 255 },  // 黄
+    { pos: 0.625, r: 212 / 255, g: 160 / 255, b: 48 / 255 },  // 深黄
     { pos: 0.800, r: 210 / 255, g: 200 / 255, b: 185 / 255 },  // 灰白过渡（上移约20米，减少白色覆盖范围）
     { pos: 0.930, r: 240 / 255, g: 238 / 255, b: 228 / 255 },  // 近白
     { pos: 1.000, r: 255 / 255, g: 252 / 255, b: 240 / 255 },  // 白色（山顶）
@@ -470,7 +815,7 @@ function generateContourSegments(interval: number): ContourSegment[] {
         const hBL = heightsData[j + 1][i]
         const hBR = heightsData[j + 1][i + 1]
         const code = ((hTL >= level ? 1 : 0) << 3) | ((hTR >= level ? 1 : 0) << 2) |
-                     ((hBL >= level ? 1 : 0) << 1) | (hBR >= level ? 1 : 0)
+          ((hBL >= level ? 1 : 0) << 1) | (hBR >= level ? 1 : 0)
         if (code === 0 || code === 15) continue
         const nx = (idx: number) => (idx / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
         const nz = (idx: number) => (idx / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
@@ -520,17 +865,23 @@ function connectContourPolylines(segments: ContourSegment[], level: number, y: n
     let hx = segs[start].ax, hz = segs[start].az
     let tx = segs[start].bx, tz = segs[start].bz
     let found = true
-    while (found) { found = false
-      for (let j = 0; j < segs.length; j++) { if (used[j]) continue; const s = segs[j]
+    while (found) {
+      found = false
+      for (let j = 0; j < segs.length; j++) {
+        if (used[j]) continue; const s = segs[j]
         if (dist(tx, tz, s.ax, s.az) < TOL) { pts.push(s.bx, y, s.bz); tx = s.bx; tz = s.bz; used[j] = true; found = true; break }
         if (dist(tx, tz, s.bx, s.bz) < TOL) { pts.push(s.ax, y, s.az); tx = s.ax; tz = s.az; used[j] = true; found = true; break }
-    }}
+      }
+    }
     found = true
-    while (found) { found = false
-      for (let j = 0; j < segs.length; j++) { if (used[j]) continue; const s = segs[j]
+    while (found) {
+      found = false
+      for (let j = 0; j < segs.length; j++) {
+        if (used[j]) continue; const s = segs[j]
         if (dist(hx, hz, s.ax, s.az) < TOL) { pts.unshift(s.bx, y, s.bz); hx = s.bx; hz = s.bz; used[j] = true; found = true; break }
         if (dist(hx, hz, s.bx, s.bz) < TOL) { pts.unshift(s.ax, y, s.az); hx = s.ax; hz = s.az; used[j] = true; found = true; break }
-    }}
+      }
+    }
     if (pts.length >= 6) polylines.push(new Float32Array(pts))
   }
   return polylines
@@ -658,33 +1009,33 @@ function traceValleyLine(segments: ContourSegment[]): Float32Array | null {
 // 场景初始化 — 更亮的灯光
 // ============================================================
 function initScene() {
-  if (!container.value) return
+  if (!threeContainerRef.value) return
 
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x101520)
 
-  const aspect = container.value.clientWidth / container.value.clientHeight
+  const aspect = threeContainerRef.value.clientWidth / threeContainerRef.value.clientHeight
   camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100)
   // 默认前视图（正面对齐地形）
   camera.position.set(0, 2.5, 7.0)
   camera.lookAt(0, 0.8, 0)
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.setSize(container.value.clientWidth, container.value.clientHeight)
+  renderer.setSize(threeContainerRef.value.clientWidth, threeContainerRef.value.clientHeight)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.4
-  container.value.appendChild(renderer.domElement)
+  threeContainerRef.value.appendChild(renderer.domElement)
 
   labelRenderer = new CSS2DRenderer()
-  labelRenderer.setSize(container.value.clientWidth, container.value.clientHeight)
+  labelRenderer.setSize(threeContainerRef.value.clientWidth, threeContainerRef.value.clientHeight)
   labelRenderer.domElement.style.position = 'absolute'
   labelRenderer.domElement.style.top = '0'
   labelRenderer.domElement.style.left = '0'
   labelRenderer.domElement.style.pointerEvents = 'none'
-  container.value.appendChild(labelRenderer.domElement)
+  threeContainerRef.value.appendChild(labelRenderer.domElement)
 
   controls = new OrbitControls(camera, renderer.domElement)
   controls.target.set(0, 0.8, 0)
@@ -1202,9 +1553,9 @@ function bindViewCube() {
 // 响应式缩放 — 根据视口分辨率自动调节 UI 尺寸
 // ============================================================
 function applyResponsiveScale() {
-  if (!container.value) return
-  const w = container.value.clientWidth
-  const h = container.value.clientHeight
+  if (!threeContainerRef.value) return
+  const w = threeContainerRef.value.clientWidth
+  const h = threeContainerRef.value.clientHeight
 
   // 基准尺寸：1920×1080 → scale=1
   // 平板端 (1024~1366) → scale ~0.9
@@ -1218,9 +1569,15 @@ function applyResponsiveScale() {
   else scale = 0.7                        // 平板竖/小屏
 
   uiScale.value = scale
-  const root = container.value
+  const root =
+    pageRef.value ||
+    threeContainerRef.value
+
   if (root) {
-    root.style.setProperty('--ui-scale', String(scale))
+    root.style.setProperty(
+      '--ui-scale',
+      String(scale)
+    )
   }
 }
 
@@ -1263,22 +1620,7 @@ function onToggleProjectionColoring() {
   projectionColoringGroup.visible = showProjectionColoring.value && showProjection.value
 }
 
-let panelsVisible = true
-function toggleAllPanels() {
-  panelsVisible = !panelsVisible
-  const el = container.value
-  if (!el) return
-  const cp = el.querySelector<HTMLDivElement>('.control-panel')
-  const legend = el.querySelector<HTMLDivElement>('.legend-panel')
-  const kp = el.querySelector<HTMLDivElement>('.knowledge-panel')
-  const title = el.querySelector<HTMLDivElement>('.title-bar')
-  const btn = el.querySelector<HTMLButtonElement>('.toggle-panels-btn')
-  if (cp) cp.style.display = panelsVisible ? '' : 'none'
-  if (legend) legend.style.display = panelsVisible ? '' : 'none'
-  if (kp) kp.style.display = panelsVisible ? '' : 'none'
-  if (title) title.style.display = panelsVisible ? '' : 'none'
-  if (btn) btn.textContent = panelsVisible ? '☰' : '✕'
-}
+
 
 // ============================================================
 // 随机地形生成
@@ -1471,7 +1813,7 @@ function clearProfile() {
 // ============================================================
 function onTerrainTouchEnd(event: TouchEvent) {
   // 模拟 click 用于移动端触控
-  if (!profileMode.value || !terrainMesh || !container.value) return
+  if (!profileMode.value || !terrainMesh || !threeContainerRef.value) return
   const touch = event.changedTouches[0]
   if (!touch) return
   const mouseEvent = new MouseEvent('click', {
@@ -1482,12 +1824,12 @@ function onTerrainTouchEnd(event: TouchEvent) {
 }
 
 function onTerrainClick(event: MouseEvent) {
-  if (!profileMode.value || !terrainMesh || !container.value) return
+  if (!profileMode.value || !terrainMesh || !threeContainerRef.value) return
   if (profileClicks.value >= 2) {
     clearProfile()
   }
 
-  const rect = container.value.getBoundingClientRect()
+  const rect = threeContainerRef.value.getBoundingClientRect()
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
 
@@ -1797,273 +2139,150 @@ function animate() {
 }
 
 function handleResize() {
-  if (!container.value) return
-  const w = container.value.clientWidth, h = container.value.clientHeight
-  camera.aspect = w / h; camera.updateProjectionMatrix()
-  renderer.setSize(w, h); labelRenderer.setSize(w, h)
+  if (
+    !threeContainerRef.value ||
+    !camera ||
+    !renderer ||
+    !labelRenderer
+  ) {
+    return
+  }
+
+  const w = threeContainerRef.value.clientWidth
+  const h = threeContainerRef.value.clientHeight
+
+  camera.aspect = w / h
+  camera.updateProjectionMatrix()
+  renderer.setSize(w, h)
+  labelRenderer.setSize(w, h)
   contourRes.set(w, h)
   applyResponsiveScale()
 }
 
 onMounted(() => {
+  syncTemplateLayout()
+
   initScene()
   setupLights()
   buildTerrain()
   buildContoursAndProjection()
   buildLabels()
-  if (container.value) {
-    contourRes.set(container.value.clientWidth, container.value.clientHeight)
+
+  if (threeContainerRef.value) {
+    contourRes.set(
+      threeContainerRef.value.clientWidth,
+      threeContainerRef.value.clientHeight
+    )
   }
+
   bindViewCube()
   applyResponsiveScale()
   animate()
-  window.addEventListener('resize', handleResize)
+
+  pageResizeObserver =
+    new ResizeObserver(() => {
+      syncTemplateLayout()
+      handleResize()
+    })
+
+  if (pageRef.value) {
+    pageResizeObserver.observe(pageRef.value)
+  }
+
+  window.addEventListener(
+    'resize',
+    handleResize
+  )
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
-  window.removeEventListener('resize', handleResize)
+
+  window.removeEventListener(
+    'resize',
+    handleResize
+  )
+
+  window.removeEventListener(
+    'pointermove',
+    handlePanelResize
+  )
+
+  pageResizeObserver?.disconnect()
+  pageResizeObserver = null
+
   controls?.dispose()
   renderer?.dispose()
-  if (container.value) container.value.innerHTML = ''
+
+  if (threeContainerRef.value) {
+    threeContainerRef.value.innerHTML = ''
+  }
 })
 </script>
 
 <style scoped>
-.terrain-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: #0b0f17;
-  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  touch-action: none;
+.terrain-projection-template {
   --ui-scale: 1;
 }
 
-/* ================================================================
-   左侧控制面板 — 响应式（基于 --ui-scale）
-   ================================================================ */
-.control-panel {
-  position: absolute;
-  top: calc(14px * var(--ui-scale));
-  left: calc(14px * var(--ui-scale));
-  z-index: 30;
-  background: rgba(8, 16, 30, 0.92);
-  border: 1px solid rgba(46, 196, 182, 0.25);
-  border-radius: calc(14px * var(--ui-scale));
-  padding: calc(16px * var(--ui-scale)) calc(18px * var(--ui-scale));
-  min-width: calc(220px * var(--ui-scale));
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5),
-    inset 0 0 60px rgba(46, 196, 182, 0.03);
-  backdrop-filter: blur(8px);
-  user-select: none;
-}
-
-.cp-header {
-  display: flex;
-  align-items: center;
-  gap: calc(8px * var(--ui-scale));
-  font-size: calc(16px * var(--ui-scale));
-  font-weight: 700;
-  color: #2ec4b6;
-  margin-bottom: calc(16px * var(--ui-scale));
-  padding-bottom: calc(10px * var(--ui-scale));
-  border-bottom: 1px solid rgba(46, 196, 182, 0.2);
-}
-
-.cp-header svg {
-  width: calc(20px * var(--ui-scale));
-  height: calc(20px * var(--ui-scale));
-}
-
-.cp-icon { color: #2ec4b6; flex-shrink: 0; }
-
-.cp-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: calc(8px * var(--ui-scale)) 0;
-}
-
-.cp-label {
-  font-size: calc(14px * var(--ui-scale));
-  color: #b0c8e0;
-  flex-shrink: 0;
-}
-
-.cp-slider-row {
-  display: flex;
-  align-items: center;
-  gap: calc(10px * var(--ui-scale));
-}
-
-.cp-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: calc(88px * var(--ui-scale));
-  height: calc(5px * var(--ui-scale));
-  background: linear-gradient(to right, #2ec4b6, #247cff);
-  border-radius: calc(2.5px * var(--ui-scale));
-  outline: none;
-  cursor: pointer;
-}
-
-.cp-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: calc(16px * var(--ui-scale));
-  height: calc(16px * var(--ui-scale));
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #2ec4b6, #1a9a8e);
-  cursor: pointer;
-  box-shadow: 0 0 calc(8px * var(--ui-scale)) rgba(46, 196, 182, 0.5);
-}
-
-.cp-slider::-moz-range-thumb {
-  width: calc(16px * var(--ui-scale));
-  height: calc(16px * var(--ui-scale));
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #2ec4b6, #1a9a8e);
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 0 calc(8px * var(--ui-scale)) rgba(46, 196, 182, 0.5);
-}
-
-.cp-value {
-  font-size: calc(13px * var(--ui-scale));
-  font-weight: 600;
-  color: #2ec4b6;
-  min-width: calc(36px * var(--ui-scale));
-  text-align: right;
-}
-
-.cp-divider {
-  height: 1px;
-  background: linear-gradient(to right, rgba(46, 196, 182, 0.15), rgba(36, 124, 255, 0.15));
-  margin: calc(6px * var(--ui-scale)) 0;
-}
-
-.cp-switch {
-  position: relative;
-  width: calc(40px * var(--ui-scale));
-  height: calc(22px * var(--ui-scale));
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.cp-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-
-.cp-slider-toggle {
+.terrain-scene-host {
   position: absolute;
   inset: 0;
-  background: rgba(60, 80, 110, 0.5);
-  border-radius: calc(22px * var(--ui-scale));
-  transition: all 0.25s ease;
-  border: 1px solid rgba(100, 140, 180, 0.2);
+  z-index: 1;
+  overflow: hidden;
+  touch-action: none;
+  background:
+    radial-gradient(circle at 50% 28%,
+      rgba(46, 196, 182, 0.16),
+      transparent 34%),
+    linear-gradient(145deg,
+      #06131f,
+      #0a2034 48%,
+      #071522);
 }
 
-.cp-slider-toggle::before {
-  content: '';
+.terrain-scene-host :deep(canvas) {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.terrain-scene-overlay {
   position: absolute;
-  width: calc(16px * var(--ui-scale));
-  height: calc(16px * var(--ui-scale));
-  left: 2px;
-  bottom: 2px;
-  background: #8899b0;
-  border-radius: 50%;
-  transition: all 0.25s ease;
-}
-
-.cp-switch input:checked + .cp-slider-toggle {
-  background: linear-gradient(135deg, #2ec4b6, #247cff);
-  border-color: rgba(46, 196, 182, 0.4);
-}
-
-.cp-switch input:checked + .cp-slider-toggle::before {
-  transform: translateX(calc(18px * var(--ui-scale)));
-  background: #fff;
-  box-shadow: 0 0 calc(8px * var(--ui-scale)) rgba(46, 196, 182, 0.4);
-}
-
-.cp-btn {
-  width: 100%;
-  margin-top: calc(8px * var(--ui-scale));
-  padding: calc(9px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  font-size: calc(14px * var(--ui-scale));
-  font-weight: 600;
-  color: #b0c8e0;
-  background: rgba(46, 196, 182, 0.08);
-  border: 1px solid rgba(46, 196, 182, 0.2);
-  border-radius: calc(10px * var(--ui-scale));
-  cursor: pointer;
-  transition: all 0.25s ease;
-  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.cp-btn svg {
-  width: calc(18px * var(--ui-scale));
-  height: calc(18px * var(--ui-scale));
-}
-
-.cp-btn:hover {
-  background: rgba(46, 196, 182, 0.18);
-  border-color: rgba(46, 196, 182, 0.4);
-  color: #d0e8f8;
-}
-
-.cp-btn.active {
-  background: linear-gradient(135deg, rgba(46, 196, 182, 0.25), rgba(36, 124, 255, 0.25));
-  border-color: #2ec4b6;
-  color: #2ec4b6;
-  box-shadow: 0 0 calc(14px * var(--ui-scale)) rgba(46, 196, 182, 0.2);
-}
-
-/* ================================================================
-   顶部标题 — 响应式
-   ================================================================ */
-.title-bar {
-  position: absolute;
-  top: calc(16px * var(--ui-scale));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  text-align: center;
+  inset: 0;
+  z-index: 8;
   pointer-events: none;
+
+  /*
+   * 5号模板 layout-floating 下左右面板会覆盖主场景。
+   * cube / 图例必须主动避让当前展开的面板宽度。
+   * 这些变量来自 workspace 行内 style：
+   * --left-panel-width / --right-panel-width
+   */
+  --scene-left-safe:
+    var(--left-panel-width, 0px);
+  --scene-right-safe:
+    var(--right-panel-width, 0px);
+  --scene-overlay-gap:
+    clamp(12px,
+      1.4vw,
+      24px);
 }
 
-.title-text {
-  font-size: calc(22px * var(--ui-scale));
-  font-weight: 700;
-  color: #e0f0ff;
-  letter-spacing: calc(2px * var(--ui-scale));
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-}
-
-.title-sub {
-  font-size: calc(13px * var(--ui-scale));
-  color: #88aabb;
-  letter-spacing: calc(2px * var(--ui-scale));
-  margin-top: calc(3px * var(--ui-scale));
-  font-weight: 400;
-}
-
-/* ================================================================
-   视角切换（3D 立方体）— 右上角
-   关键：perspective 设极大（近正交投影），保证 6 个面都是标准正方形，无透视变形
-   ================================================================ */
 .view-cube {
   position: absolute;
-  top: calc(16px * var(--ui-scale));
-  right: calc(16px * var(--ui-scale));
-  z-index: 30;
-  width: calc(60px * var(--ui-scale));
-  height: calc(60px * var(--ui-scale));
-  /* perspective 极远（3000px 以上），几乎呈正交投影，确保立方体是标准正方形 */
-  perspective: calc(3000px);
+  top:
+    clamp(70px,
+      8vh,
+      92px);
+  right:
+    calc(var(--scene-right-safe) + var(--scene-overlay-gap));
+  z-index: 40;
+  width:
+    calc(60px * var(--ui-scale));
+  height:
+    calc(60px * var(--ui-scale));
+  perspective: 3000px;
   perspective-origin: 50% 50%;
   user-select: none;
   transform-style: preserve-3d;
@@ -2073,345 +2292,695 @@ onUnmounted(() => {
 .vc-face {
   position: absolute;
   inset: 0;
-  background: rgba(40, 40, 40, 0.85);
-  border: 1px solid #475569;
-  color: #94a3b8;
-  font-size: calc(14px * var(--ui-scale));
-  font-weight: 700;
   display: flex;
-  justify-content: center;
   align-items: center;
-  user-select: none;
+  justify-content: center;
+  color:
+    var(--text-secondary);
+  font-family:
+    'Microsoft YaHei',
+    'PingFang SC',
+    sans-serif;
+  font-size:
+    calc(14px * var(--ui-scale));
+  font-weight: 900;
   cursor: pointer;
-  transition: all 0.2s ease;
+  user-select: none;
+  background:
+    rgba(255, 255, 255, 0.74);
+  border:
+    1px solid rgba(var(--theme-primary-rgb), 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   backface-visibility: visible;
-  font-family: 'Microsoft YaHei', sans-serif;
 }
 
 .vc-face:hover {
-  background: rgba(46, 196, 182, 0.6);
-  color: #fff;
-  border-color: #2ec4b6;
-  box-shadow: 0 0 8px rgba(46, 196, 182, 0.5);
+  color:
+    var(--theme-on-primary);
+  background:
+    linear-gradient(135deg,
+      var(--theme-primary),
+      var(--theme-secondary));
+  border-color:
+    transparent;
+  box-shadow:
+    0 0 14px rgba(var(--theme-primary-rgb), 0.28);
 }
 
-/* 关闭面板按钮 */
-.toggle-panels-btn {
-  position: absolute;
-  top: calc(16px * var(--ui-scale));
-  right: calc(86px * var(--ui-scale));
-  z-index: 30;
-  width: calc(36px * var(--ui-scale));
-  height: calc(36px * var(--ui-scale));
-  border: 1px solid #475569;
-  border-radius: calc(6px * var(--ui-scale));
-  background: rgba(40, 40, 40, 0.85);
-  color: #94a3b8;
-  font-size: calc(18px * var(--ui-scale));
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  user-select: none;
-}
-.toggle-panels-btn:hover {
-  background: rgba(46, 196, 182, 0.6);
-  color: #fff;
-  border-color: #2ec4b6;
+.vc-face-front {
+  transform:
+    rotateY(0deg) translateZ(calc(30px * var(--ui-scale)));
 }
 
-/* 下拉选择框 */
-.cp-select {
-  background: rgba(30, 40, 60, 0.9);
-  border: 1px solid rgba(46, 196, 182, 0.3);
-  color: #b0c8e0;
-  font-size: calc(13px * var(--ui-scale));
-  font-family: 'Microsoft YaHei', sans-serif;
-  padding: calc(4px * var(--ui-scale)) calc(6px * var(--ui-scale));
-  border-radius: calc(6px * var(--ui-scale));
-  outline: none;
-  cursor: pointer;
-  max-width: calc(100px * var(--ui-scale));
-}
-.cp-select option { background: rgba(20, 30, 50, 0.95); color: #b0c8e0; }
-
-.vc-face-front  { transform: rotateY(0deg) translateZ(calc(30px * var(--ui-scale))); }
-.vc-face-back   { transform: rotateY(180deg) translateZ(calc(30px * var(--ui-scale))); }
-.vc-face-right  { transform: rotateY(90deg) translateZ(calc(30px * var(--ui-scale))); }
-.vc-face-left   { transform: rotateY(-90deg) translateZ(calc(30px * var(--ui-scale))); }
-.vc-face-top    { transform: rotateX(90deg) translateZ(calc(30px * var(--ui-scale))); }
-.vc-face-bottom { transform: rotateX(-90deg) translateZ(calc(30px * var(--ui-scale))); }
-
-/* ================================================================
-   知识解读面板（右侧中间）
-   ================================================================ */
-.knowledge-panel {
-  position: absolute;
-  top: 50%;
-  right: calc(16px * var(--ui-scale));
-  transform: translateY(-50%);
-  z-index: 20;
-  background: rgba(8, 16, 30, 0.92);
-  border: 1px solid rgba(46, 196, 182, 0.3);
-  border-radius: calc(12px * var(--ui-scale));
-  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  width: calc(280px * var(--ui-scale));
-  max-height: 60vh;
-  overflow-y: auto;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+.vc-face-back {
+  transform:
+    rotateY(180deg) translateZ(calc(30px * var(--ui-scale)));
 }
 
-.kp-title {
-  font-size: calc(16px * var(--ui-scale));
-  font-weight: 700;
-  color: #2ec4b6;
-  margin-bottom: calc(10px * var(--ui-scale));
-  padding-bottom: calc(8px * var(--ui-scale));
-  border-bottom: 1px solid rgba(46, 196, 182, 0.25);
+.vc-face-right {
+  transform:
+    rotateY(90deg) translateZ(calc(30px * var(--ui-scale)));
 }
 
-.kp-section-title {
-  font-size: calc(14px * var(--ui-scale));
-  font-weight: 600;
-  color: #d0e8f8;
-  margin-bottom: calc(8px * var(--ui-scale));
+.vc-face-left {
+  transform:
+    rotateY(-90deg) translateZ(calc(30px * var(--ui-scale)));
 }
 
-.kp-list { list-style: none; padding: 0; margin: 0; }
-
-.kp-list li {
-  font-size: calc(13px * var(--ui-scale));
-  color: #bbd0e0;
-  line-height: 1.7;
-  padding: calc(5px * var(--ui-scale)) 0;
-  border-bottom: 1px dashed rgba(100, 140, 180, 0.15);
-  display: flex;
-  align-items: flex-start;
-  gap: calc(4px * var(--ui-scale));
+.vc-face-top {
+  transform:
+    rotateX(90deg) translateZ(calc(30px * var(--ui-scale)));
 }
 
-.kp-list li:last-child { border-bottom: none; }
-
-.kp-term {
-  color: #2ec4b6;
-  font-weight: 700;
-  flex-shrink: 0;
-  margin-right: calc(2px * var(--ui-scale));
+.vc-face-bottom {
+  transform:
+    rotateX(-90deg) translateZ(calc(30px * var(--ui-scale)));
 }
 
-.knowledge-panel::-webkit-scrollbar { width: 6px; }
-.knowledge-panel::-webkit-scrollbar-thumb {
-  background: rgba(46, 196, 182, 0.4);
-  border-radius: 3px;
-}
-.knowledge-panel::-webkit-scrollbar-track { background: transparent; }
-
-/* ================================================================
-   操作提示 — 响应式
-   ================================================================ */
-.controls-info {
-  position: absolute;
-  bottom: calc(20px * var(--ui-scale));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: calc(18px * var(--ui-scale));
-  background: rgba(20, 30, 45, 0.88);
-  border: 1px solid rgba(100, 150, 200, 0.15);
-  border-radius: calc(22px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale)) calc(24px * var(--ui-scale));
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
-  font-size: calc(14px * var(--ui-scale));
-  color: #aaccee;
-  pointer-events: none;
-}
-
-/* ================================================================
-   图例 (左下角) — 响应式
-   ================================================================ */
 .legend-panel {
   position: absolute;
-  bottom: calc(70px * var(--ui-scale));
-  left: calc(16px * var(--ui-scale));
-  z-index: 10;
-  background: rgba(8, 16, 30, 0.92);
-  border: 1px solid rgba(46, 196, 182, 0.25);
-  border-radius: calc(12px * var(--ui-scale));
-  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
-  min-width: calc(160px * var(--ui-scale));
-  backdrop-filter: blur(4px);
+  left:
+    calc(var(--scene-left-safe) + var(--scene-overlay-gap));
+  bottom:
+    clamp(14px,
+      1.6vh,
+      24px);
+  z-index: 22;
+  min-width:
+    calc(166px * var(--ui-scale));
+  padding:
+    calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
   pointer-events: none;
+  background:
+    linear-gradient(145deg,
+      rgba(255, 255, 255, 0.72),
+      rgba(255, 255, 255, 0.42));
+  border:
+    1px solid rgba(var(--theme-primary-rgb), 0.24);
+  border-radius:
+    calc(13px * var(--ui-scale));
+  box-shadow:
+    0 12px 28px rgba(44, 86, 112, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  backdrop-filter:
+    blur(12px) saturate(145%);
+  -webkit-backdrop-filter:
+    blur(12px) saturate(145%);
 }
 
 .legend-title {
-  font-size: calc(15px * var(--ui-scale));
-  font-weight: 700;
-  color: #2ec4b6;
-  margin-bottom: calc(10px * var(--ui-scale));
-  padding-bottom: calc(6px * var(--ui-scale));
-  border-bottom: 1px solid rgba(46, 196, 182, 0.2);
+  margin-bottom:
+    calc(9px * var(--ui-scale));
+  padding-bottom:
+    calc(6px * var(--ui-scale));
+  color:
+    var(--theme-primary);
+  font-size:
+    calc(14px * var(--ui-scale));
+  font-weight: 900;
+  border-bottom:
+    1px solid rgba(var(--theme-primary-rgb), 0.18);
 }
 
 .legend-grid {
-  display: flex;
-  flex-direction: column;
-  gap: calc(5px * var(--ui-scale));
+  display: grid;
+  grid-template-columns:
+    repeat(2,
+      max-content);
+  gap:
+    calc(5px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  align-items: center;
+}
+
+.legend-color-scale-item {
+  grid-column:
+    1 / -1;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: calc(8px * var(--ui-scale));
-  font-size: calc(13px * var(--ui-scale));
-  color: #bbd0e0;
-  padding: calc(2px * var(--ui-scale)) 0;
+  gap:
+    calc(7px * var(--ui-scale));
+  color:
+    var(--text-secondary);
+  font-size:
+    calc(12px * var(--ui-scale));
+  white-space: nowrap;
 }
 
-.legend-bar { display: inline-block; border-radius: 4px; flex-shrink: 0; }
+.legend-bar {
+  width:
+    calc(92px * var(--ui-scale));
+  height:
+    calc(10px * var(--ui-scale));
+  border-radius: 999px;
+  background:
+    linear-gradient(to right,
+      #1a5c1a,
+      #2e8b2e,
+      #6ab04c,
+      #d4d47a,
+      #e8c84a,
+      #d4a030,
+      #c08040,
+      #a06030,
+      #704020,
+      #d2c8b9,
+      #f0eee4,
+      #fffcf0);
+}
 
 .legend-labels {
   display: flex;
+  width:
+    calc(92px * var(--ui-scale));
   justify-content: space-between;
-  width: calc(60px * var(--ui-scale));
-  font-size: calc(11px * var(--ui-scale));
-  color: #8aa0b8;
-  margin-top: calc(2px * var(--ui-scale));
+  margin-top:
+    calc(2px * var(--ui-scale));
+  color:
+    var(--text-muted);
+  font-size:
+    calc(10px * var(--ui-scale));
 }
 
 .badge {
   display: inline-block;
-  width: calc(12px * var(--ui-scale));
-  height: calc(12px * var(--ui-scale));
+  width:
+    calc(11px * var(--ui-scale));
+  height:
+    calc(11px * var(--ui-scale));
+  flex: 0 0 auto;
   border-radius: 50%;
-  flex-shrink: 0;
 }
 
-/* ================================================================
-   剖面提示 — 响应式
-   ================================================================ */
 .profile-hint {
   position: absolute;
-  top: calc(90px * var(--ui-scale));
+  z-index: 28;
+  top:
+    clamp(84px,
+      10vh,
+      112px);
   left: 50%;
-  transform: translateX(-50%);
-  z-index: 25;
-  background: rgba(8, 16, 30, 0.92);
-  border: 1px solid #2ec4b6;
-  border-radius: calc(12px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale)) calc(22px * var(--ui-scale));
-  color: #2ec4b6;
-  font-size: calc(15px * var(--ui-scale));
-  box-shadow: 0 0 20px rgba(46, 196, 182, 0.2);
+  transform:
+    translateX(-50%);
+  padding:
+    calc(9px * var(--ui-scale)) calc(20px * var(--ui-scale));
+  color:
+    var(--theme-primary);
+  font-size:
+    calc(14px * var(--ui-scale));
+  font-weight: 800;
   pointer-events: none;
+  background:
+    rgba(255, 255, 255, 0.70);
+  border:
+    1px solid rgba(var(--theme-primary-rgb), 0.28);
+  border-radius: 999px;
+  box-shadow:
+    0 12px 28px rgba(44, 86, 112, 0.10);
+  backdrop-filter:
+    blur(10px);
+  -webkit-backdrop-filter:
+    blur(10px);
 }
 
-.profile-hint strong { color: #fff; }
+.profile-hint strong {
+  color:
+    var(--theme-secondary);
+}
 
-/* ================================================================
-   剖面图 — 更大尺寸 + 响应式
-   ================================================================ */
 .profile-chart {
   position: absolute;
-  bottom: calc(70px * var(--ui-scale));
+  z-index: 80;
   left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;                /* 最高层级，覆盖所有 UI */
-  border-radius: calc(12px * var(--ui-scale));
+  bottom:
+    clamp(20px,
+      3vh,
+      34px);
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(46, 196, 182, 0.3);
-  background: #0a1220;         /* 纯色背景，不透出下方 3D 场景 */
+  pointer-events: auto;
+  background:
+    rgba(255, 255, 255, 0.92);
+  border:
+    1px solid rgba(var(--theme-primary-rgb), 0.24);
+  border-radius:
+    calc(13px * var(--ui-scale));
+  box-shadow:
+    0 18px 42px rgba(44, 86, 112, 0.18);
+  transform:
+    translateX(-50%);
 }
 
 .profile-chart-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(8px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  background: #0f1a2e;         /* 完全不透明 */
-  font-size: calc(14px * var(--ui-scale));
-  font-weight: 600;
-  color: #2ec4b6;
-  border-bottom: 1px solid rgba(46, 196, 182, 0.2);
+  gap: 12px;
+  padding:
+    calc(8px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  color:
+    var(--theme-primary);
+  font-size:
+    calc(13px * var(--ui-scale));
+  font-weight: 900;
+  background:
+    rgba(255, 255, 255, 0.76);
+  border-bottom:
+    1px solid rgba(var(--theme-primary-rgb), 0.16);
 }
 
-.cp-close-btn {
-  background: none;
-  border: none;
-  color: #6a8aa8;
+.profile-close-btn {
+  width:
+    calc(24px * var(--ui-scale));
+  height:
+    calc(24px * var(--ui-scale));
+  padding: 0;
+  color:
+    var(--text-muted);
   cursor: pointer;
-  font-size: calc(16px * var(--ui-scale));
-  padding: 0 calc(6px * var(--ui-scale));
-  transition: color 0.2s;
+  background:
+    transparent;
+  border: 0;
+  border-radius: 50%;
 }
 
-.cp-close-btn:hover { color: #ff6b6b; }
+.profile-close-btn:hover {
+  color:
+    #ff6b6b;
+  background:
+    rgba(255, 107, 107, 0.12);
+}
 
 .profile-chart canvas {
   display: block;
-  width: calc(640px * var(--ui-scale));
-  height: calc(300px * var(--ui-scale));
-  max-width: 80vw;
+  width:
+    calc(640px * var(--ui-scale));
+  height:
+    calc(300px * var(--ui-scale));
+  max-width:
+    min(80vw,
+      640px);
 }
 
-/* ================================================================
-   响应式 — 基于宽度的辅助覆盖
-   ================================================================ */
+.terrain-type-row {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.terrain-type-select {
+  width:
+    clamp(108px,
+      9vw,
+      138px);
+}
+
+.profile-mode-btn.active {
+  color:
+    var(--theme-on-primary) !important;
+}
+
+.terrain-knowledge {
+  display: grid;
+  gap: 6px;
+}
+
+.terrain-knowledge p {
+  margin: 0;
+}
+
 @media (max-width: 1280px) {
-  .knowledge-panel { width: calc(240px * var(--ui-scale)); }
-  .profile-chart canvas { width: calc(520px * var(--ui-scale)); height: calc(240px * var(--ui-scale)); }
+  .profile-chart canvas {
+    width:
+      calc(520px * var(--ui-scale));
+    height:
+      calc(240px * var(--ui-scale));
+  }
 }
 
-@media (max-width: 1024px) {
-  .knowledge-panel {
-    width: calc(220px * var(--ui-scale));
-    padding: calc(10px * var(--ui-scale)) calc(12px * var(--ui-scale));
+@media (max-width: 960px) {
+  .terrain-scene-overlay {
+    --scene-overlay-gap:
+      10px;
   }
-  .kp-list li { font-size: calc(12px * var(--ui-scale)); line-height: 1.6; }
-  .profile-chart canvas { width: calc(420px * var(--ui-scale)); height: calc(200px * var(--ui-scale)); }
+
+  .view-cube {
+    top:
+      clamp(66px,
+        8vh,
+        82px);
+    right:
+      calc(var(--scene-right-safe) + var(--scene-overlay-gap));
+    width:
+      calc(52px * var(--ui-scale));
+    height:
+      calc(52px * var(--ui-scale));
+  }
+
+  .vc-face {
+    font-size:
+      calc(12px * var(--ui-scale));
+  }
+
+  .vc-face-front {
+    transform:
+      rotateY(0deg) translateZ(calc(26px * var(--ui-scale)));
+  }
+
+  .vc-face-back {
+    transform:
+      rotateY(180deg) translateZ(calc(26px * var(--ui-scale)));
+  }
+
+  .vc-face-right {
+    transform:
+      rotateY(90deg) translateZ(calc(26px * var(--ui-scale)));
+  }
+
+  .vc-face-left {
+    transform:
+      rotateY(-90deg) translateZ(calc(26px * var(--ui-scale)));
+  }
+
+  .vc-face-top {
+    transform:
+      rotateX(90deg) translateZ(calc(26px * var(--ui-scale)));
+  }
+
+  .vc-face-bottom {
+    transform:
+      rotateX(-90deg) translateZ(calc(26px * var(--ui-scale)));
+  }
+
+  .legend-panel {
+    max-width:
+      min(50vw,
+        max(132px,
+          calc(100% - var(--scene-left-safe) - var(--scene-right-safe) - 84px)),
+        210px);
+    padding:
+      10px 12px;
+  }
+
+  .legend-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+  .profile-chart canvas {
+    width:
+      calc(420px * var(--ui-scale));
+    height:
+      calc(200px * var(--ui-scale));
+  }
 }
 
-@media (max-width: 768px) {
-  .view-cube { width: calc(48px * var(--ui-scale)); height: calc(48px * var(--ui-scale)); }
-  .vc-face { font-size: calc(12px * var(--ui-scale)); }
-  .vc-face-front, .vc-face-back, .vc-face-right, .vc-face-left {
-    transform: rotateY(0deg) translateZ(calc(24px * var(--ui-scale)));
+@media (max-width: 640px) {
+  .terrain-scene-overlay {
+    --scene-overlay-gap:
+      8px;
   }
-  .vc-face-back { transform: rotateY(180deg) translateZ(calc(24px * var(--ui-scale))); }
-  .vc-face-right { transform: rotateY(90deg) translateZ(calc(24px * var(--ui-scale))); }
-  .vc-face-left { transform: rotateY(-90deg) translateZ(calc(24px * var(--ui-scale))); }
-  .vc-face-top { transform: rotateX(90deg) translateZ(calc(24px * var(--ui-scale))); }
-  .vc-face-bottom { transform: rotateX(-90deg) translateZ(calc(24px * var(--ui-scale))); }
-  .knowledge-panel {
-    width: calc(200px * var(--ui-scale));
-    top: auto;
-    bottom: calc(110px * var(--ui-scale));
-    right: calc(8px * var(--ui-scale));
-    transform: none;
-    max-height: 40vh;
+
+  .view-cube {
+    top: 64px;
+    right:
+      calc(var(--scene-right-safe) + var(--scene-overlay-gap));
+    width: 46px;
+    height: 46px;
   }
-  .kp-list li { font-size: calc(11px * var(--ui-scale)); padding: calc(3px * var(--ui-scale)) 0; }
-  .profile-chart canvas { width: calc(320px * var(--ui-scale)); height: calc(160px * var(--ui-scale)); }
-  .profile-chart-header { font-size: calc(12px * var(--ui-scale)); }
-  .legend-panel { bottom: calc(60px * var(--ui-scale)); }
-  .controls-info { font-size: calc(11px * var(--ui-scale)); padding: calc(6px * var(--ui-scale)) calc(14px * var(--ui-scale)); }
+
+  .vc-face {
+    font-size: 11px;
+  }
+
+  .vc-face-front {
+    transform:
+      rotateY(0deg) translateZ(23px);
+  }
+
+  .vc-face-back {
+    transform:
+      rotateY(180deg) translateZ(23px);
+  }
+
+  .vc-face-right {
+    transform:
+      rotateY(90deg) translateZ(23px);
+  }
+
+  .vc-face-left {
+    transform:
+      rotateY(-90deg) translateZ(23px);
+  }
+
+  .vc-face-top {
+    transform:
+      rotateX(90deg) translateZ(23px);
+  }
+
+  .vc-face-bottom {
+    transform:
+      rotateX(-90deg) translateZ(23px);
+  }
+
+  .legend-panel {
+    left:
+      calc(var(--scene-left-safe) + var(--scene-overlay-gap));
+    bottom: 10px;
+    max-width:
+      max(112px,
+        calc(100% - var(--scene-left-safe) - var(--scene-right-safe) - 78px));
+    min-width: 122px;
+  }
+
+  .legend-title {
+    font-size: 12px;
+  }
+
+  .legend-item {
+    font-size: 10px;
+  }
+
+  .legend-bar,
+  .legend-labels {
+    width: 74px;
+  }
+
+  .profile-hint {
+    top: 76px;
+    width:
+      calc(100% - 110px);
+    box-sizing: border-box;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .profile-chart {
+    width:
+      calc(100% - 20px);
+  }
+
+  .profile-chart canvas {
+    width: 100%;
+    height: 170px;
+  }
 }
 
-@media (max-width: 480px) {
-  .knowledge-panel { display: none; }
-  .view-cube { width: calc(40px * var(--ui-scale)); height: calc(40px * var(--ui-scale)); }
-  .vc-face { font-size: calc(10px * var(--ui-scale)); }
-  .vc-face-front { transform: rotateY(0deg) translateZ(calc(20px * var(--ui-scale))); }
-  .vc-face-back { transform: rotateY(180deg) translateZ(calc(20px * var(--ui-scale))); }
-  .vc-face-right { transform: rotateY(90deg) translateZ(calc(20px * var(--ui-scale))); }
-  .vc-face-left { transform: rotateY(-90deg) translateZ(calc(20px * var(--ui-scale))); }
-  .vc-face-top { transform: rotateX(90deg) translateZ(calc(20px * var(--ui-scale))); }
-  .vc-face-bottom { transform: rotateX(-90deg) translateZ(calc(20px * var(--ui-scale))); }
-  .profile-chart canvas { width: calc(260px * var(--ui-scale)); height: calc(130px * var(--ui-scale)); }
+@media (max-width: 520px) {
+  .view-cube {
+    top: 58px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .vc-face {
+    font-size: 10px;
+  }
+
+  .vc-face-front {
+    transform:
+      rotateY(0deg) translateZ(21px);
+  }
+
+  .vc-face-back {
+    transform:
+      rotateY(180deg) translateZ(21px);
+  }
+
+  .vc-face-right {
+    transform:
+      rotateY(90deg) translateZ(21px);
+  }
+
+  .vc-face-left {
+    transform:
+      rotateY(-90deg) translateZ(21px);
+  }
+
+  .vc-face-top {
+    transform:
+      rotateX(90deg) translateZ(21px);
+  }
+
+  .vc-face-bottom {
+    transform:
+      rotateX(-90deg) translateZ(21px);
+  }
+
+  .legend-panel {
+    padding:
+      8px 9px;
+    min-width: 112px;
+  }
+
+  .legend-grid {
+    gap:
+      4px 8px;
+  }
+
+  .legend-title {
+    margin-bottom: 6px;
+    padding-bottom: 5px;
+  }
+}
+
+
+/* =========================================================
+   暗色主题：主场景 Cube / 图例 / 剖面浮层适配
+   ========================================================= */
+
+.terrain-projection-template.theme-dark .vc-face {
+  color:
+    rgba(226, 246, 250, 0.86);
+  background:
+    linear-gradient(145deg,
+      rgba(8, 20, 34, 0.74),
+      rgba(8, 20, 34, 0.46));
+  border-color:
+    rgba(var(--theme-primary-light-rgb), 0.28);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter:
+    blur(8px) saturate(145%);
+  -webkit-backdrop-filter:
+    blur(8px) saturate(145%);
+}
+
+.terrain-projection-template.theme-dark .vc-face:hover {
+  color:
+    var(--theme-on-primary);
+  background:
+    linear-gradient(135deg,
+      var(--theme-primary),
+      var(--theme-secondary));
+  border-color:
+    transparent;
+  box-shadow:
+    0 0 18px rgba(var(--theme-primary-rgb), 0.32),
+    0 10px 22px rgba(0, 0, 0, 0.22);
+}
+
+.terrain-projection-template.theme-dark .legend-panel {
+  color:
+    rgba(226, 246, 250, 0.88);
+  background:
+    linear-gradient(145deg,
+      rgba(8, 20, 34, 0.70),
+      rgba(8, 20, 34, 0.42));
+  border-color:
+    rgba(var(--theme-primary-light-rgb), 0.24);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter:
+    blur(12px) saturate(150%);
+  -webkit-backdrop-filter:
+    blur(12px) saturate(150%);
+}
+
+.terrain-projection-template.theme-dark .legend-title {
+  color:
+    var(--theme-primary-light);
+  border-bottom-color:
+    rgba(var(--theme-primary-light-rgb), 0.18);
+  text-shadow:
+    0 0 12px rgba(var(--theme-primary-rgb), 0.24);
+}
+
+.terrain-projection-template.theme-dark .legend-item {
+  color:
+    rgba(226, 246, 250, 0.82);
+}
+
+.terrain-projection-template.theme-dark .legend-labels {
+  color:
+    rgba(184, 204, 218, 0.72);
+}
+
+.terrain-projection-template.theme-dark .badge {
+  box-shadow:
+    0 0 10px rgba(255, 255, 255, 0.10),
+    0 0 8px currentColor;
+}
+
+.terrain-projection-template.theme-dark .profile-hint {
+  color:
+    var(--theme-primary-light);
+  background:
+    linear-gradient(145deg,
+      rgba(8, 20, 34, 0.72),
+      rgba(8, 20, 34, 0.44));
+  border-color:
+    rgba(var(--theme-primary-light-rgb), 0.24);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.26);
+}
+
+.terrain-projection-template.theme-dark .profile-hint strong {
+  color:
+    #ffffff;
+}
+
+.terrain-projection-template.theme-dark .profile-chart {
+  background:
+    linear-gradient(145deg,
+      rgba(8, 20, 34, 0.88),
+      rgba(8, 20, 34, 0.72));
+  border-color:
+    rgba(var(--theme-primary-light-rgb), 0.24);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.34);
+  backdrop-filter:
+    blur(14px) saturate(145%);
+  -webkit-backdrop-filter:
+    blur(14px) saturate(145%);
+}
+
+.terrain-projection-template.theme-dark .profile-chart-header {
+  color:
+    var(--theme-primary-light);
+  background:
+    rgba(8, 20, 34, 0.72);
+  border-bottom-color:
+    rgba(var(--theme-primary-light-rgb), 0.18);
+}
+
+.terrain-projection-template.theme-dark .profile-close-btn {
+  color:
+    rgba(226, 246, 250, 0.70);
+}
+
+.terrain-projection-template.theme-dark .profile-close-btn:hover {
+  color:
+    #ffffff;
+  background:
+    rgba(255, 107, 107, 0.24);
 }
 </style>

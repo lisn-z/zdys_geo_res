@@ -3785,3 +3785,268 @@
         calc(100vw - 32px)) !important;
   }
 }
+
+/* =========================================================
+   暗色主题 Select 下拉浮层修复 V16
+   问题：
+   - el-select 下拉列表 Teleport 到 body 后，容易吃到 Element Plus 默认样式
+   - 暗色主题下 hover / active 项发黑，不符合主题
+   - 下拉浮层边框偏白，也不符合暗色毛玻璃风格
+   方案：
+   - 强化 geo-select-popper-dark 的背景、边框、箭头、hover、active
+   - active 使用主题渐变
+   - hover 使用半透明主题色，不再是黑色
+   ========================================================= */
+
+/* 暗色下拉浮层主体：边框不能是白色 */
+.geo-select-popper-dark,
+.geo-select-popper-dark.el-popper,
+.el-popper.geo-select-popper-dark {
+  color:
+    var(--popper-text-secondary);
+  background:
+    linear-gradient(145deg,
+      rgba(8, 20, 34, 0.98),
+      rgba(10, 29, 48, 0.96)) !important;
+  border:
+    1px solid rgba(var(--theme-primary-light-rgb), 0.26) !important;
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Element Plus popper 内层也同步，避免内层白边 / 黑块 */
+.geo-select-popper-dark .el-select-dropdown,
+.geo-select-popper-dark .el-select-dropdown__wrap,
+.geo-select-popper-dark .el-select-dropdown__list {
+  background:
+    transparent !important;
+  border:
+    0 !important;
+}
+
+/* popper 箭头也要跟随暗色主题边框 */
+.geo-select-popper-dark .el-popper__arrow::before,
+.el-popper.geo-select-popper-dark .el-popper__arrow::before {
+  background:
+    rgba(8, 20, 34, 0.98) !important;
+  border-color:
+    rgba(var(--theme-primary-light-rgb), 0.26) !important;
+}
+
+/* 默认 option：不要黑块，保留可读文字 */
+.geo-select-popper-dark .el-select-dropdown__item {
+  color:
+    var(--popper-text-secondary) !important;
+  background:
+    transparent !important;
+}
+
+/* hover / 键盘悬浮：改成主题半透明，不再发黑 */
+.geo-select-popper-dark .el-select-dropdown__item:hover,
+.geo-select-popper-dark .el-select-dropdown__item.is-hovering {
+  color:
+    var(--theme-primary-light) !important;
+  background:
+    linear-gradient(90deg,
+      rgba(var(--theme-primary-rgb), 0.18),
+      rgba(var(--theme-secondary-rgb), 0.10)) !important;
+}
+
+/* selected / active：使用主题渐变，不再是黑色 */
+.geo-select-popper-dark .el-select-dropdown__item.is-selected,
+.geo-select-popper-dark .el-select-dropdown__item.selected {
+  color:
+    var(--theme-on-primary) !important;
+  font-weight: 900;
+  background:
+    linear-gradient(135deg,
+      var(--theme-primary),
+      var(--theme-secondary)) !important;
+}
+
+/* selected + hover：保持渐变，只稍微提亮 */
+.geo-select-popper-dark .el-select-dropdown__item.is-selected:hover,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected.is-hovering,
+.geo-select-popper-dark .el-select-dropdown__item.selected:hover {
+  color:
+    var(--theme-on-primary) !important;
+  background:
+    linear-gradient(135deg,
+      var(--theme-primary-hover),
+      var(--theme-secondary-hover)) !important;
+}
+
+/* disabled 项保持弱化，避免误认为可选 */
+.geo-select-popper-dark .el-select-dropdown__item.is-disabled {
+  color:
+    rgba(184, 204, 218, 0.38) !important;
+  background:
+    transparent !important;
+}
+
+/* 空状态文字 */
+.geo-select-popper-dark .el-select-dropdown__empty {
+  color:
+    rgba(184, 204, 218, 0.62) !important;
+}
+
+/* 暗色下拉滚动条同步主题 */
+.geo-select-popper-dark .el-scrollbar__bar.is-vertical .el-scrollbar__thumb,
+.geo-select-popper-dark .el-scrollbar__bar.is-horizontal .el-scrollbar__thumb {
+  background:
+    linear-gradient(180deg,
+      var(--theme-primary),
+      var(--theme-secondary)) !important;
+}
+
+/* =========================================================
+   暗色主题 Select selected 颜色修复 V17
+   核心原因：
+   - el-select 的下拉浮层会 Teleport 到 body
+   - geo-template-page 上定义的 --theme-primary 等变量不会继承到 popper
+   - 所以 V16 中 selected 使用 var(--theme-primary) 可能失效
+   方案：
+   - 在 geo-select-popper-dark 自身补齐主题变量
+   - 同时兼容 Element Plus 的 selected / is-selected / hover / is-hovering / hover 类名
+   ========================================================= */
+
+/* Teleport 到 body 后，popper 自己必须拥有主题变量 */
+.geo-select-popper-dark,
+.geo-select-popper-dark.el-popper,
+.el-popper.geo-select-popper-dark {
+  --theme-primary:
+    #2ec4b6;
+  --theme-primary-rgb:
+    46, 196, 182;
+
+  --theme-secondary:
+    #247cff;
+  --theme-secondary-rgb:
+    36, 124, 255;
+
+  --theme-primary-light:
+    #74eae5;
+  --theme-primary-light-rgb:
+    116, 234, 229;
+
+  --theme-primary-hover:
+    #44ddd0;
+  --theme-secondary-hover:
+    #3a8dff;
+
+  --theme-on-primary:
+    #ffffff;
+
+  --popper-background:
+    rgba(8, 20, 34, 0.98);
+
+  --popper-border:
+    rgba(var(--theme-primary-light-rgb), 0.28);
+
+  --popper-text-secondary:
+    #b8ccda;
+}
+
+/* 暗色 popper 外壳边框和背景 */
+.geo-select-popper-dark,
+.geo-select-popper-dark.el-popper,
+.el-popper.geo-select-popper-dark {
+  background:
+    linear-gradient(145deg,
+      rgba(8, 20, 34, 0.98),
+      rgba(10, 29, 48, 0.96)) !important;
+  border:
+    1px solid var(--popper-border) !important;
+}
+
+/* 默认项 */
+.geo-select-popper-dark .el-select-dropdown__item {
+  color:
+    var(--popper-text-secondary) !important;
+  background:
+    transparent !important;
+}
+
+/* hover：Element Plus 不同版本可能是 hover / is-hovering / :hover */
+.geo-select-popper-dark .el-select-dropdown__item:hover,
+.geo-select-popper-dark .el-select-dropdown__item.hover,
+.geo-select-popper-dark .el-select-dropdown__item.is-hovering {
+  color:
+    var(--theme-primary-light) !important;
+  background:
+    linear-gradient(90deg,
+      rgba(var(--theme-primary-rgb), 0.22),
+      rgba(var(--theme-secondary-rgb), 0.12)) !important;
+}
+
+/* selected：Element Plus 常用的是 .selected，不一定是 .is-selected */
+.geo-select-popper-dark .el-select-dropdown__item.selected,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected,
+.geo-select-popper-dark .el-select-dropdown__item[aria-selected='true'] {
+  color:
+    var(--theme-on-primary) !important;
+  font-weight: 900 !important;
+  background:
+    linear-gradient(135deg,
+      var(--theme-primary),
+      var(--theme-secondary)) !important;
+  border-radius:
+    0;
+}
+
+/* selected 内部文字也强制跟随，避免 span 继承默认色 */
+.geo-select-popper-dark .el-select-dropdown__item.selected span,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected span,
+.geo-select-popper-dark .el-select-dropdown__item[aria-selected='true'] span {
+  color:
+    var(--theme-on-primary) !important;
+}
+
+/* selected + hover：保持渐变，不退回普通 hover */
+.geo-select-popper-dark .el-select-dropdown__item.selected:hover,
+.geo-select-popper-dark .el-select-dropdown__item.selected.hover,
+.geo-select-popper-dark .el-select-dropdown__item.selected.is-hovering,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected:hover,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected.hover,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected.is-hovering,
+.geo-select-popper-dark .el-select-dropdown__item[aria-selected='true']:hover {
+  color:
+    var(--theme-on-primary) !important;
+  background:
+    linear-gradient(135deg,
+      var(--theme-primary-hover),
+      var(--theme-secondary-hover)) !important;
+}
+
+/* selected + hover 内部文字继续保持白色 */
+.geo-select-popper-dark .el-select-dropdown__item.selected:hover span,
+.geo-select-popper-dark .el-select-dropdown__item.selected.hover span,
+.geo-select-popper-dark .el-select-dropdown__item.selected.is-hovering span,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected:hover span,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected.hover span,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected.is-hovering span,
+.geo-select-popper-dark .el-select-dropdown__item[aria-selected='true']:hover span {
+  color:
+    var(--theme-on-primary) !important;
+}
+
+/* popper 箭头边框同步主题 */
+.geo-select-popper-dark .el-popper__arrow::before,
+.el-popper.geo-select-popper-dark .el-popper__arrow::before {
+  background:
+    rgba(8, 20, 34, 0.98) !important;
+  border-color:
+    var(--popper-border) !important;
+}
+
+/* =========================================================
+   Select 激活项去圆角 V18
+   ========================================================= */
+
+.geo-select-popper-dark .el-select-dropdown__item.selected,
+.geo-select-popper-dark .el-select-dropdown__item.is-selected,
+.geo-select-popper-dark .el-select-dropdown__item[aria-selected='true'] {
+  border-radius:
+    0 !important;
+}
