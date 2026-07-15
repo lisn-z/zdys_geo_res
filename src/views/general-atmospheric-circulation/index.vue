@@ -1,51 +1,33 @@
 <template>
-  <div
-    ref="pageRef"
-    class="general-atmospheric-circulation-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="general-atmospheric-circulation-container geo-template-page geo-page theme-dark"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
-      <h1 class="page-title">大气环流 <span class="page-subtitle">Atmospheric Circulation Lab</span></h1>
+      <h1 class="page-title">大气环流</h1>
 
       <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn primary replay-btn"
-          @click="replayAll"
-        >▶ 从头演示</button>
+        <button type="button" class="theme-btn primary replay-btn" @click="replayAll">
+          <span class="replay-icon">▶</span>
+          <span class="replay-text">从头演示</span>
+        </button>
 
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="toggleAllPanels"
-        >{{ allPanelsCollapsed ? '展开面板' : '收起面板' }}</button>
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">{{
+          allPanelsCollapsed ? '展开面板' : '收起面板' }}</button>
       </div>
     </header>
 
-    <main
-      class="workspace"
-      :class="{
-        'has-left': hasLeftPanel,
-        'has-right': hasRightPanel,
-      }"
-      :style="{
-        '--left-panel-width': leftCollapsed ? '0px' : leftPanelWidth + 'px',
-        '--right-panel-width': rightCollapsed ? '0px' : rightPanelWidth + 'px',
-      }"
-    >
-      <aside
-        id="left-panel"
-        class="side-panel left-panel"
-        :class="{ collapsed: leftCollapsed }"
-      >
+    <main class="workspace" :class="{
+      'has-left': hasLeftPanel,
+      'has-right': hasRightPanel,
+    }" :style="{
+      '--left-panel-width': leftCollapsed ? '0px' : leftPanelWidth + 'px',
+      '--right-panel-width': rightCollapsed ? '0px' : rightPanelWidth + 'px',
+    }">
+      <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -114,17 +96,10 @@
           </section>
         </div>
 
-        <div
-          class="resize-handle resize-right"
-          @pointerdown.prevent="startResize('left', $event)"
-        ></div>
+        <div class="resize-handle resize-right" @pointerdown.stop.prevent="startResize('left', $event)"></div>
 
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-left"
-          aria-label="收起左侧面板"
-          @click="leftCollapsed = true"
-        >‹</button>
+        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
+          @click="leftCollapsed = true">‹</button>
       </aside>
 
       <section class="center-stage">
@@ -133,25 +108,14 @@
 
           <!-- HTML 标签覆盖层 -->
           <div class="labels-overlay" ref="labelsOverlayRef">
-            <div
-              v-for="(l, i) in labelScreenData"
-              :key="i"
-              v-show="l.visible"
-              class="scene-label"
-              :class="l.cls"
-              :style="{ left: l.x + 'px', top: l.y + 'px' }"
-            >{{ l.text }}</div>
+            <div v-for="(l, i) in labelScreenData" :key="i" v-show="l.visible" class="scene-label" :class="l.cls"
+              :style="{ left: l.x + 'px', top: l.y + 'px' }">{{ l.text }}</div>
           </div>
         </div>
 
         <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            @click="isPlaying = !isPlaying"
-          >
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -166,23 +130,13 @@
           </div>
 
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >{{ item }}×</button>
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">{{ item }}×</button>
           </div>
         </div>
       </section>
 
-      <aside
-        id="right-panel"
-        class="side-panel right-panel"
-        :class="{ collapsed: rightCollapsed }"
-      >
+      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: rightCollapsed }">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -193,16 +147,10 @@
           </div>
 
           <div class="stage-nav">
-            <div
-              v-for="(stage, i) in stages"
-              :key="stage.id"
-              class="stage-nav-item"
-              :class="{
-                active: currentStage === i,
-                done: currentStage > i
-              }"
-              @click="goToStage(i)"
-            >
+            <div v-for="(stage, i) in stages" :key="stage.id" class="stage-nav-item" :class="{
+              active: currentStage === i,
+              done: currentStage > i
+            }" @click="goToStage(i)">
               <span class="stage-num">{{ i + 1 }}</span>
               <span class="stage-name">{{ stage.shortName }}</span>
             </div>
@@ -216,13 +164,8 @@
             <p class="stage-desc">{{ currentStageData.desc }}</p>
 
             <div class="stage-points">
-              <div
-                v-for="(p, idx) in currentStageData.points"
-                :key="idx"
-                class="step-point"
-                :class="{ done: stepDone[idx] }"
-                @click="toggleStep(idx)"
-              >
+              <div v-for="(p, idx) in currentStageData.points" :key="idx" class="step-point"
+                :class="{ done: stepDone[idx] }" @click="toggleStep(idx)">
                 <span class="step-num">{{ idx + 1 }}</span>
                 <span class="step-text">{{ p }}</span>
               </div>
@@ -231,8 +174,7 @@
             <div class="stage-nav-buttons">
               <button class="theme-btn option-btn" :disabled="currentStage === 0" @click="prevStage">← 上一步</button>
               <button class="theme-btn primary" @click="nextStage">
-                {{ currentStage < stages.length - 1 ? '下一步 →' : '从头演示' }}
-              </button>
+                {{ currentStage < stages.length - 1 ? '下一步 →' : '从头演示' }} </button>
             </div>
           </section>
 
@@ -256,33 +198,18 @@
           </section>
         </div>
 
-        <div
-          class="resize-handle resize-left"
-          @pointerdown.prevent="startResize('right', $event)"
-        ></div>
+        <div class="resize-handle resize-left" @pointerdown.stop.prevent="startResize('right', $event)"></div>
 
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-right"
-          aria-label="收起右侧面板"
-          @click="rightCollapsed = true"
-        >›</button>
+        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
+          @click="rightCollapsed = true">›</button>
       </aside>
     </main>
 
-    <button
-      v-if="hasLeftPanel && leftCollapsed"
-      type="button"
-      class="panel-entry-btn entry-left"
-      @click="leftCollapsed = false"
-    >›</button>
+    <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+      @click="leftCollapsed = false">›</button>
 
-    <button
-      v-if="hasRightPanel && rightCollapsed"
-      type="button"
-      class="panel-entry-btn entry-right"
-      @click="rightCollapsed = false"
-    >‹</button>
+    <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+      @click="rightCollapsed = false">‹</button>
   </div>
 </template>
 
@@ -494,8 +421,8 @@ const pageRef = ref<HTMLElement | null>(null)
 const hasLeftPanel = true
 const hasRightPanel = true
 const layoutMode = ref<LayoutMode>('large')
-const leftPanelWidth = ref(300)
-const rightPanelWidth = ref(320)
+const leftPanelWidth = ref(420)
+const rightPanelWidth = ref(500)
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
 const isPlaying = ref(true)
@@ -596,6 +523,9 @@ let threeResizeObserver: ResizeObserver | null = null
 let sceneResizeTimer: ReturnType<typeof setTimeout> | null = null
 let lastSceneWidth = 0
 let lastSceneHeight = 0
+let previousLayoutMode:
+  | LayoutMode
+  | null = null
 let leftPanelManuallyResized = false
 let rightPanelManuallyResized = false
 let isPanelResizing = false
@@ -637,13 +567,13 @@ function createEarthTexture(): THREE.CanvasTexture {
   ctx.fillRect(0, 0, w, h)
 
   const continents: number[][][] = [
-    [[-168,65],[-128,70],[-75,78],[-55,55],[-70,42],[-82,25],[-100,20],[-115,30],[-125,38],[-135,55],[-150,58],[-168,65]],
-    [[-80,10],[-60,8],[-42,-8],[-38,-15],[-50,-35],[-68,-50],[-72,-55],[-78,-20],[-80,10]],
-    [[-17,35],[10,35],[33,31],[35,15],[44,12],[42,0],[35,-12],[28,-20],[20,-32],[12,-18],[0,3],[-15,12],[-17,35]],
-    [[-10,36],[10,45],[30,42],[48,40],[62,30],[75,20],[80,10],[95,22],[108,12],[122,0],[130,0],[140,35],[145,44],[160,60],[170,65],[180,68],[130,75],[60,72],[20,66],[2,52],[-5,48],[-10,36]],
-    [[114,-22],[130,-12],[142,-10],[146,-18],[150,-25],[148,-35],[140,-38],[130,-32],[114,-28],[114,-22]],
-    [[-55,60],[-30,65],[-22,80],[-35,82],[-50,80],[-58,72],[-55,60]],
-    [[-180,-72],[-60,-72],[0,-70],[60,-68],[120,-70],[180,-72],[180,-90],[-180,-90],[-180,-72]],
+    [[-168, 65], [-128, 70], [-75, 78], [-55, 55], [-70, 42], [-82, 25], [-100, 20], [-115, 30], [-125, 38], [-135, 55], [-150, 58], [-168, 65]],
+    [[-80, 10], [-60, 8], [-42, -8], [-38, -15], [-50, -35], [-68, -50], [-72, -55], [-78, -20], [-80, 10]],
+    [[-17, 35], [10, 35], [33, 31], [35, 15], [44, 12], [42, 0], [35, -12], [28, -20], [20, -32], [12, -18], [0, 3], [-15, 12], [-17, 35]],
+    [[-10, 36], [10, 45], [30, 42], [48, 40], [62, 30], [75, 20], [80, 10], [95, 22], [108, 12], [122, 0], [130, 0], [140, 35], [145, 44], [160, 60], [170, 65], [180, 68], [130, 75], [60, 72], [20, 66], [2, 52], [-5, 48], [-10, 36]],
+    [[114, -22], [130, -12], [142, -10], [146, -18], [150, -25], [148, -35], [140, -38], [130, -32], [114, -28], [114, -22]],
+    [[-55, 60], [-30, 65], [-22, 80], [-35, 82], [-50, 80], [-58, 72], [-55, 60]],
+    [[-180, -72], [-60, -72], [0, -70], [60, -68], [120, -70], [180, -72], [180, -90], [-180, -90], [-180, -72]],
   ]
   continents.forEach(path => {
     ctx.beginPath()
@@ -1179,60 +1109,403 @@ function scheduleSceneResize(delay = 140) {
 }
 
 // ===================== 布局 =====================
-function getAdaptivePanelWidth(side: 'left' | 'right', mode: LayoutMode, pageWidth: number) {
-  if (mode === 'small') return clamp(pageWidth * 0.82, 260, 360)
-  if (mode === 'medium') return clamp(pageWidth * 0.38, 300, 440)
-  return clamp(pageWidth * (side === 'left' ? 0.19 : 0.20), side === 'left' ? 300 : 320, side === 'left' ? 460 : 500)
+function getEffectiveTemplateWidth(
+  fallbackWidth?: number
+): number {
+  const candidates: number[] = []
+
+  if (
+    typeof fallbackWidth === 'number' &&
+    Number.isFinite(fallbackWidth) &&
+    fallbackWidth > 0
+  ) {
+    candidates.push(fallbackWidth)
+  }
+
+  const pageWidth =
+    pageRef.value?.clientWidth
+
+  if (
+    typeof pageWidth === 'number' &&
+    Number.isFinite(pageWidth) &&
+    pageWidth > 0
+  ) {
+    candidates.push(pageWidth)
+  }
+
+  if (typeof window !== 'undefined') {
+    const values = [
+      window.innerWidth,
+      window.visualViewport?.width,
+      window.screen?.width,
+      window.screen?.availWidth,
+    ]
+
+    values.forEach((value) => {
+      if (
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value > 0
+      ) {
+        candidates.push(value)
+      }
+    })
+  }
+
+  if (!candidates.length) {
+    return 0
+  }
+
+  /*
+   * 用最小有效宽度判断超大屏。
+   * 普通 1920 屏即使因为浏览器缩放 / 投屏环境导致 CSS 宽度异常变大，
+   * 也不会误判为 2200+。
+   */
+  return Math.min(...candidates)
+}
+
+function isUltraLargeTemplateScreen(
+  fallbackWidth?: number
+): boolean {
+  return getEffectiveTemplateWidth(
+    fallbackWidth
+  ) >= 2200
+}
+
+function getAdaptivePanelWidth(
+  side: 'left' | 'right',
+  mode: LayoutMode,
+  pageWidth: number
+) {
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
+  if (mode === 'small') {
+    return side === 'left'
+      ? clamp(pageWidth * 0.76, 260, 360)
+      : clamp(pageWidth * 0.80, 280, 380)
+  }
+
+  if (mode === 'medium') {
+    return side === 'left'
+      ? clamp(pageWidth * 0.36, 320, 480)
+      : clamp(pageWidth * 0.40, 360, 540)
+  }
+
+  /*
+   * 2K / 4K / 教室超大屏增强：
+   * 普通 1920×1080 电脑不默认触发。
+   */
+  if (
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+  ) {
+    return side === 'left'
+      ? clamp(effectiveWidth * 0.22, 420, 640)
+      : clamp(effectiveWidth * 0.25, 500, 760)
+  }
+
+  return side === 'left'
+    ? clamp(pageWidth * 0.19, 340, 520)
+    : clamp(pageWidth * 0.21, 380, 580)
 }
 
 function updateLayoutMode() {
-  const pageWidth = pageRef.value?.clientWidth || window.innerWidth
-  const nextMode: LayoutMode = pageWidth >= 1440 ? 'large' : pageWidth >= 820 ? 'medium' : 'small'
-  layoutMode.value = nextMode
-  if (!leftPanelManuallyResized) leftPanelWidth.value = getAdaptivePanelWidth('left', nextMode, pageWidth)
-  if (!rightPanelManuallyResized) rightPanelWidth.value = getAdaptivePanelWidth('right', nextMode, pageWidth)
-}
+  const pageWidth =
+    pageRef.value?.clientWidth ||
+    window.innerWidth
 
-function getPanelResizeBounds(side: 'left' | 'right') {
-  const pageWidth = pageRef.value?.clientWidth || window.innerWidth
-  if (layoutMode.value === 'small') return { min: 220, max: Math.max(220, Math.min(400, pageWidth * 0.86)) }
-  if (layoutMode.value === 'medium') return { min: 280, max: Math.max(280, Math.min(560, pageWidth * 0.58)) }
-  return { min: side === 'left' ? 280 : 300, max: Math.max(side === 'left' ? 280 : 300, Math.min(720, pageWidth * 0.50)) }
-}
+  const nextMode: LayoutMode =
+    pageWidth >= 1440
+      ? 'large'
+      : pageWidth >= 820
+        ? 'medium'
+        : 'small'
 
-function startResize(side: 'left' | 'right', event: PointerEvent) {
-  if ((side === 'left' && leftCollapsed.value) || (side === 'right' && rightCollapsed.value)) return
-  if (side === 'left') leftPanelManuallyResized = true
-  else rightPanelManuallyResized = true
-  isPanelResizing = true
+  const modeChanged =
+    previousLayoutMode !== nextMode
 
-  const startX = event.clientX
-  const startWidth = side === 'left' ? leftPanelWidth.value : rightPanelWidth.value
-  const bounds = getPanelResizeBounds(side)
+  layoutMode.value =
+    nextMode
 
-  const onMove = (moveEvent: PointerEvent) => {
-    const deltaX = moveEvent.clientX - startX
-    const nextWidth = side === 'left' ? startWidth + deltaX : startWidth - deltaX
-    const width = clamp(nextWidth, bounds.min, bounds.max)
-    if (side === 'left') leftPanelWidth.value = width
-    else rightPanelWidth.value = width
+  if (
+    modeChanged ||
+    !leftPanelManuallyResized
+  ) {
+    leftPanelWidth.value =
+      Math.round(
+        getAdaptivePanelWidth(
+          'left',
+          nextMode,
+          pageWidth
+        )
+      )
   }
 
-  const finishResize = () => {
-    window.removeEventListener('pointermove', onMove)
-    window.removeEventListener('pointerup', finishResize)
-    window.removeEventListener('pointercancel', finishResize)
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    isPanelResizing = false
-    scheduleSceneResize(0)
+  if (
+    modeChanged ||
+    !rightPanelManuallyResized
+  ) {
+    rightPanelWidth.value =
+      Math.round(
+        getAdaptivePanelWidth(
+          'right',
+          nextMode,
+          pageWidth
+        )
+      )
   }
 
-  window.addEventListener('pointermove', onMove)
-  window.addEventListener('pointerup', finishResize)
-  window.addEventListener('pointercancel', finishResize)
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
+  previousLayoutMode =
+    nextMode
+}
+
+function getPanelResizeBounds(
+  side: 'left' | 'right'
+) {
+  const pageWidth =
+    pageRef.value?.clientWidth ||
+    window.innerWidth
+
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
+  if (layoutMode.value === 'small') {
+    return {
+      min:
+        side === 'left'
+          ? 220
+          : 240,
+      max:
+        Math.max(
+          side === 'left'
+            ? 220
+            : 240,
+          Math.min(
+            side === 'left'
+              ? 420
+              : 440,
+            pageWidth * 0.86
+          )
+        ),
+    }
+  }
+
+  if (layoutMode.value === 'medium') {
+    return {
+      min:
+        side === 'left'
+          ? 280
+          : 300,
+      max:
+        Math.max(
+          side === 'left'
+            ? 280
+            : 300,
+          Math.min(
+            side === 'left'
+              ? 640
+              : 700,
+            pageWidth * 0.60
+          )
+        ),
+    }
+  }
+
+  /*
+   * 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
+   * 左侧最多 560px，右侧最多 620px。
+   *
+   * 超大屏：有效宽度 2200px 以上。
+   * 左侧最多 820px，右侧最多 900px。
+   */
+  const isUltraLargeScreen =
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+
+  return {
+    min:
+      side === 'left'
+        ? 300
+        : 340,
+    max:
+      Math.max(
+        side === 'left'
+          ? 300
+          : 340,
+        Math.min(
+          side === 'left'
+            ? (
+              isUltraLargeScreen
+                ? 820
+                : 560
+            )
+            : (
+              isUltraLargeScreen
+                ? 900
+                : 620
+            ),
+          effectiveWidth *
+          (
+            isUltraLargeScreen
+              ? 0.54
+              : 0.38
+          )
+        )
+      ),
+  }
+}
+
+function startResize(
+  side: 'left' | 'right',
+  event: PointerEvent
+) {
+  if (
+    (side === 'left' && leftCollapsed.value) ||
+    (side === 'right' && rightCollapsed.value)
+  ) {
+    return
+  }
+
+  event.stopPropagation()
+
+  if (side === 'left') {
+    leftPanelManuallyResized =
+      true
+  } else {
+    rightPanelManuallyResized =
+      true
+  }
+
+  isPanelResizing =
+    true
+
+  const handle =
+    event.currentTarget as HTMLElement | null
+
+  if (
+    handle &&
+    typeof handle.setPointerCapture === 'function'
+  ) {
+    try {
+      handle.setPointerCapture(
+        event.pointerId
+      )
+    } catch {
+      // 部分触控屏或老浏览器可能不支持 pointer capture，继续用 document 监听兜底。
+    }
+  }
+
+  const startX =
+    event.clientX
+
+  const startWidth =
+    side === 'left'
+      ? leftPanelWidth.value
+      : rightPanelWidth.value
+
+  const bounds =
+    getPanelResizeBounds(side)
+
+  const onMove =
+    (moveEvent: PointerEvent) => {
+      const deltaX =
+        moveEvent.clientX - startX
+
+      const nextWidth =
+        side === 'left'
+          ? startWidth + deltaX
+          : startWidth - deltaX
+
+      const width =
+        clamp(
+          nextWidth,
+          bounds.min,
+          bounds.max
+        )
+
+      if (side === 'left') {
+        leftPanelWidth.value =
+          width
+      } else {
+        rightPanelWidth.value =
+          width
+      }
+
+      resizeThreeSceneNow()
+    }
+
+  const finishResize =
+    () => {
+      document.removeEventListener(
+        'pointermove',
+        onMove
+      )
+
+      document.removeEventListener(
+        'pointerup',
+        finishResize
+      )
+
+      document.removeEventListener(
+        'pointercancel',
+        finishResize
+      )
+
+      document.body.classList.remove(
+        'geo-panel-resizing'
+      )
+
+      document.body.style.cursor =
+        ''
+
+      document.body.style.userSelect =
+        ''
+
+      isPanelResizing =
+        false
+
+      scheduleSceneResize(0)
+    }
+
+  document.addEventListener(
+    'pointermove',
+    onMove
+  )
+
+  document.addEventListener(
+    'pointerup',
+    finishResize,
+    {
+      once:
+        true,
+    }
+  )
+
+  document.addEventListener(
+    'pointercancel',
+    finishResize,
+    {
+      once:
+        true,
+    }
+  )
+
+  document.body.classList.add(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    'col-resize'
+
+  document.body.style.userSelect =
+    'none'
 }
 
 function toggleAllPanels() {
@@ -1280,6 +1553,13 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  document.body.classList.remove(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+
   sceneReady = false
   cancelAnimationFrame(animationId)
   pageResizeObserver?.disconnect()
@@ -1310,116 +1590,703 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /* 季节切换标签 */
-.page-subtitle { font-size: 14px; color: #64748b; font-weight: 400; margin-left: 10px; letter-spacing: 1px; }
-.replay-btn { background: linear-gradient(135deg, #2ec4b6, #247cff) !important; color: #fff !important; font-weight: 600; }
+.page-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 400;
+  margin-left: 10px;
+  letter-spacing: 1px;
+}
+
+.replay-btn {
+  background: linear-gradient(135deg, #2ec4b6, #247cff) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
 
 /* 阶段导航 */
 .stage-nav {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
-  padding: 10px 14px; background: rgba(8,12,28,0.6);
-  border-bottom: 1px solid rgba(46,196,182,0.12);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 10px 14px;
+  background: rgba(8, 12, 28, 0.6);
+  border-bottom: 1px solid rgba(46, 196, 182, 0.12);
 }
+
 .stage-nav-item {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 8px 4px; border-radius: 6px; cursor: pointer;
-  background: rgba(8,12,28,0.5); transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: rgba(8, 12, 28, 0.5);
+  transition: all 0.2s;
 }
-.stage-nav-item:hover { background: rgba(46,196,182,0.12); }
+
+.stage-nav-item:hover {
+  background: rgba(46, 196, 182, 0.12);
+}
+
 .stage-nav-item.active {
   background: linear-gradient(135deg, #2ec4b6, #247cff);
-  color: #fff; box-shadow: 0 2px 8px rgba(46,196,182,0.3);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(46, 196, 182, 0.3);
 }
-.stage-nav-item.done { border: 1px solid rgba(46,196,182,0.3); }
+
+.stage-nav-item.done {
+  border: 1px solid rgba(46, 196, 182, 0.3);
+}
+
 .stage-num {
-  width: 24px; height: 24px; border-radius: 50%; background: rgba(46,196,182,0.2);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(46, 196, 182, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
 }
-.stage-nav-item.active .stage-num { background: rgba(255,255,255,0.25); }
-.stage-name { font-size: 11px; color: #94a3b8; text-align: center; }
-.stage-nav-item.active .stage-name { color: #fff; }
+
+.stage-nav-item.active .stage-num {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.stage-name {
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.stage-nav-item.active .stage-name {
+  color: #fff;
+}
 
 /* 阶段卡片 */
-.stage-card { background: linear-gradient(135deg, rgba(46,196,182,0.08), rgba(36,124,255,0.08)) !important; }
-.stage-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.stage-card {
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.08), rgba(36, 124, 255, 0.08)) !important;
+}
+
+.stage-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
 .stage-badge {
-  padding: 2px 10px; border-radius: 10px; font-size: 11px;
-  background: linear-gradient(135deg, #2ec4b6, #247cff); color: #fff;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
+  color: #fff;
 }
-.stage-desc { font-size: 13px; color: #94a3b8; line-height: 1.7; margin: 0 0 12px; }
-.stage-points { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+
+.stage-desc {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.7;
+  margin: 0 0 12px;
+}
+
+.stage-points {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
 .step-point {
-  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  border-radius: 6px; background: rgba(8,12,28,0.5); cursor: pointer;
-  transition: all 0.2s; border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(8, 12, 28, 0.5);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
 }
-.step-point:hover { background: rgba(46,196,182,0.1); }
-.step-point.done { background: rgba(46,196,182,0.18); border-color: rgba(46,196,182,0.4); }
+
+.step-point:hover {
+  background: rgba(46, 196, 182, 0.1);
+}
+
+.step-point.done {
+  background: rgba(46, 196, 182, 0.18);
+  border-color: rgba(46, 196, 182, 0.4);
+}
+
 .step-num {
-  width: 22px; height: 22px; border-radius: 50%; background: rgba(46,196,182,0.2);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700; color: #2ec4b6; flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(46, 196, 182, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2ec4b6;
+  flex-shrink: 0;
 }
-.step-point.done .step-num { background: #2ec4b6; color: #fff; }
-.step-text { font-size: 13px; color: #cbd5e1; line-height: 1.5; }
-.stage-nav-buttons { display: flex; gap: 8px; }
-.stage-nav-buttons .theme-btn { flex: 1; }
-.stage-nav-buttons .theme-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.step-point.done .step-num {
+  background: #2ec4b6;
+  color: #fff;
+}
+
+.step-text {
+  font-size: 13px;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.stage-nav-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.stage-nav-buttons .theme-btn {
+  flex: 1;
+}
+
+.stage-nav-buttons .theme-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .season-tab {
-  padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(46,196,182,0.2);
-  background: rgba(8,12,28,0.6); color: #94a3b8; font-size: 13px;
-  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(46, 196, 182, 0.2);
+  background: rgba(8, 12, 28, 0.6);
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
 }
-.season-tab:hover { border-color: #2ec4b6; color: #cbd5e1; }
+
+.season-tab:hover {
+  border-color: #2ec4b6;
+  color: #cbd5e1;
+}
+
 .season-tab.active {
   background: linear-gradient(135deg, #2ec4b6, #247cff);
-  color: #fff; border-color: transparent;
+  color: #fff;
+  border-color: transparent;
 }
 
 /* HTML 标签覆盖层 */
-.labels-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
-.scene-label {
-  position: absolute; transform: translate(-50%, -50%);
-  font-size: 16px; font-weight: 800; white-space: nowrap;
-  background: rgba(8,12,28,0.9); padding: 5px 14px;
-  border-radius: 6px; border: 2px solid;
-  text-shadow: 0 0 6px rgba(0,0,0,0.6);
+.labels-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
 }
-.scene-label.label-low { color: #ff8800; border-color: rgba(255,136,0,0.6); }
-.scene-label.label-high { color: #ef4444; border-color: rgba(239,68,68,0.6); }
-.scene-label.label-trade { color: #fbbf24; border-color: rgba(251,191,36,0.6); }
-.scene-label.label-westerly { color: #2ec4b6; border-color: rgba(46,196,182,0.6); }
-.scene-label.label-polar { color: #a78bfa; border-color: rgba(167,139,250,0.6); }
-.scene-label.label-cell-hadley { color: #ef4444; border-color: rgba(239,68,68,0.7); font-size: 18px; }
-.scene-label.label-cell-ferrel { color: #2ec4b6; border-color: rgba(46,196,182,0.7); font-size: 18px; }
-.scene-label.label-cell-polar { color: #247cff; border-color: rgba(36,124,255,0.7); font-size: 18px; }
+
+.scene-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+  background: rgba(8, 12, 28, 0.9);
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 2px solid;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.scene-label.label-low {
+  color: #ff8800;
+  border-color: rgba(255, 136, 0, 0.6);
+}
+
+.scene-label.label-high {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+.scene-label.label-trade {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.6);
+}
+
+.scene-label.label-westerly {
+  color: #2ec4b6;
+  border-color: rgba(46, 196, 182, 0.6);
+}
+
+.scene-label.label-polar {
+  color: #a78bfa;
+  border-color: rgba(167, 139, 250, 0.6);
+}
+
+.scene-label.label-cell-hadley {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.7);
+  font-size: 18px;
+}
+
+.scene-label.label-cell-ferrel {
+  color: #2ec4b6;
+  border-color: rgba(46, 196, 182, 0.7);
+  font-size: 18px;
+}
+
+.scene-label.label-cell-polar {
+  color: #247cff;
+  border-color: rgba(36, 124, 255, 0.7);
+  font-size: 18px;
+}
 
 /* 知识点卡片 */
-.knowledge-card { margin-bottom: 14px; }
-.kp-content { font-size: 13px; color: #94a3b8; line-height: 1.8; }
-.kp-content :deep(strong) { color: #fbbf24; }
+.knowledge-card {
+  margin-bottom: 14px;
+}
+
+.kp-content {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.8;
+}
+
+.kp-content :deep(strong) {
+  color: #fbbf24;
+}
 
 /* 风带列表 */
-.wind-list { display: flex; flex-direction: column; gap: 6px; }
-.wind-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 12px; border-radius: 6px; border: 1px solid transparent;
-  background: rgba(8,12,28,0.4);
+.wind-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.wind-icon { font-size: 16px; }
-.wind-info { flex: 1; display: flex; flex-direction: column; }
-.wind-name { font-size: 13px; color: #cbd5e1; }
-.wind-range { font-size: 11px; color: #64748b; }
-.wind-dir { font-size: 11px; color: #2ec4b6; font-weight: 600; }
-.wind-item.pressure-low .wind-icon { color: #ff8800; }
-.wind-item.pressure-high .wind-icon { color: #ef4444; }
+
+.wind-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: rgba(8, 12, 28, 0.4);
+}
+
+.wind-icon {
+  font-size: 16px;
+}
+
+.wind-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.wind-name {
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.wind-range {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.wind-dir {
+  font-size: 11px;
+  color: #2ec4b6;
+  font-weight: 600;
+}
+
+.wind-item.pressure-low .wind-icon {
+  color: #ff8800;
+}
+
+.wind-item.pressure-high .wind-icon {
+  color: #ef4444;
+}
 
 /* 图例 */
-.legend-list { display: flex; flex-direction: column; gap: 6px; }
-.legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; }
-.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.legend-line { width: 16px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+.legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-line {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
 
 /* 时间轴文案 */
-.timeline-copy strong { color: #2ec4b6; }
+.timeline-copy strong {
+  color: #2ec4b6;
+}
+
+/* ===================== v2: 面板拖拽上限 + 右侧卡片边距 + 顶部按钮修正 =====================
+   - 普通 1920 不再拥有 2200+ 的最大拖拽宽度；
+   - 右侧教学流程卡片增加外边距，避免贴着面板边；
+   - 顶部“从头演示”按钮增加 min-width 和 padding，文字不再挤满按钮。
+*/
+.general-atmospheric-circulation-container .resize-handle {
+  touch-action:
+    none;
+}
+
+body.geo-panel-resizing {
+  cursor:
+    col-resize !important;
+  user-select:
+    none !important;
+}
+
+/* 顶部按钮区域 */
+.general-atmospheric-circulation-container .toolbar-actions {
+  gap:
+    clamp(8px, 0.8vw, 14px) !important;
+  align-items:
+    center;
+}
+
+.general-atmospheric-circulation-container .replay-btn {
+  display:
+    inline-flex !important;
+  align-items:
+    center;
+  justify-content:
+    center;
+  gap:
+    7px;
+  width:
+    auto !important;
+  min-width:
+    126px !important;
+  max-width:
+    none !important;
+  padding:
+    0 18px !important;
+  white-space:
+    nowrap !important;
+  flex:
+    0 0 auto !important;
+  line-height:
+    1 !important;
+}
+
+.general-atmospheric-circulation-container .replay-icon {
+  flex:
+    0 0 auto;
+  font-size:
+    13px;
+}
+
+.general-atmospheric-circulation-container .replay-text {
+  flex:
+    0 0 auto;
+  letter-spacing:
+    0.02em;
+}
+
+.general-atmospheric-circulation-container .panel-toolbar-btn {
+  min-width:
+    96px !important;
+  padding-inline:
+    14px !important;
+  white-space:
+    nowrap !important;
+}
+
+/* 右侧教学流程：卡片不要贴边 */
+.general-atmospheric-circulation-container .right-panel .panel-scroll {
+  padding-bottom:
+    clamp(18px, 2vh, 28px);
+}
+
+.general-atmospheric-circulation-container .right-panel .stage-nav {
+  margin:
+    10px clamp(12px, 1vw, 18px) 12px !important;
+  border-radius:
+    14px;
+  border:
+    1px solid rgba(46, 196, 182, 0.12);
+  overflow:
+    hidden;
+}
+
+.general-atmospheric-circulation-container .right-panel .stage-card,
+.general-atmospheric-circulation-container .right-panel .knowledge-card {
+  margin:
+    0 clamp(12px, 1vw, 18px) clamp(12px, 1vw, 18px) !important;
+}
+
+.general-atmospheric-circulation-container .right-panel .stage-card {
+  padding:
+    clamp(14px, 1vw, 18px) !important;
+}
+
+.general-atmospheric-circulation-container .right-panel .knowledge-card {
+  padding:
+    clamp(14px, 1vw, 18px) !important;
+}
+
+.general-atmospheric-circulation-container .stage-nav-buttons {
+  gap:
+    10px !important;
+  margin-top:
+    14px;
+}
+
+.general-atmospheric-circulation-container .stage-nav-buttons .theme-btn {
+  min-width:
+    0;
+  min-height:
+    36px;
+  padding-inline:
+    12px !important;
+  white-space:
+    nowrap;
+}
+
+/* 中小屏按钮继续收敛，但不挤字 */
+@media (max-width: 1280px) {
+  .general-atmospheric-circulation-container .replay-btn {
+    min-width:
+      118px !important;
+    padding:
+      0 16px !important;
+  }
+
+  .general-atmospheric-circulation-container .right-panel .stage-nav,
+  .general-atmospheric-circulation-container .right-panel .stage-card,
+  .general-atmospheric-circulation-container .right-panel .knowledge-card {
+    margin-left:
+      12px !important;
+    margin-right:
+      12px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .general-atmospheric-circulation-container .toolbar-actions {
+    gap:
+      6px !important;
+  }
+
+  .general-atmospheric-circulation-container .replay-btn {
+    min-width:
+      108px !important;
+    padding:
+      0 12px !important;
+  }
+
+  .general-atmospheric-circulation-container .replay-text {
+    font-size:
+      12px;
+  }
+
+  .general-atmospheric-circulation-container .panel-toolbar-btn {
+    min-width:
+      86px !important;
+  }
+}
+
+
+/* ===================== v3: 右上角从头演示按钮不被压缩 =====================
+   v2 只设置了 min-width，但 1920 下仍然会被公共 toolbar / flex 规则压缩。
+   这版把“从头演示”固定为独立胶囊按钮：
+   - flex: 0 0 148px，不参与压缩；
+   - width / min-width / max-width 同步；
+   - height / min-height 固定；
+   - 文本 nowrap，不让内容挤满按钮。
+*/
+.general-atmospheric-circulation-container .top-toolbar .toolbar-actions {
+  display:
+    flex !important;
+  align-items:
+    center !important;
+  justify-content:
+    flex-end !important;
+  gap:
+    14px !important;
+  min-width:
+    max-content !important;
+  flex:
+    0 0 auto !important;
+}
+
+.general-atmospheric-circulation-container .top-toolbar .toolbar-actions .replay-btn.theme-btn.primary {
+  display:
+    inline-flex !important;
+  align-items:
+    center !important;
+  justify-content:
+    center !important;
+  gap:
+    8px !important;
+  flex:
+    0 0 148px !important;
+  width:
+    148px !important;
+  min-width:
+    148px !important;
+  max-width:
+    148px !important;
+  height:
+    34px !important;
+  min-height:
+    34px !important;
+  max-height:
+    34px !important;
+  padding:
+    0 18px !important;
+  box-sizing:
+    border-box !important;
+  border-radius:
+    999px !important;
+  white-space:
+    nowrap !important;
+  overflow:
+    visible !important;
+  line-height:
+    1 !important;
+  font-size:
+    14px !important;
+  font-weight:
+    700 !important;
+  letter-spacing:
+    0.02em !important;
+}
+
+.general-atmospheric-circulation-container .top-toolbar .toolbar-actions .replay-btn .replay-icon {
+  display:
+    inline-flex;
+  align-items:
+    center;
+  justify-content:
+    center;
+  flex:
+    0 0 auto;
+  width:
+    14px;
+  font-size:
+    13px;
+  line-height:
+    1;
+}
+
+.general-atmospheric-circulation-container .top-toolbar .toolbar-actions .replay-btn .replay-text {
+  display:
+    inline-block;
+  flex:
+    0 0 auto;
+  min-width:
+    max-content;
+  white-space:
+    nowrap;
+  line-height:
+    1;
+}
+
+.general-atmospheric-circulation-container .top-toolbar .toolbar-actions .panel-toolbar-btn {
+  flex:
+    0 0 104px !important;
+  width:
+    104px !important;
+  min-width:
+    104px !important;
+  max-width:
+    104px !important;
+  height:
+    34px !important;
+  min-height:
+    34px !important;
+  padding:
+    0 14px !important;
+  box-sizing:
+    border-box !important;
+  white-space:
+    nowrap !important;
+}
+
+/* 1920 普通屏保持正常胶囊尺寸，不走更小按钮 */
+@media (min-width: 1440px) {
+  .general-atmospheric-circulation-container .top-toolbar .toolbar-actions .replay-btn.theme-btn.primary {
+    flex-basis:
+      148px !important;
+    width:
+      148px !important;
+    min-width:
+      148px !important;
+    max-width:
+      148px !important;
+    height:
+      34px !important;
+  }
+}
+
+/* 只有真正窄屏才略微收窄，但仍然不压文字 */
+@media (max-width: 760px) {
+  .general-atmospheric-circulation-container .top-toolbar .toolbar-actions {
+    gap:
+      8px !important;
+  }
+
+  .general-atmospheric-circulation-container .top-toolbar .toolbar-actions .replay-btn.theme-btn.primary {
+    flex-basis:
+      128px !important;
+    width:
+      128px !important;
+    min-width:
+      128px !important;
+    max-width:
+      128px !important;
+    height:
+      32px !important;
+    min-height:
+      32px !important;
+    padding:
+      0 12px !important;
+    font-size:
+      13px !important;
+  }
+
+  .general-atmospheric-circulation-container .top-toolbar .toolbar-actions .panel-toolbar-btn {
+    flex-basis:
+      92px !important;
+    width:
+      92px !important;
+    min-width:
+      92px !important;
+    max-width:
+      92px !important;
+    height:
+      32px !important;
+    min-height:
+      32px !important;
+  }
+}
 </style>

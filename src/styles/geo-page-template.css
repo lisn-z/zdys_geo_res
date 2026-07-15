@@ -4050,3 +4050,1118 @@
   border-radius:
     0 !important;
 }
+
+/* =========================================================
+   希沃 / 4K 大屏适配 V19
+   说明：
+   - 改公共模板 geo-page-template.css，不改具体业务组件
+   - 命中常见希沃 / 教室大屏：1920×1080 CSS 视口、2K、4K、16:9 横屏
+   - 大屏下左右面板更宽，公共字号整体提高
+   - 对 layout-floating 和普通三栏 grid 都生效
+   ========================================================= */
+
+@media (min-width: 2200px) and (min-height: 1200px) and (min-aspect-ratio: 16 / 10) {
+  .geo-template-page {
+    --seewo-left-panel-width:
+      clamp(420px, 20vw, 620px);
+
+    --seewo-right-panel-width:
+      clamp(480px, 22vw, 700px);
+
+    --seewo-panel-padding:
+      clamp(16px, 0.86vw, 28px);
+
+    --seewo-card-padding:
+      clamp(15px, 0.82vw, 24px);
+
+    --seewo-radius:
+      clamp(16px, 0.82vw, 22px);
+
+    --font-size-xxs:
+      clamp(11px, 0.38vw, 16px);
+
+    --font-size-xs:
+      clamp(12px, 0.44vw, 18px);
+
+    --font-size-sm:
+      clamp(13px, 0.50vw, 20px);
+
+    --font-size-base:
+      clamp(14px, 0.56vw, 22px);
+
+    --font-size-md:
+      clamp(17px, 0.68vw, 26px);
+
+    --font-size-lg:
+      clamp(22px, 0.96vw, 36px);
+
+    --font-size-xl:
+      clamp(26px, 1.10vw, 42px);
+  }
+
+  /* =====================
+     普通 grid 三栏布局：
+     左右面板在希沃上更宽
+     ===================== */
+
+  .geo-template-page.layout-large .workspace.has-left.has-right {
+    grid-template-columns:
+      var(--seewo-left-panel-width) minmax(0, 1fr) var(--seewo-right-panel-width);
+  }
+
+  .geo-template-page.layout-large .workspace.has-left:not(.has-right) {
+    grid-template-columns:
+      var(--seewo-left-panel-width) minmax(0, 1fr);
+  }
+
+  .geo-template-page.layout-large .workspace.has-right:not(.has-left) {
+    grid-template-columns:
+      minmax(0, 1fr) var(--seewo-right-panel-width);
+  }
+
+  /* =====================
+     悬浮布局：
+     不依赖业务 JS 的 leftPanelWidth / rightPanelWidth，
+     直接在公共 CSS 里放大左右面板
+     ===================== */
+
+  .geo-template-page.layout-floating.layout-large .left-panel {
+    width:
+      var(--seewo-left-panel-width) !important;
+  }
+
+  .geo-template-page.layout-floating.layout-large .right-panel {
+    width:
+      var(--seewo-right-panel-width) !important;
+  }
+
+  .geo-template-page.layout-floating.layout-medium .side-panel {
+    max-width:
+      min(64vw, 720px);
+  }
+
+  .geo-template-page.layout-floating.layout-medium .left-panel {
+    width:
+      clamp(360px, 34vw, 560px) !important;
+  }
+
+  .geo-template-page.layout-floating.layout-medium .right-panel {
+    width:
+      clamp(400px, 38vw, 640px) !important;
+  }
+
+  /* 面板内部留白和圆角放大，远距离更舒服 */
+  .geo-template-page .panel-scroll {
+    padding:
+      var(--seewo-panel-padding);
+  }
+
+  .geo-template-page .side-panel {
+    border-radius:
+      var(--seewo-radius);
+  }
+
+  .geo-template-page .geo-card,
+  .geo-template-page .control-section,
+  .geo-template-page .empty-control-card,
+  .geo-template-page .data-card,
+  .geo-template-page .analysis-collapse .el-collapse-item {
+    border-radius:
+      var(--seewo-radius);
+  }
+
+  .geo-template-page .control-section,
+  .geo-template-page .empty-control-card,
+  .geo-template-page .data-card {
+    padding:
+      var(--seewo-card-padding);
+  }
+
+  /* =====================
+     Header / Logo / 顶部按钮
+     ===================== */
+
+  .geo-template-page .top-toolbar {
+    --header-side-reserve:
+      clamp(300px, 14vw, 460px);
+
+    min-height:
+      clamp(72px, 4.2vw, 92px);
+    padding:
+      0 clamp(18px, 1vw, 32px);
+  }
+
+  .geo-template-page .brand-logo {
+    width:
+      clamp(260px, 11vw, 380px);
+    max-height:
+      clamp(64px, 3.8vw, 84px);
+  }
+
+  .geo-template-page .page-title {
+    font-size:
+      var(--font-size-xl);
+    letter-spacing:
+      0.08em;
+  }
+
+  .geo-template-page .toolbar-actions {
+    gap:
+      clamp(8px, 0.48vw, 16px);
+  }
+
+  .geo-template-page .toolbar-btn {
+    min-width:
+      clamp(112px, 5vw, 168px);
+    height:
+      clamp(42px, 2.4vw, 56px);
+    padding:
+      0 clamp(12px, 0.68vw, 22px);
+    font-size:
+      var(--font-size-sm);
+    border-radius:
+      clamp(11px, 0.56vw, 16px);
+  }
+
+  /* =====================
+     左右面板公共字号
+     ===================== */
+
+  .geo-template-page .panel-heading {
+    padding-bottom:
+      clamp(14px, 0.78vw, 24px);
+  }
+
+  .geo-template-page .panel-heading h2 {
+    font-size:
+      var(--font-size-md);
+  }
+
+  .geo-template-page .panel-heading p {
+    font-size:
+      var(--font-size-xs);
+  }
+
+  .geo-template-page .panel-badge {
+    font-size:
+      var(--font-size-xxs);
+  }
+
+  .geo-template-page .section-title {
+    font-size:
+      var(--font-size-base);
+  }
+
+  .geo-template-page .control-value,
+  .geo-template-page .mini-control-label,
+  .geo-template-page .control-copy strong {
+    font-size:
+      var(--font-size-sm);
+  }
+
+  .geo-template-page .control-copy span,
+  .geo-template-page .empty-control-card p,
+  .geo-template-page .analysis-collapse .el-collapse-item__content {
+    font-size:
+      var(--font-size-xs);
+    line-height:
+      1.72;
+  }
+
+  /* =====================
+     按钮 / 表单 / Element Plus
+     ===================== */
+
+  .geo-template-page .option-btn,
+  .geo-template-page .reset-scene-btn,
+  .geo-template-page .speed-btn {
+    font-size:
+      var(--font-size-xs);
+    border-radius:
+      clamp(10px, 0.52vw, 15px);
+  }
+
+  .geo-template-page .option-btn {
+    min-height:
+      clamp(40px, 2.1vw, 54px);
+    padding:
+      clamp(10px, 0.52vw, 16px) clamp(10px, 0.62vw, 20px);
+  }
+
+  .geo-template-page .reset-scene-btn {
+    min-height:
+      clamp(42px, 2.2vw, 56px);
+  }
+
+  .geo-template-page .speed-btn {
+    min-width:
+      clamp(42px, 2.1vw, 58px);
+    padding:
+      clamp(8px, 0.44vw, 13px);
+  }
+
+  .geo-template-page .el-select__wrapper,
+  .geo-template-page .el-input__wrapper {
+    min-height:
+      clamp(40px, 2.15vw, 54px);
+    border-radius:
+      clamp(10px, 0.52vw, 14px);
+  }
+
+  .geo-template-page .el-select__selected-item,
+  .geo-template-page .el-input__inner,
+  .geo-select-popper .el-select-dropdown__item {
+    font-size:
+      var(--font-size-sm);
+  }
+
+  .geo-template-page .el-slider__runway,
+  .geo-template-page .el-slider__bar {
+    height:
+      6px;
+  }
+
+  .geo-template-page .el-slider__button {
+    width:
+      15px;
+    height:
+      15px;
+  }
+
+  .geo-template-page .el-switch__core {
+    min-width:
+      48px;
+    height:
+      26px;
+  }
+
+  .geo-template-page .el-switch__action {
+    width:
+      22px;
+    height:
+      22px;
+  }
+
+  /* =====================
+     数据卡片 / 折叠面板 / 时间轴
+     ===================== */
+
+  .geo-template-page .data-grid {
+    gap:
+      clamp(10px, 0.62vw, 18px);
+  }
+
+  .geo-template-page .data-card span {
+    font-size:
+      var(--font-size-xs);
+  }
+
+  .geo-template-page .data-card strong {
+    font-size:
+      var(--font-size-lg);
+  }
+
+  .geo-template-page .data-card small {
+    font-size:
+      var(--font-size-xxs);
+  }
+
+  .geo-template-page .analysis-collapse .el-collapse-item__header {
+    height:
+      clamp(48px, 2.55vw, 64px);
+    font-size:
+      var(--font-size-sm);
+  }
+
+  .geo-template-page .timeline-dock {
+    width:
+      min(1040px, calc(100% - 48px));
+    min-height:
+      clamp(64px, 3.4vw, 86px);
+    padding:
+      clamp(12px, 0.64vw, 20px) clamp(18px, 0.94vw, 30px);
+    border-radius:
+      clamp(18px, 0.92vw, 26px);
+  }
+
+  .geo-template-page .timeline-icon-btn {
+    width:
+      clamp(46px, 2.4vw, 62px);
+    height:
+      clamp(46px, 2.4vw, 62px);
+    font-size:
+      clamp(22px, 1vw, 30px);
+  }
+
+  .geo-template-page .timeline-copy {
+    font-size:
+      var(--font-size-xxs);
+  }
+
+  /* =====================
+     展开 / 收起 / 拖拽手柄：希沃触控友好
+     ===================== */
+
+  .geo-template-page .panel-collapse-btn,
+  .geo-template-page .panel-entry-btn {
+    width:
+      clamp(36px, 1.8vw, 52px);
+    height:
+      clamp(68px, 3.6vw, 88px);
+    font-size:
+      clamp(30px, 1.35vw, 42px);
+  }
+
+  .geo-template-page .collapse-left {
+    right:
+      calc(-1 * clamp(36px, 1.8vw, 52px));
+  }
+
+  .geo-template-page .collapse-right {
+    left:
+      calc(-1 * clamp(36px, 1.8vw, 52px));
+  }
+
+  .geo-template-page .resize-handle {
+    width:
+      18px;
+  }
+
+  .geo-template-page .resize-right {
+    right:
+      -9px;
+  }
+
+  .geo-template-page .resize-left {
+    left:
+      -9px;
+  }
+
+  /* =====================
+     常见业务类兜底：
+     这些类出现在多个地理课件里，放公共 CSS 里做大屏字号兜底。
+     不影响没有这些类的页面。
+     ===================== */
+
+  .geo-template-page .problem-text,
+  .geo-template-page .question-text,
+  .geo-template-page .answer-title {
+    font-size:
+      var(--font-size-md);
+    line-height:
+      1.8;
+  }
+
+  .geo-template-page .feedback-text,
+  .geo-template-page .kp-content,
+  .geo-template-page .diag-row,
+  .geo-template-page .diag-skill,
+  .geo-template-page .info-sub,
+  .geo-template-page .preview-label,
+  .geo-template-page .preview-val,
+  .geo-template-page .city-item-name,
+  .geo-template-page .city-item-time,
+  .geo-template-page .legend-item,
+  .geo-template-page .axis-label,
+  .geo-template-page .tick-label,
+  .geo-template-page .time-mark {
+    font-size:
+      var(--font-size-xs);
+  }
+
+  .geo-template-page .info-title,
+  .geo-template-page .preview-name,
+  .geo-template-page .kp-title {
+    font-size:
+      var(--font-size-md);
+  }
+
+  .geo-template-page .time-dock-value,
+  .geo-template-page .ab-time {
+    font-size:
+      var(--font-size-lg);
+  }
+}
+
+/* 2560×1440、2K 大屏也给一个轻量增强，不像希沃那样大幅放大 */
+@media (min-width: 2200px) and (min-height: 1200px) and (max-width: 3200px) {
+  .geo-template-page:not(.layout-small) {
+    --font-size-xxs:
+      clamp(10px, 0.34vw, 14px);
+
+    --font-size-xs:
+      clamp(11px, 0.40vw, 16px);
+
+    --font-size-sm:
+      clamp(12px, 0.46vw, 18px);
+
+    --font-size-base:
+      clamp(13px, 0.52vw, 20px);
+
+    --font-size-md:
+      clamp(16px, 0.62vw, 24px);
+
+    --font-size-lg:
+      clamp(20px, 0.82vw, 32px);
+  }
+
+  .geo-template-page.layout-floating.layout-large .left-panel {
+    width:
+      clamp(380px, 18vw, 560px) !important;
+  }
+
+  .geo-template-page.layout-floating.layout-large .right-panel {
+    width:
+      clamp(420px, 20vw, 640px) !important;
+  }
+}
+
+/* 保险：小屏和平板竖屏不吃希沃大屏增强 */
+@media (max-width: 1279px),
+(max-height: 820px),
+(max-aspect-ratio: 4 / 3) {
+
+  .geo-template-page.layout-small .side-panel,
+  .geo-template-page.layout-medium .side-panel {
+    max-width:
+      inherit;
+  }
+}
+
+/* =========================================================
+   希沃 / 4K 大屏适配修正 V20
+   修正点：
+   1. 不再建议业务组件单独加 seewoMode，统一放公共模板处理
+   2. 覆盖内联 --left-panel-width / --right-panel-width，让业务悬浮面板避让宽度同步
+   3. 修复 layout-floating 下收起按钮只偏移旧宽度，导致按钮卡在面板上一半
+   4. 提供公共安全区变量，业务组件可用 var(--geo-stage-safe-left/right)
+   ========================================================= */
+
+@media (min-width: 2200px) and (min-height: 1200px) and (min-aspect-ratio: 16 / 10) {
+
+  /*
+   * 关键：
+   * 很多业务组件会在根节点 inline style 里写：
+   * --left-panel-width: xxxpx;
+   * --right-panel-width: xxxpx;
+   *
+   * v19 只把模板面板视觉宽度变大了，
+   * 但业务组件内部悬浮图例 / 底部轴仍然按旧变量避让，
+   * 所以会被左右面板盖住。
+   *
+   * 这里用 !important 覆盖公共变量，
+   * 让模板面板宽度和业务悬浮层避让宽度保持一致。
+   */
+  .geo-template-page.layout-large {
+    --left-panel-width:
+      var(--seewo-left-panel-width) !important;
+
+    --right-panel-width:
+      var(--seewo-right-panel-width) !important;
+
+    --geo-stage-gap:
+      clamp(18px, 1vw, 32px);
+
+    --geo-stage-safe-left:
+      calc(var(--left-panel-width, 0px) + var(--geo-stage-gap));
+
+    --geo-stage-safe-right:
+      calc(var(--right-panel-width, 0px) + var(--geo-stage-gap));
+
+    --geo-stage-safe-top:
+      calc(clamp(72px, 4.2vw, 92px) + var(--geo-stage-gap));
+
+    --geo-stage-safe-bottom:
+      clamp(96px, 5.2vw, 148px);
+  }
+
+  /*
+   * 普通 grid 也统一吃变量。
+   * 这样不用额外写死 grid-template-columns。
+   */
+  .geo-template-page.layout-large .workspace.has-left.has-right {
+    grid-template-columns:
+      var(--left-panel-width) minmax(0, 1fr) var(--right-panel-width) !important;
+  }
+
+  .geo-template-page.layout-large .workspace.has-left:not(.has-right) {
+    grid-template-columns:
+      var(--left-panel-width) minmax(0, 1fr) !important;
+  }
+
+  .geo-template-page.layout-large .workspace.has-right:not(.has-left) {
+    grid-template-columns:
+      minmax(0, 1fr) var(--right-panel-width) !important;
+  }
+
+  /*
+   * 悬浮布局也统一吃变量。
+   * 不再让视觉面板宽度和业务避让变量分离。
+   */
+  .geo-template-page.layout-floating.layout-large .left-panel {
+    width:
+      var(--left-panel-width) !important;
+  }
+
+  .geo-template-page.layout-floating.layout-large .right-panel {
+    width:
+      var(--right-panel-width) !important;
+  }
+
+  /*
+   * 修复收起按钮卡一半：
+   * 原公共模板里有：
+   * .geo-template-page.layout-floating .collapse-left {
+   *   right: calc(-1 * clamp(22px, 1.8vw, 26px));
+   * }
+   *
+   * v19 把按钮宽度放大到了 36~52px，
+   * 但这个更高优先级的旧偏移还在生效，
+   * 所以按钮只出去 22~26px，剩下一半压在面板上。
+   */
+  .geo-template-page.layout-floating .collapse-left,
+  .geo-template-page.layout-large .collapse-left {
+    right:
+      calc(-1 * clamp(36px, 1.8vw, 52px)) !important;
+  }
+
+  .geo-template-page.layout-floating .collapse-right,
+  .geo-template-page.layout-large .collapse-right {
+    left:
+      calc(-1 * clamp(36px, 1.8vw, 52px)) !important;
+  }
+
+  .geo-template-page.layout-floating .panel-collapse-btn,
+  .geo-template-page.layout-large .panel-collapse-btn,
+  .geo-template-page.layout-floating .panel-entry-btn,
+  .geo-template-page.layout-large .panel-entry-btn {
+    width:
+      clamp(36px, 1.8vw, 52px) !important;
+    height:
+      clamp(68px, 3.6vw, 88px) !important;
+  }
+
+  /*
+   * 业务悬浮层兜底：
+   * 常见的主场景悬浮卡片 / 图例 / 底部操作条，如果已经使用
+   * --left-panel-width / --right-panel-width，会自动被上面的变量修复。
+   *
+   * 下面是额外兜底，针对一些业务里写死 left/right 的悬浮卡片。
+   */
+  .geo-template-page.layout-floating.layout-large .stage-content>.scene-legend-card,
+  .geo-template-page.layout-floating.layout-large .center-stage>.scene-legend-card,
+  .geo-template-page.layout-floating.layout-large .scene-host>.scene-legend-card {
+    left:
+      var(--geo-stage-safe-left) !important;
+  }
+
+  .geo-template-page.layout-floating.layout-large .stage-content>.bottom-dock-stack,
+  .geo-template-page.layout-floating.layout-large .center-stage>.bottom-dock-stack,
+  .geo-template-page.layout-floating.layout-large .scene-host>.bottom-dock-stack {
+    left:
+      var(--geo-stage-safe-left) !important;
+    right:
+      var(--geo-stage-safe-right) !important;
+  }
+
+  /*
+   * 常见右上角业务浮层兜底。
+   * 避免右侧面板变宽后压住业务信息卡。
+   */
+  .geo-template-page.layout-floating.layout-large .stage-content>.floating-right-card,
+  .geo-template-page.layout-floating.layout-large .stage-content>.scene-right-card,
+  .geo-template-page.layout-floating.layout-large .center-stage>.floating-right-card,
+  .geo-template-page.layout-floating.layout-large .center-stage>.scene-right-card {
+    right:
+      var(--geo-stage-safe-right) !important;
+  }
+
+  /*
+   * 常见左上角业务浮层兜底。
+   */
+  .geo-template-page.layout-floating.layout-large .stage-content>.floating-left-card,
+  .geo-template-page.layout-floating.layout-large .stage-content>.scene-left-card,
+  .geo-template-page.layout-floating.layout-large .center-stage>.floating-left-card,
+  .geo-template-page.layout-floating.layout-large .center-stage>.scene-left-card {
+    left:
+      var(--geo-stage-safe-left) !important;
+  }
+}
+
+/*
+ * 2K 大屏的轻量修正：
+ * 同样同步变量，避免 v19 中 2K 面板视觉宽度和业务避让变量不一致。
+ */
+@media (min-width: 2200px) and (min-height: 1200px) and (max-width: 3200px) {
+  .geo-template-page.layout-floating.layout-large {
+    --left-panel-width:
+      clamp(380px, 18vw, 560px) !important;
+
+    --right-panel-width:
+      clamp(420px, 20vw, 640px) !important;
+
+    --geo-stage-gap:
+      clamp(16px, 0.9vw, 28px);
+
+    --geo-stage-safe-left:
+      calc(var(--left-panel-width, 0px) + var(--geo-stage-gap));
+
+    --geo-stage-safe-right:
+      calc(var(--right-panel-width, 0px) + var(--geo-stage-gap));
+  }
+
+  .geo-template-page.layout-floating.layout-large .left-panel {
+    width:
+      var(--left-panel-width) !important;
+  }
+
+  .geo-template-page.layout-floating.layout-large .right-panel {
+    width:
+      var(--right-panel-width) !important;
+  }
+
+  .geo-template-page.layout-floating.layout-large .collapse-left {
+    right:
+      calc(-1 * clamp(34px, 1.5vw, 48px)) !important;
+  }
+
+  .geo-template-page.layout-floating.layout-large .collapse-right {
+    left:
+      calc(-1 * clamp(34px, 1.5vw, 48px)) !important;
+  }
+}
+
+/* =========================================================
+   大屏封装控件字号增强 V21
+   说明：
+   - 只改公共模板 geo-page-template.css
+   - 不改业务组件
+   - 在希沃 / 4K / 2K 大屏下，把封装控件字体再放大一档
+   - 覆盖 theme-btn、toolbar-btn、option-btn、Element 输入框、下拉框、折叠面板、数据卡片、时间轴等
+   ========================================================= */
+
+@media (min-width: 2200px) and (min-height: 1200px) and (min-aspect-ratio: 16 / 10) {
+  .geo-template-page {
+    --font-size-xxs:
+      clamp(13px, 0.44vw, 18px);
+
+    --font-size-xs:
+      clamp(14px, 0.50vw, 20px);
+
+    --font-size-sm:
+      clamp(15px, 0.58vw, 22px);
+
+    --font-size-base:
+      clamp(16px, 0.64vw, 24px);
+
+    --font-size-md:
+      clamp(19px, 0.76vw, 30px);
+
+    --font-size-lg:
+      clamp(24px, 1.02vw, 40px);
+
+    --font-size-xl:
+      clamp(30px, 1.20vw, 46px);
+  }
+
+  /* 顶部封装按钮 */
+  .geo-template-page .toolbar-btn,
+  .geo-template-page .top-toolbar .theme-btn {
+    min-width:
+      clamp(128px, 5.4vw, 188px);
+    height:
+      clamp(48px, 2.55vw, 64px);
+    padding:
+      0 clamp(16px, 0.78vw, 28px);
+    font-size:
+      var(--font-size-base) !important;
+    font-weight:
+      800;
+    border-radius:
+      clamp(13px, 0.62vw, 18px);
+  }
+
+  /* 普通封装按钮、选项按钮、重置按钮、速度按钮 */
+  .geo-template-page .theme-btn,
+  .geo-template-page .option-btn,
+  .geo-template-page .reset-scene-btn,
+  .geo-template-page .speed-btn {
+    font-size:
+      var(--font-size-sm) !important;
+    font-weight:
+      800;
+  }
+
+  .geo-template-page .option-btn {
+    min-height:
+      clamp(46px, 2.35vw, 62px);
+    padding:
+      clamp(12px, 0.62vw, 20px) clamp(14px, 0.72vw, 24px);
+  }
+
+  .geo-template-page .reset-scene-btn {
+    min-height:
+      clamp(48px, 2.45vw, 64px);
+  }
+
+  .geo-template-page .speed-btn {
+    min-width:
+      clamp(50px, 2.35vw, 68px);
+    min-height:
+      clamp(42px, 2.1vw, 56px);
+  }
+
+  /* 面板封装标题、说明、控制行 */
+  .geo-template-page .panel-heading h2 {
+    font-size:
+      var(--font-size-lg) !important;
+  }
+
+  .geo-template-page .panel-heading p {
+    font-size:
+      var(--font-size-sm) !important;
+  }
+
+  .geo-template-page .panel-badge {
+    font-size:
+      var(--font-size-xs) !important;
+  }
+
+  .geo-template-page .section-title,
+  .geo-template-page .compact-title-row,
+  .geo-template-page .preset-title {
+    font-size:
+      var(--font-size-md) !important;
+  }
+
+  .geo-template-page .control-value,
+  .geo-template-page .mini-control-label,
+  .geo-template-page .control-copy strong,
+  .geo-template-page .switch-row,
+  .geo-template-page .color-control-row,
+  .geo-template-page .number-control-row {
+    font-size:
+      var(--font-size-sm) !important;
+  }
+
+  .geo-template-page .control-copy span,
+  .geo-template-page .empty-control-card p {
+    font-size:
+      var(--font-size-xs) !important;
+    line-height:
+      1.75;
+  }
+
+  /* Element Plus 输入框、下拉框、数字输入框 */
+  .geo-template-page .el-select__wrapper,
+  .geo-template-page .el-input__wrapper {
+    min-height:
+      clamp(46px, 2.35vw, 62px);
+    border-radius:
+      clamp(12px, 0.58vw, 18px);
+  }
+
+  .geo-template-page .el-select__selected-item,
+  .geo-template-page .el-input__inner,
+  .geo-template-page .el-input-number .el-input__inner {
+    font-size:
+      var(--font-size-sm) !important;
+    font-weight:
+      700;
+  }
+
+  .geo-template-page .el-input-number__increase,
+  .geo-template-page .el-input-number__decrease {
+    width:
+      clamp(36px, 1.6vw, 48px);
+    font-size:
+      var(--font-size-sm);
+  }
+
+  .geo-select-popper .el-select-dropdown__item {
+    height:
+      clamp(42px, 2vw, 54px);
+    padding:
+      0 clamp(16px, 0.72vw, 24px);
+    font-size:
+      var(--font-size-sm) !important;
+    line-height:
+      clamp(42px, 2vw, 54px);
+  }
+
+  /* Element Plus 折叠面板 */
+  .geo-template-page .analysis-collapse .el-collapse-item__header {
+    height:
+      clamp(56px, 2.75vw, 72px);
+    padding:
+      0 clamp(16px, 0.78vw, 26px);
+    font-size:
+      var(--font-size-base) !important;
+  }
+
+  .geo-template-page .analysis-collapse .el-collapse-item__content {
+    padding:
+      0 clamp(16px, 0.78vw, 26px) clamp(16px, 0.78vw, 26px);
+    font-size:
+      var(--font-size-sm) !important;
+    line-height:
+      1.78;
+  }
+
+  /* Element Plus 开关、滑块，主要放大可触控区域 */
+  .geo-template-page .el-switch__core {
+    min-width:
+      56px;
+    height:
+      30px;
+  }
+
+  .geo-template-page .el-switch__action {
+    width:
+      26px;
+    height:
+      26px;
+  }
+
+  .geo-template-page .el-slider__runway,
+  .geo-template-page .el-slider__bar {
+    height:
+      7px;
+  }
+
+  .geo-template-page .el-slider__button {
+    width:
+      18px;
+    height:
+      18px;
+  }
+
+  /* 数据卡片、时间轴封装控件 */
+  .geo-template-page .data-card span {
+    font-size:
+      var(--font-size-sm) !important;
+  }
+
+  .geo-template-page .data-card strong {
+    font-size:
+      var(--font-size-lg) !important;
+  }
+
+  .geo-template-page .data-card small {
+    font-size:
+      var(--font-size-xs) !important;
+  }
+
+  .geo-template-page .timeline-copy {
+    font-size:
+      var(--font-size-xs) !important;
+  }
+
+  .geo-template-page .timeline-copy strong {
+    font-size:
+      var(--font-size-sm) !important;
+  }
+
+  .geo-template-page .timeline-icon-btn {
+    width:
+      clamp(52px, 2.55vw, 70px);
+    height:
+      clamp(52px, 2.55vw, 70px);
+    font-size:
+      clamp(26px, 1.1vw, 34px);
+  }
+
+  /* 业务常见封装类兜底：答题、信息卡、图例、轴文字 */
+  .geo-template-page .problem-text,
+  .geo-template-page .question-text,
+  .geo-template-page .answer-title {
+    font-size:
+      var(--font-size-md) !important;
+    line-height:
+      1.85;
+  }
+
+  .geo-template-page .feedback-text,
+  .geo-template-page .kp-content,
+  .geo-template-page .diag-row,
+  .geo-template-page .diag-skill,
+  .geo-template-page .info-sub,
+  .geo-template-page .preview-label,
+  .geo-template-page .preview-val,
+  .geo-template-page .city-item-name,
+  .geo-template-page .city-item-time,
+  .geo-template-page .legend-item,
+  .geo-template-page .axis-label,
+  .geo-template-page .tick-label,
+  .geo-template-page .time-mark,
+  .geo-template-page .point-lon {
+    font-size:
+      var(--font-size-sm) !important;
+  }
+
+  .geo-template-page .info-title,
+  .geo-template-page .preview-name,
+  .geo-template-page .kp-title {
+    font-size:
+      var(--font-size-md) !important;
+  }
+
+  .geo-template-page .time-dock-value,
+  .geo-template-page .ab-time {
+    font-size:
+      var(--font-size-lg) !important;
+  }
+}
+
+/* 2K 大屏同步轻量放大封装控件字体 */
+@media (min-width: 2200px) and (min-height: 1200px) and (max-width: 3200px) {
+  .geo-template-page:not(.layout-small) {
+    --font-size-xxs:
+      clamp(12px, 0.38vw, 16px);
+
+    --font-size-xs:
+      clamp(13px, 0.44vw, 18px);
+
+    --font-size-sm:
+      clamp(14px, 0.50vw, 20px);
+
+    --font-size-base:
+      clamp(15px, 0.56vw, 22px);
+
+    --font-size-md:
+      clamp(18px, 0.68vw, 28px);
+
+    --font-size-lg:
+      clamp(23px, 0.94vw, 36px);
+  }
+
+  .geo-template-page:not(.layout-small) .theme-btn,
+  .geo-template-page:not(.layout-small) .option-btn,
+  .geo-template-page:not(.layout-small) .toolbar-btn,
+  .geo-template-page:not(.layout-small) .el-select__selected-item,
+  .geo-template-page:not(.layout-small) .el-input__inner {
+    font-size:
+      var(--font-size-sm) !important;
+  }
+}
+
+/* =========================================================
+   大屏 Header 按钮高度回调 V22
+   说明：
+   - v21 把封装控件字体整体放大后，header 右侧按钮高度偏大
+   - 这里只回调 header 内按钮高度，不回退左右面板和业务区字号
+   - 让按钮保持大屏可读，但不再接近 header 高度
+   ========================================================= */
+
+@media (min-width: 2200px) and (min-height: 1200px) and (min-aspect-ratio: 16 / 10) {
+  .geo-template-page .top-toolbar {
+    min-height:
+      clamp(72px, 4.2vw, 92px);
+  }
+
+  .geo-template-page .toolbar-actions {
+    align-items:
+      center;
+  }
+
+  .geo-template-page .toolbar-btn,
+  .geo-template-page .top-toolbar .theme-btn {
+    min-width:
+      clamp(112px, 4.8vw, 164px);
+    height:
+      clamp(36px, 1.72vw, 48px) !important;
+    min-height:
+      clamp(36px, 1.72vw, 48px) !important;
+    padding:
+      0 clamp(12px, 0.62vw, 22px);
+    font-size:
+      clamp(13px, 0.46vw, 18px) !important;
+    line-height:
+      1;
+    border-radius:
+      clamp(10px, 0.48vw, 14px);
+  }
+
+  .geo-template-page .top-toolbar .theme-btn svg,
+  .geo-template-page .toolbar-btn svg {
+    width:
+      clamp(16px, 0.72vw, 22px);
+    height:
+      clamp(16px, 0.72vw, 22px);
+  }
+}
+
+/* 2K 大屏也同步回调 header 按钮高度 */
+@media (min-width: 2200px) and (min-height: 1200px) and (max-width: 3200px) {
+
+  .geo-template-page:not(.layout-small) .toolbar-btn,
+  .geo-template-page:not(.layout-small) .top-toolbar .theme-btn {
+    height:
+      clamp(36px, 1.58vw, 46px) !important;
+    min-height:
+      clamp(36px, 1.58vw, 46px) !important;
+    font-size:
+      clamp(13px, 0.42vw, 17px) !important;
+  }
+}
+
+/* =========================================================
+   普通 1920 宽屏阈值修正 V23
+   说明：
+   - 普通电脑 1920×1080 不再触发超大屏 / 希沃字号增强
+   - 原 1880×900 阈值统一提升为 2200×1200
+   - 2200px 以上才进入更大字号、更宽面板、更强触控尺寸
+   ========================================================= */
+
+/* =========================================================
+   非悬浮普通三栏大屏 Header 避让 V25
+   V24 下移 8~12px 仍然偏少，侧栏标题还会被 header 阴影/边界压住。
+   这版加大安全距离：
+   - 2200px+：侧栏整体下移 18~26px；
+   - 2600px+：侧栏整体下移 22~32px；
+   - 同步扣高度，避免底部溢出；
+   - panel-scroll 顶部 padding 也略增；
+   - 仍只作用于非 layout-floating 的 layout-large；
+   - 1920 普通屏不触发。
+   ========================================================= */
+
+.geo-template-page:not(.layout-floating) {
+  --non-floating-large-panel-top-gap:
+    0px;
+}
+
+@media (min-width: 2200px) and (min-height: 900px) {
+  .geo-template-page:not(.layout-floating).layout-large {
+    --non-floating-large-panel-top-gap:
+      clamp(18px, 1.25vh, 26px);
+  }
+
+  .geo-template-page:not(.layout-floating).layout-large>.workspace>.side-panel {
+    margin-top:
+      var(--non-floating-large-panel-top-gap) !important;
+    height:
+      calc(100% - var(--non-floating-large-panel-top-gap)) !important;
+    max-height:
+      calc(100% - var(--non-floating-large-panel-top-gap)) !important;
+    box-sizing:
+      border-box;
+  }
+
+  .geo-template-page:not(.layout-floating).layout-large>.workspace>.side-panel>.panel-scroll {
+    padding-top:
+      clamp(18px, 1.15vw, 24px) !important;
+  }
+}
+
+/* 2600px+ 教室大屏再多留一点，防止 header 阴影压住侧栏标题 */
+@media (min-width: 2600px) and (min-height: 1200px) {
+  .geo-template-page:not(.layout-floating).layout-large {
+    --non-floating-large-panel-top-gap:
+      clamp(22px, 1.35vh, 32px);
+  }
+
+  .geo-template-page:not(.layout-floating).layout-large>.workspace>.side-panel>.panel-scroll {
+    padding-top:
+      clamp(20px, 1.2vw, 28px) !important;
+  }
+}

@@ -32,15 +32,15 @@
       'has-left': hasLeftPanel,
       'has-right': hasRightPanel,
     }" :style="{
-        '--left-panel-width':
-          leftCollapsed
-            ? '0px'
-            : leftPanelWidth + 'px',
-        '--right-panel-width':
-          rightCollapsed
-            ? '0px'
-            : rightPanelWidth + 'px',
-      }">
+      '--left-panel-width':
+        leftCollapsed
+          ? '0px'
+          : leftPanelWidth + 'px',
+      '--right-panel-width':
+        rightCollapsed
+          ? '0px'
+          : rightPanelWidth + 'px',
+    }">
       <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
         <div class="panel-scroll">
           <div class="panel-heading">
@@ -165,7 +165,7 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-right" @pointerdown.prevent="
+        <div class="resize-handle resize-right" @pointerdown.stop.prevent="
           startResize('left', $event)
           "></div>
 
@@ -437,7 +437,7 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-left" @pointerdown.prevent="
+        <div class="resize-handle resize-left" @pointerdown.stop.prevent="
           startResize('right', $event)
           "></div>
 
@@ -575,8 +575,18 @@ const hasRightPanel = true
 const layoutMode =
   ref<LayoutMode>('large')
 
-const leftPanelWidth = ref(304)
-const rightPanelWidth = ref(340)
+
+/*
+ * 面板宽度说明：
+ * 公共模板 CSS 管视觉样式和大屏兜底；
+ * 但本组件会在 workspace 上通过 inline style 写入
+ * --left-panel-width / --right-panel-width。
+ * 所以默认宽度、拖拽最大宽度、拖拽后是否被 ResizeObserver 重置，
+ * 都必须在本组件 JS 里同步放开。
+ */
+
+const leftPanelWidth = ref(420)
+const rightPanelWidth = ref(500)
 
 const leftCollapsed = panelCollapsed
 const rightCollapsed = ref(false)
@@ -605,6 +615,14 @@ function toggleAllControlPanels() {
 }
 
 
+
+let previousLayoutMode:
+  | LayoutMode
+  | null = null
+
+let leftPanelManuallyResized = false
+let rightPanelManuallyResized = false
+
 let pageResizeObserver:
   | ResizeObserver
   | null = null
@@ -628,6 +646,143 @@ function getLayoutMode(width: number): LayoutMode {
   return 'large'
 }
 
+function clampPanelNumber(
+  value: number,
+  min: number,
+  max: number
+): number {
+  return Math.min(
+    max,
+    Math.max(
+      min,
+      value
+    )
+  )
+}
+
+function getAdaptivePanelWidth(
+  side: 'left' | 'right',
+  mode: LayoutMode,
+  pageWidth: number
+): number {
+  if (mode === 'small') {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.76, 260, 360)
+      : clampPanelNumber(pageWidth * 0.80, 280, 380)
+  }
+
+  if (mode === 'medium') {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.36, 320, 480)
+      : clampPanelNumber(pageWidth * 0.40, 360, 540)
+  }
+
+  const isTeachingLargeScreen =
+    pageWidth >= 2200
+
+  if (isTeachingLargeScreen) {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.22, 420, 640)
+      : clampPanelNumber(pageWidth * 0.25, 500, 760)
+  }
+
+  return side === 'left'
+    ? clampPanelNumber(pageWidth * 0.19, 340, 520)
+    : clampPanelNumber(pageWidth * 0.21, 380, 580)
+}
+
+function getPanelResizeBounds(
+  side: 'left' | 'right'
+) {
+  const pageWidth =
+    rootRef.value?.clientWidth ||
+    window.innerWidth
+
+  if (layoutMode.value === 'small') {
+    return {
+      min:
+        side === 'left'
+          ? 220
+          : 240,
+      max:
+        Math.max(
+          side === 'left'
+            ? 220
+            : 240,
+          Math.min(
+            side === 'left'
+              ? 420
+              : 440,
+            pageWidth * 0.86
+          )
+        ),
+    }
+  }
+
+  if (layoutMode.value === 'medium') {
+    return {
+      min:
+        side === 'left'
+          ? 280
+          : 300,
+      max:
+        Math.max(
+          side === 'left'
+            ? 280
+            : 300,
+          Math.min(
+            side === 'left'
+              ? 640
+              : 700,
+            pageWidth * 0.60
+          )
+        ),
+    }
+  }
+
+  /*
+   * large 分两档：
+   * 1. 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
+   *    这类屏幕最大拖拽宽度要收敛，避免压迫主场景。
+   *
+   * 2. 超大屏：2200px 以上，才放开到教室大屏 / 2K / 4K 的拖拽上限。
+   */
+  const isUltraLargeScreen =
+    pageWidth >= 2200
+
+  return {
+    min:
+      side === 'left'
+        ? 300
+        : 340,
+    max:
+      Math.max(
+        side === 'left'
+          ? 300
+          : 340,
+        Math.min(
+          side === 'left'
+            ? (
+              isUltraLargeScreen
+                ? 820
+                : 560
+            )
+            : (
+              isUltraLargeScreen
+                ? 900
+                : 620
+            ),
+          pageWidth *
+          (
+            isUltraLargeScreen
+              ? 0.54
+              : 0.38
+          )
+        )
+      ),
+  }
+}
+
 function syncTemplateLayout() {
   const width =
     rootRef.value?.clientWidth ||
@@ -636,45 +791,50 @@ function syncTemplateLayout() {
   const nextMode =
     getLayoutMode(width)
 
-  layoutMode.value = nextMode
+  const modeChanged =
+    previousLayoutMode !== nextMode
 
-  if (nextMode === 'large') {
+  layoutMode.value =
+    nextMode
+
+  /*
+   * 以前这里会在 large 下强行把左侧夹到 368、右侧夹到 420，
+   * 导致默认不宽，拖拽后 ResizeObserver 又把宽度拉回去。
+   * 现在改成：
+   * 1. 首次进入按屏幕自适应给默认宽度；
+   * 2. 用户拖拽后不再自动覆盖；
+   * 3. 切换大/中/小布局时重新给一个合理默认值。
+   */
+  if (
+    modeChanged ||
+    !leftPanelManuallyResized
+  ) {
     leftPanelWidth.value =
-      Math.min(
-        Math.max(leftPanelWidth.value, 286),
-        368
-      )
-
-    rightPanelWidth.value =
-      Math.min(
-        Math.max(rightPanelWidth.value, 320),
-        420
-      )
-  } else if (nextMode === 'medium') {
-    leftPanelWidth.value =
-      Math.min(
-        leftPanelWidth.value,
-        292
-      )
-
-    rightPanelWidth.value =
-      Math.min(
-        rightPanelWidth.value,
-        318
-      )
-  } else {
-    leftPanelWidth.value =
-      Math.min(
-        leftPanelWidth.value,
-        220
-      )
-
-    rightPanelWidth.value =
-      Math.min(
-        rightPanelWidth.value,
-        236
+      Math.round(
+        getAdaptivePanelWidth(
+          'left',
+          nextMode,
+          width
+        )
       )
   }
+
+  if (
+    modeChanged ||
+    !rightPanelManuallyResized
+  ) {
+    rightPanelWidth.value =
+      Math.round(
+        getAdaptivePanelWidth(
+          'right',
+          nextMode,
+          width
+        )
+      )
+  }
+
+  previousLayoutMode =
+    nextMode
 }
 
 let panelResizeTarget:
@@ -686,23 +846,68 @@ function startResize(
   target: 'left' | 'right',
   event: PointerEvent
 ) {
-  panelResizeTarget = target
+  if (
+    (target === 'left' && leftCollapsed.value) ||
+    (target === 'right' && rightCollapsed.value)
+  ) {
+    return
+  }
+
+  event.stopPropagation()
+
+  panelResizeTarget =
+    target
 
   panelResizeState = {
-    startX: event.clientX,
+    startX:
+      event.clientX,
     width:
       target === 'left'
         ? leftPanelWidth.value
         : rightPanelWidth.value,
   }
 
-  window.addEventListener(
+  const handle =
+    event.currentTarget as HTMLElement | null
+
+  if (
+    handle &&
+    typeof handle.setPointerCapture === 'function'
+  ) {
+    try {
+      handle.setPointerCapture(
+        event.pointerId
+      )
+    } catch {
+      // 部分触控屏或老浏览器可能不支持 pointer capture，继续使用 document 监听兜底。
+    }
+  }
+
+  document.body.classList.add(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    'col-resize'
+
+  document.body.style.userSelect =
+    'none'
+
+  document.addEventListener(
     'pointermove',
     onPanelResizeMove
   )
 
-  window.addEventListener(
+  document.addEventListener(
     'pointerup',
+    stopPanelResize,
+    {
+      once: true,
+    }
+  )
+
+  document.addEventListener(
+    'pointercancel',
     stopPanelResize,
     {
       once: true,
@@ -718,20 +923,10 @@ function onPanelResizeMove(event: PointerEvent) {
     return
   }
 
-  const mode =
-    layoutMode.value
-
-  const maxWidth =
-    mode === 'large'
-      ? 420
-      : mode === 'medium'
-        ? 330
-        : 245
-
-  const minWidth =
-    mode === 'small'
-      ? 190
-      : 248
+  const bounds =
+    getPanelResizeBounds(
+      panelResizeTarget
+    )
 
   const delta =
     event.clientX -
@@ -741,29 +936,60 @@ function onPanelResizeMove(event: PointerEvent) {
     leftPanelWidth.value =
       clamp(
         panelResizeState.width + delta,
-        minWidth,
-        maxWidth
+        bounds.min,
+        bounds.max
       )
+
+    leftPanelManuallyResized =
+      true
   } else {
     rightPanelWidth.value =
       clamp(
         panelResizeState.width - delta,
-        minWidth,
-        maxWidth
+        bounds.min,
+        bounds.max
       )
+
+    rightPanelManuallyResized =
+      true
   }
 
   requestMainResize()
 }
 
 function stopPanelResize() {
-  panelResizeState = null
-  panelResizeTarget = null
+  panelResizeState =
+    null
 
-  window.removeEventListener(
+  panelResizeTarget =
+    null
+
+  document.body.classList.remove(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    ''
+
+  document.body.style.userSelect =
+    ''
+
+  document.removeEventListener(
     'pointermove',
     onPanelResizeMove
   )
+
+  document.removeEventListener(
+    'pointerup',
+    stopPanelResize
+  )
+
+  document.removeEventListener(
+    'pointercancel',
+    stopPanelResize
+  )
+
+  requestMainResize()
 }
 
 function toggleLeftPanel() {
@@ -1116,7 +1342,9 @@ onUnmounted(() => {
   pageResizeObserver = null
   window.removeEventListener('click', onWindowClick)
   window.removeEventListener('pointermove', onSubResizeMove)
-  window.removeEventListener('pointermove', onPanelResizeMove)
+  document.removeEventListener('pointermove', onPanelResizeMove)
+  document.removeEventListener('pointerup', stopPanelResize)
+  document.removeEventListener('pointercancel', stopPanelResize)
   viewportRef.value?.removeEventListener('pointerdown', onPointerDown)
   renderer?.dispose()
   subRenderer?.dispose()
@@ -3248,4 +3476,303 @@ function normalizeLon(value: number) {
       5px 1px 2px;
   }
 }
+
+/* ===================== v9: 修复中屏底部时间轴过窄 =====================
+   原因：
+   1170px 这类宽度下页面已经进入 layout-medium，
+   左右面板是覆盖式悬浮面板，不再参与主场景实际宽度计算。
+   旧规则仍然使用：
+   width: calc(100% - var(--left-panel-width) - var(--right-panel-width) - gap)
+   当左右面板默认变宽后，时间轴会被算成 140px 左右。
+   这里中屏不再扣除左右面板宽度，直接按主场景宽度自适应。
+*/
+.earth-orbit-template.layout-medium .orbit-time-dock {
+  left:
+    50% !important;
+  right:
+    auto !important;
+  width:
+    min(860px, calc(100% - 32px)) !important;
+  min-width:
+    min(520px, calc(100% - 32px)) !important;
+  max-width:
+    calc(100% - 32px) !important;
+  grid-template-columns:
+    auto minmax(0, 1fr) !important;
+  transform:
+    translateX(-50%) !important;
+}
+
+.earth-orbit-template.layout-medium .orbit-timeline-main {
+  min-width:
+    0;
+  width:
+    100%;
+}
+
+.earth-orbit-template.layout-medium .timeline-row {
+  grid-template-columns:
+    clamp(86px, 9vw, 112px) minmax(0, 1fr);
+}
+
+.earth-orbit-template.layout-medium .term-scale-row,
+.earth-orbit-template.layout-medium .hour-scale {
+  padding-left:
+    clamp(96px, 10vw, 122px);
+}
+
+/* 1280 以下原来还有一条媒体规则会再次扣左右面板宽度，这里压住它 */
+@media (max-width: 1280px) {
+  .earth-orbit-template.layout-medium .orbit-time-dock {
+    width:
+      min(820px, calc(100% - 28px)) !important;
+    min-width:
+      min(500px, calc(100% - 28px)) !important;
+    max-width:
+      calc(100% - 28px) !important;
+    grid-template-columns:
+      auto minmax(0, 1fr) !important;
+  }
+}
+
+/* 960 以下仍按小屏处理，避免强行保持 500px 最小宽导致溢出 */
+@media (max-width: 960px) {
+
+  .earth-orbit-template.layout-medium .orbit-time-dock,
+  .earth-orbit-template.layout-small .orbit-time-dock {
+    width:
+      min(680px, calc(100% - 24px)) !important;
+    min-width:
+      0 !important;
+    max-width:
+      calc(100% - 24px) !important;
+    grid-template-columns:
+      auto minmax(0, 1fr) !important;
+  }
+}
+
+/* ===================== v10: 大屏右侧实时数据卡片字号增强 =====================
+   说明：
+   右侧“实时数据”不是普通 data-card，而是 observation-data-card：
+   - 顶部观测点标题：obs-head / obs-place-row
+   - 摘要卡片：obs-summary-card
+   - 数据表格：obs-body dl / dt / dd
+   所以需要在业务组件里单独放大这些细分元素。
+*/
+@media (min-width: 2200px) and (min-height: 1200px) and (min-aspect-ratio: 16 / 10) {
+  .earth-orbit-template.layout-large .right-panel .observation-data-card {
+    padding:
+      clamp(18px, 0.95vw, 30px) !important;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-title-main {
+    font-size:
+      clamp(18px, 0.74vw, 26px) !important;
+    font-weight:
+      800;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-place-row strong {
+    font-size:
+      clamp(25px, 1.08vw, 40px) !important;
+    line-height:
+      1.25;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-summary-cards {
+    gap:
+      clamp(12px, 0.68vw, 22px);
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-summary-card {
+    min-height:
+      clamp(88px, 4.2vw, 132px);
+    padding:
+      clamp(14px, 0.72vw, 24px);
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-summary-card span {
+    font-size:
+      clamp(15px, 0.58vw, 22px) !important;
+    line-height:
+      1.35;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-summary-card strong {
+    font-size:
+      clamp(24px, 1.02vw, 38px) !important;
+    line-height:
+      1.25;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-summary-card .date-text {
+    font-size:
+      clamp(24px, 1.02vw, 38px) !important;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-body dl {
+    gap:
+      clamp(10px, 0.58vw, 18px);
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-body dl>div {
+    min-height:
+      clamp(58px, 2.65vw, 82px);
+    padding:
+      clamp(11px, 0.58vw, 18px) clamp(12px, 0.64vw, 20px);
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-body dt {
+    font-size:
+      clamp(14px, 0.54vw, 20px) !important;
+    line-height:
+      1.35;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-body dd {
+    font-size:
+      clamp(20px, 0.86vw, 32px) !important;
+    line-height:
+      1.25;
+    font-weight:
+      800;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-body .wide dd {
+    font-size:
+      clamp(21px, 0.92vw, 34px) !important;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .empty-tip {
+    font-size:
+      clamp(16px, 0.68vw, 24px) !important;
+    line-height:
+      1.8;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .direct-track-head h3 {
+    font-size:
+      clamp(19px, 0.78vw, 30px) !important;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .direct-track-head p {
+    font-size:
+      clamp(14px, 0.54vw, 20px) !important;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .direct-track-head>span {
+    width:
+      clamp(38px, 1.7vw, 56px);
+    height:
+      clamp(38px, 1.7vw, 56px);
+    font-size:
+      clamp(20px, 0.88vw, 32px) !important;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .earth-section-svg .latitude-label {
+    font-size:
+      10px !important;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .earth-section-svg .direct-label {
+    font-size:
+      11px !important;
+    font-weight:
+      800;
+  }
+}
+
+/* 2K 大屏同步增强，但略小一档，避免右侧图表被挤压 */
+@media (min-width: 2200px) and (min-height: 1200px) and (max-width: 3200px) {
+  .earth-orbit-template.layout-large .right-panel .obs-place-row strong {
+    font-size:
+      clamp(24px, 0.94vw, 34px) !important;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-summary-card strong {
+    font-size:
+      clamp(23px, 0.90vw, 34px) !important;
+  }
+
+  .earth-orbit-template.layout-large .right-panel .obs-body dd {
+    font-size:
+      clamp(19px, 0.76vw, 28px) !important;
+  }
+}
+
+/* ===================== v12: 时间轴宽度只跟随中间场景 =====================
+   旧规则在 orbit-time-dock 中使用：
+   calc(100% - var(--left-panel-width) - var(--right-panel-width) - gap)
+   这会导致右侧面板变宽时，底部时间轴也跟着变窄。
+   时间轴位于 orbit-overlay-layer 内，本质属于中间主场景浮层，
+   所以宽度应该只按照中间场景自身的 100% 计算。
+*/
+.earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
+  left:
+    50% !important;
+  right:
+    auto !important;
+  bottom:
+    clamp(12px, 2vh, 22px) !important;
+  width:
+    min(920px, calc(100% - 36px)) !important;
+  min-width:
+    min(520px, calc(100% - 36px)) !important;
+  max-width:
+    calc(100% - 36px) !important;
+  grid-template-columns:
+    auto minmax(0, 1fr) !important;
+  transform:
+    translateX(-50%) !important;
+}
+
+.earth-orbit-template .orbit-overlay-layer .orbit-timeline-main {
+  min-width:
+    0;
+  width:
+    100%;
+}
+
+@media (max-width: 1280px) {
+  .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
+    width:
+      min(820px, calc(100% - 28px)) !important;
+    min-width:
+      min(500px, calc(100% - 28px)) !important;
+    max-width:
+      calc(100% - 28px) !important;
+    grid-template-columns:
+      auto minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 960px) {
+  .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
+    width:
+      min(680px, calc(100% - 24px)) !important;
+    min-width:
+      0 !important;
+    max-width:
+      calc(100% - 24px) !important;
+    grid-template-columns:
+      auto minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
+    width:
+      calc(100% - 18px) !important;
+    min-width:
+      0 !important;
+    max-width:
+      calc(100% - 18px) !important;
+  }
+}
+
+/* ===================== v12: 普通 1920 不按超大屏处理 =====================
+   - 默认宽度阈值从 1880 提升到 2200
+   - 最大拖拽宽度：普通 large 左 560 / 右 620；2200 以上左 820 / 右 900
+   - 右侧实时数据字号增强只在 2200px 以上触发
+*/
 </style>

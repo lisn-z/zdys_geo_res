@@ -1,10 +1,7 @@
 <template>
   <section ref="rootRef"
     class="earth-rotation-container earth-rotation-template geo-template-page geo-page theme-dark layout-floating"
-    :class="'layout-' + layoutMode" :style="{
-      '--left-panel-width': panelCollapsed ? '0px' : leftPanelWidth + 'px',
-      '--right-panel-width': knowledgeCollapsed ? '0px' : rightPanelWidth + 'px',
-    }">
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -22,18 +19,25 @@
           </button>
         </div>
 
-        <button type="button" class="theme-btn toolbar-btn" :class="{ active: legendVisible }"
-          @click="legendVisible = !legendVisible">
-          图例
-        </button>
-
         <button type="button" class="theme-btn toolbar-btn" @click="toggleAllPanels">
           {{ allPanelsCollapsed ? '展开全部' : '收起全部' }}
         </button>
       </div>
     </header>
 
-    <main class="workspace" :class="{ 'has-left': !panelCollapsed, 'has-right': !knowledgeCollapsed, }">
+    <main class="workspace" :class="{
+      'has-left': !panelCollapsed,
+      'has-right': !knowledgeCollapsed,
+    }" :style="{
+      '--left-panel-width':
+        panelCollapsed
+          ? '0px'
+          : leftPanelWidth + 'px',
+      '--right-panel-width':
+        knowledgeCollapsed
+          ? '0px'
+          : rightPanelWidth + 'px',
+    }">
       <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: panelCollapsed }">
         <div class="panel-scroll">
           <div class="panel-heading">
@@ -88,6 +92,51 @@
             </div>
           </section>
 
+
+          <section class="geo-card control-section panel-rotation-legend-card">
+            <div class="ctrl-title">📖 图例</div>
+
+            <div class="panel-rotation-legend-list">
+              <div class="panel-rotation-legend-item">
+                <span class="legend-dot" style="background:#ef4444"></span>
+                A 点
+              </div>
+              <div class="panel-rotation-legend-item">
+                <span class="legend-dot" style="background:#247cff"></span>
+                B 点
+              </div>
+              <div class="panel-rotation-legend-item">
+                <span class="legend-line" style="background:#fbbf24"></span>
+                经度弧
+              </div>
+              <div class="panel-rotation-legend-item">
+                <span class="legend-line" style="background:#ff8800"></span>
+                晨线（日出）
+              </div>
+              <div class="panel-rotation-legend-item">
+                <span class="legend-line" style="background:#6366f1"></span>
+                昏线（日落）
+              </div>
+              <div class="panel-rotation-legend-item">
+                <span class="legend-line" style="background:#fbbf24"></span>
+                本初子午线 0°
+              </div>
+              <div class="panel-rotation-legend-item">
+                <span class="legend-line" style="background:#ef4444"></span>
+                日界线（白令海峡折线）
+              </div>
+              <div class="panel-rotation-legend-item">
+                <span class="legend-line" style="background:#2ec4b6"></span>
+                时区线 / 时区范围
+              </div>
+              <div class="panel-rotation-legend-item">
+                <span class="legend-line" style="background:#7c3aed"></span>
+                夜弧
+              </div>
+            </div>
+          </section>
+
+
           <section class="geo-card control-section">
             <div class="ctrl-title">🎥 视角</div>
             <div class="btn-grid">
@@ -109,6 +158,8 @@
             </div>
           </section>
         </div>
+
+        <div class="resize-handle resize-right" @pointerdown.stop.prevent="startResize('left', $event)"></div>
 
         <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
           @click="panelCollapsed = true">
@@ -141,20 +192,6 @@
               </div>
             </div>
 
-            <section v-if="legendVisible" class="legend-panel scene-legend-card">
-              <div class="legend-drag-handle">📖 图例</div>
-              <div class="legend-list">
-                <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>A 点</div>
-                <div class="legend-item"><span class="legend-dot" style="background:#247cff"></span>B 点</div>
-                <div class="legend-item"><span class="legend-line" style="background:#fbbf24"></span>经度弧</div>
-                <div class="legend-item"><span class="legend-line" style="background:#ff8800"></span>晨线（日出）</div>
-                <div class="legend-item"><span class="legend-line" style="background:#6366f1"></span>昏线（日落）</div>
-                <div class="legend-item"><span class="legend-line" style="background:#fbbf24"></span>本初子午线 0°</div>
-                <div class="legend-item"><span class="legend-line" style="background:#ef4444"></span>日界线（白令海峡折线）</div>
-                <div class="legend-item"><span class="legend-line" style="background:#2ec4b6"></span>时区线 / 时区范围</div>
-                <div class="legend-item"><span class="legend-line" style="background:#7c3aed"></span>夜弧</div>
-              </div>
-            </section>
           </div>
 
           <div v-show="bottomDockVisible" class="bottom-dock-stack">
@@ -188,7 +225,7 @@
                 <span class="axis-info-item">经度差: <b style="color:#fbbf24">{{ calcLonDiff(pointA.lon, pointB.lon)
                     }}°</b></span>
                 <span class="axis-info-item">时差: <b style="color:#2ec4b6">{{ formatTimeDiff(calcLonDiff(pointA.lon,
-                    pointB.lon) / 15) }}</b></span>
+                  pointB.lon) / 15) }}</b></span>
                 <span class="axis-info-item">{{ pointA.lon > pointB.lon ? 'A东B西' : 'B东A西' }}</span>
               </div>
             </section>
@@ -303,7 +340,7 @@
             <div class="phase-filters">
               <button v-for="p in phaseDefs" :key="p.key" class="theme-btn option-btn"
                 :class="{ active: trainingPhase === p.key }" @click="trainingPhase = p.key as any" :title="p.desc">{{
-                p.label }}</button>
+                  p.label }}</button>
             </div>
             <div v-if="currentProblem" class="problem-card">
               <div class="problem-text">{{ currentProblem.text }}</div>
@@ -434,6 +471,8 @@
           </section>
         </div>
 
+        <div class="resize-handle resize-left" @pointerdown.stop.prevent="startResize('right', $event)"></div>
+
         <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
           @click="knowledgeCollapsed = true">
           ›
@@ -547,9 +586,8 @@ const gridLabelDefs: { text: string; lat: number; lon: number; special?: boolean
 const containerRef = ref<HTMLDivElement>()
 const rootRef = ref<HTMLElement>()
 const layoutMode = ref<'large' | 'medium' | 'small'>('large')
-const leftPanelWidth = ref(304)
-const rightPanelWidth = ref(360)
-const legendVisible = ref(true)
+const leftPanelWidth = ref(420)
+const rightPanelWidth = ref(500)
 const bottomDockVisible = ref(true)
 
 const allPanelsCollapsed = computed(() =>
@@ -568,18 +606,482 @@ function toggleAllPanels() {
     !shouldExpand
   bottomDockVisible.value =
     shouldExpand
-  legendVisible.value =
-    shouldExpand
+}
+
+function clampPanelNumber(
+  value: number,
+  min: number,
+  max: number
+): number {
+  return Math.min(
+    max,
+    Math.max(
+      min,
+      value
+    )
+  )
+}
+
+let previousLayoutMode:
+  | 'large'
+  | 'medium'
+  | 'small'
+  | null = null
+
+let leftPanelManuallyResized = false
+let rightPanelManuallyResized = false
+
+function getEffectiveTemplateWidth(
+  fallbackWidth?: number
+): number {
+  const candidates: number[] = []
+
+  if (
+    typeof fallbackWidth === 'number' &&
+    Number.isFinite(fallbackWidth) &&
+    fallbackWidth > 0
+  ) {
+    candidates.push(fallbackWidth)
+  }
+
+  const pageWidth =
+    rootRef.value?.clientWidth
+
+  if (
+    typeof pageWidth === 'number' &&
+    Number.isFinite(pageWidth) &&
+    pageWidth > 0
+  ) {
+    candidates.push(pageWidth)
+  }
+
+  if (typeof window !== 'undefined') {
+    const values = [
+      window.innerWidth,
+      window.visualViewport?.width,
+      window.screen?.width,
+      window.screen?.availWidth,
+    ]
+
+    values.forEach((value) => {
+      if (
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value > 0
+      ) {
+        candidates.push(value)
+      }
+    })
+  }
+
+  if (!candidates.length) {
+    return 0
+  }
+
+  /*
+   * 用最小有效宽度判断超大屏。
+   * 普通 1920 屏即使因为浏览器缩放 / 投屏环境导致 CSS 宽度异常变大，
+   * 也不会误判为 2200+。
+   */
+  return Math.min(...candidates)
+}
+
+function isUltraLargeTemplateScreen(
+  fallbackWidth?: number
+): boolean {
+  return getEffectiveTemplateWidth(
+    fallbackWidth
+  ) >= 2200
+}
+
+function getAdaptivePanelWidth(
+  side: 'left' | 'right',
+  mode: 'large' | 'medium' | 'small',
+  pageWidth: number
+): number {
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
+  if (mode === 'small') {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.76, 260, 360)
+      : clampPanelNumber(pageWidth * 0.80, 280, 380)
+  }
+
+  if (mode === 'medium') {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.36, 320, 480)
+      : clampPanelNumber(pageWidth * 0.40, 360, 540)
+  }
+
+  /*
+   * 2K / 4K / 教室超大屏增强：
+   * 普通 1920×1080 电脑不默认触发。
+   */
+  if (
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+  ) {
+    return side === 'left'
+      ? clampPanelNumber(effectiveWidth * 0.22, 420, 640)
+      : clampPanelNumber(effectiveWidth * 0.25, 500, 760)
+  }
+
+  return side === 'left'
+    ? clampPanelNumber(pageWidth * 0.19, 340, 520)
+    : clampPanelNumber(pageWidth * 0.21, 380, 580)
+}
+
+function getPanelResizeBounds(
+  side: 'left' | 'right'
+) {
+  const pageWidth =
+    rootRef.value?.clientWidth ||
+    window.innerWidth
+
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
+  if (layoutMode.value === 'small') {
+    return {
+      min:
+        side === 'left'
+          ? 220
+          : 240,
+      max:
+        Math.max(
+          side === 'left'
+            ? 220
+            : 240,
+          Math.min(
+            side === 'left'
+              ? 420
+              : 440,
+            pageWidth * 0.86
+          )
+        ),
+    }
+  }
+
+  if (layoutMode.value === 'medium') {
+    return {
+      min:
+        side === 'left'
+          ? 280
+          : 300,
+      max:
+        Math.max(
+          side === 'left'
+            ? 280
+            : 300,
+          Math.min(
+            side === 'left'
+              ? 640
+              : 700,
+            pageWidth * 0.60
+          )
+        ),
+    }
+  }
+
+  /*
+   * 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
+   * 左侧最多 560px，右侧最多 620px。
+   *
+   * 超大屏：有效宽度 2200px 以上。
+   * 左侧最多 820px，右侧最多 900px。
+   */
+  const isUltraLargeScreen =
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+
+  return {
+    min:
+      side === 'left'
+        ? 300
+        : 340,
+    max:
+      Math.max(
+        side === 'left'
+          ? 300
+          : 340,
+        Math.min(
+          side === 'left'
+            ? (
+              isUltraLargeScreen
+                ? 820
+                : 560
+            )
+            : (
+              isUltraLargeScreen
+                ? 900
+                : 620
+            ),
+          effectiveWidth *
+          (
+            isUltraLargeScreen
+              ? 0.54
+              : 0.38
+          )
+        )
+      ),
+  }
 }
 
 function syncLayoutMode() {
-  const width = rootRef.value?.clientWidth || window.innerWidth
-  layoutMode.value = width >= 1280 ? 'large' : width >= 860 ? 'medium' : 'small'
-  if (layoutMode.value === 'small') {
-    leftPanelWidth.value = Math.min(leftPanelWidth.value, 232)
-    rightPanelWidth.value = Math.min(rightPanelWidth.value, 260)
+  const width =
+    rootRef.value?.clientWidth ||
+    window.innerWidth
+
+  const nextMode =
+    width >= 1280
+      ? 'large'
+      : width >= 860
+        ? 'medium'
+        : 'small'
+
+  const modeChanged =
+    previousLayoutMode !== nextMode
+
+  layoutMode.value =
+    nextMode
+
+  /*
+   * 面板宽度说明：
+   * 本组件把 --left-panel-width / --right-panel-width 写在 workspace inline style 上。
+   * 公共 CSS 只能管视觉兜底，默认宽度、拖拽上限、拖拽后是否被重置，
+   * 必须在组件 JS 里同步处理。
+   */
+  if (
+    modeChanged ||
+    !leftPanelManuallyResized
+  ) {
+    leftPanelWidth.value =
+      Math.round(
+        getAdaptivePanelWidth(
+          'left',
+          nextMode,
+          width
+        )
+      )
   }
+
+  if (
+    modeChanged ||
+    !rightPanelManuallyResized
+  ) {
+    rightPanelWidth.value =
+      Math.round(
+        getAdaptivePanelWidth(
+          'right',
+          nextMode,
+          width
+        )
+      )
+  }
+
+  previousLayoutMode =
+    nextMode
 }
+
+let panelResizeTarget:
+  | 'left'
+  | 'right'
+  | null = null
+
+let panelResizeState:
+  | {
+    startX: number
+    width: number
+  }
+  | null = null
+
+function startResize(
+  target: 'left' | 'right',
+  event: PointerEvent
+) {
+  if (
+    (target === 'left' && panelCollapsed.value) ||
+    (target === 'right' && knowledgeCollapsed.value)
+  ) {
+    return
+  }
+
+  event.stopPropagation()
+
+  panelResizeTarget =
+    target
+
+  panelResizeState =
+  {
+    startX:
+      event.clientX,
+    width:
+      target === 'left'
+        ? leftPanelWidth.value
+        : rightPanelWidth.value,
+  }
+
+  const handle =
+    event.currentTarget as HTMLElement | null
+
+  if (
+    handle &&
+    typeof handle.setPointerCapture === 'function'
+  ) {
+    try {
+      handle.setPointerCapture(
+        event.pointerId
+      )
+    } catch {
+      // 某些浏览器 / 触控屏可能不支持捕获，退回 document 监听。
+    }
+  }
+
+  document.body.classList.add(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    'col-resize'
+
+  document.body.style.userSelect =
+    'none'
+
+  document.addEventListener(
+    'pointermove',
+    onPanelResizeMove
+  )
+
+  document.addEventListener(
+    'pointerup',
+    stopPanelResize,
+    {
+      once:
+        true,
+    }
+  )
+
+  document.addEventListener(
+    'pointercancel',
+    stopPanelResize,
+    {
+      once:
+        true,
+    }
+  )
+}
+
+function resizeSceneOnly() {
+  if (
+    !containerRef.value ||
+    !camera ||
+    !renderer
+  ) {
+    return
+  }
+
+  const container =
+    containerRef.value
+
+  camera.aspect =
+    container.clientWidth /
+    Math.max(
+      1,
+      container.clientHeight
+    )
+
+  camera.updateProjectionMatrix()
+
+  renderer.setSize(
+    container.clientWidth,
+    container.clientHeight
+  )
+}
+
+function onPanelResizeMove(event: PointerEvent) {
+  if (
+    !panelResizeTarget ||
+    !panelResizeState
+  ) {
+    return
+  }
+
+  const bounds =
+    getPanelResizeBounds(
+      panelResizeTarget
+    )
+
+  const delta =
+    event.clientX -
+    panelResizeState.startX
+
+  if (panelResizeTarget === 'left') {
+    leftPanelWidth.value =
+      clampPanelNumber(
+        panelResizeState.width + delta,
+        bounds.min,
+        bounds.max
+      )
+
+    leftPanelManuallyResized =
+      true
+  } else {
+    rightPanelWidth.value =
+      clampPanelNumber(
+        panelResizeState.width - delta,
+        bounds.min,
+        bounds.max
+      )
+
+    rightPanelManuallyResized =
+      true
+  }
+
+  resizeSceneOnly()
+}
+
+function stopPanelResize() {
+  panelResizeTarget =
+    null
+
+  panelResizeState =
+    null
+
+  document.body.classList.remove(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    ''
+
+  document.body.style.userSelect =
+    ''
+
+  document.removeEventListener(
+    'pointermove',
+    onPanelResizeMove
+  )
+
+  document.removeEventListener(
+    'pointerup',
+    stopPanelResize
+  )
+
+  document.removeEventListener(
+    'pointercancel',
+    stopPanelResize
+  )
+
+  resizeSceneOnly()
+}
+
 
 const isPlaying = ref(true)
 const rotSpeed = ref(2)
@@ -1807,10 +2309,31 @@ function onCanvasClick(event: MouseEvent) {
 
 function onResize() {
   syncLayoutMode()
-  const container = containerRef.value!
-  camera.aspect = container.clientWidth / container.clientHeight
+
+  if (
+    !containerRef.value ||
+    !camera ||
+    !renderer
+  ) {
+    return
+  }
+
+  const container =
+    containerRef.value
+
+  camera.aspect =
+    container.clientWidth /
+    Math.max(
+      1,
+      container.clientHeight
+    )
+
   camera.updateProjectionMatrix()
-  renderer.setSize(container.clientWidth, container.clientHeight)
+
+  renderer.setSize(
+    container.clientWidth,
+    container.clientHeight
+  )
 }
 
 // ===================== 控制方法 =====================
@@ -2433,6 +2956,8 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
   window.removeEventListener('resize', onResize)
+  document.removeEventListener('pointermove', onPanelResizeMove)
+  document.body.classList.remove('geo-panel-resizing')
   window.removeEventListener('mousemove', onAxisMouseMove)
   window.removeEventListener('mouseup', onAxisMouseUp)
   renderer?.domElement.removeEventListener('click', onCanvasClick)
@@ -4481,12 +5006,6 @@ body {
     grid;
   place-items:
     center;
-  width:
-    38px;
-  min-width:
-    38px;
-  height:
-    64px;
   padding:
     0;
   font-size:
@@ -4573,5 +5092,680 @@ body {
     translateX(-50%);
   white-space:
     nowrap;
+}
+
+
+/* ===================== v15: 修复根变量被公共 CSS 覆盖导致拖拽无效 ===================== */
+.earth-rotation-template .resize-handle {
+  position:
+    absolute !important;
+  z-index:
+    200 !important;
+  top:
+    0 !important;
+  bottom:
+    0 !important;
+  display:
+    block !important;
+  width:
+    24px !important;
+  cursor:
+    col-resize !important;
+  touch-action:
+    none !important;
+  user-select:
+    none !important;
+  pointer-events:
+    auto !important;
+}
+
+.earth-rotation-template .resize-right {
+  right:
+    0 !important;
+}
+
+.earth-rotation-template .resize-left {
+  left:
+    0 !important;
+}
+
+.earth-rotation-template .resize-right::after,
+.earth-rotation-template .resize-left::after {
+  content:
+    '';
+  position:
+    absolute;
+  top:
+    18px;
+  bottom:
+    18px;
+  width:
+    2px;
+  border-radius:
+    999px;
+  background:
+    rgba(var(--theme-primary-rgb), 0.18);
+  opacity:
+    0;
+  transition:
+    opacity 0.18s ease;
+}
+
+.earth-rotation-template .resize-right::after {
+  right:
+    5px;
+}
+
+.earth-rotation-template .resize-left::after {
+  left:
+    5px;
+}
+
+.earth-rotation-template .resize-handle:hover::after,
+.earth-rotation-template .resize-handle:active::after,
+.geo-panel-resizing .earth-rotation-template .resize-handle::after {
+  opacity:
+    1;
+}
+
+body.geo-panel-resizing {
+  cursor:
+    col-resize !important;
+  user-select:
+    none !important;
+}
+
+
+
+
+/* ===================== v19: 底部双轴在左右面板之间居中 + 图例避开左侧面板 =====================
+   v18 会按整屏 / 底层场景居中。
+   但 5号模板左右面板是浮层，视觉上的主场景应该是“左面板右边缘 ~ 右面板左边缘”之间。
+   所以这版改成：
+   - bottom-dock-stack 的 left/right 只负责避开左右面板；
+   - 子面板 width 仍然是固定上限，不再随着右侧面板变窄；
+   - 子面板通过 align-items:center 在可视主场景区域内居中；
+   - 图例 left 重新使用左面板安全距离，避免被左侧面板盖住。
+*/
+.earth-rotation-template .rotation-stage-content .bottom-dock-stack {
+  left:
+    calc(var(--left-panel-width, 0px) + var(--rotation-overlay-gap, 16px)) !important;
+  right:
+    calc(var(--right-panel-width, 0px) + var(--rotation-overlay-gap, 16px)) !important;
+  width:
+    auto !important;
+  max-width:
+    none !important;
+  transform:
+    none !important;
+  display:
+    flex !important;
+  flex-direction:
+    column !important;
+  align-items:
+    center !important;
+  justify-content:
+    flex-end !important;
+  gap:
+    clamp(8px, 0.58vw, 12px) !important;
+  padding-inline:
+    0 !important;
+  box-sizing:
+    border-box;
+  pointer-events:
+    none;
+}
+
+.earth-rotation-template .rotation-stage-content .ab-axis-dock,
+.earth-rotation-template .rotation-stage-content .rotation-time-dock {
+  pointer-events:
+    auto;
+  justify-self:
+    center !important;
+  align-self:
+    center !important;
+  min-width:
+    0 !important;
+}
+
+/* 普通 1920：保持工具条感，不铺满可视主场景 */
+.earth-rotation-template .rotation-stage-content .ab-axis-dock {
+  width:
+    min(720px, 100%) !important;
+  max-width:
+    720px !important;
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-time-dock {
+  width:
+    min(520px, 100%) !important;
+  max-width:
+    520px !important;
+}
+
+.earth-rotation-template .rotation-stage-content .longitude-axis-bar,
+.earth-rotation-template .rotation-stage-content .time-dock-main {
+  min-width:
+    0 !important;
+}
+
+/* 图例要避开左侧面板，而不是贴着整屏左侧 */
+.earth-rotation-template .rotation-stage-content .scene-legend-card {
+  left:
+    calc(var(--left-panel-width, 0px) + var(--rotation-overlay-gap, 16px)) !important;
+  right:
+    auto !important;
+  bottom:
+    clamp(232px, 24vh, 286px) !important;
+  width:
+    min(238px, calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 44px)) !important;
+  max-height:
+    calc(100% - clamp(360px, 42vh, 430px)) !important;
+  overflow:
+    auto;
+  z-index:
+    21;
+}
+
+/* 2200px 以上：只放大子面板尺寸，位置仍然在左右面板之间居中 */
+@media (min-width: 2200px) and (min-height: 1200px) {
+  .earth-rotation-template .rotation-stage-content .ab-axis-dock {
+    width:
+      min(1120px, 100%) !important;
+    max-width:
+      1120px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .rotation-time-dock {
+    width:
+      min(760px, 100%) !important;
+    max-width:
+      760px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .scene-legend-card {
+    bottom:
+      clamp(260px, 25vh, 320px) !important;
+  }
+}
+
+/* 中屏是覆盖式抽屉，底部不再扣侧栏，避免可用宽度过小 */
+@media (max-width: 1280px) {
+  .earth-rotation-template .rotation-stage-content .bottom-dock-stack {
+    left:
+      10px !important;
+    right:
+      10px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .ab-axis-dock {
+    width:
+      min(640px, 100%) !important;
+    max-width:
+      640px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .rotation-time-dock {
+    width:
+      min(520px, 100%) !important;
+    max-width:
+      520px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .scene-legend-card {
+    left:
+      10px !important;
+    bottom:
+      clamp(220px, 27vh, 270px) !important;
+    width:
+      min(238px, calc(100% - 24px)) !important;
+  }
+}
+
+@media (max-width: 960px) {
+  .earth-rotation-template .rotation-stage-content .bottom-dock-stack {
+    left:
+      10px !important;
+    right:
+      10px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .ab-axis-dock,
+  .earth-rotation-template .rotation-stage-content .rotation-time-dock {
+    width:
+      100% !important;
+    max-width:
+      100% !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .scene-legend-card {
+    left:
+      10px !important;
+    bottom:
+      230px !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .earth-rotation-template .rotation-stage-content .bottom-dock-stack {
+    left:
+      8px !important;
+    right:
+      8px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .scene-legend-card {
+    display:
+      none !important;
+  }
+}
+
+/* ===================== v20: 图例移入左侧面板，移除右上角图例按钮 =====================
+   - 场景里的 legend-panel 已移除；
+   - 图例改为左侧控制面板里的 panel-rotation-legend-card；
+   - 顶部 toolbar 不再有“图例”按钮；
+   - 保留图例长期可见，跟随左侧面板滚动。
+*/
+.earth-rotation-template .rotation-stage-content .scene-legend-card,
+.earth-rotation-template .rotation-stage-content .legend-panel.scene-legend-card {
+  display:
+    none !important;
+}
+
+.earth-rotation-template .panel-rotation-legend-card {
+  padding:
+    clamp(12px, 0.85vw, 16px) !important;
+}
+
+.earth-rotation-template .panel-rotation-legend-card .ctrl-title {
+  margin-bottom:
+    10px !important;
+}
+
+.earth-rotation-template .panel-rotation-legend-list {
+  display:
+    grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap:
+    8px 10px;
+}
+
+.earth-rotation-template .panel-rotation-legend-item {
+  display:
+    flex;
+  align-items:
+    center;
+  gap:
+    7px;
+  min-width:
+    0;
+  font-size:
+    clamp(12px, 0.68vw, 14px);
+  line-height:
+    1.32;
+  color:
+    rgba(226, 232, 240, 0.92);
+}
+
+.earth-rotation-template .panel-rotation-legend-item .legend-dot {
+  flex:
+    0 0 auto;
+  width:
+    10px;
+  height:
+    10px;
+  border-radius:
+    999px;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.15);
+}
+
+.earth-rotation-template .panel-rotation-legend-item .legend-line {
+  flex:
+    0 0 auto;
+  width:
+    18px;
+  height:
+    3px;
+  border-radius:
+    999px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+@media (max-width: 760px) {
+  .earth-rotation-template .panel-rotation-legend-list {
+    grid-template-columns:
+      repeat(1, minmax(0, 1fr));
+  }
+}
+
+/* ===================== v21: 右侧 A/B 对比卡片中小屏适配 =====================
+   原问题：
+   - A/B 对比卡片一直是三列：A | 时差 | B；
+   - 中小屏右侧面板变窄时，中间分隔列仍占宽，导致 A/B 卡片被挤；
+   - 小屏下文字、时间、昼夜图标容易拥挤。
+
+   处理：
+   - large：保留三列结构；
+   - medium：仍三列，但压缩间距、字号和中间分隔列；
+   - small：改成两列卡片 + 时差信息独占一行；
+   - 超窄：A / 时差 / B 纵向堆叠。
+*/
+
+/* 先给 A/B 三个块明确 grid-area，便于小屏重排 */
+.earth-rotation-template .right-panel .ab-card.ab-a {
+  grid-area:
+    a;
+}
+
+.earth-rotation-template .right-panel .ab-card.ab-b {
+  grid-area:
+    b;
+}
+
+.earth-rotation-template .right-panel .ab-divider {
+  grid-area:
+    divider;
+}
+
+/* large 默认仍然是 A | 时差 | B */
+.earth-rotation-template.layout-large .right-panel .ab-cards {
+  grid-template-areas:
+    "a divider b";
+  grid-template-columns:
+    minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+/* 中屏：三列还可以保留，但必须压缩 */
+.earth-rotation-template.layout-medium .right-panel .ab-compare-panel.right-info-card {
+  padding:
+    10px !important;
+  border-radius:
+    16px;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-drag-handle {
+  margin-bottom:
+    8px;
+  font-size:
+    11px;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-cards {
+  grid-template-areas:
+    "a divider b";
+  grid-template-columns:
+    minmax(0, 1fr) 48px minmax(0, 1fr);
+  gap:
+    7px;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-card {
+  padding:
+    10px 5px 9px;
+  border-radius:
+    14px;
+  gap:
+    4px;
+  min-width:
+    0;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-badge {
+  width:
+    24px;
+  height:
+    24px;
+  font-size:
+    12px;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-lon {
+  font-size:
+    10px;
+  max-width:
+    100%;
+  overflow:
+    hidden;
+  text-overflow:
+    ellipsis;
+  white-space:
+    nowrap;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-time {
+  font-size:
+    17px;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-status {
+  width:
+    24px;
+  height:
+    24px;
+  font-size:
+    13px;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-divider {
+  min-width:
+    0;
+  width:
+    48px;
+  padding:
+    0 2px;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-diff {
+  padding:
+    4px 5px;
+  max-width:
+    46px;
+  font-size:
+    10px;
+  overflow:
+    hidden;
+  text-overflow:
+    ellipsis;
+}
+
+.earth-rotation-template.layout-medium .right-panel .ab-arrow {
+  margin-top:
+    5px;
+  font-size:
+    10px;
+}
+
+/* 960 以下：改成 A/B 两列，时差信息单独一行，避免中间列硬挤 */
+@media (max-width: 960px) {
+  .earth-rotation-template .right-panel .ab-compare-panel.right-info-card {
+    padding:
+      10px !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-cards {
+    grid-template-areas:
+      "a b"
+      "divider divider" !important;
+    grid-template-columns:
+      minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap:
+      8px !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-card {
+    min-width:
+      0 !important;
+    padding:
+      10px 6px 9px !important;
+    border-radius:
+      14px !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-divider {
+    width:
+      100% !important;
+    min-width:
+      0 !important;
+    display:
+      flex !important;
+    flex-direction:
+      row !important;
+    align-items:
+      center !important;
+    justify-content:
+      center !important;
+    gap:
+      8px !important;
+    padding:
+      6px 8px !important;
+    border-left:
+      0 !important;
+    border-right:
+      0 !important;
+    border-top:
+      1px solid rgba(46, 196, 182, 0.14) !important;
+    border-bottom:
+      1px solid rgba(46, 196, 182, 0.08) !important;
+    border-radius:
+      12px !important;
+    background:
+      rgba(46, 196, 182, 0.055) !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-diff {
+    max-width:
+      none !important;
+    padding:
+      4px 9px !important;
+    font-size:
+      11px !important;
+    white-space:
+      nowrap !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-arrow {
+    margin-top:
+      0 !important;
+    font-size:
+      11px !important;
+    white-space:
+      nowrap !important;
+  }
+}
+
+/* 720 以下：继续压缩字号和图标，但仍保持 A/B 两列 */
+@media (max-width: 720px) {
+  .earth-rotation-template .right-panel .ab-compare-panel.right-info-card {
+    padding:
+      9px !important;
+    border-radius:
+      14px !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-drag-handle {
+    margin-bottom:
+      7px !important;
+    font-size:
+      11px !important;
+    line-height:
+      1.25;
+  }
+
+  .earth-rotation-template .right-panel .ab-card {
+    padding:
+      9px 5px 8px !important;
+    gap:
+      4px !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-badge {
+    width:
+      22px !important;
+    height:
+      22px !important;
+    font-size:
+      11px !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-lon {
+    font-size:
+      10px !important;
+    line-height:
+      1.15;
+    max-width:
+      100%;
+    overflow:
+      hidden;
+    text-overflow:
+      ellipsis;
+    white-space:
+      nowrap;
+  }
+
+  .earth-rotation-template .right-panel .ab-time {
+    font-size:
+      15px !important;
+    line-height:
+      1.15;
+  }
+
+  .earth-rotation-template .right-panel .ab-status {
+    width:
+      22px !important;
+    height:
+      22px !important;
+    font-size:
+      12px !important;
+  }
+}
+
+/* 超窄：再从两列变成纵向，彻底避免挤压 */
+@media (max-width: 430px) {
+  .earth-rotation-template .right-panel .ab-cards {
+    grid-template-areas:
+      "a"
+      "divider"
+      "b" !important;
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-card {
+    grid-template-columns:
+      auto minmax(0, 1fr) auto;
+    align-items:
+      center;
+    justify-items:
+      start;
+    text-align:
+      left;
+    column-gap:
+      8px !important;
+    padding:
+      8px 9px !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-badge {
+    margin:
+      0 !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-lon {
+    margin-bottom:
+      0 !important;
+  }
+
+  .earth-rotation-template .right-panel .ab-time {
+    justify-self:
+      center;
+  }
+
+  .earth-rotation-template .right-panel .ab-status {
+    justify-self:
+      end;
+  }
 }
 </style>

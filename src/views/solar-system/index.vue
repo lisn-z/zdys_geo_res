@@ -172,7 +172,7 @@
           </div>
         </div>
 
-        <div class="resize-handle resize-right" @pointerdown.prevent="
+        <div class="resize-handle resize-right" @pointerdown.stop.prevent="
           startResize('left', $event)
           "></div>
 
@@ -449,7 +449,7 @@
           </div>
         </div>
 
-        <div class="resize-handle resize-left" @pointerdown.prevent="
+        <div class="resize-handle resize-left" @pointerdown.stop.prevent="
           startResize('right', $event)
           "></div>
 
@@ -666,8 +666,8 @@ const hasRightPanel = true
 const layoutMode =
   ref<LayoutMode>('large')
 
-const leftPanelWidth = ref(300)
-const rightPanelWidth = ref(320)
+const leftPanelWidth = ref(420)
+const rightPanelWidth = ref(500)
 
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
@@ -713,6 +713,51 @@ let sceneResizeTimer:
 let leftPanelManuallyResized = false
 let rightPanelManuallyResized = false
 let isPanelResizing = false
+let activePanelMoveHandler:
+  | ((event: PointerEvent) => void)
+  | null = null
+let activePanelFinishHandler:
+  | (() => void)
+  | null = null
+
+function cleanupPanelResizeState(
+  shouldResize = true
+) {
+  if (activePanelMoveHandler) {
+    document.removeEventListener(
+      'pointermove',
+      activePanelMoveHandler
+    )
+  }
+
+  if (activePanelFinishHandler) {
+    document.removeEventListener(
+      'pointerup',
+      activePanelFinishHandler
+    )
+
+    document.removeEventListener(
+      'pointercancel',
+      activePanelFinishHandler
+    )
+  }
+
+  activePanelMoveHandler = null
+  activePanelFinishHandler = null
+
+  document.body.classList.remove(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+
+  isPanelResizing = false
+
+  if (shouldResize) {
+    scheduleSceneResize(0)
+  }
+}
 
 let lastSceneWidth = 0
 let lastSceneHeight = 0
@@ -2052,41 +2097,140 @@ function clamp(
   )
 }
 
+function getEffectiveTemplateWidth(
+  fallbackWidth?: number
+): number {
+  const candidates: number[] = []
+
+  if (
+    typeof fallbackWidth === 'number' &&
+    Number.isFinite(fallbackWidth) &&
+    fallbackWidth > 0
+  ) {
+    candidates.push(fallbackWidth)
+  }
+
+  const pageWidth =
+    pageRef.value?.clientWidth
+
+  if (
+    typeof pageWidth === 'number' &&
+    Number.isFinite(pageWidth) &&
+    pageWidth > 0
+  ) {
+    candidates.push(pageWidth)
+  }
+
+  if (typeof window !== 'undefined') {
+    const values = [
+      window.innerWidth,
+      window.visualViewport?.width,
+      window.screen?.width,
+      window.screen?.availWidth,
+    ]
+
+    values.forEach((value) => {
+      if (
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value > 0
+      ) {
+        candidates.push(value)
+      }
+    })
+  }
+
+  if (!candidates.length) {
+    return 0
+  }
+
+  /*
+   * 用最小有效宽度判断超大屏。
+   * 普通 1920 屏即使因为浏览器缩放 / 投屏环境导致 CSS 宽度异常变大，
+   * 也不会误判为 2200+。
+   */
+  return Math.min(...candidates)
+}
+
+function isUltraLargeTemplateScreen(
+  fallbackWidth?: number
+): boolean {
+  return getEffectiveTemplateWidth(
+    fallbackWidth
+  ) >= 2200
+}
+
 function getAdaptivePanelWidth(
   side: 'left' | 'right',
   mode: LayoutMode,
   pageWidth: number
 ) {
-  if (mode === 'small') {
-    return clamp(
-      pageWidth * 0.82,
-      260,
-      360
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
     )
+
+  if (mode === 'small') {
+    return side === 'left'
+      ? clamp(
+        pageWidth * 0.76,
+        260,
+        360
+      )
+      : clamp(
+        pageWidth * 0.80,
+        280,
+        380
+      )
   }
 
   if (mode === 'medium') {
-    return clamp(
-      pageWidth * 0.38,
-      300,
-      440
-    )
+    return side === 'left'
+      ? clamp(
+        pageWidth * 0.36,
+        320,
+        480
+      )
+      : clamp(
+        pageWidth * 0.40,
+        360,
+        540
+      )
   }
 
-  return clamp(
-    pageWidth *
-    (
-      side === 'left'
-        ? 0.19
-        : 0.20
-    ),
-    side === 'left'
-      ? 300
-      : 320,
-    side === 'left'
-      ? 460
-      : 500
-  )
+  /*
+   * 2K / 4K / 教室超大屏增强：
+   * 普通 1920×1080 电脑不默认触发。
+   */
+  if (
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+  ) {
+    return side === 'left'
+      ? clamp(
+        effectiveWidth * 0.22,
+        420,
+        640
+      )
+      : clamp(
+        effectiveWidth * 0.25,
+        500,
+        760
+      )
+  }
+
+  return side === 'left'
+    ? clamp(
+      pageWidth * 0.19,
+      340,
+      520
+    )
+    : clamp(
+      pageWidth * 0.21,
+      380,
+      580
+    )
 }
 
 function updateLayoutMode() {
@@ -2101,9 +2245,15 @@ function updateLayoutMode() {
         ? 'medium'
         : 'small'
 
+  const modeChanged =
+    layoutMode.value !== nextMode
+
   layoutMode.value = nextMode
 
-  if (!leftPanelManuallyResized) {
+  if (
+    modeChanged ||
+    !leftPanelManuallyResized
+  ) {
     leftPanelWidth.value =
       getAdaptivePanelWidth(
         'left',
@@ -2112,7 +2262,10 @@ function updateLayoutMode() {
       )
   }
 
-  if (!rightPanelManuallyResized) {
+  if (
+    modeChanged ||
+    !rightPanelManuallyResized
+  ) {
     rightPanelWidth.value =
       getAdaptivePanelWidth(
         'right',
@@ -2129,13 +2282,25 @@ function getPanelResizeBounds(
     pageRef.value?.clientWidth ||
     window.innerWidth
 
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
   if (layoutMode.value === 'small') {
     return {
-      min: 220,
+      min:
+        side === 'left'
+          ? 220
+          : 240,
       max: Math.max(
-        220,
+        side === 'left'
+          ? 220
+          : 240,
         Math.min(
-          400,
+          side === 'left'
+            ? 420
+            : 440,
           pageWidth * 0.86
         )
       ),
@@ -2144,29 +2309,63 @@ function getPanelResizeBounds(
 
   if (layoutMode.value === 'medium') {
     return {
-      min: 280,
+      min:
+        side === 'left'
+          ? 280
+          : 300,
       max: Math.max(
-        280,
+        side === 'left'
+          ? 280
+          : 300,
         Math.min(
-          560,
-          pageWidth * 0.58
+          side === 'left'
+            ? 640
+            : 700,
+          pageWidth * 0.60
         )
       ),
     }
   }
 
+  /*
+   * 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
+   * 左侧最多 560px，右侧最多 620px。
+   *
+   * 超大屏：有效宽度 2200px 以上。
+   * 左侧最多 820px，右侧最多 900px。
+   */
+  const isUltraLargeScreen =
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+
   return {
     min:
       side === 'left'
-        ? 280
-        : 300,
+        ? 300
+        : 340,
     max: Math.max(
       side === 'left'
-        ? 280
-        : 300,
+        ? 300
+        : 340,
       Math.min(
-        720,
-        pageWidth * 0.5
+        side === 'left'
+          ? (
+            isUltraLargeScreen
+              ? 820
+              : 560
+          )
+          : (
+            isUltraLargeScreen
+              ? 900
+              : 620
+          ),
+        effectiveWidth *
+        (
+          isUltraLargeScreen
+            ? 0.54
+            : 0.38
+        )
       )
     ),
   }
@@ -2189,6 +2388,10 @@ function startResize(
     return
   }
 
+  event.stopPropagation()
+
+  cleanupPanelResizeState(false)
+
   if (side === 'left') {
     leftPanelManuallyResized = true
   } else {
@@ -2197,7 +2400,24 @@ function startResize(
 
   isPanelResizing = true
 
-  const startX = event.clientX
+  const handle =
+    event.currentTarget as HTMLElement | null
+
+  if (
+    handle &&
+    typeof handle.setPointerCapture === 'function'
+  ) {
+    try {
+      handle.setPointerCapture(
+        event.pointerId
+      )
+    } catch {
+      // 部分触控屏或老浏览器可能不支持 pointer capture，继续用 document 监听兜底。
+    }
+  }
+
+  const startX =
+    event.clientX
 
   const startWidth =
     side === 'left'
@@ -2207,66 +2427,51 @@ function startResize(
   const bounds =
     getPanelResizeBounds(side)
 
-  const onMove = (
-    moveEvent: PointerEvent
-  ) => {
-    const deltaX =
-      moveEvent.clientX - startX
+  activePanelMoveHandler =
+    (moveEvent: PointerEvent) => {
+      const deltaX =
+        moveEvent.clientX - startX
 
-    const nextWidth =
-      side === 'left'
-        ? startWidth + deltaX
-        : startWidth - deltaX
+      const nextWidth =
+        side === 'left'
+          ? startWidth + deltaX
+          : startWidth - deltaX
 
-    const width = clamp(
-      nextWidth,
-      bounds.min,
-      bounds.max
-    )
+      const width = clamp(
+        nextWidth,
+        bounds.min,
+        bounds.max
+      )
 
-    if (side === 'left') {
-      leftPanelWidth.value = width
-    } else {
-      rightPanelWidth.value = width
+      if (side === 'left') {
+        leftPanelWidth.value = width
+      } else {
+        rightPanelWidth.value = width
+      }
     }
-  }
 
-  const finishResize = () => {
-    window.removeEventListener(
-      'pointermove',
-      onMove
-    )
+  activePanelFinishHandler =
+    () => {
+      cleanupPanelResizeState(true)
+    }
 
-    window.removeEventListener(
-      'pointerup',
-      finishResize
-    )
-
-    window.removeEventListener(
-      'pointercancel',
-      finishResize
-    )
-
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-
-    isPanelResizing = false
-    scheduleSceneResize(0)
-  }
-
-  window.addEventListener(
+  document.addEventListener(
     'pointermove',
-    onMove
+    activePanelMoveHandler
   )
 
-  window.addEventListener(
+  document.addEventListener(
     'pointerup',
-    finishResize
+    activePanelFinishHandler
   )
 
-  window.addEventListener(
+  document.addEventListener(
     'pointercancel',
-    finishResize
+    activePanelFinishHandler
+  )
+
+  document.body.classList.add(
+    'geo-panel-resizing'
   )
 
   document.body.style.cursor =
@@ -2606,6 +2811,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  cleanupPanelResizeState(false)
   disposeThreeScene()
 })
 </script>
@@ -2821,7 +3027,7 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 5px 0;
+  margin: 3% 0;
   font-size: 11px;
   color: #e2e8f0;
 }
@@ -3359,4 +3565,129 @@ input[type="range"]::-moz-range-thumb {
    V8：滚动条样式不在组件内覆盖
    统一走 src/styles/geo-page-template.css 里的 .panel-scroll 封装
    ========================================================= */
+
+
+/* ===================== v10: 中小屏底部播放轴居中修正 =====================
+   v9 的 large 规则是对的：播放轴在左右面板之间的可视主场景区域居中。
+   但 medium / small 下左右面板是覆盖式抽屉，不应该继续按 left/right 铺开。
+   这版改成：
+   - large：避开左右面板，在可视主场景区域居中；
+   - medium / small：按中间场景本身居中，使用 left:50% + translateX(-50%)；
+   - 中小屏播放轴宽度用 min(...) 控制，不再出现偏左 / 偏右。
+*/
+
+/* large：在左右面板之间居中 */
+.solar-system-container.layout-large .center-stage>.solar-playback-dock {
+  left:
+    calc(var(--left-panel-width, 0px) + 18px) !important;
+  right:
+    calc(var(--right-panel-width, 0px) + 18px) !important;
+  width:
+    min(720px, calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 36px)) !important;
+  max-width:
+    min(720px, calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 36px)) !important;
+  margin-inline:
+    auto !important;
+  transform:
+    none !important;
+}
+
+/* 2200px 以上才放开播放轴尺寸 */
+@media (min-width: 2200px) and (min-height: 1200px) {
+  .solar-system-container.layout-large .center-stage>.solar-playback-dock {
+    width:
+      min(920px, calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 48px)) !important;
+    max-width:
+      min(920px, calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 48px)) !important;
+  }
+}
+
+/* medium：左右面板为覆盖式抽屉，播放轴按中间场景居中 */
+.solar-system-container.layout-medium .center-stage>.solar-playback-dock {
+  left:
+    50% !important;
+  right:
+    auto !important;
+  width:
+    min(720px, calc(100% - 28px)) !important;
+  max-width:
+    calc(100% - 28px) !important;
+  margin-inline:
+    0 !important;
+  transform:
+    translateX(-50%) !important;
+}
+
+/* small：继续居中，但更贴合窄屏 */
+.solar-system-container.layout-small .center-stage>.solar-playback-dock {
+  left:
+    50% !important;
+  right:
+    auto !important;
+  width:
+    min(620px, calc(100% - 18px)) !important;
+  max-width:
+    calc(100% - 18px) !important;
+  margin-inline:
+    0 !important;
+  transform:
+    translateX(-50%) !important;
+}
+
+/* 兜底覆盖公共模板里 max-width:1280 的铺开规则 */
+@media (max-width: 1280px) {
+  .solar-system-container .center-stage>.solar-playback-dock {
+    left:
+      50% !important;
+    right:
+      auto !important;
+    width:
+      min(720px, calc(100% - 28px)) !important;
+    max-width:
+      calc(100% - 28px) !important;
+    margin-inline:
+      0 !important;
+    transform:
+      translateX(-50%) !important;
+  }
+}
+
+@media (max-width: 819px) {
+  .solar-system-container .center-stage>.solar-playback-dock {
+    left:
+      50% !important;
+    right:
+      auto !important;
+    width:
+      min(620px, calc(100% - 18px)) !important;
+    max-width:
+      calc(100% - 18px) !important;
+    bottom:
+      8px !important;
+    transform:
+      translateX(-50%) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .solar-system-container .center-stage>.solar-playback-dock {
+    width:
+      calc(100% - 14px) !important;
+    max-width:
+      calc(100% - 14px) !important;
+  }
+}
+
+/* 播放轴内部也保持收缩，不让 slider 把卡片撑偏 */
+.solar-system-container .solar-playback-dock .timeline-main {
+  min-width:
+    0 !important;
+  width:
+    100%;
+}
+
+.solar-system-container .solar-playback-dock .solar-speed-slider {
+  min-width:
+    0 !important;
+}
 </style>

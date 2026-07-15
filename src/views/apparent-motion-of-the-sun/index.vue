@@ -181,7 +181,7 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-right" @pointerdown.prevent="
+        <div class="resize-handle resize-right" @pointerdown.stop.prevent="
           startResize('left', $event)
           "></div>
 
@@ -352,7 +352,7 @@
           </el-collapse>
         </div>
 
-        <div class="resize-handle resize-left" @pointerdown.prevent="
+        <div class="resize-handle resize-left" @pointerdown.stop.prevent="
           startResize('right', $event)
           "></div>
 
@@ -599,8 +599,18 @@ const rightActivePanels = ref(['lecture', 'calc'])
 const speedOptions = [1, 2, 5, 10, 20]
 
 // 面板宽度（可拖拽调整）
-const leftPanelWidth = ref(320)
-const rightPanelWidth = ref(340)
+
+/*
+ * 面板宽度说明：
+ * 公共模板 CSS 负责视觉风格和大屏兜底；
+ * 但本组件在 workspace 上通过 inline style 写入
+ * --left-panel-width / --right-panel-width。
+ * 因此默认宽度和拖拽上限必须在业务 JS 中同步统一，
+ * 否则公共 CSS 放大了面板，业务变量仍会按旧值运行。
+ */
+
+const leftPanelWidth = ref(420)
+const rightPanelWidth = ref(480)
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
 
@@ -1137,6 +1147,58 @@ function getLayoutMode(width: number): LayoutMode {
   return 'small'
 }
 
+function clampPanelNumber(
+  value: number,
+  min: number,
+  max: number
+) {
+  return Math.min(
+    max,
+    Math.max(
+      min,
+      value
+    )
+  )
+}
+
+function getAdaptivePanelWidth(
+  side: 'left' | 'right',
+  mode: LayoutMode,
+  pageWidth: number
+) {
+  if (mode === 'small') {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.78, 260, 360)
+      : clampPanelNumber(pageWidth * 0.82, 280, 380)
+  }
+
+  if (mode === 'medium') {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.38, 320, 460)
+      : clampPanelNumber(pageWidth * 0.40, 340, 500)
+  }
+
+  /*
+   * 2K / 4K / 教室超大屏：
+   * 普通 1920×1080 电脑不再触发超大屏面板宽度。
+   * 组件 workspace 上有 inline CSS 变量，
+   * 公共 CSS 很难完全覆盖默认宽度，
+   * 所以这里业务侧也要给出更合理的默认值。
+   */
+  const isTeachingLargeScreen =
+    pageWidth >= 2200
+
+  if (isTeachingLargeScreen) {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.22, 420, 620)
+      : clampPanelNumber(pageWidth * 0.25, 480, 700)
+  }
+
+  return side === 'left'
+    ? clampPanelNumber(pageWidth * 0.19, 340, 500)
+    : clampPanelNumber(pageWidth * 0.20, 360, 540)
+}
+
 function syncResponsivePanelWidths(
   suppliedWidth?: number
 ) {
@@ -1145,47 +1207,32 @@ function syncResponsivePanelWidths(
     pageRef.value?.clientWidth ||
     window.innerWidth
 
-  const nextMode = getLayoutMode(width)
-  layoutMode.value = nextMode
+  const nextMode =
+    getLayoutMode(width)
+
+  layoutMode.value =
+    nextMode
 
   if (!leftPanelManuallyResized) {
-    if (width >= 3000) {
-      leftPanelWidth.value = 430
-    } else if (width >= 2200) {
-      leftPanelWidth.value = 390
-    } else if (width >= 1680) {
-      leftPanelWidth.value = 340
-    } else if (width >= 1440) {
-      leftPanelWidth.value = 320
-    } else if (width >= 1024) {
-      leftPanelWidth.value = 292
-    } else if (width >= 820) {
-      leftPanelWidth.value = 260
-    } else if (width >= 560) {
-      leftPanelWidth.value = 220
-    } else {
-      leftPanelWidth.value = 210
-    }
+    leftPanelWidth.value =
+      Math.round(
+        getAdaptivePanelWidth(
+          'left',
+          nextMode,
+          width
+        )
+      )
   }
 
   if (!rightPanelManuallyResized) {
-    if (width >= 3000) {
-      rightPanelWidth.value = 460
-    } else if (width >= 2200) {
-      rightPanelWidth.value = 410
-    } else if (width >= 1680) {
-      rightPanelWidth.value = 360
-    } else if (width >= 1440) {
-      rightPanelWidth.value = 340
-    } else if (width >= 1024) {
-      rightPanelWidth.value = 308
-    } else if (width >= 820) {
-      rightPanelWidth.value = 276
-    } else if (width >= 560) {
-      rightPanelWidth.value = 236
-    } else {
-      rightPanelWidth.value = 224
-    }
+    rightPanelWidth.value =
+      Math.round(
+        getAdaptivePanelWidth(
+          'right',
+          nextMode,
+          width
+        )
+      )
   }
 
   if (previousLayoutMode !== nextMode) {
@@ -1203,36 +1250,91 @@ function getPanelResizeBounds(
 
   if (layoutMode.value === 'small') {
     return {
-      min: side === 'left' ? 190 : 202,
-      max: Math.max(
-        side === 'left' ? 210 : 224,
-        Math.min(
-          side === 'left' ? 220 : 236,
-          pageWidth * 0.3
-        )
-      ),
+      min:
+        side === 'left'
+          ? 220
+          : 240,
+      max:
+        Math.max(
+          side === 'left'
+            ? 220
+            : 240,
+          Math.min(
+            side === 'left'
+              ? 420
+              : 440,
+            pageWidth * 0.86
+          )
+        ),
     }
   }
 
   if (layoutMode.value === 'medium') {
     return {
-      min: side === 'left' ? 220 : 236,
-      max: Math.max(
-        side === 'left' ? 260 : 276,
-        Math.min(
-          side === 'left' ? 292 : 308,
-          pageWidth * 0.24
-        )
-      ),
+      min:
+        side === 'left'
+          ? 280
+          : 300,
+      max:
+        Math.max(
+          side === 'left'
+            ? 280
+            : 300,
+          Math.min(
+            side === 'left'
+              ? 620
+              : 660,
+            pageWidth * 0.58
+          )
+        ),
     }
   }
 
+  /*
+   * 普通 1920×1080 电脑仍然属于 large，
+   * 但不应该拥有和 2K / 4K / 教室超大屏一样的拖拽上限。
+   *
+   * 1440 ~ 2199：
+   * - 左侧最多 560px
+   * - 右侧最多 620px
+   *
+   * 2200 以上：
+   * - 左侧最多 820px
+   * - 右侧最多 900px
+   */
+  const isUltraLargeScreen =
+    pageWidth >= 2200
+
   return {
-    min: side === 'left' ? 250 : 270,
-    max: Math.max(
-      side === 'left' ? 250 : 270,
-      Math.min(540, pageWidth * 0.42)
-    ),
+    min:
+      side === 'left'
+        ? 300
+        : 340,
+    max:
+      Math.max(
+        side === 'left'
+          ? 300
+          : 340,
+        Math.min(
+          side === 'left'
+            ? (
+              isUltraLargeScreen
+                ? 820
+                : 560
+            )
+            : (
+              isUltraLargeScreen
+                ? 900
+                : 620
+            ),
+          pageWidth *
+          (
+            isUltraLargeScreen
+              ? 0.54
+              : 0.38
+          )
+        )
+      ),
   }
 }
 
@@ -1247,82 +1349,122 @@ function startResize(
     return
   }
 
+  event.stopPropagation()
+
   if (side === 'left') {
     leftPanelManuallyResized = true
   } else {
     rightPanelManuallyResized = true
   }
 
-  const startX = event.clientX
+  const handle =
+    event.currentTarget as HTMLElement | null
+
+  if (
+    handle &&
+    typeof handle.setPointerCapture === 'function'
+  ) {
+    try {
+      handle.setPointerCapture(
+        event.pointerId
+      )
+    } catch {
+      // 部分触控屏或老浏览器可能不支持 pointer capture，继续用 document 监听兜底。
+    }
+  }
+
+  const startX =
+    event.clientX
+
   const startWidth =
     side === 'left'
       ? leftPanelWidth.value
       : rightPanelWidth.value
 
-  const bounds = getPanelResizeBounds(side)
+  const bounds =
+    getPanelResizeBounds(side)
 
-  const clampWidth = (value: number) => {
-    return Math.max(
-      bounds.min,
-      Math.min(bounds.max, value)
-    )
-  }
-
-  const onMove = (moveEvent: PointerEvent) => {
-    const deltaX =
-      moveEvent.clientX - startX
-
-    const nextWidth =
-      side === 'left'
-        ? startWidth + deltaX
-        : startWidth - deltaX
-
-    if (side === 'left') {
-      leftPanelWidth.value =
-        clampWidth(nextWidth)
-    } else {
-      rightPanelWidth.value =
-        clampWidth(nextWidth)
+  const clampWidth =
+    (value: number) => {
+      return Math.max(
+        bounds.min,
+        Math.min(
+          bounds.max,
+          value
+        )
+      )
     }
-  }
 
-  const finishResize = () => {
-    window.removeEventListener(
-      'pointermove',
-      onMove
-    )
+  const onMove =
+    (moveEvent: PointerEvent) => {
+      const deltaX =
+        moveEvent.clientX - startX
 
-    window.removeEventListener(
-      'pointerup',
-      finishResize
-    )
+      const nextWidth =
+        side === 'left'
+          ? startWidth + deltaX
+          : startWidth - deltaX
 
-    window.removeEventListener(
-      'pointercancel',
-      finishResize
-    )
+      if (side === 'left') {
+        leftPanelWidth.value =
+          clampWidth(nextWidth)
+      } else {
+        rightPanelWidth.value =
+          clampWidth(nextWidth)
+      }
+    }
 
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-  }
+  const finishResize =
+    () => {
+      document.removeEventListener(
+        'pointermove',
+        onMove
+      )
 
-  window.addEventListener(
+      document.removeEventListener(
+        'pointerup',
+        finishResize
+      )
+
+      document.removeEventListener(
+        'pointercancel',
+        finishResize
+      )
+
+      document.body.classList.remove(
+        'geo-panel-resizing'
+      )
+
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+
+      resizeScene()
+    }
+
+  document.addEventListener(
     'pointermove',
     onMove
   )
 
-  window.addEventListener(
+  document.addEventListener(
     'pointerup',
     finishResize
   )
 
-  window.addEventListener(
+  document.addEventListener(
     'pointercancel',
     finishResize
   )
 
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
+  document.body.classList.add(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    'col-resize'
+
+  document.body.style.userSelect =
+    'none'
 }
 
 // --- 视角切换 ---
@@ -2351,6 +2493,13 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.body.classList.remove(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+
   sceneResizeObserver?.disconnect()
   sceneResizeObserver = null
 
@@ -2649,4 +2798,18 @@ onUnmounted(() => {
         minmax(0, 1fr));
   }
 }
+
+/* ===================== v30: 普通 1920 不触发超大屏增强 =====================
+   - 业务大屏判断提升到 2200px
+   - resize-handle 改为 pointerdown.stop.prevent
+   - 面板拖拽改为 document 级监听，拖出面板也不断
+   - 普通 1920×1080 电脑按普通 large 布局处理
+*/
+
+
+/* ===================== v31: 普通 1920 最大拖拽宽度收敛 =====================
+   - 1440 ~ 2199：左侧最多 560px，右侧最多 620px
+   - 2200 以上：左侧最多 820px，右侧最多 900px
+   - 普通 1920 默认宽度和最大拖拽宽度都不再按超大屏处理
+*/
 </style>
