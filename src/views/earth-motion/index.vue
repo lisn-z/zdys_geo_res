@@ -1,262 +1,544 @@
 <template>
-  <section ref="rootRef" class="orbit-page" :class="{ 'is-collapsed': panelCollapsed }">
-    <header class="app-header scene-header glass-panel">
-      <div class="scene-title">
-        <strong>地球公转 · 自转 · 昼夜四季</strong>
-        <span>Earth Simulator</span>
+  <section ref="rootRef"
+    class="earth-orbit-template earth-orbit-template5 geo-template-page geo-page theme-dark layout-floating"
+    :class="'layout-' + layoutMode">
+    <header class="top-toolbar">
+      <div class="brand-area">
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
-      <div class="scene-actions">
-        <button class="header-icon-btn" type="button" title="全屏" @click="toggleFullscreen">⛶</button>
-        <label class="header-toggle" title="显示/隐藏实时数据面板">
-          <span>实时数据</span>
-          <el-switch v-model="observationPanelVisible" size="small"></el-switch>
-        </label>
-        <label class="header-toggle" title="显示/隐藏底部时间轴">
-          <span>时间轴</span>
-          <el-switch v-model="timelineDockVisible" size="small"></el-switch>
-        </label>
-        <label class="header-toggle" title="显示/隐藏副机位">
-          <span>副机位</span>
-          <el-switch v-model="subSceneVisible" size="small"></el-switch>
-        </label>
-        <label class="header-toggle">
-          <span>自动演示</span>
-          <el-switch v-model="isPlaying" size="small"></el-switch>
-        </label>
-      </div>
-    </header>
-    <div class="app-main">
-    <aside class="control-panel" :class="{ collapsed: panelCollapsed }">
-      <div v-if="!panelCollapsed" class="panel-scroll">
-        <section class="control-card">
-          <div class="card-title">视角中心</div>
-          <div class="button-grid two">
-            <el-button :type="focusMode === 'sun' ? 'primary' : 'default'" size="small" @click="switchFocus('sun')">
-              太阳中心
-            </el-button>
-            <el-button :type="focusMode === 'earth' ? 'primary' : 'default'" size="small" @click="switchFocus('earth')">
-              地球中心
-            </el-button>
-            <el-button size="small" plain @click="resetCamera">重置视角</el-button>
-            <el-button size="small" plain @click="setCameraPreset('top')">俯视</el-button>
-          </div>
-        </section>
 
-        <section class="control-card">
-          <div class="card-title">速度设置</div>
-          <label class="control-line slider-line">
-            <span>自转速度</span>
-            <el-slider v-model="daySpeed" :min="0.05" :max="8" :step="0.05" size="small" :show-tooltip="false"></el-slider>
-            <b>{{ daySpeed.toFixed(2) }}×</b>
-          </label>
-        </section>
+      <h1 class="page-title">地球运动</h1>
 
-        <section class="control-card">
-          <div class="card-title">光照控制</div>
-          <label class="control-line slider-line light-line">
-            <span>定向光强度</span>
-            <el-slider v-model="sunLightPower" :min="0.8" :max="3.5" :step="0.05" size="small" :show-tooltip="false"></el-slider>
-            <b>{{ sunLightPower.toFixed(2) }}×</b>
-          </label>
-          <label class="control-line slider-line light-line">
-            <span>夜间灯光亮度</span>
-            <el-slider v-model="nightLightPower" :min="0.5" :max="4" :step="0.05" size="small" :show-tooltip="false"></el-slider>
-            <b>{{ nightLightPower.toFixed(2) }}×</b>
-          </label>
-          <label class="control-line slider-line light-line">
-            <span>暗面地表亮度</span>
-            <el-slider v-model="darkSideSurfacePower" :min="0.05" :max="1.2" :step="0.05" size="small" :show-tooltip="false"></el-slider>
-            <b>{{ darkSideSurfacePower.toFixed(2) }}×</b>
-          </label>
-        </section>
+      <div class="toolbar-actions">
 
-        <section class="control-card">
-          <div class="card-title">地球图层</div>
-          <div class="toggle-list">
-            <label v-for="item in displayOptions" :key="item.key" class="option-switch">
-              <span>{{ item.label }}</span>
-              <el-switch v-model="toggles[item.key]" size="small"></el-switch>
-            </label>
-          </div>
-        </section>
-
-        <section class="control-card">
-          <div class="card-title">观测点</div>
-          <p class="card-tip">默认上海；仅保留一个观测点。开启后可点击地球替换观测点。</p>
-          <label class="control-line switch-line">
-            <span>允许点击替换</span>
-            <el-switch v-model="clickAddEnabled" size="small"></el-switch>
-          </label>
-          <div class="preset-cloud">
-            <el-button v-for="p in presetPlaces" :key="p.name" size="small" plain @click="addPreset(p)">
-              {{ p.name }}
-            </el-button>
-          </div>
-          <el-button class="clear-btn" size="small" plain @click="clearObservationPoints">恢复上海</el-button>
-        </section>
-      </div>
-    </aside>
-
-    <main class="viewport-wrap">
-      <div ref="viewportRef" class="viewport">
-        <canvas ref="canvasRef" class="three-canvas"></canvas>
-        <button class="panel-edge-toggle glass-panel" type="button" :title="panelCollapsed ? '展开控制面板' : '收起控制面板'" @click="panelCollapsed = !panelCollapsed">
-          <svg v-if="panelCollapsed" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M8 5l7 7-7 7"></path>
-          </svg>
-          <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M16 5l-7 7 7 7"></path>
-          </svg>
+        <button type="button" class="theme-btn toolbar-btn" :class="{ active: subSceneVisible }"
+          @click="subSceneVisible = !subSceneVisible">
+          副机位
         </button>
 
-        <section v-if="observationPanelVisible" class="observation-panel glass-panel" :class="{ empty: !selectedObservation }">
-          <header class="obs-head obs-head-v21">
-            <span class="obs-title-main">观测点</span>
-            <div class="obs-place-row">
-              <strong>{{ selectedObservation ? selectedObservation.name : '未选择观测点' }}</strong>
+        <button type="button" class="theme-btn toolbar-btn" :class="{ active: timelineDockVisible }"
+          @click="timelineDockVisible = !timelineDockVisible">
+          时间轴
+        </button>
+
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllControlPanels">
+          {{ allPanelsCollapsed ? '展开控制' : '收起控制' }}
+        </button>
+      </div>
+    </header>
+
+    <main class="workspace" :class="{
+      'has-left': hasLeftPanel,
+      'has-right': hasRightPanel,
+    }" :style="{
+        '--left-panel-width':
+          leftCollapsed
+            ? '0px'
+            : leftPanelWidth + 'px',
+        '--right-panel-width':
+          rightCollapsed
+            ? '0px'
+            : rightPanelWidth + 'px',
+      }">
+      <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
+        <div class="panel-scroll">
+          <div class="panel-heading">
+            <div>
+              <h2>控制面板</h2>
+              <p>控制视角、速度、图层与观测点</p>
             </div>
-          </header>
-          <div v-if="selectedObservation" class="obs-body">
-            <dl>
-              <div>
-                <dt>纬度</dt>
-                <dd>{{ formatLat(selectedObservation.lat) }}</dd>
+
+            <span class="panel-badge">CONTROL</span>
+          </div>
+
+          <section class="geo-card control-section">
+            <h3 class="section-title">视角中心</h3>
+
+            <div class="option-grid two-col-option-grid">
+              <button type="button" class="theme-btn option-btn" :class="{ active: focusMode === 'sun' }"
+                @click="switchFocus('sun')">
+                太阳中心
+              </button>
+
+              <button type="button" class="theme-btn option-btn" :class="{ active: focusMode === 'earth' }"
+                @click="switchFocus('earth')">
+                地球中心
+              </button>
+
+              <button type="button" class="theme-btn option-btn" @click="resetCamera">
+                重置视角
+              </button>
+
+              <button type="button" class="theme-btn option-btn" @click="setCameraPreset('top')">
+                俯视
+              </button>
+            </div>
+          </section>
+
+          <section class="geo-card control-section">
+            <h3 class="section-title">观测点</h3>
+
+            <div class="switch-row first-control-row">
+              <div class="control-copy">
+                <strong>允许点击替换</strong>
+                <span>点击地球表面替换当前观测点</span>
               </div>
-              <div>
-                <dt>经度</dt>
-                <dd>{{ formatLon(selectedObservation.lon) }}</dd>
+
+              <el-switch v-model="clickAddEnabled" />
+            </div>
+
+            <div class="preset-cloud">
+              <button v-for="p in presetPlaces" :key="p.name" type="button"
+                class="theme-btn option-btn place-btn uniform-place-btn" :class="{ active: isPresetActive(p) }"
+                @click="addPreset(p)">
+                {{ p.name }}
+              </button>
+            </div>
+
+            <button type="button" class="theme-btn reset-scene-btn" @click="clearObservationPoints">
+              恢复上海
+            </button>
+          </section>
+
+          <section class="geo-card control-section">
+            <div class="section-title-row">
+              <h3 class="section-title">自转速度</h3>
+              <strong class="control-value">
+                {{ daySpeed.toFixed(2) }}×
+              </strong>
+            </div>
+
+            <el-slider v-model="daySpeed" :min="0.05" :max="8" :step="0.05" :show-tooltip="false" />
+
+            <div class="switch-row">
+              <div class="control-copy">
+                <strong>自动演示</strong>
+                <span>自动推进公转与自转时间</span>
               </div>
-              <div>
-                <dt>太阳时</dt>
-                <dd class="accent-value">{{ selectedObservation.solarTime }}</dd>
+
+              <el-switch v-model="isPlaying" />
+            </div>
+          </section>
+
+          <section class="geo-card control-section">
+            <div class="section-title-row">
+              <h3 class="section-title">定向光强度</h3>
+              <strong class="control-value">
+                {{ sunLightPower.toFixed(2) }}×
+              </strong>
+            </div>
+
+            <el-slider v-model="sunLightPower" :min="0.8" :max="3.5" :step="0.05" :show-tooltip="false" />
+
+            <div class="section-title-row compact-title-row">
+              <span class="mini-control-label">夜间灯光亮度</span>
+              <strong class="control-value">
+                {{ nightLightPower.toFixed(2) }}×
+              </strong>
+            </div>
+
+            <el-slider v-model="nightLightPower" :min="0.5" :max="4" :step="0.05" :show-tooltip="false" />
+
+            <div class="section-title-row compact-title-row">
+              <span class="mini-control-label">暗面地表亮度</span>
+              <strong class="control-value">
+                {{ darkSideSurfacePower.toFixed(2) }}×
+              </strong>
+            </div>
+
+            <el-slider v-model="darkSideSurfacePower" :min="0.05" :max="1.2" :step="0.05" :show-tooltip="false" />
+          </section>
+
+          <section class="geo-card control-section">
+            <h3 class="section-title">地球图层</h3>
+
+            <div class="layer-switch-list">
+              <div v-for="item in displayOptions" :key="item.key" class="switch-row compact-switch-row">
+                <div class="control-copy">
+                  <strong>{{ item.label }}</strong>
+                </div>
+
+                <el-switch v-model="toggles[item.key]" />
               </div>
-              <div>
-                <dt>太阳高度角</dt>
-                <dd class="accent-value">{{ formatSignedDeg(selectedObservation.solarAltitude) }}</dd>
+            </div>
+          </section>
+        </div>
+
+        <div class="resize-handle resize-right" @pointerdown.prevent="
+          startResize('left', $event)
+          "></div>
+
+        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板" @click="toggleLeftPanel">
+          ‹
+        </button>
+      </aside>
+
+      <section class="center-stage">
+        <div class="stage-content">
+          <div ref="viewportRef" class="scene-host orbit-scene-host">
+            <canvas ref="canvasRef" class="three-canvas scene-canvas"></canvas>
+          </div>
+
+          <div class="orbit-overlay-layer">
+            <section v-show="subSceneVisible" ref="subSceneRef" class="sub-scene-window scene-float-card" :style="{
+              width: `${subSceneSize.width}px`,
+              height: `${subSceneSize.height}px`,
+            }">
+              <header class="sub-scene-head">
+                <div class="sub-title">
+                  <span>副机位观察</span>
+                  <strong>{{ subViewLabel }}</strong>
+                </div>
+
+                <el-select v-model="subViewMode" class="theme-select sub-view-select"
+                  popper-class="geo-select-popper geo-select-popper-dark" size="small" :teleported="false">
+                  <el-option v-for="view in subViewModes" :key="view.key" :label="view.label" :value="view.key" />
+                </el-select>
+              </header>
+
+              <canvas ref="subCanvasRef" class="sub-canvas"></canvas>
+
+              <button class="sub-resize-handle" type="button" title="拖动调整副机位大小"
+                @pointerdown.stop.prevent="onSubResizeStart"></button>
+            </section>
+
+            <section v-show="timelineDockVisible" class="timeline-dock orbit-time-dock">
+              <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+                :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
+                <svg v-if="isPlaying" class="timeline-play-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 5h4v14H7z"></path>
+                  <path d="M13 5h4v14h-4z"></path>
+                </svg>
+
+                <svg v-else class="timeline-play-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 5v14l11-7z"></path>
+                </svg>
+              </button>
+              <div class="timeline-main orbit-timeline-main">
+                <div class="timeline-row">
+                  <div class="timeline-label between">
+                    <span>公转时间轴</span>
+                    <strong class="accent-value">
+                      {{ currentSolarTerm.name }}
+                    </strong>
+                  </div>
+
+                  <el-slider v-model="yearProgress" :min="0" :max="1" :step="0.001" :show-tooltip="false" />
+                </div>
+
+                <div class="timeline-scale term-scale-row">
+                  <div class="scale-track term-scale">
+                    <button v-for="term in solarTerms" :key="term.name" type="button" :style="{
+                      left: sliderTrackLeft(term.progress)
+                    }" @click="setSolarTerm(term.progress)">
+                      <i></i>
+                      <span>{{ term.name }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="timeline-row">
+                  <div class="timeline-label between">
+                    <span>自转时间轴</span>
+                    <strong class="accent-value">
+                      {{ observerSolarTime }}
+                    </strong>
+                  </div>
+
+                  <el-slider v-model="observerLocalHour" :min="0" :max="24" :step="0.05" :show-tooltip="false" />
+                </div>
+
+                <div class="hour-scale">
+                  <span>0h</span>
+                  <span>6h</span>
+                  <span>12h</span>
+                  <span>18h</span>
+                  <span>24h</span>
+                </div>
               </div>
-              <div v-if="selectedObservation.polarStatus" class="wide">
-                <dt>昼夜状态</dt>
-                <dd class="accent-value">{{ selectedObservation.polarStatus }}</dd>
-              </div>
-              <div v-if="!selectedObservation.polarStatus">
-                <dt>昼长</dt>
-                <dd>{{ selectedObservation.dayLength }}</dd>
-              </div>
-              <div v-if="!selectedObservation.polarStatus">
-                <dt>夜长</dt>
-                <dd>{{ selectedObservation.nightLength }}</dd>
-              </div>
-              <div>
-                <dt>日出</dt>
-                <dd class="accent-value">{{ selectedObservation.sunriseTime }}</dd>
-              </div>
-              <div>
-                <dt>日落</dt>
-                <dd class="accent-value">{{ selectedObservation.sunsetTime }}</dd>
-              </div>
-            </dl>
-            <section class="obs-track-card">
-              <svg class="obs-track-svg" :viewBox="`0 0 ${svgWidth} ${svgHeight}`" preserveAspectRatio="xMidYMid meet" role="img">
-                <defs>
-                  <linearGradient id="trackGradientObs" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stop-color="#2ec4b6"></stop>
-                    <stop offset="55%" stop-color="#47a3ff"></stop>
-                    <stop offset="100%" stop-color="#ffd166"></stop>
-                  </linearGradient>
-                </defs>
-                <line :x1="svgPad" :x2="svgWidth - svgRightPad" :y1="svgHeight - svgBottomPad" :y2="svgHeight - svgBottomPad" class="axis-line"></line>
-                <line :x1="svgPad" :x2="svgPad" :y1="svgTopPad" :y2="svgHeight - svgBottomPad" class="axis-line"></line>
-                <g v-for="tick in yTicks" :key="tick.label">
-                  <line :x1="svgPad - 4" :x2="svgWidth - svgRightPad" :y1="latToY(tick.lat)" :y2="latToY(tick.lat)" :class="tick.lat === 0 ? 'equator-line' : 'tropic-line'"></line>
-                  <text :x="svgPad - 2" :y="latToY(tick.lat) + 4" text-anchor="end">{{ tick.label }}</text>
-                </g>
-                <path :d="sunTrackPath" class="obs-track-path"></path>
-                <circle :cx="progressToX(yearProgress)" :cy="latToY(currentDeclinationDeg)" r="4.5" class="track-dot"></circle>
-                <g v-for="term in solarTerms" :key="term.name">
-                  <line :x1="progressToX(term.progress)" :x2="progressToX(term.progress)" :y1="svgTopPad" :y2="svgHeight - svgBottomPad" class="term-guide"></line>
-                  <text :x="progressToX(term.progress)" :y="svgHeight - 8" text-anchor="middle">{{ term.name }}</text>
-                </g>
-              </svg>
             </section>
           </div>
-          <p v-else class="empty-tip">选择城市后显示太阳高度角、昼夜长等信息。</p>
-        </section>
+        </div>
+      </section>
 
-        <section
-          v-show="subSceneVisible"
-          ref="subSceneRef"
-          class="sub-scene-window glass-panel"
-          :style="{ width: `${subSceneSize.width}px`, height: `${subSceneSize.height}px` }"
-        >
-          <header class="sub-scene-head">
-            <div class="sub-title">
-              <span>副机位观察</span>
+      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: rightCollapsed }">
+        <div class="panel-scroll">
+          <div class="panel-heading">
+            <div>
+              <h2>实时数据</h2>
+              <p>观测点、太阳直射点、昼夜长与季节变化</p>
             </div>
-            <el-select v-model="subViewMode" size="small" class="sub-view-select" :teleported="false">
-              <el-option v-for="view in subViewModes" :key="view.key" :label="view.label" :value="view.key"></el-option>
-            </el-select>
-          </header>
-          <canvas ref="subCanvasRef" class="sub-canvas"></canvas>
-          <button class="sub-resize-handle" type="button" title="拖动调整副机位大小" @pointerdown="onSubResizeStart"></button>
-        </section>
 
-        <section v-show="timelineDockVisible" class="timeline-dock glass-panel">
-          <div class="timeline-info-cards">
-            <div class="timeline-info-card">
-              <span>直射纬度</span>
-              <strong class="accent-value">{{ formatLat(currentDeclinationDeg) }}</strong>
-            </div>
-            <div class="timeline-info-card date-card">
-              <span>日期 / 日序</span>
-              <strong><em class="date-text">{{ currentMonthDay }}</em> · 第 {{ currentDayOfYear }} 天</strong>
-            </div>
+            <span class="panel-badge">DATA</span>
           </div>
-          <div class="timeline-main">
-            <div class="timeline-row">
-              <div class="timeline-label between">
-                <span>公转时间轴</span>
-                <strong class="accent-value">{{ currentSolarTerm.name }}</strong>
+
+          <section class="geo-card data-panel-card observation-data-card" :class="{ empty: !selectedObservation }">
+            <header class="obs-head">
+              <span class="obs-title-main">观测点</span>
+              <div class="obs-place-row">
+                <strong>
+                  {{ selectedObservation ? selectedObservation.name : '未选择观测点' }}
+                </strong>
               </div>
-              <el-slider v-model="yearProgress" :min="0" :max="1" :step="0.001" size="small" :show-tooltip="false"></el-slider>
-            </div>
-            <div class="timeline-scale term-scale-row">
-              <div class="scale-track term-scale">
-                <button v-for="term in solarTerms" :key="term.name" type="button" :style="{ left: sliderTrackLeft(term.progress) }" @click="setSolarTerm(term.progress)">
-                  <i></i>
-                  <span>{{ term.name }}</span>
-                </button>
+            </header>
+
+            <div v-if="selectedObservation" class="obs-body">
+              <div class="obs-summary-cards">
+                <article class="obs-summary-card">
+                  <span>直射纬度</span>
+                  <strong class="accent-value">
+                    {{ formatLat(currentDeclinationDeg) }}
+                  </strong>
+                </article>
+
+                <article class="obs-summary-card date-card">
+                  <span>日期 / 日序</span>
+                  <strong>
+                    <em class="date-text">{{ currentMonthDay }}</em>
+                    · 第 {{ currentDayOfYear }} 天
+                  </strong>
+                </article>
               </div>
+
+              <dl>
+                <div>
+                  <dt>纬度</dt>
+                  <dd>{{ formatLat(selectedObservation.lat) }}</dd>
+                </div>
+                <div>
+                  <dt>经度</dt>
+                  <dd>{{ formatLon(selectedObservation.lon) }}</dd>
+                </div>
+                <div>
+                  <dt>太阳时</dt>
+                  <dd class="accent-value">{{ selectedObservation.solarTime }}</dd>
+                </div>
+                <div>
+                  <dt>太阳高度角</dt>
+                  <dd class="accent-value">{{ formatSignedDeg(selectedObservation.solarAltitude) }}</dd>
+                </div>
+                <div v-if="selectedObservation.polarStatus" class="wide">
+                  <dt>昼夜状态</dt>
+                  <dd class="accent-value">{{ selectedObservation.polarStatus }}</dd>
+                </div>
+                <div v-if="!selectedObservation.polarStatus">
+                  <dt>昼长</dt>
+                  <dd>{{ selectedObservation.dayLength }}</dd>
+                </div>
+                <div v-if="!selectedObservation.polarStatus">
+                  <dt>夜长</dt>
+                  <dd>{{ selectedObservation.nightLength }}</dd>
+                </div>
+                <div>
+                  <dt>日出</dt>
+                  <dd class="accent-value">{{ selectedObservation.sunriseTime }}</dd>
+                </div>
+                <div>
+                  <dt>日落</dt>
+                  <dd class="accent-value">{{ selectedObservation.sunsetTime }}</dd>
+                </div>
+              </dl>
+
+              <section class="geo-card direct-track-card">
+
+
+                <header class="direct-track-head">
+
+
+                  <div>
+
+
+                    <h3>太阳直射点移动</h3>
+
+
+                    <p>南北回归线之间的周年摆动</p>
+
+
+                  </div>
+
+
+                  <span>δ</span>
+
+
+                </header>
+
+
+
+                <section class="obs-track-card earth-section-card">
+                  <svg class="earth-section-svg" viewBox="0 0 280 112" preserveAspectRatio="xMidYMid meet" role="img">
+                    <defs>
+                      <linearGradient id="trackGradientObs" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stop-color="#2ec4b6"></stop>
+                        <stop offset="55%" stop-color="#47a3ff"></stop>
+                        <stop offset="100%" stop-color="#ffd166"></stop>
+                      </linearGradient>
+                    </defs>
+
+                    <g class="ellipse-earth-pair">
+                      <ellipse cx="82" cy="56" rx="58" ry="47" class="earth-ellipse-outline"></ellipse>
+
+                      <ellipse cx="198" cy="56" rx="58" ry="47" class="earth-ellipse-outline"></ellipse>
+
+                      <path d="M24 43 L82 43 L140 43 L198 43 L256 43" class="section-lat-line tropic"></path>
+
+                      <path d="M24 49.5 L82 49.5 L140 49.5 L198 49.5 L256 49.5" class="section-lat-line grid"></path>
+
+                      <path d="M24 56 L82 56 L140 56 L198 56 L256 56" class="section-lat-line equator"></path>
+
+                      <path d="M24 62.5 L82 62.5 L140 62.5 L198 62.5 L256 62.5" class="section-lat-line grid"></path>
+
+                      <path d="M24 69 L82 69 L140 69 L198 69 L256 69" class="section-lat-line tropic"></path>
+
+                      <path d="M48 16 C39 35 39 77 48 96" class="section-lon-line"></path>
+                      <path d="M82 9 C82 31 82 81 82 103" class="section-lon-line main"></path>
+                      <path d="M116 16 C125 35 125 77 116 96" class="section-lon-line"></path>
+
+                      <path d="M164 16 C155 35 155 77 164 96" class="section-lon-line"></path>
+                      <path d="M198 9 C198 31 198 81 198 103" class="section-lon-line main"></path>
+                      <path d="M232 16 C241 35 241 77 232 96" class="section-lon-line"></path>
+
+                      <text x="8" y="46" text-anchor="start" class="latitude-label">
+                        北回归线
+                      </text>
+
+                      <text x="8" y="59" text-anchor="start" class="latitude-label">
+                        赤道
+                      </text>
+
+                      <text x="8" y="72" text-anchor="start" class="latitude-label">
+                        南回归线
+                      </text>
+
+                      <path :d="sunTrackPath" class="earth-track-path"></path>
+
+                      <circle :cx="progressToX(yearProgress)" :cy="latToY(currentDeclinationDeg)" r="4.8"
+                        class="track-dot"></circle>
+
+                      <line :x1="progressToX(yearProgress) - 24" :x2="progressToX(yearProgress) + 24"
+                        :y1="latToY(currentDeclinationDeg)" :y2="latToY(currentDeclinationDeg)" class="sun-direct-ray">
+                      </line>
+
+                      <text :x="progressToX(yearProgress)" :y="Math.max(12, latToY(currentDeclinationDeg) - 9)"
+                        text-anchor="middle" class="direct-label">
+                        直射点
+                      </text>
+                    </g>
+                  </svg>
+                </section>
+
+
+              </section>
             </div>
 
-            <div class="timeline-row">
-              <div class="timeline-label between">
-                <span>自转时间轴</span>
-                <strong class="accent-value">{{ observerSolarTime }}</strong>
-              </div>
-              <el-slider v-model="observerLocalHour" :min="0" :max="24" :step="0.05" size="small" :show-tooltip="false"></el-slider>
-            </div>
-            <div class="hour-scale">
-              <span>0h</span>
-              <span>6h</span>
-              <span>12h</span>
-              <span>18h</span>
-              <span>24h</span>
-            </div>
-          </div>
-        </section>
+            <p v-else class="empty-tip">
+              选择城市后显示太阳高度角、昼夜长等信息。
+            </p>
+          </section>
+        </div>
 
-      </div>
+        <div class="resize-handle resize-left" @pointerdown.prevent="
+          startResize('right', $event)
+          "></div>
+
+        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
+          @click="rightCollapsed = true">
+          ›
+        </button>
+      </aside>
+
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+        aria-label="展开右侧面板" @click="rightCollapsed = false">
+        ‹
+      </button>
+
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left" aria-label="展开左侧面板"
+        @click="toggleLeftPanel">
+        ›
+      </button>
     </main>
-    </div>
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import '@/styles/geo-page-template.css'
 import { ElButton, ElSlider, ElSwitch, ElSelect, ElOption } from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+
+type FocusMode = 'sun' | 'earth'
+
+type SubViewMode =
+  | 'dawn'
+  | 'dusk'
+  | 'southPole'
+  | 'northPole'
+  | 'night'
+  | 'day'
+
+interface ObservationPoint {
+  id: number
+  name: string
+  lat: number
+  lon: number
+}
+
+interface PresetPlace {
+  name: string
+  lat: number
+  lon: number
+}
+
+interface ObservationResult extends ObservationPoint {
+  solarTime: string
+  solarAltitude: number
+  polarStatus: string
+  dayLength: string
+  nightLength: string
+  sunriseTime: string
+  sunsetTime: string
+}
+
+interface SolarTerm {
+  name: string
+  progress: number
+  day: number
+  date: string
+}
+
+interface CalendarTick {
+  label: string
+  progress: number
+}
+
+interface SubViewOption {
+  key: SubViewMode
+  label: string
+}
+
+interface SubResizeState {
+  startX: number
+  startY: number
+  width: number
+  height: number
+}
+
+interface DisplayToggleMap {
+  terminator: boolean
+  grid: boolean
+  tropics: boolean
+  tiltLabels: boolean
+  tiltAngle: boolean
+  rotationArrow: boolean
+  axis: boolean
+  dayNightArc: boolean
+  sunRays: boolean
+  coordLabels: boolean
+  [key: string]: boolean
+}
+
 
 const DEG = Math.PI / 180
 const RAD = 180 / Math.PI
@@ -276,31 +558,324 @@ const RAW_TEXTURES = {
   night: `${TEXTURE_BASE}/emissive.jpg`
 }
 
-const rootRef = ref(null)
-const viewportRef = ref(null)
-const canvasRef = ref(null)
-const subCanvasRef = ref(null)
-const subSceneRef = ref(null)
+const rootRef = ref<HTMLElement | null>(null)
+const viewportRef = ref<HTMLElement | null>(null)
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+const subCanvasRef = ref<HTMLCanvasElement | null>(null)
+const subSceneRef = ref<HTMLElement | null>(null)
 const panelCollapsed = ref(false)
+type LayoutMode =
+  | 'large'
+  | 'medium'
+  | 'small'
+
+const hasLeftPanel = true
+const hasRightPanel = true
+
+const layoutMode =
+  ref<LayoutMode>('large')
+
+const leftPanelWidth = ref(304)
+const rightPanelWidth = ref(340)
+
+const leftCollapsed = panelCollapsed
+const rightCollapsed = ref(false)
+
+const allPanelsCollapsed = computed(() =>
+  leftCollapsed.value &&
+  rightCollapsed.value &&
+  !subSceneVisible.value &&
+  !timelineDockVisible.value
+)
+
+function toggleAllControlPanels() {
+  const shouldExpand =
+    allPanelsCollapsed.value
+
+  leftCollapsed.value =
+    !shouldExpand
+  rightCollapsed.value =
+    !shouldExpand
+  subSceneVisible.value =
+    shouldExpand
+  timelineDockVisible.value =
+    shouldExpand
+
+  requestMainResize()
+}
+
+
+let pageResizeObserver:
+  | ResizeObserver
+  | null = null
+
+let panelResizeState:
+  | {
+    startX: number
+    width: number
+  }
+  | null = null
+
+function getLayoutMode(width: number): LayoutMode {
+  if (width < 800) {
+    return 'small'
+  }
+
+  if (width < 1440) {
+    return 'medium'
+  }
+
+  return 'large'
+}
+
+function syncTemplateLayout() {
+  const width =
+    rootRef.value?.clientWidth ||
+    window.innerWidth
+
+  const nextMode =
+    getLayoutMode(width)
+
+  layoutMode.value = nextMode
+
+  if (nextMode === 'large') {
+    leftPanelWidth.value =
+      Math.min(
+        Math.max(leftPanelWidth.value, 286),
+        368
+      )
+
+    rightPanelWidth.value =
+      Math.min(
+        Math.max(rightPanelWidth.value, 320),
+        420
+      )
+  } else if (nextMode === 'medium') {
+    leftPanelWidth.value =
+      Math.min(
+        leftPanelWidth.value,
+        292
+      )
+
+    rightPanelWidth.value =
+      Math.min(
+        rightPanelWidth.value,
+        318
+      )
+  } else {
+    leftPanelWidth.value =
+      Math.min(
+        leftPanelWidth.value,
+        220
+      )
+
+    rightPanelWidth.value =
+      Math.min(
+        rightPanelWidth.value,
+        236
+      )
+  }
+}
+
+let panelResizeTarget:
+  | 'left'
+  | 'right'
+  | null = null
+
+function startResize(
+  target: 'left' | 'right',
+  event: PointerEvent
+) {
+  panelResizeTarget = target
+
+  panelResizeState = {
+    startX: event.clientX,
+    width:
+      target === 'left'
+        ? leftPanelWidth.value
+        : rightPanelWidth.value,
+  }
+
+  window.addEventListener(
+    'pointermove',
+    onPanelResizeMove
+  )
+
+  window.addEventListener(
+    'pointerup',
+    stopPanelResize,
+    {
+      once: true,
+    }
+  )
+}
+
+function onPanelResizeMove(event: PointerEvent) {
+  if (
+    !panelResizeState ||
+    !panelResizeTarget
+  ) {
+    return
+  }
+
+  const mode =
+    layoutMode.value
+
+  const maxWidth =
+    mode === 'large'
+      ? 420
+      : mode === 'medium'
+        ? 330
+        : 245
+
+  const minWidth =
+    mode === 'small'
+      ? 190
+      : 248
+
+  const delta =
+    event.clientX -
+    panelResizeState.startX
+
+  if (panelResizeTarget === 'left') {
+    leftPanelWidth.value =
+      clamp(
+        panelResizeState.width + delta,
+        minWidth,
+        maxWidth
+      )
+  } else {
+    rightPanelWidth.value =
+      clamp(
+        panelResizeState.width - delta,
+        minWidth,
+        maxWidth
+      )
+  }
+
+  requestMainResize()
+}
+
+function stopPanelResize() {
+  panelResizeState = null
+  panelResizeTarget = null
+
+  window.removeEventListener(
+    'pointermove',
+    onPanelResizeMove
+  )
+}
+
+function toggleLeftPanel() {
+  panelCollapsed.value =
+    !panelCollapsed.value
+
+  nextTick(requestMainResize)
+}
+
+function requestMainResize(immediate = false) {
+  if (resizeDebounceTimer !== null) {
+    window.clearTimeout(resizeDebounceTimer)
+    resizeDebounceTimer = null
+  }
+
+  if (resizeFrameId) {
+    window.cancelAnimationFrame(resizeFrameId)
+    resizeFrameId = 0
+  }
+
+  const runResize = () => {
+    resizeFrameId =
+      window.requestAnimationFrame(() => {
+        resizeFrameId = 0
+        pendingMainResize = false
+        resizeMainRenderer()
+      })
+  }
+
+  if (immediate) {
+    runResize()
+    return
+  }
+
+  /*
+   * 防拖拽闪烁：
+   * 窗口持续拖拽时只记录待更新，不反复 setSize；
+   * 等尺寸稳定一小段时间后再同步 WebGL 绘制缓冲。
+   */
+  pendingMainResize = true
+  resizeDebounceTimer =
+    window.setTimeout(
+      runResize,
+      140
+    )
+}
+
+function resizeMainRenderer() {
+  if (!viewportRef.value || !renderer || !camera) {
+    return
+  }
+
+  const rect =
+    viewportRef.value.getBoundingClientRect()
+
+  const width =
+    Math.max(
+      1,
+      Math.round(rect.width)
+    )
+
+  const height =
+    Math.max(
+      1,
+      Math.round(rect.height)
+    )
+
+  if (
+    width === lastMainWidth &&
+    height === lastMainHeight
+  ) {
+    resizeSubRenderer()
+    return
+  }
+
+  lastMainWidth = width
+  lastMainHeight = height
+
+  camera.aspect =
+    width / height
+
+  camera.updateProjectionMatrix()
+
+  renderer.setSize(
+    width,
+    height,
+    false
+  )
+
+  resizeSubRenderer()
+}
+
+
 const isPlaying = ref(true)
 const daySpeed = ref(1.4)
 const sunLightPower = ref(1.45)
 const nightMapPower = ref(1.75)
 const nightLightPower = ref(2.15)
-const darkSideSurfacePower = ref(0.52)
+const darkSideSurfacePower = ref(0.42)
 const ambientLightPower = ref(1.15)
-const focusMode = ref('sun')
+const focusMode = ref<FocusMode>('sun')
 const clickAddEnabled = ref(false)
 const sunTrackVisible = ref(true)
 const observationPanelVisible = ref(true)
 const timelineDockVisible = ref(true)
 const subSceneVisible = ref(true)
-const yearProgress = ref(0)
-const subViewMode = ref('dawn')
+const yearProgress = ref(dayOfYearToCalendarProgress(356))
+const subViewMode = ref<SubViewMode>('dawn')
 const subSceneSize = reactive({ width: 360, height: 268 })
 const referenceSolarHour = ref(3.9)
 
-const toggles = reactive({
+const toggles = reactive<DisplayToggleMap>({
   terminator: true,
   grid: true,
   tropics: true,
@@ -326,14 +901,14 @@ const displayOptions = [
   { key: 'coordLabels', label: '经纬度标签' }
 ]
 
-const solarTerms = [
+const solarTerms: SolarTerm[] = [
   { name: '春分', progress: dayOfYearToCalendarProgress(80), day: 80, date: '3月21日' },
   { name: '夏至', progress: dayOfYearToCalendarProgress(172), day: 172, date: '6月21日' },
   { name: '秋分', progress: dayOfYearToCalendarProgress(266), day: 266, date: '9月23日' },
   { name: '冬至', progress: dayOfYearToCalendarProgress(356), day: 356, date: '12月22日' }
 ]
 
-const calendarTicks = [
+const calendarTicks: CalendarTick[] = [
   { label: '1月1日', progress: dayOfYearToCalendarProgress(1) },
   { label: '3月', progress: dayOfYearToCalendarProgress(60) },
   { label: '6月', progress: dayOfYearToCalendarProgress(152) },
@@ -341,7 +916,7 @@ const calendarTicks = [
   { label: '12月31日', progress: dayOfYearToCalendarProgress(365) }
 ]
 
-const subViewModes = [
+const subViewModes: SubViewOption[] = [
   { key: 'dawn', label: '晨线' },
   { key: 'dusk', label: '昏线' },
   { key: 'southPole', label: '南极' },
@@ -351,7 +926,7 @@ const subViewModes = [
 ]
 const subViewLabel = computed(() => subViewModes.find((item) => item.key === subViewMode.value)?.label || '副视角')
 
-const presetPlaces = [
+const presetPlaces: PresetPlace[] = [
   { name: '北京，中国', lat: 39.9042, lon: 116.4074 },
   { name: '上海，中国', lat: 31.2304, lon: 121.4737 },
   { name: '伦敦，英国', lat: 51.5072, lon: -0.1276 },
@@ -365,8 +940,8 @@ const presetPlaces = [
   { name: '悉尼，澳大利亚', lat: -33.8688, lon: 151.2093 }
 ]
 
-const DEFAULT_OBSERVATION = { id: 1, name: '上海，中国', lat: 31.2304, lon: 121.4737 }
-const observationPoints = ref([{ ...DEFAULT_OBSERVATION }])
+const DEFAULT_OBSERVATION: ObservationPoint = { id: 1, name: '上海，中国', lat: 31.2304, lon: 121.4737 }
+const observationPoints = ref<ObservationPoint[]>([{ ...DEFAULT_OBSERVATION }])
 const selectedObservationId = ref(DEFAULT_OBSERVATION.id)
 let pointCounter = 1
 
@@ -413,52 +988,87 @@ const yTicks = [
 ]
 
 const sunTrackPath = computed(() => {
-  const parts = []
-  const samples = 180
-  for (let i = 0; i <= samples; i += 1) {
-    const p = i / samples
-    parts.push(`${i === 0 ? 'M' : 'L'} ${progressToX(p).toFixed(2)} ${latToY(getDeclination(p) * RAD).toFixed(2)}`)
+  const total = 96
+  const points: string[] = []
+
+  for (let i = 0; i <= total; i += 1) {
+    const t =
+      i / total
+
+    // 冬至作为左端起点：
+    // t=0   -> 南回归线
+    // t=0.25-> 赤道
+    // t=0.5 -> 北回归线
+    // t=0.75-> 赤道
+    // t=1   -> 南回归线
+    const lat =
+      -EARTH_TILT_DEG *
+      Math.cos(t * Math.PI * 2)
+
+    const x =
+      24 + t * 232
+
+    const y =
+      latToY(lat)
+
+    points.push(
+      `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
+    )
   }
-  return parts.join(' ')
+
+  return points.join(' ')
 })
 
-let scene
-let camera
-let renderer
-let subRenderer
-let subCamera
-let controls
-let resizeObserver
+type DisposableSceneObject =
+  THREE.Object3D & {
+    geometry?: THREE.BufferGeometry
+    material?: THREE.Material | THREE.Material[]
+  }
+
+let scene!: THREE.Scene
+let camera!: THREE.PerspectiveCamera
+let renderer!: THREE.WebGLRenderer
+let subRenderer: THREE.WebGLRenderer | null = null
+let subCamera: THREE.PerspectiveCamera | null = null
+let controls!: OrbitControls
+let resizeObserver: ResizeObserver | null = null
 let animationId = 0
 let lastFrameTime = 0
-let raycaster
-let mouse
-let sunMesh
-let earthOrbitGroup
-let earthRoot
-let earthTiltGroup
-let earthSpinGroup
-let earthMesh
-let orbitLine
-let starField
-let nebulaGroup
-let terminatorLine
-let dayArcLine
-let nightArcLine
-let gridGroup
-let tropicsGroup
-let coordLabelGroup
-let axisGroup
-let planesGroup
-let equatorPlaneGroup
-let tiltAngleGroup
-let rotationArrowGroup
-let sunRaysGroup
-let subsolarMarker
-let labelGroup
-let markerGroup
-let directionalLight
-let ambientLight
+let resizeFrameId = 0
+let resizeDebounceTimer: number | null = null
+let lastMainWidth = 0
+let lastMainHeight = 0
+let lastSubWidth = 0
+let lastSubHeight = 0
+let pendingMainResize = false
+let raycaster!: THREE.Raycaster
+let mouse!: THREE.Vector2
+let sunMesh: THREE.Mesh | null = null
+let earthOrbitGroup!: THREE.Group
+let earthRoot!: THREE.Group
+let earthTiltGroup!: THREE.Group
+let earthSpinGroup!: THREE.Group
+let earthMesh!: THREE.Mesh
+let orbitLine: THREE.Line | null = null
+let starField: THREE.Points | null = null
+let nebulaGroup: THREE.Group | null = null
+let terminatorLine: THREE.Line | null = null
+let dayArcLine: THREE.Line | null = null
+let nightArcLine: THREE.Line | null = null
+let gridGroup: THREE.Group | null = null
+let tropicsGroup: THREE.Group | null = null
+let coordLabelGroup: THREE.Group | null = null
+let axisGroup: THREE.Group | null = null
+let planesGroup: THREE.Group | null = null
+let equatorPlaneGroup: THREE.Group | null = null
+let tiltAngleGroup: THREE.Group | null = null
+let rotationArrowGroup: THREE.Group | null = null
+let sunRaysGroup: THREE.Group | null = null
+let subsolarMarker: THREE.Mesh | null = null
+let labelGroup!: THREE.Group
+let markerGroup!: THREE.Group
+let directionalLight!: THREE.DirectionalLight
+let ambientLight!: THREE.AmbientLight
 let targetFocus = new THREE.Vector3(0, 0, 0)
 
 const earthUniforms = {
@@ -475,6 +1085,18 @@ const earthUniforms = {
 }
 
 onMounted(() => {
+  syncTemplateLayout()
+
+  pageResizeObserver =
+    new ResizeObserver(() => {
+      syncTemplateLayout()
+      requestMainResize()
+    })
+
+  if (rootRef.value) {
+    pageResizeObserver.observe(rootRef.value)
+  }
+
   nextTick(() => {
     try {
       initScene()
@@ -488,17 +1110,22 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
   cancelAnimationFrame(yearProgressTweenId)
+  cancelAnimationFrame(resizeFrameId)
   resizeObserver?.disconnect()
+  pageResizeObserver?.disconnect()
+  pageResizeObserver = null
   window.removeEventListener('click', onWindowClick)
   window.removeEventListener('pointermove', onSubResizeMove)
+  window.removeEventListener('pointermove', onPanelResizeMove)
   viewportRef.value?.removeEventListener('pointerdown', onPointerDown)
   renderer?.dispose()
   subRenderer?.dispose()
-  scene?.traverse((obj) => {
-    if (obj.geometry) obj.geometry.dispose()
-    if (obj.material) {
-      if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose())
-      else obj.material.dispose()
+  scene?.traverse((obj: THREE.Object3D) => {
+    const disposable = obj as DisposableSceneObject
+    if (disposable.geometry) disposable.geometry.dispose()
+    if (disposable.material) {
+      if (Array.isArray(disposable.material)) disposable.material.forEach((m) => m.dispose())
+      else disposable.material.dispose()
     }
   })
 })
@@ -848,7 +1475,7 @@ function createNebulaBackdrop() {
   })
 }
 
-function createNebulaSpriteTexture(coreColor, edgeColor) {
+function createNebulaSpriteTexture(coreColor: string, edgeColor: string) {
   const canvas = document.createElement('canvas')
   canvas.width = 512
   canvas.height = 512
@@ -865,7 +1492,7 @@ function createNebulaSpriteTexture(coreColor, edgeColor) {
 }
 
 function createStars() {
-  const count = 1800
+  const count = 2600
   const positions = new Float32Array(count * 3)
   for (let i = 0; i < count; i += 1) {
     const r = 42 + Math.random() * 34
@@ -877,7 +1504,7 @@ function createStars() {
   }
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.13, transparent: true, opacity: 0.84, depthWrite: false, sizeAttenuation: true })
+  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.17, transparent: true, opacity: 0.96, depthWrite: false, sizeAttenuation: true })
   starField = new THREE.Points(geo, mat)
   scene.add(starField)
 }
@@ -901,7 +1528,7 @@ function loadTexturesAsync() {
   })
 }
 
-function loadTexture(loader, url, onLoad) {
+function loadTexture(loader: THREE.TextureLoader, url: string, onLoad: (texture: THREE.Texture) => void) {
   loader.load(
     url,
     (texture) => onLoad(texture),
@@ -913,8 +1540,18 @@ function loadTexture(loader, url, onLoad) {
 function resizeSubRenderer() {
   if (subRenderer && subCanvasRef.value && subCamera) {
     const subRect = subCanvasRef.value.getBoundingClientRect()
-    const subWidth = Math.max(1, subRect.width)
-    const subHeight = Math.max(1, subRect.height)
+    const subWidth = Math.max(1, Math.round(subRect.width))
+    const subHeight = Math.max(1, Math.round(subRect.height))
+
+    if (
+      subWidth === lastSubWidth &&
+      subHeight === lastSubHeight
+    ) {
+      return
+    }
+
+    lastSubWidth = subWidth
+    lastSubHeight = subHeight
     subCamera.aspect = subWidth / subHeight
     subCamera.updateProjectionMatrix()
     subRenderer.setSize(subWidth, subHeight, false)
@@ -922,23 +1559,23 @@ function resizeSubRenderer() {
 }
 
 function setupResize() {
-  const resize = () => {
-    if (!viewportRef.value || !renderer || !camera) return
-    const rect = viewportRef.value.getBoundingClientRect()
-    const width = Math.max(1, rect.width)
-    const height = Math.max(1, rect.height)
-    camera.aspect = width / height
-    camera.updateProjectionMatrix()
-    renderer.setSize(width, height, false)
-    resizeSubRenderer()
+  resizeObserver =
+    new ResizeObserver(() => {
+      requestMainResize()
+    })
+
+  if (viewportRef.value) {
+    resizeObserver.observe(viewportRef.value)
   }
-  resizeObserver = new ResizeObserver(resize)
-  resizeObserver.observe(viewportRef.value)
-  if (subSceneRef.value) resizeObserver.observe(subSceneRef.value)
-  resize()
+
+  if (subSceneRef.value) {
+    resizeObserver.observe(subSceneRef.value)
+  }
+
+  requestMainResize(true)
 }
 
-function animate(time) {
+function animate(time: number) {
   animationId = requestAnimationFrame(animate)
   const dt = lastFrameTime ? Math.min((time - lastFrameTime) / 1000, 0.08) : 0
   lastFrameTime = time
@@ -949,12 +1586,13 @@ function animate(time) {
   }
 
   if (starField?.material) {
-    starField.material.opacity = 0.66 + Math.sin(time * 0.0018) * 0.18
+    starField.material.opacity = 0.84 + Math.sin(time * 0.0018) * 0.12
   }
   if (nebulaGroup) {
     nebulaGroup.rotation.z = Math.sin(time * 0.00008) * 0.025
-    nebulaGroup.children.forEach((sprite, index) => {
-      sprite.material.opacity = 0.24 + Math.sin(time * 0.0009 + index * 1.7) * 0.08
+    nebulaGroup.children.forEach((sprite: THREE.Object3D, index: number) => {
+      const nebulaSprite = sprite as THREE.Sprite<THREE.SpriteMaterial>
+      nebulaSprite.material.opacity = 0.24 + Math.sin(time * 0.0009 + index * 1.7) * 0.08
     })
   }
   if (sunMesh) {
@@ -1016,7 +1654,7 @@ function updateLightUniforms() {
   if (ambientLight) ambientLight.intensity = 0.75 * ambientLightPower.value
 }
 
-function computeSpinAngleForObserver(observer, localSolarHour, sunDir) {
+function computeSpinAngleForObserver(observer: ObservationPoint, localSolarHour: number, sunDir: THREE.Vector3) {
   if (!earthTiltGroup) return 0
   const desiredSubsolarLon = normalizeLon(observer.lon - (normalizeHour(localSolarHour) - 12) * 15)
   const inverseTilt = earthTiltGroup.getWorldQuaternion(new THREE.Quaternion()).invert()
@@ -1025,7 +1663,7 @@ function computeSpinAngleForObserver(observer, localSolarHour, sunDir) {
   return (currentSunLon - desiredSubsolarLon) * DEG
 }
 
-function vectorToLonDeg(v) {
+function vectorToLonDeg(v: THREE.Vector3) {
   return normalizeLon(Math.atan2(-v.z, v.x) * RAD)
 }
 
@@ -1057,18 +1695,18 @@ function updateCelestialState() {
   updateSubCamera()
 }
 
-function updateTerminator(sunDir) {
+function updateTerminator(sunDir: THREE.Vector3) {
   if (!earthRoot || !terminatorLine) return
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), sunDir.clone().normalize())
   const offset = earthRoot.position
-  ;[terminatorLine, dayArcLine, nightArcLine].forEach((line) => {
-    if (!line) return
-    line.position.copy(offset)
-    line.quaternion.copy(q)
-  })
+    ;[terminatorLine, dayArcLine, nightArcLine].forEach((line) => {
+      if (!line) return
+      line.position.copy(offset)
+      line.quaternion.copy(q)
+    })
 }
 
-function updateSunRays(sunDir) {
+function updateSunRays(sunDir: THREE.Vector3) {
   if (!earthRoot || !sunRaysGroup) return
   const earthPos = earthRoot.position.clone()
   const lightTravelDir = earthPos.clone().normalize()
@@ -1076,8 +1714,8 @@ function updateSunRays(sunDir) {
   const vertical = new THREE.Vector3(0, 1, 0)
   const sunSurface = lightTravelDir.clone().multiplyScalar(SUN_RADIUS * 1.08)
 
-  sunRaysGroup.children.forEach((arrow) => {
-    if (arrow.type !== 'ArrowHelper') return
+  sunRaysGroup.children.forEach((arrow: THREE.Object3D) => {
+    if (!(arrow instanceof THREE.ArrowHelper)) return
     const idx = arrow.userData.offsetIndex || 0
     const offset = vertical.clone().multiplyScalar(idx * 0.52)
     const start = sunSurface.clone().add(offset)
@@ -1111,7 +1749,7 @@ function updateVisibility() {
   if (sunRaysGroup) sunRaysGroup.visible = toggles.sunRays
 }
 
-function smoothCameraTarget(dt) {
+function smoothCameraTarget(dt: number) {
   if (!controls) return
   controls.target.lerp(targetFocus, Math.min(1, dt * 2.2))
 }
@@ -1121,7 +1759,7 @@ function updateFocusTarget() {
   targetFocus = focusMode.value === 'earth' ? earthRoot.position.clone() : new THREE.Vector3(0, 0, 0)
 }
 
-function switchFocus(mode) {
+function switchFocus(mode: FocusMode) {
   focusMode.value = mode
   updateFocusTarget()
   if (mode === 'earth' && camera && controls && earthRoot) {
@@ -1141,7 +1779,7 @@ function resetCamera() {
   updateFocusTarget()
 }
 
-function setCameraPreset(type) {
+function setCameraPreset(type: 'top' | 'bottom') {
   if (!camera || !controls) return
   if (type === 'top') {
     focusMode.value = 'sun'
@@ -1169,8 +1807,8 @@ function setCameraPreset(type) {
   controls.update()
 }
 
-let subResizeState = null
-function onSubResizeStart(event) {
+let subResizeState: SubResizeState | null = null
+function onSubResizeStart(event: PointerEvent) {
   event.preventDefault()
   event.stopPropagation()
   subResizeState = {
@@ -1183,25 +1821,62 @@ function onSubResizeStart(event) {
   window.addEventListener('pointerup', onSubResizeEnd, { once: true })
 }
 
-function onSubResizeMove(event) {
+function onSubResizeMove(event: PointerEvent) {
   if (!subResizeState) return
-  const viewportWidth = viewportRef.value?.clientWidth || window.innerWidth
-  const viewportHeight = viewportRef.value?.clientHeight || window.innerHeight
-  const maxWidth = Math.max(260, Math.min(620, viewportWidth - 36))
-  const maxHeight = Math.max(210, Math.min(520, viewportHeight - 160))
-  const aspect = subResizeState.width / Math.max(1, subResizeState.height)
-  // 左下角拖拽：向左或向下为放大，向右或向上为缩小；保持等比例。
-  const deltaFromLeft = subResizeState.startX - event.clientX
-  const deltaFromBottom = event.clientY - subResizeState.startY
-  const delta = Math.abs(deltaFromLeft) > Math.abs(deltaFromBottom) ? deltaFromLeft : deltaFromBottom
-  let nextWidth = clamp(subResizeState.width + delta, 260, maxWidth)
-  let nextHeight = nextWidth / aspect
+
+  const aspect =
+    subResizeState.width /
+    Math.max(
+      1,
+      subResizeState.height
+    )
+
+  // 左下角拖拽：
+  // 向左或向下放大，向右或向上缩小。
+  // 不再按小屏视口强行限制最大尺寸，避免某些屏幕下拖不动。
+  const deltaFromLeft =
+    subResizeState.startX -
+    event.clientX
+
+  const deltaFromBottom =
+    event.clientY -
+    subResizeState.startY
+
+  const delta =
+    Math.abs(deltaFromLeft) >
+      Math.abs(deltaFromBottom)
+      ? deltaFromLeft
+      : deltaFromBottom
+
+  const minWidth = 180
+  const maxWidth = 900
+
+  let nextWidth =
+    clamp(
+      subResizeState.width + delta,
+      minWidth,
+      maxWidth
+    )
+
+  let nextHeight =
+    nextWidth / aspect
+
+  const minHeight = 120
+  const maxHeight = 680
+
+  if (nextHeight < minHeight) {
+    nextHeight = minHeight
+    nextWidth = nextHeight * aspect
+  }
+
   if (nextHeight > maxHeight) {
     nextHeight = maxHeight
     nextWidth = nextHeight * aspect
   }
+
   subSceneSize.width = nextWidth
   subSceneSize.height = nextHeight
+
   nextTick(resizeSubRenderer)
 }
 
@@ -1211,20 +1886,13 @@ function onSubResizeEnd() {
   nextTick(resizeSubRenderer)
 }
 
-function toggleFullscreen() {
-  const el = rootRef.value
-  if (!el) return
-  if (!document.fullscreenElement) el.requestFullscreen?.()
-  else document.exitFullscreen?.()
-}
-
 let yearProgressTweenId = 0
-function setSolarTerm(progress) {
+function setSolarTerm(progress: number) {
   isPlaying.value = false
   animateYearProgress(progress)
 }
 
-function animateYearProgress(targetProgress) {
+function animateYearProgress(targetProgress: number) {
   cancelAnimationFrame(yearProgressTweenId)
   const start = yearProgress.value
   const target = normalize01(targetProgress)
@@ -1241,11 +1909,24 @@ function animateYearProgress(targetProgress) {
 }
 
 
-function addPreset(preset) {
+function isPresetActive(preset: PresetPlace) {
+  const current =
+    currentObserverPoint.value
+
+  return (
+    Math.abs(current.lat - preset.lat) < 0.01 &&
+    Math.abs(
+      normalizeLon(current.lon) -
+      normalizeLon(preset.lon)
+    ) < 0.01
+  )
+}
+
+function addPreset(preset: PresetPlace) {
   setSingleObservation({ name: preset.name, lat: preset.lat, lon: preset.lon })
 }
 
-function setSingleObservation(point) {
+function setSingleObservation(point: Omit<ObservationPoint, 'id'>) {
   const nextPoint = { id: pointCounter += 1, name: point.name, lat: point.lat, lon: normalizeLon(point.lon) }
   observationPoints.value = [nextPoint]
   selectedObservationId.value = nextPoint.id
@@ -1264,7 +1945,7 @@ function removeSelectedObservation() {
   clearObservationPoints()
 }
 
-function onPointerDown(event) {
+function onPointerDown(event: PointerEvent) {
   if (!clickAddEnabled.value || !viewportRef.value || !camera || !raycaster || !earthMesh) return
   if (event.target !== canvasRef.value) return
   const rect = viewportRef.value.getBoundingClientRect()
@@ -1283,7 +1964,7 @@ function onPointerDown(event) {
   })
 }
 
-function onWindowClick(event) {
+function onWindowClick(event: MouseEvent) {
   const target = event.target
   if (!(target instanceof HTMLElement)) return
   const button = target.closest?.('[data-marker-id]')
@@ -1306,7 +1987,7 @@ function updateObservationMarkers() {
   })
 }
 
-function computeObservation(point) {
+function computeObservation(point: ObservationPoint): ObservationResult {
   const lat = point.lat * DEG
   const declination = getDeclination(yearProgress.value)
   const solarTimeValue = normalizeHour(referenceSolarHour.value + point.lon / 15)
@@ -1347,12 +2028,12 @@ function computeObservation(point) {
   }
 }
 
-function getOrbitPosition(progress) {
+function getOrbitPosition(progress: number) {
   const theta = calendarProgressToSeasonProgress(progress) * Math.PI * 2
   return new THREE.Vector3(-Math.sin(theta) * ORBIT_RADIUS, 0, -Math.cos(theta) * ORBIT_RADIUS)
 }
 
-function getDeclination(progress) {
+function getDeclination(progress: number) {
   return Math.asin(Math.sin(EARTH_TILT) * Math.sin(calendarProgressToSeasonProgress(progress) * Math.PI * 2))
 }
 
@@ -1376,13 +2057,13 @@ function createTropics() {
   const group = new THREE.Group()
   const tropicMat = new THREE.LineDashedMaterial({ color: 0xffd166, transparent: true, opacity: 0.95, dashSize: 0.08, gapSize: 0.06 })
   const equatorMat = new THREE.LineBasicMaterial({ color: 0x49a5ff, transparent: true, opacity: 0.75 })
-  ;[-EARTH_TILT_DEG, 0, EARTH_TILT_DEG].forEach((lat) => {
-    const pts = []
-    for (let lon = -180; lon <= 180; lon += 2) pts.push(latLonToVector(lat, lon, EARTH_RADIUS * 1.012))
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lat === 0 ? equatorMat : tropicMat)
-    if (lat !== 0) line.computeLineDistances()
-    group.add(line)
-  })
+    ;[-EARTH_TILT_DEG, 0, EARTH_TILT_DEG].forEach((lat) => {
+      const pts = []
+      for (let lon = -180; lon <= 180; lon += 2) pts.push(latLonToVector(lat, lon, EARTH_RADIUS * 1.012))
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lat === 0 ? equatorMat : tropicMat)
+      if (lat !== 0) line.computeLineDistances()
+      group.add(line)
+    })
   return group
 }
 
@@ -1404,20 +2085,20 @@ function createCoordinateLabels() {
   return group
 }
 
-function createDiscPlane(radius, color, opacity) {
+function createDiscPlane(radius: number, color: number, opacity: number) {
   const geo = new THREE.CircleGeometry(radius, 128)
   const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false })
   return new THREE.Mesh(geo, mat)
 }
 
-function createRingLine(radius, color, opacity) {
+function createRingLine(radius: number, color: number, opacity: number) {
   return new THREE.Line(
     createCircleArc(radius, 0, Math.PI * 2, 180, 'xz'),
     new THREE.LineBasicMaterial({ color, transparent: true, opacity })
   )
 }
 
-function createCircleArc(radius, start, end, segments, plane = 'xy') {
+function createCircleArc(radius: number, start: number, end: number, segments: number, plane: 'xy' | 'xz' = 'xy') {
   const pts = []
   for (let i = 0; i <= segments; i += 1) {
     const t = start + (end - start) * (i / segments)
@@ -1427,7 +2108,7 @@ function createCircleArc(radius, start, end, segments, plane = 'xy') {
   return new THREE.BufferGeometry().setFromPoints(pts)
 }
 
-function latLonToVector(latDeg, lonDeg, radius) {
+function latLonToVector(latDeg: number, lonDeg: number, radius: number) {
   const lat = latDeg * DEG
   const lon = lonDeg * DEG
   const cosLat = Math.cos(lat)
@@ -1438,7 +2119,7 @@ function latLonToVector(latDeg, lonDeg, radius) {
   )
 }
 
-function createTextSprite(text, color = '#ffffff') {
+function createTextSprite(text: string, color = '#ffffff') {
   const canvas = document.createElement('canvas')
   canvas.width = 256
   canvas.height = 96
@@ -1459,7 +2140,7 @@ function createTextSprite(text, color = '#ffffff') {
   return new THREE.Sprite(mat)
 }
 
-function createPlaceholderTexture(a, b) {
+function createPlaceholderTexture(a: string, b: string) {
   const canvas = document.createElement('canvas')
   canvas.width = 256
   canvas.height = 128
@@ -1505,7 +2186,7 @@ function createNebulaTexture() {
   return new THREE.CanvasTexture(canvas)
 }
 
-function roundRect(ctx, x, y, w, h, r) {
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
   ctx.arcTo(x + w, y, x + w, y + h, r)
@@ -1515,22 +2196,22 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-function progressToDayOfYear(progress) {
+function progressToDayOfYear(progress: number) {
   const term = solarTerms.find((item) => Math.abs(normalize01(progress) - item.progress) < 0.0008)
   if (term) return term.day
   return Math.max(1, Math.min(YEAR_DAYS, Math.round(normalize01(progress) * (YEAR_DAYS - 1)) + 1))
 }
 
-function dayOfYearToCalendarProgress(day) {
+function dayOfYearToCalendarProgress(day: number) {
   return (Math.max(1, Math.min(YEAR_DAYS, day)) - 1) / (YEAR_DAYS - 1)
 }
 
-function calendarProgressToSeasonProgress(progress) {
+function calendarProgressToSeasonProgress(progress: number) {
   const dayFloat = normalize01(progress) * (YEAR_DAYS - 1) + 1
   return normalize01((dayFloat - SPRING_EQUINOX_DAY) / YEAR_DAYS)
 }
 
-function dayOfYearToMonthDay(dayOfYear) {
+function dayOfYearToMonthDay(dayOfYear: number) {
   const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
   let rest = Math.max(1, Math.min(YEAR_DAYS, dayOfYear))
   for (let i = 0; i < monthDays.length; i += 1) {
@@ -1541,74 +2222,91 @@ function dayOfYearToMonthDay(dayOfYear) {
 }
 
 
-function sliderTrackLeft(progress) {
+function sliderTrackLeft(progress: number) {
   const p = Math.max(0, Math.min(1, progress))
   return `${p * 100}%`
 }
 
-function progressToX(progress) {
-  return svgPad + normalize01(progress) * (svgWidth - svgPad - svgRightPad)
+function progressToX(progress: number) {
+  const winterProgress =
+    dayOfYearToCalendarProgress(356)
+
+  const shifted =
+    normalize01(
+      progress - winterProgress
+    )
+
+  return 24 + shifted * 232
 }
 
-function latToY(lat) {
-  const max = 27
-  return svgTopPad + ((max - lat) / (max * 2)) * (svgHeight - svgTopPad - svgBottomPad)
+function latToY(lat: number) {
+  const clamped =
+    clamp(
+      lat,
+      -23.44,
+      23.44
+    )
+
+  // 右侧图表的垂向映射：
+  // 让北回归线、赤道、南回归线保持低纬分布，
+  // 更接近课本里“双剖面 + 直射点曲线”的视觉感觉。
+  return 56 - (clamped / 23.44) * 13
 }
 
-function formatGridLat(lat) {
+function formatGridLat(lat: number) {
   const rounded = Math.round(Math.abs(lat))
   if (Math.abs(lat) < 0.5) return '0°'
   return `${rounded}°${lat > 0 ? 'N' : 'S'}`
 }
 
-function formatGridLon(lon) {
+function formatGridLon(lon: number) {
   const rounded = Math.round(Math.abs(lon))
   if (Math.abs(lon) < 0.5 || Math.abs(Math.abs(lon) - 180) < 0.5) return `${rounded}°`
   return `${rounded}°${lon > 0 ? 'E' : 'W'}`
 }
 
-function formatLat(lat) {
+function formatLat(lat: number) {
   const abs = Math.abs(lat).toFixed(2)
   if (Math.abs(lat) < 0.005) return '0.00°'
   return `${abs}°${lat > 0 ? 'N' : 'S'}`
 }
 
-function formatLon(lon) {
+function formatLon(lon: number) {
   const abs = Math.abs(lon).toFixed(2)
   if (Math.abs(lon) < 0.005) return '0.00°'
   return `${abs}°${lon > 0 ? 'E' : 'W'}`
 }
 
-function formatSignedDeg(value) {
+function formatSignedDeg(value: number) {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}°`
 }
 
-function formatHour(value) {
+function formatHour(value: number) {
   const h = normalizeHour(value)
   const hour = Math.floor(h)
   const minute = Math.round((h - hour) * 60)
   return `${String(hour).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
 }
 
-function formatDuration(hours) {
+function formatDuration(hours: number) {
   const h = Math.floor(hours)
   const m = Math.round((hours - h) * 60)
   return `${h}小时${m}分`
 }
 
-function clamp(value, min, max) {
+function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-function normalize01(value) {
+function normalize01(value: number) {
   return ((value % 1) + 1) % 1
 }
 
-function normalizeHour(value) {
+function normalizeHour(value: number) {
   return ((value % 24) + 24) % 24
 }
 
-function normalizeLon(value) {
+function normalizeLon(value: number) {
   let lon = ((value + 180) % 360 + 360) % 360 - 180
   if (lon === -180) lon = 180
   return lon
@@ -1616,2805 +2314,938 @@ function normalizeLon(value) {
 </script>
 
 <style scoped>
-
-.orbit-page {
-  --theme: #2ec4b6;
-  --blue: #247cff;
-  --panel: rgba(8, 20, 34, 0.66);
-  --panel-strong: rgba(7, 18, 31, 0.82);
-  --line: rgba(116, 234, 229, 0.18);
-  --text: #e9fbff;
-  --muted: rgba(233, 251, 255, 0.66);
-  display: grid;
-  grid-template-columns: 258px minmax(0, 1fr);
-  width: 100%;
-  height: 100dvh;
-  overflow: hidden;
-  background: radial-gradient(circle at 20% 10%, rgba(46, 196, 182, 0.18), transparent 30%),
-    linear-gradient(135deg, #020712, #061729 48%, #030914);
-  color: var(--text);
-  font-family: Inter, "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 11px;
+.earth-orbit-template {
+  --orbit-overlay-gap:
+    clamp(12px,
+      1.4vw,
+      22px);
+  --orbit-header-offset:
+    clamp(66px,
+      7.5vh,
+      82px);
 }
 
-
-.orbit-page.is-collapsed {
-  grid-template-columns: 40px minmax(0, 1fr);
-}
-
-.control-panel {
-  position: relative;
-  z-index: 10;
-  min-width: 0;
-  height: 100%;
-  border-right: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(9, 27, 43, 0.83), rgba(4, 12, 22, 0.88));
-  backdrop-filter: blur(22px);
-  box-shadow: 14px 0 40px rgba(0, 0, 0, 0.24);
-  overflow: hidden;
-}
-
-.control-panel.collapsed {
-  width: 40px;
-}
-
-.collapse-btn {
-  position: sticky;
-  top: 10px;
-  left: 8px;
-  z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: calc(100% - 16px);
-  height: 28px;
-  margin: 8px;
-  border: 1px solid rgba(46, 196, 182, 0.36);
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(46, 196, 182, 0.18), rgba(36, 124, 255, 0.16));
-  color: var(--text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 16px rgba(46, 196, 182, 0.18);
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.control-panel.collapsed .collapse-btn {
-  width: 32px;
-  height: 72px;
-  margin: 10px 7px;
-  padding: 0;
-  writing-mode: vertical-rl;
-  letter-spacing: 0.08em;
-}
-
-.panel-scroll {
-  height: calc(100dvh - 40px);
-  padding: 4px 8px 14px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(46, 196, 182, 0.36) transparent;
-}
-
-.panel-scroll::-webkit-scrollbar {
-  width: 5px;
-}
-
-.panel-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.panel-scroll::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(46, 196, 182, 0.2), rgba(36, 124, 255, 0.36));
-}
-
-.panel-header {
-  display: none;
-}
-
-.eyebrow {
-  color: var(--theme);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.panel-header h1 {
-  margin: 5px 0 4px;
-  font-size: 15px;
-  line-height: 1.2;
-}
-
-.panel-header p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.control-card,
-.glass-panel {
-  border: 1px solid var(--line);
-  background: var(--panel);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.control-card {
-  margin-top: 8px;
-  padding: 8px;
-  border-radius: 13px;
-}
-
-.card-title {
-  margin-bottom: 8px;
-  color: #dffcff;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.button-grid.two {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.control-line {
-  display: grid;
-  align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  color: var(--muted);
-}
-
-.switch-line {
-  grid-template-columns: 1fr auto;
-}
-
-.slider-line {
-  grid-template-columns: 60px minmax(0, 1fr) 34px;
-}
-
-.light-line {
-  grid-template-columns: 76px minmax(0, 1fr) 34px;
-}
-
-.slider-line b {
-  color: #fff;
-  font-size: 11px;
-  text-align: right;
-}
-
-.toggle-list {
-  display: grid;
-  gap: 7px;
-}
-
-.option-switch {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.preset-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 7px;
-  margin-top: 7px;
-}
-
-.compact-select {
-  width: 100%;
-}
-
-.preset-cloud {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 8px;
-  overflow: visible;
-}
-
-.clear-btn {
-  width: 100%;
-  margin-top: 8px;
-}
-
-.viewport-wrap {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.viewport {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: radial-gradient(circle at 18% 18%, rgba(46, 196, 182, 0.18), transparent 28%),
-    radial-gradient(circle at 78% 28%, rgba(36, 124, 255, 0.16), transparent 34%),
-    #020713;
-}
-
-.three-canvas {
+.scene-canvas {
+  width:
+    100%;
+  height:
+    100%;
   display: block;
-  width: 100%;
-  height: 100%;
+  contain:
+    strict;
+  transform:
+    translateZ(0);
+  backface-visibility:
+    hidden;
 }
 
-.top-stack {
+.orbit-scene-host {
+  background:
+    radial-gradient(circle at 50% 35%,
+      rgba(46, 196, 182, 0.10),
+      transparent 38%),
+    linear-gradient(145deg,
+      #020713,
+      #06111f 48%,
+      #020713);
+}
+
+.orbit-overlay-layer {
   position: absolute;
-  top: 74px;
-  left: 14px;
-  z-index: 5;
-  display: grid;
-  gap: 9px;
-  width: 300px;
+  inset: 0;
+  z-index: 12;
   pointer-events: none;
 }
 
-.top-stack > * {
-  pointer-events: auto;
-}
-
-.info-panel {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 10px;
-  border-radius: 16px;
-}
-
-.metric {
-  min-width: 0;
-}
-
-.metric span,
-.observation-panel span,
-.sun-track-window span,
-.timeline-label span {
-  display: block;
-  margin-bottom: 3px;
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.metric strong,
-.observation-panel strong,
-.sun-track-window strong,
-.timeline-label strong {
-  color: #fff;
-  font-size: 13px;
+.scene-float-card {
+  color:
+    var(--text-primary);
+  background:
+    linear-gradient(145deg,
+      rgba(8, 20, 34, 0.58),
+      rgba(8, 20, 34, 0.34));
+  border:
+    1px solid rgba(var(--theme-primary-light-rgb), 0.22);
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter:
+    blur(13px) saturate(150%);
+  -webkit-backdrop-filter:
+    blur(13px) saturate(150%);
 }
 
 .observation-panel {
-  max-height: 250px;
-  padding: 10px;
-  border-radius: 16px;
-  overflow-y: auto;
+  position: relative;
 }
 
-.obs-head,
-.sun-track-window header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+.obs-head {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 9px;
+  border-bottom:
+    1px solid rgba(var(--theme-primary-light-rgb), 0.15);
+}
+
+.obs-title-main {
+  color:
+    var(--theme-primary-light);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.obs-place-row strong {
+  color:
+    #ffffff;
+  font-size:
+    clamp(15px,
+      1.05vw,
+      18px);
+}
+
+
+.obs-summary-cards {
+  display: grid;
+  grid-template-columns:
+    repeat(2,
+      minmax(0, 1fr));
   gap: 8px;
+}
+
+.obs-summary-card {
+  display: grid;
+  align-content:
+    center;
+  gap: 3px;
+  min-width: 0;
+  min-height:
+    42px;
+  padding:
+    7px 9px;
+  border:
+    1px solid rgba(var(--theme-primary-light-rgb), 0.13);
+  border-radius: 11px;
+  background:
+    rgba(8, 20, 34, 0.28);
+}
+
+.obs-summary-card span {
+  color:
+    var(--text-muted);
+  font-size: 10px;
+}
+
+.obs-summary-card strong {
+  color:
+    var(--text-primary);
+  font-size: 12px;
+}
+
+.obs-body {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
 }
 
 .obs-body dl {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-  margin: 10px 0 0;
+  grid-template-columns:
+    repeat(2,
+      minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
 }
 
-.obs-body div {
-  padding: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.obs-body dl>div {
+  min-width: 0;
+  padding:
+    7px 8px;
+  border:
+    1px solid rgba(var(--theme-primary-light-rgb), 0.12);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background:
+    rgba(8, 20, 34, 0.30);
 }
 
-.obs-body .wide {
-  grid-column: 1 / -1;
+.obs-body dl>div.wide {
+  grid-column:
+    1 / -1;
 }
 
 .obs-body dt {
   margin-bottom: 3px;
-  color: var(--muted);
+  color:
+    var(--text-muted);
   font-size: 10px;
 }
 
 .obs-body dd {
   margin: 0;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.empty-tip {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.sun-track-window {
-  position: absolute;
-  right: 14px;
-  top: 74px;
-  z-index: 5;
-  width: min(390px, calc(100% - 360px));
-  min-width: 300px;
-  padding: 10px;
-  border-radius: 16px;
-}
-
-.sun-track-window svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin-top: 8px;
-  overflow: visible;
-}
-
-.sun-track-window text {
-  fill: rgba(233, 251, 255, 0.68);
-  font-size: 10px;
-}
-
-.tropic-line {
-  stroke: rgba(255, 209, 102, 0.48);
-  stroke-dasharray: 4 4;
-}
-
-.equator-line {
-  stroke: rgba(74, 165, 255, 0.52);
-}
-
-.term-guide {
-  stroke: rgba(255, 255, 255, 0.13);
-}
-
-.track-path {
-  fill: none;
-  stroke: url(#trackGradient);
-  stroke-width: 2.4;
-}
-
-.track-dot {
-  fill: #ffd166;
-  filter: drop-shadow(0 0 8px rgba(255, 209, 102, 0.85));
-}
-
-.timeline-dock {
-  position: absolute;
-  left: 50%;
-  bottom: 16px;
-  z-index: 6;
-  width: min(660px, 62vw);
-  transform: translateX(-50%);
-  padding: 9px 13px 8px;
-  border-radius: 18px;
-}
-
-.timeline-row {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-}
-
-.timeline-label strong {
-  font-size: 11px;
-}
-
-.term-scale {
-  position: relative;
-  height: 24px;
-  margin: -3px 12px 5px 106px;
-}
-
-.term-scale button {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  appearance: none;
-  min-width: 42px;
-  padding: 0 4px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 10px;
-}
-
-
-.term-scale i {
-  display: block;
-  width: 1px;
-  height: 6px;
-  margin: 0 auto 2px;
-  background: rgba(255, 255, 255, 0.36);
-}
-
-
-.calendar-scale {
-  display: flex;
-  justify-content: space-between;
-  padding: 0 4px 6px 112px;
-  font-size: 10px;
-  color: rgba(221, 250, 255, 0.48);
-}
-
-.hour-scale {
-  display: flex;
-  justify-content: space-between;
-  margin-left: 106px;
-  color: rgba(233, 251, 255, 0.52);
-  font-size: 10px;
-}
-
-.track-reopen,
-.panel-icon-btn {
-  appearance: none;
-  border: 1px solid rgba(46, 196, 182, 0.34);
-  background: linear-gradient(135deg, rgba(46, 196, 182, 0.18), rgba(36, 124, 255, 0.14));
-  color: #fff;
-  box-shadow: 0 0 18px rgba(46, 196, 182, 0.16);
-  cursor: pointer;
-}
-
-.track-reopen {
-  position: absolute;
-  right: 14px;
-  top: 74px;
-  z-index: 5;
-  padding: 8px 12px;
-  border-radius: 999px;
-}
-
-.panel-icon-btn {
-  min-width: 44px;
-  height: 24px;
-  border-radius: 999px;
-  font-size: 10px;
-}
-
-:deep(.el-button) {
-  --el-button-bg-color: rgba(255, 255, 255, 0.05);
-  --el-button-border-color: rgba(255, 255, 255, 0.13);
-  --el-button-text-color: #e9fbff;
-  --el-button-hover-bg-color: rgba(46, 196, 182, 0.18);
-  --el-button-hover-border-color: rgba(46, 196, 182, 0.48);
-  --el-button-hover-text-color: #fff;
-  font-size: 11px;
-}
-
-:deep(.el-button--primary) {
-  --el-button-bg-color: #2ec4b6;
-  --el-button-border-color: #2ec4b6;
-  --el-button-hover-bg-color: #37d9ca;
-  --el-button-hover-border-color: #37d9ca;
-}
-
-:deep(.el-slider__runway) {
-  background: rgba(255, 255, 255, 0.13);
-}
-
-:deep(.el-slider__bar) {
-  background: linear-gradient(90deg, var(--theme), var(--blue));
-}
-
-:deep(.el-slider__button) {
-  width: 12px;
-  height: 12px;
-  border-color: var(--theme);
-}
-
-:deep(.el-switch.is-checked .el-switch__core) {
-  background: linear-gradient(90deg, var(--theme), var(--blue));
-  border-color: transparent;
-}
-
-:deep(.el-select__wrapper) {
-  min-height: 26px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
-  font-size: 11px;
-}
-
-@media (max-width: 980px) {
-  .orbit-page {
-    grid-template-columns: 238px minmax(0, 1fr);
-  }
-
-  .sun-track-window {
-    display: none;
-  }
-
-  .timeline-dock {
-    width: min(640px, calc(100% - 36px));
-  }
-}
-
-
-.card-tip {
-  margin: -2px 0 7px;
-  color: rgba(233, 251, 255, 0.58);
-  font-size: 10px;
-  line-height: 1.45;
-}
-
-.scene-header {
-  position: absolute;
-  top: 12px;
-  left: 14px;
-  right: 14px;
-  z-index: 7;
-  display: grid;
-  grid-template-columns: minmax(168px, 0.9fr) minmax(360px, 1.5fr) auto;
-  align-items: center;
-  gap: 12px;
-  min-height: 46px;
-  padding: 8px 12px;
-  border-radius: 16px;
-  pointer-events: auto;
-}
-
-.scene-title span {
-  display: block;
-  color: var(--theme);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.scene-title strong {
-  display: block;
-  margin-top: 2px;
-  color: #fff;
-  font-size: 14px;
-  line-height: 1.2;
-}
-
-.scene-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.metric.mini {
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.metric.mini span {
-  margin-bottom: 1px;
-  font-size: 9px;
-}
-
-.metric.mini strong {
+  color:
+    var(--text-primary);
   font-size: 12px;
+  font-weight: 800;
 }
 
 .accent-value {
-  color: #35f2df !important;
-  text-shadow: 0 0 10px rgba(46, 196, 182, 0.55);
+  color:
+    var(--theme-primary-light) !important;
 }
 
-.date-text {
-  color: #ffd166;
-  font-style: normal;
+.data-panel-card {
+  display: grid;
+  gap: 12px;
+  padding:
+    12px;
 }
 
-.scene-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.top-stack {
-  top: 76px;
-  width: 300px;
-}
-
-.observation-panel {
-  position: absolute;
-  top: 76px;
-  left: 14px;
-  z-index: 6;
-  width: 292px;
-  max-height: 252px;
-  padding: 9px;
-  border-radius: 15px;
-  overflow-y: auto;
-  pointer-events: auto;
-}
-
-.obs-body dl {
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.obs-body div {
-  padding: 6px;
-  border-radius: 9px;
-}
-
-.sun-track-window {
-  top: 76px;
-  width: min(390px, calc(100% - 350px));
-  min-width: 300px;
-}
-
-.axis-line {
-  stroke: rgba(233, 251, 255, 0.3);
-  stroke-width: 1;
-}
-
-.axis-title {
-  fill: rgba(233, 251, 255, 0.58);
-  font-size: 9px;
-}
-
-.button-grid.two .el-button,
-.preset-row .el-button,
-.clear-btn {
-  min-width: 0;
-  width: 100%;
-}
-
-.button-grid.two :deep(.el-button + .el-button),
-.preset-cloud :deep(.el-button + .el-button),
-.preset-row :deep(.el-button + .el-button) {
-  margin-left: 0;
-}
-
-.preset-cloud :deep(.el-button) {
-  width: 100%;
-  max-width: 100%;
-  height: 23px;
-  margin-left: 0;
-  padding: 4px 7px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-:deep(.el-button--primary) {
-  background: linear-gradient(135deg, var(--theme), var(--blue));
-  border-color: transparent;
-  box-shadow: 0 0 16px rgba(46, 196, 182, 0.2);
-}
-
-:deep(.el-button:hover) {
-  background-image: linear-gradient(135deg, rgba(46, 196, 182, 0.24), rgba(36, 124, 255, 0.2));
-}
-
-:deep(.el-slider__bar) {
-  background: linear-gradient(90deg, #2ec4b6, #39a7ff, #6f7cff);
-  box-shadow: 0 0 10px rgba(46, 196, 182, 0.42);
-}
-
-:deep(.el-slider__button) {
-  width: 11px;
-  height: 11px;
-  border: 2px solid #eaffff;
-  background: linear-gradient(135deg, #2ec4b6, #247cff);
-  box-shadow: 0 0 14px rgba(46, 196, 182, 0.8);
-}
-
-:deep(.el-switch__core) {
-  min-width: 34px;
-  height: 18px;
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-:deep(.el-switch__action) {
-  width: 14px;
-  height: 14px;
-}
-
-@media (max-width: 1120px) {
-  .scene-header {
-    grid-template-columns: 1fr auto;
-  }
-  .scene-metrics {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-  .observation-panel,
-  .sun-track-window {
-    top: 112px;
-  }
-}
-
-
-/* v5 scrollbar polish */
-.observation-panel::-webkit-scrollbar { width: 5px; }
-.observation-panel::-webkit-scrollbar-track { background: transparent; }
-.observation-panel::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(46, 196, 182, 0.32); }
-
-
-/* v6 interaction polish */
-:deep(.el-button) {
-  border-radius: 999px !important;
-}
-
-.term-scale button {
-  border-radius: 999px;
-}
-
-.preset-cloud :deep(.el-button) {
-  border-radius: 999px !important;
-}
-
-
-/* v10 实时数据面板不再出现滚动条 */
-.observation-panel {
-  max-height: none !important;
-  overflow: visible !important;
-}
-
-
-/* v11: icon buttons, darker-side fill, mobile layout */
-.collapse-btn.icon-toggle {
-  width: 30px;
-  height: 30px;
-  margin: 8px auto 6px;
-  padding: 0;
-  border-radius: 12px;
-}
-
-.collapse-btn.icon-toggle svg,
-.small-icon-btn svg,
-.obs-reopen svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.control-panel:not(.collapsed) .collapse-btn.icon-toggle {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  left: auto;
-  margin: 0;
-}
-
-.control-panel.collapsed .collapse-btn.icon-toggle {
-  width: 32px;
-  height: 32px;
-  margin: 8px 7px;
-  writing-mode: initial;
-  letter-spacing: 0;
-}
-
-.control-panel:not(.collapsed) .panel-scroll {
-  padding-top: 40px;
-}
-
-.obs-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.small-icon-btn,
-.panel-icon-btn.icon-only,
-.obs-reopen {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(46, 196, 182, 0.36);
-  background: linear-gradient(135deg, rgba(46, 196, 182, 0.2), rgba(36, 124, 255, 0.18));
-  color: #eaffff;
-  box-shadow: 0 0 16px rgba(46, 196, 182, 0.18);
-  cursor: pointer;
-}
-
-.small-icon-btn {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border-radius: 9px;
-  font-size: 15px;
-  line-height: 1;
-}
-
-.panel-icon-btn.icon-only {
-  min-width: 26px;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border-radius: 10px;
-  font-size: 16px;
-  line-height: 1;
-}
-
-.obs-reopen {
-  position: absolute;
-  top: 76px;
-  left: 14px;
-  z-index: 6;
-  width: 38px;
-  height: 38px;
-  border-radius: 14px;
-  padding: 0;
-}
-
-.obs-reopen svg path,
-.obs-reopen svg circle {
-  fill: none;
-  stroke: currentColor;
-}
-
-.track-reopen {
-  min-width: 38px;
-  height: 38px;
-  padding: 0;
-  border-radius: 14px;
-  font-size: 18px;
-}
-
-@media (max-width: 768px) {
-  .orbit-page {
-    display: block;
-    height: 100dvh;
-  }
-
-  .viewport-wrap,
-  .viewport {
-    width: 100%;
-    height: 100dvh;
-  }
-
-  .control-panel {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    z-index: 30;
-    width: min(320px, calc(100vw - 16px));
-    height: auto;
-    max-height: 58dvh;
-    border: 1px solid rgba(46, 196, 182, 0.22);
-    border-radius: 18px;
-    overflow: hidden;
-  }
-
-  .control-panel.collapsed {
-    width: 48px;
-    height: 48px;
-    border-radius: 16px;
-  }
-
-  .panel-scroll {
-    height: auto;
-    max-height: calc(58dvh - 42px);
-    padding-bottom: 10px;
-  }
-
-  .scene-header {
-    top: 8px;
-    left: 64px;
-    right: 8px;
-    grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 8px;
-    border-radius: 14px;
-  }
-
-  .scene-title strong {
-    font-size: 12px;
-  }
-
-  .scene-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
-  }
-
-  .scene-actions {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-  }
-
-  .observation-panel {
-    top: 142px;
-    left: 8px;
-    width: min(292px, calc(100vw - 16px));
-    max-width: calc(100vw - 16px);
-    padding: 8px;
-  }
-
-  .obs-reopen {
-    top: 142px;
-    left: 8px;
-  }
-
-  .sun-track-window {
-    display: none;
-  }
-
-  .track-reopen {
-    display: none;
-  }
-
-  .timeline-dock {
-    left: 8px;
-    right: 8px;
-    bottom: 10px;
-    width: auto;
-    transform: none;
-    padding: 8px;
-    border-radius: 15px;
-  }
-
-  .timeline-row {
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 7px;
-  }
-
-  .term-scale {
-    margin-left: 78px;
-    margin-right: 8px;
-  }
-
-  .calendar-scale {
-    padding-left: 78px;
-    font-size: 9px;
-  }
-
-  .hour-scale {
-    margin-left: 78px;
-    font-size: 9px;
-  }
-
-  .term-scale button {
-    min-width: 32px;
-    font-size: 9px;
-  }
-}
-
-@media (max-width: 520px) {
-  .control-panel:not(.collapsed) {
-    width: calc(100vw - 16px);
-    max-height: 50dvh;
-  }
-
-  .panel-scroll {
-    max-height: calc(50dvh - 42px);
-  }
-
-  .scene-header {
-    left: 60px;
-  }
-
-  .scene-metrics {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .metric.mini {
-    padding: 5px 6px;
-  }
-
-  .metric.mini strong {
-    font-size: 11px;
-  }
-
-  .observation-panel {
-    top: 156px;
-  }
-
-  .timeline-dock {
-    font-size: 10px;
-  }
-}
-
-
-/* v13: header compacting, sub-camera panel, SVG and timeline fixes */
-.scene-header {
-  grid-template-columns: minmax(150px, 0.72fr) minmax(420px, 1.55fr) auto !important;
-}
-.scene-metrics {
-  grid-template-columns: minmax(86px, .7fr) minmax(96px, .75fr) minmax(160px, 1.35fr) minmax(88px, .7fr) !important;
-}
-.metric.mini {
-  min-height: 36px;
-  padding: 5px 8px !important;
-}
-.metric.mini:not(.date-card) {
-  max-width: 130px;
-}
-.metric.mini.date-card {
-  min-width: 150px;
-}
-.metric.mini span {
-  font-size: 8.5px !important;
-}
-.metric.mini strong {
-  font-size: 11px !important;
-}
-.metric.mini.date-card strong {
-  font-size: 12px !important;
-}
-.scene-actions {
-  gap: 6px !important;
-}
-.header-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid rgba(46, 196, 182, .34);
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(46,196,182,.20), rgba(36,124,255,.18));
-  color: #eaffff;
-  font-size: 12px;
-  font-weight: 800;
-  box-shadow: 0 0 14px rgba(46,196,182,.15);
-  cursor: pointer;
-}
-.header-icon-btn:hover {
-  border-color: rgba(46,196,182,.72);
-  box-shadow: 0 0 18px rgba(46,196,182,.32);
-}
-.header-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: rgba(233,251,255,.68);
-  font-size: 10px;
-  white-space: nowrap;
-}
-.obs-track-card {
-  margin-top: 8px;
-  padding: 8px;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 12px;
-  background: rgba(255,255,255,.035);
-}
-.obs-track-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-.obs-track-svg {
-  display: block;
-  width: 100%;
-  height: 112px;
-  margin-top: 6px;
+.observation-data-card {
   overflow: visible;
 }
-.obs-track-svg text {
-  fill: rgba(233,251,255,.66);
-  font-size: 8px;
+
+
+.direct-track-card {
+  display: grid;
+  gap: 9px;
+  padding:
+    10px;
 }
-.obs-track-svg .axis-line {
-  stroke: rgba(233,251,255,.28);
-  stroke-width: 1;
+
+.direct-track-head {
+  display: flex;
+  align-items:
+    center;
+  justify-content:
+    space-between;
+  gap: 10px;
 }
-.obs-track-path {
+
+.direct-track-head h3 {
+  margin: 0;
+  color:
+    var(--text-primary);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing:
+    0.04em;
+}
+
+.direct-track-head p {
+  margin:
+    3px 0 0;
+  color:
+    var(--text-muted);
+  font-size: 10px;
+}
+
+.direct-track-head span {
+  display: grid;
+  place-items:
+    center;
+  width: 26px;
+  height: 26px;
+  border:
+    1px solid rgba(var(--theme-primary-light-rgb), 0.28);
+  border-radius:
+    999px;
+  color:
+    var(--theme-primary-light);
+  font-size: 13px;
+  font-weight: 900;
+  background:
+    rgba(var(--theme-primary-rgb), 0.12);
+}
+
+.obs-track-card {
+  padding:
+    6px 2px 2px;
+  border-radius: 12px;
+  background:
+    rgba(8, 20, 34, 0.22);
+}
+
+.earth-section-card {
+  overflow: hidden;
+}
+
+.earth-section-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.earth-ellipse-outline {
+  fill:
+    none;
+  stroke:
+    rgba(var(--theme-primary-light-rgb), 0.76);
+  stroke-width: 1.35;
+  filter:
+    drop-shadow(0 0 6px rgba(46, 196, 182, 0.32));
+}
+
+.section-lat-line,
+.section-lon-line {
   fill: none;
-  stroke-width: 2.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
+
+.section-lon-line,
+.section-lat-line.grid {
+  stroke:
+    rgba(184, 204, 218, 0.30);
+  stroke-width: 0.85;
+}
+
+.section-lon-line.main {
+  stroke:
+    rgba(184, 204, 218, 0.42);
+}
+
+.section-lat-line.equator {
+  stroke:
+    rgba(46, 196, 182, 0.82);
+  stroke-width: 1.55;
+}
+
+.section-lat-line.tropic {
+  stroke:
+    rgba(255, 209, 102, 0.82);
+  stroke-width: 1.28;
+}
+
+.earth-track-path {
+  fill: none;
+  stroke:
+    url(#trackGradientObs);
+  stroke-width: 2.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter:
+    drop-shadow(0 0 5px rgba(46, 196, 182, 0.48));
+}
+
+.track-dot {
+  fill:
+    #ffd166;
+  stroke:
+    #ffffff;
+  stroke-width: 1.2;
+  filter:
+    drop-shadow(0 0 5px rgba(255, 209, 102, 0.76));
+}
+
+.sun-direct-ray {
+  stroke:
+    rgba(255, 209, 102, 0.86);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.direct-label,
+.latitude-label {
+  fill:
+    rgba(226, 246, 250, 0.82);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.latitude-label {
+  fill:
+    rgba(184, 204, 218, 0.78);
+}
+
+.empty-tip {
+  margin: 10px 0 0;
+  color:
+    var(--text-muted);
+  font-size: 12px;
+}
+
 .sub-scene-window {
   position: absolute;
-  top: 76px;
-  right: 14px;
-  z-index: 6;
-  width: min(360px, calc(100% - 640px));
-  min-width: 280px;
-  padding: 9px;
+  top:
+    calc(var(--orbit-header-offset) + 8px);
+  right:
+    calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
+  width: auto;
+  height: auto;
+  display: grid;
+  grid-template-rows:
+    auto minmax(0, 1fr);
   border-radius: 16px;
+  overflow: hidden;
   pointer-events: auto;
 }
-.sub-scene-window header {
+
+.sub-scene-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 7px;
-}
-.sub-scene-window span {
-  display: block;
-  color: rgba(233,251,255,.55);
-  font-size: 9px;
-}
-.sub-scene-window strong {
-  display: block;
-  margin-top: 1px;
-  color: #eaffff;
-  font-size: 12px;
-}
-.sub-canvas {
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border: 1px solid rgba(46,196,182,.22);
-  border-radius: 12px;
-  background: #020713;
-}
-.sub-view-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
-  margin-top: 7px;
-}
-.sub-view-tabs button {
-  min-width: 0;
-  height: 24px;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 999px;
-  background: rgba(255,255,255,.045);
-  color: rgba(233,251,255,.76);
-  font-size: 10px;
-  cursor: pointer;
-}
-.sub-view-tabs button.active {
-  border-color: rgba(46,196,182,.55);
-  background: linear-gradient(135deg, rgba(46,196,182,.28), rgba(36,124,255,.22));
-  color: #fff;
-}
-.calendar-scale {
-  position: relative !important;
-  display: block !important;
-  height: 18px;
-  margin: -1px 12px 5px 106px;
-  padding: 0 !important;
-  color: rgba(221,250,255,.52);
-}
-.calendar-scale span {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  font-size: 10px;
-}
-.calendar-scale span:first-child { transform: translateX(0); }
-.calendar-scale span:last-child { transform: translateX(-100%); }
-@media (max-width: 1320px) {
-  .sub-scene-window {
-    width: 300px;
-    min-width: 260px;
-  }
-  .scene-header {
-    grid-template-columns: minmax(130px, .6fr) 1fr auto !important;
-  }
-}
-@media (max-width: 1120px) {
-  .scene-header {
-    grid-template-columns: 1fr auto !important;
-  }
-  .scene-metrics {
-    grid-template-columns: repeat(4, minmax(72px, 1fr)) !important;
-  }
-  .sub-scene-window {
-    top: 124px;
-    right: 10px;
-    width: 270px;
-  }
-}
-@media (max-width: 768px) {
-  .scene-actions {
-    position: static !important;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-  .header-toggle span {
-    font-size: 9px;
-  }
-  .sub-scene-window {
-    top: auto;
-    right: 8px;
-    bottom: 116px;
-    width: min(260px, calc(100vw - 16px));
-    min-width: 0;
-    padding: 7px;
-  }
-  .sub-view-tabs {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
-  }
-  .sub-view-tabs button {
-    height: 22px;
-    font-size: 9px;
-  }
-  .calendar-scale {
-    margin-left: 78px !important;
-    margin-right: 8px !important;
-  }
-}
-@media (max-width: 520px) {
-  .scene-metrics {
-    grid-template-columns: 1fr 1fr !important;
-  }
-  .metric.mini:not(.date-card), .metric.mini.date-card {
-    max-width: none;
-    min-width: 0;
-  }
-  .sub-scene-window {
-    display: block;
-    bottom: 112px;
-    width: min(220px, calc(100vw - 16px));
-  }
-  .sub-canvas {
-    aspect-ratio: 4 / 3;
-  }
-  .sub-scene-window header span,
-  .sub-scene-window header strong {
-    font-size: 9px;
-  }
+  gap: 10px;
+  padding:
+    8px 10px;
+  border-bottom:
+    1px solid rgba(var(--theme-primary-light-rgb), 0.16);
+  background:
+    rgba(8, 20, 34, 0.24);
 }
 
-
-/* v14: 副机位、SVG、时间轴与 Header 微调 */
-.scene-title {
+.sub-title {
   display: grid;
   gap: 2px;
 }
-.scene-title span {
-  letter-spacing: 0.16em;
-}
-.scene-actions .header-icon-btn[title="俯视视角"],
-.scene-actions .header-icon-btn[title="仰视视角"] {
-  display: none !important;
-}
-.calendar-scale-row,
-.calendar-scale {
-  display: none !important;
-}
-.obs-track-card {
-  margin-top: 8px;
-  padding: 4px 4px 2px;
-  border: 0;
-  background: transparent;
-}
-.obs-track-head {
-  display: none !important;
-}
-.obs-track-svg {
-  height: 120px;
-  margin-top: 0;
-}
-.obs-track-path {
-  fill: none;
-  stroke: url(#trackGradientObs) !important;
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.98;
-  filter: drop-shadow(0 0 5px rgba(46,196,182,.45));
-}
-.obs-track-svg text {
-  font-size: 8.5px;
-}
-.sub-scene-window {
-  width: 360px;
-  height: 268px;
-  min-width: 260px;
-  min-height: 210px;
-  max-width: calc(100vw - 40px);
-  max-height: calc(100dvh - 150px);
-}
-.sub-scene-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 7px;
-}
-.sub-title {
-  min-width: 0;
-}
+
 .sub-title span {
-  display: block;
-  font-size: 9px;
-  color: rgba(233,251,255,.56);
-  letter-spacing: .08em;
-}
-.sub-title strong {
-  display: block;
-  margin-top: 2px;
-  color: #eaffff;
-  font-size: 13px;
-}
-.sub-view-select {
-  width: 118px;
-  flex: 0 0 auto;
-}
-.sub-canvas {
-  height: calc(100% - 43px);
-  aspect-ratio: auto;
-}
-.sub-view-tabs {
-  display: none !important;
-}
-.sub-resize-handle {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  width: 18px;
-  height: 18px;
-  border: 0;
-  border-right: 2px solid rgba(46,196,182,.8);
-  border-bottom: 2px solid rgba(46,196,182,.8);
-  background: linear-gradient(135deg, transparent 0 46%, rgba(46,196,182,.25) 46% 54%, transparent 54%);
-  border-radius: 3px;
-  cursor: nwse-resize;
-  opacity: .85;
-}
-.sub-resize-handle:hover {
-  opacity: 1;
-  filter: drop-shadow(0 0 8px rgba(46,196,182,.65));
-}
-@media (max-width: 768px) {
-  .sub-scene-window {
-    width: min(300px, calc(100vw - 16px)) !important;
-    height: 230px !important;
-    bottom: 116px;
-  }
-  .sub-view-select {
-    width: 104px;
-  }
-}
-@media (max-width: 520px) {
-  .sub-scene-window {
-    width: min(240px, calc(100vw - 16px)) !important;
-    height: 200px !important;
-  }
-  .sub-title strong {
-    font-size: 10px;
-  }
-}
-
-
-/* v15: 修正副机位、时间轴、标题层级和按钮密度 */
-.scene-header {
-  grid-template-columns: minmax(220px, .92fr) minmax(360px, 1.18fr) auto !important;
-  align-items: center !important;
-}
-.scene-title {
-  gap: 2px !important;
-}
-.scene-title strong {
-  display: block;
-  color: #f2feff !important;
-  font-size: 15px !important;
-  line-height: 1.25;
-  letter-spacing: .02em;
-}
-.scene-title span {
-  display: block;
-  color: #2ec4b6 !important;
-  font-size: 9px !important;
-  line-height: 1.1;
-  letter-spacing: .18em;
-  text-transform: uppercase;
-}
-.scene-metrics {
-  display: grid !important;
-  grid-template-columns: minmax(92px, .7fr) minmax(108px, .78fr) minmax(172px, 1.3fr) !important;
-  align-items: stretch !important;
-  gap: 8px !important;
-}
-.metric.mini {
-  width: 100%;
-  max-width: none !important;
-  min-height: 38px;
-}
-
-.timeline-dock {
-  width: min(740px, calc(100% - 72px)) !important;
-}
-.timeline-row {
-  display: block !important;
-  margin-bottom: 3px;
-}
-.timeline-label {
-  display: flex !important;
-  align-items: baseline;
-  justify-content: flex-start;
-  gap: 9px;
-  width: 100%;
-  margin: 0 0 4px 0;
-  text-align: left;
-}
-.timeline-label span {
-  min-width: auto !important;
-  color: rgba(233,251,255,.64);
+  color:
+    var(--text-muted);
   font-size: 10px;
 }
-.timeline-label strong {
-  color: #f6feff;
+
+.sub-title strong {
+  color:
+    var(--theme-primary-light);
   font-size: 12px;
 }
-.term-scale-row,
-.hour-scale {
-  margin-left: 0 !important;
-  padding-left: 0 !important;
-}
-.term-scale-row > div:first-child {
-  display: none !important;
-}
-.term-scale {
-  margin: 0 12px 12px 12px !important;
-}
-.hour-scale {
-  margin: 0 12px !important;
-}
 
-.sub-scene-head {
-  align-items: center !important;
-  gap: 10px;
-}
-.sub-title strong {
-  font-size: 13px !important;
-  color: #f2feff !important;
-}
-.sub-title span {
-  font-size: 9px !important;
-  color: rgba(46,196,182,.88) !important;
-  letter-spacing: .12em;
-}
 .sub-view-select {
-  width: 124px !important;
-  flex: 0 0 auto;
-}
-.sub-resize-handle {
-  left: -1px !important;
-  right: auto !important;
-  bottom: -1px !important;
-  width: 22px !important;
-  height: 22px !important;
-  border-radius: 0 12px 0 14px !important;
-  cursor: nesw-resize !important;
-  background: linear-gradient(135deg, rgba(46,196,182,.32), rgba(36,124,255,.20)) !important;
-}
-.sub-resize-handle::before,
-.sub-resize-handle::after {
-  left: 5px !important;
-  right: auto !important;
+  width: 112px;
 }
 
-.preset-cloud :deep(.el-button) {
-  height: 22px !important;
-  padding: 0 8px !important;
-  font-size: 10px !important;
-  line-height: 20px !important;
-  min-width: 0 !important;
-}
-.clear-btn {
-  font-size: 10px !important;
-  height: 24px !important;
-}
-.control-panel:not(.collapsed) .collapse-btn.icon-toggle {
-  right: 22px !important;
-}
-.control-panel.collapsed .collapse-btn.icon-toggle {
-  margin-left: 5px !important;
-  margin-right: 0 !important;
-}
-.obs-actions {
-  justify-content: flex-end;
-}
-
-@media (max-width: 768px) {
-  .scene-header {
-    grid-template-columns: 1fr !important;
-  }
-  .scene-metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
-  .timeline-dock {
-    width: auto !important;
-  }
-  .term-scale {
-    margin-left: 8px !important;
-    margin-right: 8px !important;
-  }
-}
-@media (max-width: 520px) {
-  .scene-metrics {
-    grid-template-columns: 1fr 1fr !important;
-  }
-  .metric.date-card {
-    grid-column: 1 / -1;
-  }
-}
-
-
-/* v16: 面板宽度、SVG 轨迹、Header 上下布局与相机交互优化 */
-.scene-header {
-  grid-template-columns: minmax(0, 1fr) auto !important;
-  grid-template-rows: auto auto !important;
-  align-items: start !important;
-  gap: 7px 12px !important;
-  padding: 9px 12px 10px !important;
-}
-.scene-title {
-  grid-column: 1;
-  grid-row: 1;
-  align-self: center;
-}
-.scene-actions {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: center;
-}
-.scene-metrics {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  display: grid !important;
-  grid-template-columns: minmax(96px, 120px) minmax(112px, 136px) minmax(182px, 240px) !important;
-  justify-content: start;
-  align-items: stretch !important;
-  gap: 8px !important;
-}
-.scene-title strong {
-  color: #f4ffff !important;
-  font-size: 14px !important;
-  font-weight: 850;
-  letter-spacing: .01em;
-}
-.scene-title span {
-  margin-top: 2px;
-  color: rgba(46,196,182,.86) !important;
-  font-size: 8.5px !important;
-  letter-spacing: .20em;
-}
-.metric.mini {
-  min-height: 34px !important;
-  padding: 5px 8px !important;
-}
-.metric.mini span {
-  color: rgba(206,235,240,.54) !important;
-  font-size: 8.5px !important;
-}
-.metric.mini strong {
-  font-size: 11px !important;
-}
-
-.observation-panel {
-  width: 258px !important;
-  max-width: 258px !important;
-  padding: 8px !important;
-}
-.obs-head span {
-  color: rgba(46,196,182,.82) !important;
-  font-size: 9px !important;
-  letter-spacing: .06em;
-}
-.obs-head strong {
-  color: #f4ffff !important;
-  font-size: 13px !important;
-  font-weight: 850;
-}
-.obs-body dl {
-  gap: 5px !important;
-}
-.obs-body div {
-  padding: 5px 6px !important;
-  border-radius: 8px !important;
-}
-.obs-body dt {
-  color: rgba(206,235,240,.52) !important;
-  font-size: 9px !important;
-}
-.obs-body dd {
-  font-size: 10.5px !important;
-}
-.obs-track-card {
-  width: 100% !important;
-  margin: 7px 0 0 !important;
-  padding: 0 !important;
-}
-.obs-track-svg {
-  width: 100% !important;
-  height: 104px !important;
-  display: block !important;
-  overflow: visible;
-}
-.obs-track-svg text {
-  font-size: 7.8px !important;
-}
-.obs-track-path {
-  fill: none !important;
-  stroke: url(#trackGradientObs) !important;
-  stroke-width: 2.8 !important;
-  stroke-linecap: round !important;
-  stroke-linejoin: round !important;
-  opacity: 1 !important;
-  vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 5px rgba(46,196,182,.58));
-}
-
-.control-card .card-title {
-  color: rgba(234,255,255,.88) !important;
-  font-size: 11px !important;
-  font-weight: 850;
-  letter-spacing: .02em;
-}
-.card-tip {
-  margin: 0 0 7px !important;
-  color: rgba(206,235,240,.48) !important;
-  font-size: 9px !important;
-  line-height: 1.42 !important;
-}
-.preset-cloud {
-  gap: 5px !important;
-}
-.preset-cloud :deep(.el-button) {
-  height: 20px !important;
-  min-height: 20px !important;
-  padding: 0 6px !important;
-  font-size: 9px !important;
-  line-height: 18px !important;
-}
-.preset-cloud :deep(.el-button > span),
-.preset-cloud :deep(.el-button span) {
-  font-size: 9px !important;
-  line-height: 18px !important;
-  transform: scale(.92);
-  transform-origin: center;
-}
-.clear-btn {
-  height: 22px !important;
-  font-size: 9px !important;
-}
-
-@media (max-width: 768px) {
-  .scene-header {
-    grid-template-columns: 1fr !important;
-    grid-template-rows: auto auto auto !important;
-  }
-  .scene-actions {
-    grid-column: 1 !important;
-    grid-row: 2 !important;
-    justify-content: flex-start !important;
-  }
-  .scene-metrics {
-    grid-column: 1 !important;
-    grid-row: 3 !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
-  .observation-panel {
-    width: min(258px, calc(100vw - 16px)) !important;
-    max-width: calc(100vw - 16px) !important;
-  }
-}
-@media (max-width: 520px) {
-  .scene-metrics {
-    grid-template-columns: 1fr 1fr !important;
-  }
-  .metric.date-card,
-  .metric.mini.date-card {
-    grid-column: 1 / -1;
-  }
-}
-
-
-/* v17: Header 独占一行，主体容器独立分区 */
-.orbit-page {
-  display: grid !important;
-  grid-template-columns: 1fr !important;
-  grid-template-rows: 66px minmax(0, 1fr) !important;
-  height: 100dvh !important;
-}
-
-.app-header.scene-header {
-  position: relative !important;
-  top: auto !important;
-  left: auto !important;
-  right: auto !important;
-  z-index: 20 !important;
-  grid-row: 1 !important;
-  margin: 6px 8px 0 !important;
-  min-height: 54px !important;
-  display: grid !important;
-  grid-template-columns: minmax(260px, .85fr) minmax(420px, 1.35fr) auto !important;
-  align-items: center !important;
-  gap: 12px !important;
-  padding: 8px 12px !important;
-  border-radius: 15px !important;
-}
-
-.app-main {
-  grid-row: 2;
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 258px minmax(0, 1fr);
-  overflow: hidden;
-}
-
-.orbit-page.is-collapsed .app-main {
-  grid-template-columns: 40px minmax(0, 1fr);
-}
-
-.app-main .control-panel {
+.sub-canvas {
+  display: block;
+  width: 100%;
   height: 100%;
 }
 
-.app-main .panel-scroll {
-  height: calc(100dvh - 66px - 40px) !important;
+.sub-resize-handle {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 12;
+  width: 38px;
+  height: 38px;
+  cursor: nesw-resize;
+  background:
+    linear-gradient(45deg,
+      rgba(var(--theme-primary-light-rgb), 0.82) 0 48%,
+      rgba(var(--theme-primary-light-rgb), 0.36) 49% 56%,
+      transparent 57% 100%);
+  border: 0;
+  border-bottom-left-radius: 16px;
+  clip-path:
+    polygon(0 0,
+      0 100%,
+      100% 100%);
+  opacity: 0.9;
 }
 
-.viewport-wrap,
-.viewport {
-  min-height: 0 !important;
-  height: 100% !important;
+
+.sub-resize-handle::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  width: 18px;
+  height: 18px;
+  border-left:
+    2px solid rgba(255, 255, 255, 0.74);
+  border-bottom:
+    2px solid rgba(255, 255, 255, 0.74);
+  border-bottom-left-radius: 8px;
 }
 
-.viewport {
-  border-top: 1px solid rgba(46, 196, 182, .12);
+.sub-resize-handle:hover {
+  opacity: 1;
+  filter:
+    drop-shadow(0 0 8px rgba(var(--theme-primary-rgb), 0.52));
 }
 
-.observation-panel {
-  top: 12px !important;
-  left: 12px !important;
+.orbit-time-dock {
+  left:
+    50% !important;
+  right:
+    auto !important;
+  bottom:
+    clamp(12px,
+      2vh,
+      22px) !important;
+
+  width:
+    min(920px,
+      calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 36px)) !important;
+  max-width:
+    none !important;
+  margin:
+    0;
+  transform:
+    translateX(-50%);
+  grid-template-columns:
+    auto minmax(420px,
+      1fr);
+  align-items:
+    center;
+  pointer-events: auto;
 }
 
-.obs-reopen {
-  top: 12px !important;
-  left: 12px !important;
+.timeline-info-cards {
+  display: grid;
+  grid-template-columns:
+    1fr;
+  grid-template-rows:
+    repeat(2,
+      minmax(42px, auto));
+  gap: 8px;
+  align-self:
+    stretch;
+  width:
+    clamp(118px,
+      9vw,
+      136px);
 }
 
-.sub-scene-window {
-  top: 12px !important;
-  right: 12px !important;
+.timeline-info-card {
+  display: grid;
+  align-content:
+    center;
+  gap: 3px;
+  min-width: 0;
+  min-height:
+    42px;
+  padding:
+    7px 9px;
+  border:
+    1px solid rgba(var(--theme-primary-light-rgb), 0.13);
+  border-radius: 11px;
+  background:
+    rgba(8, 20, 34, 0.28);
 }
 
-.timeline-dock {
-  bottom: 14px !important;
-  width: min(740px, calc(100% - 84px)) !important;
+.timeline-info-card span,
+.timeline-label span {
+  color:
+    var(--text-muted);
+  font-size: 10px;
+}
+
+.timeline-info-card strong,
+.timeline-label strong {
+  color:
+    var(--text-primary);
+  font-size: 12px;
+}
+
+.date-text {
+  font-style: normal;
+}
+
+.orbit-timeline-main {
+  min-width: 0;
 }
 
 .timeline-row {
-  display: block !important;
-  margin-bottom: 4px !important;
+  display: grid;
+  grid-template-columns:
+    92px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
 }
 
-.timeline-label {
-  display: flex !important;
-  align-items: baseline !important;
-  justify-content: space-between !important;
-  gap: 14px !important;
-  width: 100% !important;
-  margin: 0 0 5px !important;
-  padding: 0 2px !important;
+.timeline-label.between {
+  display: grid;
+  gap: 2px;
 }
 
-.timeline-label span {
-  margin: 0 !important;
-  color: rgba(233, 251, 255, .66) !important;
-  font-size: 10px !important;
-  font-weight: 650 !important;
+.term-scale-row {
+  padding:
+    0 3px 8px 102px;
 }
 
-.timeline-label strong {
-  margin: 0 !important;
-  color: #2ff7e6 !important;
-  font-size: 12px !important;
-  font-weight: 900 !important;
-  text-shadow: 0 0 12px rgba(46, 196, 182, .38);
+.scale-track {
+  position: relative;
+  height: 22px;
 }
 
-.term-scale-row,
+.scale-track button {
+  position: absolute;
+  top: 0;
+  transform:
+    translateX(-50%);
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  min-width: 44px;
+  padding: 0;
+  color:
+    var(--text-muted);
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+  word-break: keep-all;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.scale-track button i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg,
+      var(--theme-primary),
+      var(--theme-secondary));
+}
+
 .hour-scale {
-  margin-left: 0 !important;
-  padding-left: 0 !important;
+  display: grid;
+  grid-template-columns:
+    repeat(5,
+      1fr);
+  padding-left: 102px;
+  color:
+    var(--text-muted);
+  font-size: 9px;
 }
 
-.term-scale-row > div:first-child {
-  display: none !important;
+.two-col-option-grid {
+  grid-template-columns:
+    repeat(2,
+      minmax(0, 1fr));
 }
 
-.term-scale {
-  margin: 0 12px 12px 12px !important;
+.compact-switch-row {
+  padding:
+    7px 0;
 }
 
-.hour-scale {
-  margin: 0 12px !important;
-}
-
-.scene-title strong {
-  color: #f2feff !important;
-  font-size: 15px !important;
-}
-
-.scene-title span {
-  color: rgba(46, 196, 182, .92) !important;
-}
-
-.scene-metrics {
-  align-items: stretch !important;
-}
-
-.metric.mini strong,
-.metric.mini .accent-value,
-.date-text {
-  color: #2ff7e6 !important;
-}
-
-.metric.mini.date-card strong,
-.metric.mini.date-card .date-text {
-  color: #ffd166 !important;
-}
-
-@media (max-width: 1120px) {
-  .orbit-page {
-    grid-template-rows: 96px minmax(0, 1fr) !important;
-  }
-  .app-header.scene-header {
-    grid-template-columns: 1fr auto !important;
-    align-content: center !important;
-  }
-  .app-header .scene-metrics {
-    grid-column: 1 / -1 !important;
-    grid-row: 2 !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
-  .app-main .panel-scroll {
-    height: calc(100dvh - 96px - 40px) !important;
-  }
-}
-
-@media (max-width: 768px) {
-  .orbit-page {
-    display: grid !important;
-    grid-template-rows: auto minmax(0, 1fr) !important;
-  }
-  .app-header.scene-header {
-    margin: 6px 6px 0 !important;
-    grid-template-columns: 1fr !important;
-    gap: 6px !important;
-    padding: 8px !important;
-  }
-  .app-header .scene-actions {
-    position: static !important;
-    justify-content: flex-start !important;
-  }
-  .app-main {
-    position: relative;
-    display: block;
-  }
-  .app-main .control-panel {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-  }
-  .app-main .panel-scroll {
-    height: auto !important;
-  }
-  .observation-panel {
-    top: 70px !important;
-  }
-  .sub-scene-window {
-    top: auto !important;
-    right: 8px !important;
-    bottom: 116px !important;
-  }
-  .timeline-dock {
-    width: auto !important;
-    left: 8px !important;
-    right: 8px !important;
-    transform: none !important;
-  }
-}
-
-
-/* v18: header as a true independent row, compact timeline, SVG label offset, no left bottom void */
-.orbit-page {
-  grid-template-rows: 86px minmax(0, 1fr) !important;
-}
-
-.app-header.scene-header {
-  position: relative !important;
-  box-sizing: border-box !important;
-  height: 74px !important;
-  min-height: 74px !important;
-  max-height: 74px !important;
-  margin: 6px 8px 6px !important;
-  padding: 10px 12px !important;
-  overflow: hidden !important;
-  display: grid !important;
-  grid-template-columns: minmax(230px, 320px) minmax(430px, 1fr) auto !important;
-  grid-template-rows: 1fr !important;
-  align-items: center !important;
-  column-gap: 12px !important;
-  row-gap: 0 !important;
-}
-
-.app-header .scene-title {
-  min-width: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
-  gap: 2px !important;
-}
-
-.app-header .scene-title strong {
-  font-size: 14px !important;
-  line-height: 1.15 !important;
-  color: #f2feff !important;
-}
-
-.app-header .scene-title span {
-  font-size: 9px !important;
-  letter-spacing: .16em !important;
-  color: rgba(46,196,182,.92) !important;
-}
-
-.app-header .scene-metrics {
-  grid-column: auto !important;
-  grid-row: auto !important;
-  min-width: 0 !important;
-  width: 100% !important;
-  display: grid !important;
-  grid-template-columns: minmax(96px, .72fr) minmax(118px, .82fr) minmax(190px, 1.22fr) !important;
-  gap: 8px !important;
-  align-items: center !important;
-  align-self: center !important;
-  overflow: hidden !important;
-}
-
-.app-header .metric.mini {
-  box-sizing: border-box !important;
-  height: 38px !important;
-  min-height: 38px !important;
-  max-height: 38px !important;
-  max-width: none !important;
-  min-width: 0 !important;
-  padding: 5px 9px !important;
-  overflow: hidden !important;
-}
-
-.app-header .metric.mini span {
-  display: block !important;
-  margin: 0 0 2px !important;
-  font-size: 8px !important;
-  line-height: 1 !important;
-  white-space: nowrap !important;
-}
-
-.app-header .metric.mini strong {
-  display: block !important;
-  font-size: 11px !important;
-  line-height: 1.1 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
-.app-header .scene-actions {
-  position: static !important;
-  grid-column: auto !important;
-  grid-row: auto !important;
-  align-self: center !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  gap: 8px !important;
-  min-width: max-content !important;
-}
-
-.app-main .panel-scroll {
-  height: calc(100dvh - 86px) !important;
-  padding: 4px 8px 4px !important;
-  box-sizing: border-box !important;
-}
-
-.app-main .control-panel {
-  min-height: 0 !important;
-}
-
-.control-card:last-child {
-  margin-bottom: 4px !important;
+.layer-switch-list {
+  display: grid;
+  gap: 2px;
 }
 
 .preset-cloud {
-  margin-bottom: 0 !important;
-}
-
-.clear-btn {
-  margin-bottom: 0 !important;
-}
-
-/* 太阳直射点 SVG：纬度标签往右收，避免贴住/越出左边界 */
-.obs-track-svg text {
-  font-size: 7.6px !important;
-}
-
-/* 底部时间轴更矮，减少遮挡 */
-.timeline-dock {
-  width: min(720px, calc(100% - 96px)) !important;
-  padding: 7px 12px 6px !important;
-  border-radius: 15px !important;
-}
-
-.timeline-row {
-  margin-bottom: 1px !important;
-}
-
-.timeline-label {
-  margin: 0 0 2px !important;
-  padding: 0 1px !important;
-}
-
-.timeline-label span {
-  font-size: 9px !important;
-}
-
-.timeline-label strong {
-  font-size: 11px !important;
-}
-
-.timeline-dock :deep(.el-slider) {
-  --el-slider-height: 4px;
-  height: 20px !important;
-}
-
-.timeline-dock :deep(.el-slider__runway) {
-  margin: 8px 0 !important;
-}
-
-.term-scale {
-  height: 18px !important;
-  margin: 0 10px 5px 10px !important;
-}
-
-.term-scale i {
-  height: 5px !important;
-  margin-bottom: 1px !important;
-}
-
-.term-scale button {
-  font-size: 9px !important;
-}
-
-.hour-scale {
-  margin: 0 10px !important;
-  font-size: 9px !important;
-}
-
-@media (max-width: 1120px) {
-  .orbit-page {
-    grid-template-rows: 116px minmax(0, 1fr) !important;
-  }
-
-  .app-header.scene-header {
-    height: 104px !important;
-    min-height: 104px !important;
-    max-height: 104px !important;
-    grid-template-columns: 1fr auto !important;
-    grid-template-rows: auto auto !important;
-    align-content: center !important;
-  }
-
-  .app-header .scene-metrics {
-    grid-column: 1 / -1 !important;
-    grid-row: 2 !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
-
-  .app-header .scene-actions {
-    grid-column: 2 !important;
-    grid-row: 1 !important;
-  }
-
-  .app-main .panel-scroll {
-    height: calc(100dvh - 116px) !important;
-  }
-}
-
-@media (max-width: 768px) {
-  .orbit-page {
-    grid-template-rows: auto minmax(0, 1fr) !important;
-  }
-
-  .app-header.scene-header {
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    margin: 6px !important;
-    grid-template-columns: 1fr !important;
-    grid-template-rows: auto auto auto !important;
-  }
-
-  .app-header .scene-actions {
-    grid-column: 1 !important;
-    grid-row: 2 !important;
-    justify-content: flex-start !important;
-    flex-wrap: wrap !important;
-  }
-
-  .app-header .scene-metrics {
-    grid-column: 1 !important;
-    grid-row: 3 !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
-
-  .app-main .panel-scroll {
-    height: auto !important;
-    max-height: calc(58dvh - 42px) !important;
-  }
-
-  .timeline-dock {
-    width: auto !important;
-    padding: 6px 8px 5px !important;
-  }
-}
-
-@media (max-width: 520px) {
-  .app-header .scene-metrics {
-    grid-template-columns: 1fr 1fr !important;
-  }
-}
-
-
-/* v19: current solar term is the last passed term; brighten sub-camera select */
-.sub-scene-head {
-  align-items: center !important;
-  gap: 10px !important;
-}
-
-.sub-title span {
-  color: #eaffff !important;
-  font-size: 13px !important;
-  line-height: 1.15 !important;
-  font-weight: 900 !important;
-  letter-spacing: .03em !important;
-}
-
-.sub-title strong {
-  display: none !important;
-}
-
-.sub-view-select {
-  width: 126px !important;
-  flex: 0 0 126px !important;
-}
-
-.sub-view-select :deep(.el-select__wrapper) {
-  min-height: 30px !important;
-  border-radius: 12px !important;
-  border: 1px solid rgba(46, 196, 182, 0.7) !important;
-  background: linear-gradient(135deg, rgba(46, 196, 182, 0.26), rgba(36, 124, 255, 0.24)) !important;
-  box-shadow: 0 0 16px rgba(46, 196, 182, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
-}
-
-.sub-view-select :deep(.el-select__selected-item),
-.sub-view-select :deep(.el-select__placeholder) {
-  color: #eaffff !important;
-  font-size: 11px !important;
-  font-weight: 800 !important;
-}
-
-.sub-view-select :deep(.el-select__caret) {
-  color: #35f2df !important;
-}
-
-.timeline-label strong {
-  color: #35f2df !important;
-}
-
-
-/* v20: Header 单行化、底部信息迁移、场景侧边收起按钮 */
-.orbit-page {
-  display: grid !important;
-  grid-template-columns: 100% !important;
-  grid-template-rows: 72px minmax(0, 1fr) !important;
-  height: 100dvh !important;
-}
-.app-main {
-  grid-row: 2;
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
-  min-height: 0;
-  overflow: hidden;
-}
-.orbit-page.is-collapsed .app-main {
-  grid-template-columns: 0 minmax(0, 1fr);
-}
-.app-header.scene-header {
-  position: relative !important;
-  grid-row: 1;
-  top: auto !important;
-  left: auto !important;
-  right: auto !important;
-  z-index: 20;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 14px !important;
-  width: auto !important;
-  height: 58px !important;
-  min-height: 58px !important;
-  margin: 7px 8px 6px !important;
-  padding: 8px 12px !important;
-  border-radius: 16px !important;
-}
-.scene-title {
-  min-width: 0;
-}
-.scene-title strong {
-  font-size: 14px !important;
-  line-height: 1.15 !important;
-  white-space: nowrap;
-}
-.scene-title span {
-  margin-top: 3px;
-  font-size: 8.5px !important;
-  letter-spacing: .16em !important;
-}
-.scene-metrics {
-  display: none !important;
-}
-.scene-actions {
-  flex: 0 0 auto;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  gap: 8px !important;
-  position: static !important;
-}
-.control-panel {
-  grid-column: 1;
-  height: 100% !important;
-  transition: width .24s ease, opacity .24s ease, transform .24s ease;
-}
-.orbit-page.is-collapsed .control-panel {
-  width: 0 !important;
-  min-width: 0 !important;
-  opacity: 0;
-  pointer-events: none;
-  border-right: 0;
-  transform: translateX(-8px);
-}
-.viewport-wrap {
-  grid-column: 2;
-  min-height: 0;
-}
-.panel-scroll {
-  height: 100% !important;
-  padding: 8px 8px 8px !important;
-}
-.collapse-btn.icon-toggle {
-  display: none !important;
-}
-.panel-edge-toggle {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  z-index: 18;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 46px;
-  transform: translateY(-50%);
-  border: 1px solid rgba(46, 196, 182, .46);
-  border-radius: 0 16px 16px 0;
-  background: linear-gradient(135deg, rgba(6, 22, 36, .82), rgba(46, 196, 182, .18));
-  color: #eaffff;
-  box-shadow: 0 0 24px rgba(46, 196, 182, .26);
-  cursor: pointer;
-  pointer-events: auto;
-}
-.panel-edge-toggle svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.timeline-dock {
-  display: grid !important;
-  grid-template-columns: 176px minmax(0, 1fr) !important;
-  gap: 12px !important;
-  align-items: stretch !important;
-  width: min(790px, calc(100% - 90px)) !important;
-  padding: 8px 12px !important;
-  bottom: 12px !important;
-}
-.timeline-info-cards {
-  display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-columns:
+    repeat(2,
+      minmax(0, 1fr));
   gap: 7px;
-  min-width: 0;
-}
-.timeline-info-card {
-  min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 12px;
-  background: rgba(255,255,255,.04);
-}
-.timeline-info-card span {
-  display: block;
-  color: rgba(233,251,255,.58);
-  font-size: 9px;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-.timeline-info-card strong {
-  display: block;
-  color: #f6feff;
-  font-size: 12px;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-.timeline-main {
-  min-width: 0;
-}
-.timeline-row {
-  display: block !important;
-  margin: 0 0 1px 0 !important;
-}
-.timeline-label.between {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 12px !important;
-  width: 100% !important;
-  margin: 0 0 2px 0 !important;
-}
-.timeline-label.between span {
-  margin: 0 !important;
-  color: rgba(233,251,255,.64) !important;
-  font-size: 10px !important;
-}
-.timeline-label.between strong {
-  margin: 0 !important;
-  color: #35f2df !important;
-  font-size: 12px !important;
-  text-shadow: 0 0 10px rgba(46,196,182,.52);
-}
-.term-scale-row,
-.hour-scale {
-  margin-left: 0 !important;
-  padding-left: 0 !important;
-}
-.term-scale-row > div:first-child {
-  display: none !important;
-}
-.term-scale {
-  height: 20px !important;
-  margin: -2px 10px 4px 10px !important;
-}
-.hour-scale {
-  margin: -2px 10px 0 !important;
-  font-size: 9px !important;
-}
-.timeline-dock :deep(.el-slider) {
-  --el-slider-height: 5px;
-}
-.timeline-dock :deep(.el-slider__runway) {
-  margin: 9px 0 !important;
+  margin:
+    10px 0;
 }
 
-@media (max-width: 980px) {
-  .orbit-page {
-    grid-template-rows: auto minmax(0, 1fr) !important;
-  }
-  .app-header.scene-header {
-    height: auto !important;
-    min-height: 54px !important;
-    align-items: flex-start !important;
-    flex-wrap: wrap;
-    gap: 8px 10px !important;
-  }
-  .scene-title {
-    flex: 1 1 260px;
-  }
-  .scene-title strong {
-    white-space: normal;
-  }
-  .scene-actions {
-    flex: 1 1 auto;
-    justify-content: flex-end !important;
-    flex-wrap: wrap;
-  }
-  .app-main {
-    grid-template-columns: min(238px, 46vw) minmax(0, 1fr);
-  }
-  .timeline-dock {
-    grid-template-columns: 150px minmax(0, 1fr) !important;
-    width: min(720px, calc(100% - 32px)) !important;
-  }
-}
-@media (max-width: 768px) {
-  .app-main {
-    display: block;
-    position: relative;
-  }
-  .control-panel {
-    position: absolute !important;
-    left: 8px;
-    top: 8px;
-    z-index: 30;
-    width: min(300px, calc(100vw - 16px)) !important;
-    max-height: calc(100dvh - 98px);
-    border-radius: 18px;
-    border: 1px solid rgba(46,196,182,.24);
-  }
-  .orbit-page.is-collapsed .control-panel {
-    width: 0 !important;
-    opacity: 0;
-  }
-  .viewport-wrap,
-  .viewport {
-    width: 100%;
-    height: 100%;
-  }
-  .panel-edge-toggle {
-    left: 8px;
-    width: 34px;
-    height: 42px;
-  }
-  .timeline-dock {
-    grid-template-columns: 1fr !important;
-    gap: 7px !important;
-    left: 8px !important;
-    right: 8px !important;
-    width: auto !important;
-    transform: none !important;
-    padding: 8px !important;
-  }
-  .timeline-info-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto;
-  }
-  .timeline-info-card {
-    padding: 6px 8px;
-  }
-  .timeline-info-card strong {
-    font-size: 11px;
-  }
-}
-@media (max-width: 520px) {
-  .app-header.scene-header {
-    margin: 6px;
-    padding: 8px;
-    border-radius: 14px !important;
-  }
-  .scene-title strong {
-    font-size: 12px !important;
-  }
-  .scene-title span {
-    font-size: 8px !important;
-  }
-  .scene-actions {
-    gap: 6px !important;
-    justify-content: flex-start !important;
-  }
-  .header-toggle span {
-    font-size: 9px !important;
-  }
-  .timeline-info-cards {
-    grid-template-columns: 1fr;
-  }
-  .timeline-dock {
-    bottom: 8px !important;
-  }
-}
-
-
-/* v21: compact side toggle, restore solstice/equinox ticks, stronger title hierarchy */
-.panel-edge-toggle {
-  width: 24px !important;
-  height: 34px !important;
-  left: 6px !important;
-  border-radius: 0 12px 12px 0 !important;
-  padding: 0 !important;
-  box-shadow: 0 0 14px rgba(46, 196, 182, .22) !important;
-}
-.panel-edge-toggle svg {
-  width: 13px !important;
-  height: 13px !important;
-  stroke-width: 2.2 !important;
-}
-.orbit-page.is-collapsed .panel-edge-toggle {
-  left: 4px !important;
-}
-.control-card .card-title,
-.card-title,
-.sub-title span {
-  color: #2ec4b6 !important;
-  text-shadow: 0 0 12px rgba(46, 196, 182, .42) !important;
-  letter-spacing: .04em;
-  font-weight: 900 !important;
-}
-.control-card .card-title::before {
-  background: linear-gradient(180deg, #2ec4b6, #47a3ff) !important;
-  box-shadow: 0 0 12px rgba(46,196,182,.55) !important;
-}
-.sub-title span {
-  font-size: 13px !important;
-  line-height: 1.2 !important;
-}
-.sub-scene-head {
-  align-items: center !important;
-}
-.obs-head-v21 {
-  display: grid !important;
-  grid-template-columns: auto minmax(0, 1fr) !important;
-  align-items: center !important;
-  gap: 10px !important;
-  margin-bottom: 8px !important;
-}
-.obs-title-main {
-  color: #2ec4b6 !important;
-  font-size: 10px !important;
-  font-weight: 900 !important;
-  letter-spacing: .08em !important;
-  text-shadow: 0 0 10px rgba(46,196,182,.45) !important;
-}
-.obs-place-row {
+.place-btn,
+.uniform-place-btn {
+  width: 100%;
   min-width: 0;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  gap: 7px !important;
-}
-.obs-place-row strong {
-  display: inline-block !important;
-  min-width: 0;
-  max-width: 170px;
+  height: 32px;
+  padding:
+    0 7px;
+  justify-content:
+    center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #f4feff !important;
-  font-size: 13px !important;
 }
-.obs-head-v21 .small-icon-btn {
-  flex: 0 0 auto;
-  width: 22px !important;
-  height: 22px !important;
-  border-radius: 8px !important;
+
+.timeline-play-icon {
+  width: 18px;
+  height: 18px;
+  fill:
+    currentColor;
+  display: block;
 }
-.term-scale-row {
-  display: block !important;
-  height: 23px !important;
-  margin: -2px 10px 2px !important;
-  padding: 0 !important;
-}
-.term-scale-row > div:first-child,
-.term-scale-row .scale-track,
-.term-scale-row .term-scale {
+
+
+/* 5号模板右侧数据面板：任何断点下都不能隐藏直射点曲线图 */
+.right-panel .earth-section-card {
   display: block !important;
 }
-.term-scale {
-  position: relative !important;
-  height: 23px !important;
-  margin: 0 !important;
-}
-.term-scale button {
-  display: inline-flex !important;
-  position: absolute !important;
-  top: 0 !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  transform: translateX(-50%) !important;
-  min-width: 34px !important;
-  height: 23px !important;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  color: rgba(233, 251, 255, .76) !important;
-  font-size: 9px !important;
-  line-height: 1 !important;
-  cursor: pointer;
-}
-.term-scale button i {
+
+.right-panel .earth-section-svg {
   display: block !important;
-  width: 1px !important;
-  height: 6px !important;
-  margin-bottom: 4px !important;
-  border-radius: 0 !important;
-  background: rgba(233,251,255,.36) !important;
-  box-shadow: none !important;
-}
-.term-scale button span {
-  display: block !important;
-  white-space: nowrap;
-}
-.term-scale button:hover span {
-  color: #2ec4b6 !important;
-  text-shadow: 0 0 10px rgba(46,196,182,.45);
-}
-@media (max-width: 768px) {
-  .panel-edge-toggle {
-    width: 24px !important;
-    height: 32px !important;
-    left: 5px !important;
-  }
-  .obs-head-v21 {
-    gap: 8px !important;
-  }
-  .obs-place-row strong {
-    max-width: 145px;
-  }
-  .term-scale button {
-    min-width: 30px !important;
-    font-size: 8.5px !important;
-  }
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
 }
 
-
-/* v22: Header switches control realtime panel and timeline dock */
-.app-header .scene-actions {
-  display: flex !important;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px !important;
-  flex-wrap: wrap;
+.right-panel .obs-track-card {
+  min-width: 0;
 }
 
-.app-header .header-toggle {
-  min-height: 26px;
-  padding: 3px 7px;
-  border: 1px solid rgba(46, 196, 182, 0.22);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.035);
+.right-panel .observation-data-card {
+  min-width: 0;
 }
 
-.app-header .header-toggle span {
-  color: rgba(225, 250, 255, 0.78);
-  font-size: 10px;
-  font-weight: 650;
-}
-
-.app-header .header-icon-btn {
-  flex: 0 0 auto;
-}
-
-@media (max-width: 920px) {
-  .app-header.scene-header {
-    align-items: flex-start !important;
-    gap: 8px !important;
+@media (max-width: 1280px) {
+  .observation-panel {
+    width:
+      clamp(222px,
+        24vw,
+        286px);
   }
 
-  .app-header .scene-actions {
-    width: 100%;
-    justify-content: flex-start !important;
-    gap: 6px !important;
+  .sub-scene-window {
+    top:
+      calc(var(--orbit-header-offset) + 6px);
+    right:
+      calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
   }
 
-  .app-header .header-toggle {
-    padding: 2px 6px;
+  .orbit-time-dock {
+    left:
+      50% !important;
+    right:
+      auto !important;
+    width:
+      min(760px,
+        calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 28px)) !important;
+    grid-template-columns:
+      auto minmax(300px, 1fr);
+    transform:
+      translateX(-50%);
   }
 
-  .app-header .header-toggle span {
-    font-size: 9px;
+  .timeline-info-cards {
+    width:
+      112px;
+  }
+
+  .timeline-info-card {
+    min-height:
+      38px;
+    padding:
+      6px 8px;
   }
 }
 
-@media (max-width: 560px) {
-  .app-header .scene-actions {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 960px) {
+  .earth-orbit-template {
+    --orbit-overlay-gap: 10px;
+    --orbit-header-offset: 62px;
   }
 
-  .app-header .header-icon-btn,
-  .app-header .header-toggle {
-    width: 100%;
+  .observation-panel {
+    top:
+      calc(var(--orbit-header-offset) + 6px);
+    width:
+      min(226px,
+        calc(100% - var(--left-panel-width, 0px) - 236px - 30px));
+    max-height:
+      42vh;
   }
 
-  .app-header .header-toggle {
-    justify-content: space-between;
+  .obs-track-card {
+    display: none;
+  }
+
+  .sub-scene-window {
+    top:
+      calc(var(--orbit-header-offset) + 6px);
+    right:
+      calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
+  }
+
+  .sub-view-select {
+    width: 92px;
+  }
+
+  .orbit-time-dock {
+    left:
+      50% !important;
+    right:
+      auto !important;
+    width:
+      min(680px,
+        calc(100% - 24px)) !important;
+    grid-template-columns:
+      auto minmax(0, 1fr);
+    padding:
+      8px 10px;
+    transform:
+      translateX(-50%);
+  }
+
+  .timeline-info-cards {
+    display:
+      none;
+  }
+
+  .timeline-row {
+    grid-template-columns:
+      82px minmax(0, 1fr);
+  }
+
+  .term-scale-row,
+  .hour-scale {
+    padding-left: 92px;
   }
 }
 
-/* v23: observation panel header cleanup */
-.obs-head-v21 {
-  grid-template-columns: auto minmax(0, 1fr) !important;
-}
-.obs-title-main {
-  color: #2ec4b6 !important;
-  font-size: 12px !important;
-  font-weight: 900 !important;
-  letter-spacing: .04em !important;
-  line-height: 1.2 !important;
-  text-shadow: 0 0 12px rgba(46,196,182,.45) !important;
-}
-.obs-place-row {
-  justify-content: flex-end !important;
-  gap: 0 !important;
-}
-.obs-place-row strong {
-  max-width: 180px !important;
-  font-size: 13px !important;
-}
+@media (max-width: 720px) {
 
+  .obs-summary-cards {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
 
-/* v24: observation panel title emphasis */
-.observation-panel .obs-head-v21 {
-  grid-template-columns: auto minmax(0, 1fr) !important;
-  align-items: center !important;
-  column-gap: 12px !important;
-  padding-bottom: 7px !important;
-  border-bottom: 1px solid rgba(46, 196, 182, 0.16) !important;
-}
+  .obs-summary-card {
+    min-height: 34px;
+    padding:
+      5px 7px;
+  }
 
-.observation-panel .obs-head-v21 .obs-title-main {
-  display: inline-flex !important;
-  align-items: center !important;
-  color: #2ec4b6 !important;
-  font-size: 16px !important;
-  font-weight: 950 !important;
-  line-height: 1 !important;
-  letter-spacing: 0.03em !important;
-  text-shadow: 0 0 14px rgba(46,196,182,.56), 0 0 28px rgba(71,163,255,.20) !important;
-}
+  .observation-panel {
+    left:
+      calc(var(--left-panel-width, 0px) + 8px);
+    width:
+      min(196px,
+        calc(100% - var(--left-panel-width, 0px) - 190px - 24px));
+    padding: 9px;
+  }
 
-.observation-panel .obs-head-v21 .obs-title-main::before {
-  content: '';
-  width: 3px;
-  height: 15px;
-  margin-right: 7px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #2ec4b6, #47a3ff);
-  box-shadow: 0 0 10px rgba(46,196,182,.65);
-}
+  .obs-body dl {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
 
-.observation-panel .obs-head-v21 .obs-place-row {
-  justify-content: flex-end !important;
-  min-width: 0 !important;
-}
+  .obs-body dl>div {
+    padding:
+      5px 7px;
+  }
 
-.observation-panel .obs-head-v21 .obs-place-row strong {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  max-width: 168px !important;
-  min-height: 24px !important;
-  padding: 4px 9px !important;
-  border: 1px solid rgba(46,196,182,.38) !important;
-  border-radius: 999px !important;
-  background: linear-gradient(135deg, rgba(46,196,182,.18), rgba(71,163,255,.16)) !important;
-  color: #dffdfa !important;
-  font-size: 11px !important;
-  font-weight: 800 !important;
-  line-height: 1 !important;
-  letter-spacing: 0.01em !important;
-  text-shadow: 0 0 10px rgba(46,196,182,.28) !important;
-  box-shadow: inset 0 0 14px rgba(46,196,182,.08), 0 0 14px rgba(46,196,182,.10) !important;
+  .sub-scene-window {
+    top:
+      calc(var(--orbit-header-offset) + 6px);
+    right:
+      calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
+  }
+
+  .sub-scene-head {
+    padding:
+      6px 7px;
+  }
+
+  .sub-title span {
+    display: none;
+  }
+
+  .sub-view-select {
+    width: 80px;
+  }
+
+  .orbit-time-dock {
+    left:
+      50% !important;
+    right:
+      auto !important;
+    bottom:
+      8px !important;
+    width:
+      calc(100% - 18px) !important;
+    transform:
+      translateX(-50%);
+  }
+
+  .timeline-label span {
+    display: none;
+  }
+
+  .timeline-row {
+    grid-template-columns:
+      62px minmax(0, 1fr);
+  }
+
+  .term-scale-row,
+  .hour-scale {
+    padding-left: 72px;
+  }
+
+  .scale-track button span {
+    display: block;
+    white-space: nowrap;
+    writing-mode: horizontal-tb;
+    word-break: keep-all;
+  }
 }
 
 @media (max-width: 520px) {
-  .observation-panel .obs-head-v21 .obs-title-main {
-    font-size: 15px !important;
+  .observation-panel {
+    display: block;
+    width:
+      min(168px,
+        calc(100% - var(--left-panel-width, 0px) - 168px - 22px));
+    max-height:
+      34vh;
+    padding: 7px;
   }
-  .observation-panel .obs-head-v21 .obs-place-row strong {
-    max-width: 148px !important;
-    font-size: 10px !important;
-    padding-inline: 8px !important;
+
+  .obs-body dl>div {
+    padding:
+      4px 6px;
+  }
+
+  .obs-body dt {
+    font-size: 9px;
+  }
+
+  .obs-body dd {
+    font-size: 10px;
+  }
+
+  .sub-scene-window {
+    top:
+      calc(var(--orbit-header-offset) + 6px);
+    right:
+      calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
+  }
+
+  .sub-scene-head {
+    display: none;
+  }
+
+  .orbit-time-dock {
+    grid-template-columns:
+      auto minmax(0, 1fr);
+  }
+
+  .timeline-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .term-scale-row {
+    display: none;
+  }
+
+  .timeline-row {
+    grid-template-columns:
+      50px minmax(0, 1fr);
+  }
+
+  .hour-scale {
+    padding-left: 60px;
   }
 }
 
+@media (max-width: 720px) {
+  .right-panel .earth-section-svg {
+    width: 100%;
+    min-height: 0;
+  }
+
+  .right-panel .latitude-label,
+  .right-panel .direct-label {
+    font-size: 7px;
+  }
+
+  .right-panel .obs-track-card {
+    padding:
+      5px 1px 2px;
+  }
+}
 </style>
