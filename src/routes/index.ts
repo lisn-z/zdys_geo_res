@@ -123,6 +123,15 @@ export const routes = [
     component: () =>
       import('@/views/general-atmospheric-circulation/index.vue'),
   },
+  {
+    path: '/water-recycle',
+    name: 'water-recycle',
+    meta: {
+      title: '水循环',
+    },
+    component: () =>
+      import('@/views/water-recycle/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {

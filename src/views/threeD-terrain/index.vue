@@ -83,6 +83,56 @@
             </div>
           </section>
 
+
+          <section class="geo-card control-section panel-terrain-legend-card">
+            <h3 class="section-title">地形判读图例</h3>
+
+            <div class="panel-legend-grid">
+              <div class="panel-legend-item panel-legend-color-scale-item">
+                <div>
+                  <div class="legend-bar"></div>
+                  <div class="legend-labels">
+                    <span>低</span>
+                    <span>高</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel-legend-item">
+                <span class="badge" style="background:#ff6b6b"></span>
+                山顶
+              </div>
+              <div class="panel-legend-item">
+                <span class="badge" style="background:#f9ca24"></span>
+                鞍部
+              </div>
+              <div class="panel-legend-item">
+                <span class="badge" style="background:#2bcbba"></span>
+                山脊
+              </div>
+              <div class="panel-legend-item">
+                <span class="badge" style="background:#45aaf2"></span>
+                山谷
+              </div>
+              <div class="panel-legend-item">
+                <span class="badge" style="background:#fd7944"></span>
+                陡崖
+              </div>
+              <div class="panel-legend-item">
+                <span class="badge" style="background:#fd9644"></span>
+                陡坡
+              </div>
+              <div class="panel-legend-item">
+                <span class="badge" style="background:#778ca3"></span>
+                缓坡
+              </div>
+              <div class="panel-legend-item">
+                <span class="badge" style="background:#a78bfa"></span>
+                盆地
+              </div>
+            </div>
+          </section>
+
           <section class="geo-card control-section">
             <h3 class="section-title">投影设置</h3>
 
@@ -149,7 +199,7 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-right" @pointerdown.prevent="
+        <div class="resize-handle resize-right" @pointerdown.stop.prevent="
           startResize('left', $event)
           "></div>
 
@@ -186,54 +236,6 @@
               </div>
             </div>
 
-            <div class="legend-panel">
-              <div class="legend-title">地形判读</div>
-
-              <div class="legend-grid">
-                <div class="legend-item legend-color-scale-item">
-                  <div>
-                    <div class="legend-bar"></div>
-                    <div class="legend-labels">
-                      <span>低</span>
-                      <span>高</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="legend-item">
-                  <span class="badge" style="background:#ff6b6b"></span>
-                  山顶
-                </div>
-                <div class="legend-item">
-                  <span class="badge" style="background:#f9ca24"></span>
-                  鞍部
-                </div>
-                <div class="legend-item">
-                  <span class="badge" style="background:#2bcbba"></span>
-                  山脊
-                </div>
-                <div class="legend-item">
-                  <span class="badge" style="background:#45aaf2"></span>
-                  山谷
-                </div>
-                <div class="legend-item">
-                  <span class="badge" style="background:#fd7944"></span>
-                  陡崖
-                </div>
-                <div class="legend-item">
-                  <span class="badge" style="background:#fd9644"></span>
-                  陡坡
-                </div>
-                <div class="legend-item">
-                  <span class="badge" style="background:#778ca3"></span>
-                  缓坡
-                </div>
-                <div class="legend-item">
-                  <span class="badge" style="background:#a78bfa"></span>
-                  盆地
-                </div>
-              </div>
-            </div>
 
             <div v-if="profileMode && profileClicks < 2" class="profile-hint">
               点击地形上
@@ -325,7 +327,7 @@
           </el-collapse>
         </div>
 
-        <div class="resize-handle resize-left" @pointerdown.prevent="
+        <div class="resize-handle resize-left" @pointerdown.stop.prevent="
           startResize('right', $event)
           "></div>
 
@@ -402,8 +404,18 @@ const hasRightPanel = true
 const layoutMode =
   ref<LayoutMode>('large')
 
-const leftPanelWidth = ref(300)
-const rightPanelWidth = ref(340)
+
+/*
+ * 面板宽度说明：
+ * 公共模板 CSS 管视觉样式和大屏兜底；
+ * 但本组件会在 workspace 上通过 inline style 写入
+ * --left-panel-width / --right-panel-width。
+ * 因此默认宽度、拖拽最大宽度、拖拽后是否被 ResizeObserver 重置，
+ * 都必须在本组件 JS 中同步放开。
+ */
+
+const leftPanelWidth = ref(420)
+const rightPanelWidth = ref(500)
 
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
@@ -413,6 +425,14 @@ const allPanelsCollapsed =
     leftCollapsed.value &&
     rightCollapsed.value
   )
+
+
+let previousLayoutMode:
+  | LayoutMode
+  | null = null
+
+let leftPanelManuallyResized = false
+let rightPanelManuallyResized = false
 
 let pageResizeObserver:
   | ResizeObserver
@@ -438,6 +458,223 @@ function getLayoutMode(width: number): LayoutMode {
   return 'large'
 }
 
+function clampPanelNumber(
+  value: number,
+  min: number,
+  max: number
+): number {
+  return Math.min(
+    max,
+    Math.max(
+      min,
+      value
+    )
+  )
+}
+
+function getEffectiveTemplateWidth(
+  fallbackWidth?: number
+): number {
+  const candidates: number[] = []
+
+  if (
+    typeof fallbackWidth === 'number' &&
+    Number.isFinite(fallbackWidth) &&
+    fallbackWidth > 0
+  ) {
+    candidates.push(fallbackWidth)
+  }
+
+  const pageWidth =
+    pageRef.value?.clientWidth
+
+  if (
+    typeof pageWidth === 'number' &&
+    Number.isFinite(pageWidth) &&
+    pageWidth > 0
+  ) {
+    candidates.push(pageWidth)
+  }
+
+  if (typeof window !== 'undefined') {
+    const values = [
+      window.innerWidth,
+      window.visualViewport?.width,
+      window.screen?.width,
+      window.screen?.availWidth,
+    ]
+
+    values.forEach((value) => {
+      if (
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value > 0
+      ) {
+        candidates.push(value)
+      }
+    })
+  }
+
+  if (!candidates.length) {
+    return 0
+  }
+
+  /*
+   * 用最小有效宽度判断超大屏。
+   * 普通 1920 屏即使因为浏览器缩放 / 投屏环境导致 CSS 宽度异常变大，
+   * 也不会误判为 2200+。
+   */
+  return Math.min(...candidates)
+}
+
+function isUltraLargeTemplateScreen(
+  fallbackWidth?: number
+): boolean {
+  return getEffectiveTemplateWidth(
+    fallbackWidth
+  ) >= 2200
+}
+
+function getAdaptivePanelWidth(
+  side: 'left' | 'right',
+  mode: LayoutMode,
+  pageWidth: number
+): number {
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
+  if (mode === 'small') {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.76, 260, 360)
+      : clampPanelNumber(pageWidth * 0.80, 280, 380)
+  }
+
+  if (mode === 'medium') {
+    return side === 'left'
+      ? clampPanelNumber(pageWidth * 0.36, 320, 480)
+      : clampPanelNumber(pageWidth * 0.40, 360, 540)
+  }
+
+  /*
+   * 2K / 4K / 教室超大屏增强：
+   * 普通 1920×1080 电脑不默认触发。
+   */
+  if (
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+  ) {
+    return side === 'left'
+      ? clampPanelNumber(effectiveWidth * 0.22, 420, 640)
+      : clampPanelNumber(effectiveWidth * 0.25, 500, 760)
+  }
+
+  return side === 'left'
+    ? clampPanelNumber(pageWidth * 0.19, 340, 520)
+    : clampPanelNumber(pageWidth * 0.21, 380, 580)
+}
+
+function getPanelResizeBounds(
+  side: 'left' | 'right'
+) {
+  const pageWidth =
+    pageRef.value?.clientWidth ||
+    window.innerWidth
+
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
+  if (layoutMode.value === 'small') {
+    return {
+      min:
+        side === 'left'
+          ? 220
+          : 240,
+      max:
+        Math.max(
+          side === 'left'
+            ? 220
+            : 240,
+          Math.min(
+            side === 'left'
+              ? 420
+              : 440,
+            pageWidth * 0.86
+          )
+        ),
+    }
+  }
+
+  if (layoutMode.value === 'medium') {
+    return {
+      min:
+        side === 'left'
+          ? 280
+          : 300,
+      max:
+        Math.max(
+          side === 'left'
+            ? 280
+            : 300,
+          Math.min(
+            side === 'left'
+              ? 640
+              : 700,
+            pageWidth * 0.60
+          )
+        ),
+    }
+  }
+
+  /*
+   * 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
+   * 左侧最多 560px，右侧最多 620px。
+   *
+   * 超大屏：有效宽度 2200px 以上。
+   * 左侧最多 820px，右侧最多 900px。
+   */
+  const isUltraLargeScreen =
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+
+  return {
+    min:
+      side === 'left'
+        ? 300
+        : 340,
+    max:
+      Math.max(
+        side === 'left'
+          ? 300
+          : 340,
+        Math.min(
+          side === 'left'
+            ? (
+              isUltraLargeScreen
+                ? 820
+                : 560
+            )
+            : (
+              isUltraLargeScreen
+                ? 900
+                : 620
+            ),
+          effectiveWidth *
+          (
+            isUltraLargeScreen
+              ? 0.54
+              : 0.38
+          )
+        )
+      ),
+  }
+}
+
 function syncTemplateLayout() {
   const width =
     pageRef.value?.clientWidth ||
@@ -446,45 +683,50 @@ function syncTemplateLayout() {
   const nextMode =
     getLayoutMode(width)
 
-  layoutMode.value = nextMode
+  const modeChanged =
+    previousLayoutMode !== nextMode
 
-  if (nextMode === 'large') {
+  layoutMode.value =
+    nextMode
+
+  /*
+   * 以前这里会在 large 下把左侧压到 360、右侧压到 390，
+   * medium 下又压到 292 / 308，导致默认宽度和公共模板不一致。
+   * 现在改成统一自适应：
+   * 1. 首次进入按屏幕宽度给默认值；
+   * 2. 用户拖拽后不再被 ResizeObserver 拉回小宽度；
+   * 3. 切换 large / medium / small 时重新给合理默认值。
+   */
+  if (
+    modeChanged ||
+    !leftPanelManuallyResized
+  ) {
     leftPanelWidth.value =
-      Math.min(
-        Math.max(leftPanelWidth.value, 280),
-        360
-      )
-
-    rightPanelWidth.value =
-      Math.min(
-        Math.max(rightPanelWidth.value, 300),
-        390
-      )
-  } else if (nextMode === 'medium') {
-    leftPanelWidth.value =
-      Math.min(
-        leftPanelWidth.value,
-        292
-      )
-
-    rightPanelWidth.value =
-      Math.min(
-        rightPanelWidth.value,
-        308
-      )
-  } else {
-    leftPanelWidth.value =
-      Math.min(
-        leftPanelWidth.value,
-        220
-      )
-
-    rightPanelWidth.value =
-      Math.min(
-        rightPanelWidth.value,
-        236
+      Math.round(
+        getAdaptivePanelWidth(
+          'left',
+          nextMode,
+          width
+        )
       )
   }
+
+  if (
+    modeChanged ||
+    !rightPanelManuallyResized
+  ) {
+    rightPanelWidth.value =
+      Math.round(
+        getAdaptivePanelWidth(
+          'right',
+          nextMode,
+          width
+        )
+      )
+  }
+
+  previousLayoutMode =
+    nextMode
 }
 
 function toggleAllPanels() {
@@ -502,23 +744,72 @@ function startResize(
   target: 'left' | 'right',
   event: PointerEvent
 ) {
-  resizeTarget = target
-  resizeStartX = event.clientX
+  if (
+    (target === 'left' && leftCollapsed.value) ||
+    (target === 'right' && rightCollapsed.value)
+  ) {
+    return
+  }
+
+  event.stopPropagation()
+
+  resizeTarget =
+    target
+
+  resizeStartX =
+    event.clientX
+
   resizeStartWidth =
     target === 'left'
       ? leftPanelWidth.value
       : rightPanelWidth.value
 
-  window.addEventListener(
+  const handle =
+    event.currentTarget as HTMLElement | null
+
+  if (
+    handle &&
+    typeof handle.setPointerCapture === 'function'
+  ) {
+    try {
+      handle.setPointerCapture(
+        event.pointerId
+      )
+    } catch {
+      // 部分触控屏或老浏览器可能不支持 pointer capture，继续用 document 监听兜底。
+    }
+  }
+
+  document.body.classList.add(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    'col-resize'
+
+  document.body.style.userSelect =
+    'none'
+
+  document.addEventListener(
     'pointermove',
     handlePanelResize
   )
 
-  window.addEventListener(
+  document.addEventListener(
     'pointerup',
     stopPanelResize,
     {
-      once: true,
+      once:
+        true,
+    }
+  )
+
+  document.addEventListener(
+    'pointercancel',
+    stopPanelResize,
+    {
+      once:
+        true,
     }
   )
 }
@@ -528,39 +819,69 @@ function handlePanelResize(event: PointerEvent) {
     return
   }
 
+  const bounds =
+    getPanelResizeBounds(
+      resizeTarget
+    )
+
   const delta =
     event.clientX - resizeStartX
 
   if (resizeTarget === 'left') {
     leftPanelWidth.value =
-      Math.min(
-        420,
-        Math.max(
-          240,
-          resizeStartWidth + delta
-        )
+      clampPanelNumber(
+        resizeStartWidth + delta,
+        bounds.min,
+        bounds.max
       )
+
+    leftPanelManuallyResized =
+      true
   } else {
     rightPanelWidth.value =
-      Math.min(
-        460,
-        Math.max(
-          260,
-          resizeStartWidth - delta
-        )
+      clampPanelNumber(
+        resizeStartWidth - delta,
+        bounds.min,
+        bounds.max
       )
+
+    rightPanelManuallyResized =
+      true
   }
 
   handleResize()
 }
 
 function stopPanelResize() {
-  resizeTarget = null
+  resizeTarget =
+    null
 
-  window.removeEventListener(
+  document.body.classList.remove(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    ''
+
+  document.body.style.userSelect =
+    ''
+
+  document.removeEventListener(
     'pointermove',
     handlePanelResize
   )
+
+  document.removeEventListener(
+    'pointerup',
+    stopPanelResize
+  )
+
+  document.removeEventListener(
+    'pointercancel',
+    stopPanelResize
+  )
+
+  handleResize()
 }
 
 
@@ -1524,8 +1845,90 @@ function setView(view: keyof typeof VIEW_PRESETS) {
   controls.update()
 }
 
+
+function updateViewCubeDockPosition() {
+  const el =
+    viewCube.value
+
+  const page =
+    pageRef.value
+
+  if (
+    !el ||
+    !page
+  ) {
+    return
+  }
+
+  const rightPanel =
+    page.querySelector<HTMLElement>(
+      '#right-panel'
+    )
+
+  const pageRect =
+    page.getBoundingClientRect()
+
+  const gap =
+    layoutMode.value === 'small'
+      ? 8
+      : layoutMode.value === 'medium'
+        ? 10
+        : 14
+
+  let rightValue =
+    gap
+
+  /*
+   * 关键：
+   * 不再用 CSS 变量推测右侧面板宽度。
+   * 直接读取右侧面板真实 DOM 位置。
+   *
+   * cube 的右边缘应该在：
+   * rightPanel.left - gap
+   *
+   * 因此 right 值为：
+   * pageRect.right - rightPanel.left + gap
+   */
+  if (
+    rightPanel &&
+    !rightCollapsed.value
+  ) {
+    const panelRect =
+      rightPanel.getBoundingClientRect()
+
+    if (
+      panelRect.width > 0 &&
+      panelRect.left < pageRect.right
+    ) {
+      rightValue =
+        Math.max(
+          gap,
+          Math.round(
+            pageRect.right -
+            panelRect.left +
+            gap
+          )
+        )
+    }
+  }
+
+  el.style.setProperty(
+    'left',
+    'auto',
+    'important'
+  )
+
+  el.style.setProperty(
+    'right',
+    `${rightValue}px`,
+    'important'
+  )
+}
+
 function updateViewCube() {
   // 跟随相机实时旋转立方体（与参考图项目一致）
+  updateViewCubeDockPosition()
+
   const el = viewCube.value
   if (!el || !camera) return
   const target = controls?.target ?? new THREE.Vector3(0, 0, 0)
@@ -2158,6 +2561,7 @@ function handleResize() {
   labelRenderer.setSize(w, h)
   contourRes.set(w, h)
   applyResponsiveScale()
+  updateViewCubeDockPosition()
 }
 
 onMounted(() => {
@@ -2197,6 +2601,28 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.body.classList.remove(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+
+  document.removeEventListener(
+    'pointermove',
+    handlePanelResize
+  )
+
+  document.removeEventListener(
+    'pointerup',
+    stopPanelResize
+  )
+
+  document.removeEventListener(
+    'pointercancel',
+    stopPanelResize
+  )
+
   cancelAnimationFrame(animationId)
 
   window.removeEventListener(
@@ -3067,5 +3493,138 @@ onUnmounted(() => {
     #ffffff;
   background:
     rgba(255, 107, 107, 0.24);
+}
+
+
+
+
+
+
+/* ===================== v16: Cube 使用 DOM 实际位置贴右侧面板 =====================
+   这版不再用 CSS 变量猜右侧面板宽度。
+   updateViewCubeDockPosition() 会读取 #right-panel.getBoundingClientRect()，
+   然后直接设置 view-cube 的 right。
+   CSS 只做兜底和尺寸，不再写 transform，避免破坏 JS 旋转。
+*/
+
+/* 左侧面板中的图例卡片 */
+.terrain-projection-template .panel-terrain-legend-card {
+  padding:
+    14px !important;
+}
+
+.terrain-projection-template .panel-terrain-legend-card .section-title {
+  margin-bottom:
+    10px !important;
+}
+
+.terrain-projection-template .panel-legend-grid {
+  display:
+    grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap:
+    8px 10px;
+}
+
+.terrain-projection-template .panel-legend-color-scale-item {
+  grid-column:
+    1 / -1;
+}
+
+.terrain-projection-template .panel-legend-item {
+  display:
+    flex;
+  align-items:
+    center;
+  gap:
+    6px;
+  min-width:
+    0;
+  font-size:
+    clamp(12px, 0.7vw, 14px);
+  line-height:
+    1.3;
+  color:
+    rgba(226, 232, 240, 0.92);
+}
+
+.terrain-projection-template .panel-legend-item .badge {
+  flex:
+    0 0 auto;
+  width:
+    9px;
+  height:
+    9px;
+  border-radius:
+    999px;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.14);
+}
+
+/* 场景旧图例彻底隐藏，避免残留 */
+.terrain-projection-template .terrain-scene-overlay>.legend-panel {
+  display:
+    none !important;
+}
+
+/* Cube：CSS 不再计算 right，不再写 transform，只保留基础定位 */
+.terrain-projection-template .terrain-scene-overlay .view-cube {
+  top:
+    clamp(76px, 8vh, 96px) !important;
+  left:
+    auto !important;
+  bottom:
+    auto !important;
+  z-index:
+    24;
+  transform-origin:
+    center center;
+}
+
+/* 小屏只调 top，right 仍由 JS 按右侧面板实际位置设置 */
+@media (max-width: 1280px) {
+  .terrain-projection-template .terrain-scene-overlay .view-cube {
+    top:
+      clamp(64px, 8vh, 84px) !important;
+    left:
+      auto !important;
+    bottom:
+      auto !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .terrain-projection-template .terrain-scene-overlay .view-cube {
+    top:
+      58px !important;
+    left:
+      auto !important;
+    bottom:
+      auto !important;
+  }
+
+  .terrain-projection-template .panel-legend-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+    gap:
+      6px 8px;
+  }
+}
+
+@media (max-width: 520px) {
+  .terrain-projection-template .terrain-scene-overlay .view-cube {
+    top:
+      54px !important;
+    left:
+      auto !important;
+    bottom:
+      auto !important;
+  }
+
+  .terrain-projection-template .panel-terrain-legend-card {
+    padding:
+      12px !important;
+  }
 }
 </style>

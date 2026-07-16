@@ -1380,7 +1380,7 @@ button {
 .center-panel,
 .bottom-card {
   min-height: 0;
-  padding: 14px;
+  padding: 10px;
 }
 
 .center-panel {
@@ -1411,10 +1411,10 @@ button {
 }
 
 .calc-title h2 {
-  margin: 10px 0 6px;
+  margin: 4px 0 2px;
   color: #082f36;
   font-size: clamp(20px, 1.8vw, 26px);
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 .calc-icon {
@@ -1434,10 +1434,10 @@ button {
   min-width: 0;
   align-items: center;
   gap: 10px;
-  min-height: 48px;
-  padding: 10px 16px;
+  min-height: 38px;
+  padding: 6px 12px;
   border: 1px solid rgba(46, 196, 182, 0.2);
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.72);
 }
 
@@ -1497,17 +1497,17 @@ button {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .field-card {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
-  padding: 12px;
+  padding: 8px;
   border: 1px solid rgba(46, 196, 182, 0.16);
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.68);
 }
 
@@ -1531,7 +1531,7 @@ button {
 }
 
 .field-number :deep(.el-input__wrapper) {
-  height: 30px;
+  height: 28px;
   border-radius: 8px;
   background: rgba(245, 255, 253, 0.92);
   box-shadow: 0 0 0 1px rgba(46, 196, 182, 0.2) inset;
@@ -1549,9 +1549,10 @@ button {
 
 .field-card small {
   overflow: hidden;
-  min-height: 14px;
+  min-height: 13px;
   color: var(--text-soft);
   font-size: 11px;
+  line-height: 1.2;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -1560,8 +1561,8 @@ button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-top: 12px;
+  gap: 5px;
+  margin-top: 8px;
   color: var(--text-soft);
   font-size: 11px;
 }
@@ -1584,15 +1585,14 @@ button {
 }
 
 .buttons-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  margin-top: 8px;
 }
 
 .buttons-row .full-btn {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
 }
 
 .calc-btn.el-button,
@@ -1625,14 +1625,14 @@ button {
 }
 
 .secondary-btn.el-button {
-  color: var(--text-main);
-  border-color: rgba(46, 196, 182, 0.22);
-  background: rgba(255, 255, 255, 0.64);
+  border: 0;
+  color: #fff;
+  background: linear-gradient(135deg, #5fa8d3, #7ec8b8);
 }
 
 .result-area {
-  margin-top: 6px;
-  padding: 8px 12px;
+  margin-top: 4px;
+  padding: 6px 10px;
   border: 1px solid rgba(46, 196, 182, 0.2);
   border-radius: 10px;
   background:
@@ -1643,38 +1643,43 @@ button {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .result-area-main {
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .result-area-main span {
   display: block;
   color: #062c32;
-  font-size: clamp(17px, 1.5vw, 22px);
+  font-size: clamp(15px, 1.4vw, 19px);
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .result-area-main em {
   display: block;
-  margin-top: 2px;
+  margin-top: 1px;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 11px;
   font-style: normal;
-  line-height: 1.3;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .result-area-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
 }
 
 .result-area-item {
   min-width: 0;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border: 1px solid rgba(46, 196, 182, 0.12);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.6);
@@ -1882,10 +1887,6 @@ button {
 
   .form-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .buttons-row {
-    flex-direction: column;
   }
 
   .calc-btn.el-button,

@@ -9,6 +9,23 @@ import {
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
+// v15:
+// - 普通 1920×1080 电脑不再默认触发超大屏增强。
+// - 2200px 以上才进入更大字号、更宽面板、更强触控尺寸。
+// - 提示词窗口同步加入 1920 普通屏处理规范。
+
+// v16:
+// - 在 v15 的基础上继续修正最大拖拽宽度。
+// - 普通 large（1440~2199，包含 1920×1080）最大拖拽宽度收敛：左 560px、右 620px。
+// - 2200px 以上才放开到左 820px、右 900px。
+// - 提示词窗口同步加入“最大拖拽宽度也要分档”的规则。
+
+// v17:
+// - 修复 v16 最大拖拽限制在普通 1920 上可能不生效的问题。
+// - 超大屏判断不再只看 pageRef.clientWidth。
+// - 新增 getEffectiveTemplateWidth / isUltraLargeTemplateScreen。
+// - 默认面板宽度和最大拖拽宽度都用有效宽度判断，避免浏览器缩放或投屏环境误判。
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
@@ -477,6 +494,20 @@ function buildTemplateUsagePrompt({
     '- 不要重写 top-toolbar、side-panel、panel-scroll、geo-card、timeline-dock 的背景、毛玻璃、阴影和边框。',
     '- 不要在业务组件里写 ::-webkit-scrollbar、scrollbar-color、scrollbar-width。',
     '- 业务组件只补当前业务独有的布局、尺寸、定位、图形和动画样式。',
+    '',
+    '【布局与面板适配强制规范】',
+    '- root 根节点只放 geo-template-page、geo-page、theme-*、layout-floating 和 layout-* 类，不要在 root 上写 --left-panel-width / --right-panel-width。',
+    '- --left-panel-width / --right-panel-width 只能写在 <main class="workspace"> 的 :style 上，避免和公共 CSS 的大屏变量互相覆盖。',
+    '- left-panel / right-panel 必须保留 resize-handle、panel-collapse-btn、panel-entry-btn，不要删掉拖拽手柄。',
+    '- resize-handle 必须使用 @pointerdown.stop.prevent="startResize(\'left\', $event)" 或 right，防止拖拽事件冒泡到 Three.js / Leaflet / ECharts 场景。',
+    '- 不要在业务组件里重新写 Math.min(420)、Math.min(460)、Math.min(360) 这类固定拖拽上限。',
+    '- 默认宽度和拖拽上限统一由 getAdaptivePanelWidth、getPanelResizeBounds、startResize 管理。',
+    '- 拖拽后必须设置 leftPanelManuallyResized / rightPanelManuallyResized，ResizeObserver 不要把用户拖宽后的面板又重置回默认宽度。',
+    '- layout-medium / layout-small 下左右面板是覆盖式抽屉，底部 timeline-dock、图例、主场景浮层不要再用 100% - leftPanelWidth - rightPanelWidth 计算宽度。',
+    '- 普通 1920 × 1080 电脑按普通 large 布局处理，不要默认套希沃 / 超大屏字号和面板宽度。',
+    '- 普通 large 的最大拖拽宽度也要收敛：1440~2199 左侧最多约 560px，右侧最多约 620px；2200px 以上才允许 820px / 900px。',
+    '- 判断 2200px 超大屏时不能只看 pageRef.clientWidth，要同时参考 window.innerWidth、visualViewport.width、screen.width，避免普通 1920 在缩放环境下误判。',
+    '- 大屏 / 希沃适配优先走公共模板 CSS 和模板内统一面板逻辑，不要在业务组件里单独新建 seewoMode。',
     '',
     '【可以删除的内容】',
     '- 当前业务没用到的左侧控制卡片可以删除。',
@@ -1020,7 +1051,7 @@ function buildLeftPanel(sceneKey, themeKey) {
 
         <div
           class="resize-handle resize-right"
-          @pointerdown.prevent="
+          @pointerdown.stop.prevent="
             startResize('left', $event)
           "
         ></div>
@@ -1107,7 +1138,7 @@ function buildRightPanel(sceneKey) {
 
         <div
           class="resize-handle resize-left"
-          @pointerdown.prevent="
+          @pointerdown.stop.prevent="
             startResize('right', $event)
           "
         ></div>
@@ -3547,8 +3578,8 @@ const hasRightPanel = ${hasRight}
 const layoutMode =
   ref<LayoutMode>('large')
 
-const leftPanelWidth = ref(300)
-const rightPanelWidth = ref(320)
+const leftPanelWidth = ref(420)
+const rightPanelWidth = ref(500)
 
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
@@ -3601,6 +3632,10 @@ let pageResizeObserver:
   | ResizeObserver
   | null = null
 
+let previousLayoutMode:
+  | LayoutMode
+  | null = null
+
 let leftPanelManuallyResized = false
 let rightPanelManuallyResized = false
 let isPanelResizing = false
@@ -3621,49 +3656,160 @@ function clamp(
   )
 }
 
+function getEffectiveTemplateWidth(
+  fallbackWidth?: number
+): number {
+  const candidates: number[] = []
+
+  if (
+    typeof fallbackWidth === 'number' &&
+    Number.isFinite(fallbackWidth) &&
+    fallbackWidth > 0
+  ) {
+    candidates.push(fallbackWidth)
+  }
+
+  const pageWidth =
+    pageRef.value?.clientWidth
+
+  if (
+    typeof pageWidth === 'number' &&
+    Number.isFinite(pageWidth) &&
+    pageWidth > 0
+  ) {
+    candidates.push(pageWidth)
+  }
+
+  if (typeof window !== 'undefined') {
+    const innerWidth =
+      window.innerWidth
+
+    const visualWidth =
+      window.visualViewport?.width
+
+    const screenWidth =
+      window.screen?.width
+
+    const availWidth =
+      window.screen?.availWidth
+
+    ;[
+      innerWidth,
+      visualWidth,
+      screenWidth,
+      availWidth,
+    ].forEach((value) => {
+      if (
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value > 0
+      ) {
+        candidates.push(value)
+      }
+    })
+  }
+
+  if (!candidates.length) {
+    return 0
+  }
+
+  /*
+   * 关键点：
+   * 用最小有效宽度，而不是只看 pageRef.clientWidth。
+   * 这样普通 1920 物理屏即使浏览器缩放后 CSS 宽度变大，
+   * 也不会被误判为 2200+ 超大屏。
+   */
+  return Math.min(...candidates)
+}
+
+function isUltraLargeTemplateScreen(
+  fallbackWidth?: number
+): boolean {
+  return getEffectiveTemplateWidth(
+    fallbackWidth
+  ) >= 2200
+}
+
 function getAdaptivePanelWidth(
   side: 'left' | 'right',
   mode: LayoutMode,
   pageWidth: number
 ) {
-  if (mode === 'small') {
-    return clamp(
-      pageWidth * 0.82,
-      260,
-      360
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
     )
+
+  if (mode === 'small') {
+    return side === 'left'
+      ? clamp(
+        pageWidth * 0.76,
+        260,
+        360
+      )
+      : clamp(
+        pageWidth * 0.80,
+        280,
+        380
+      )
   }
 
   /*
-   * 中屏已经是覆盖式抽屉，
-   * 可以比并排布局更宽。
+   * 中屏是覆盖式抽屉，不再挤压主场景。
+   * 因此可以比普通并排布局更宽，但不能挡住主场景太多。
    */
   if (mode === 'medium') {
-    return clamp(
-      pageWidth * 0.38,
-      300,
-      440
-    )
+    return side === 'left'
+      ? clamp(
+        pageWidth * 0.36,
+        320,
+        480
+      )
+      : clamp(
+        pageWidth * 0.40,
+        360,
+        540
+      )
   }
 
   /*
-   * 2K 屏默认：
-   * 左侧约 460px，右侧约 480～500px。
+   * 2K / 4K / 教室超大屏增强：
+   * 普通 1920×1080 电脑不默认触发。
+   *
+   * 注意：
+   * 这里不能只看 pageRef.clientWidth。
+   * 浏览器缩放、外层容器、投屏环境都可能让 CSS 宽度被放大。
+   * 因此用 effectiveWidth 兜底，确保普通 1920 物理屏不会误入超大屏逻辑。
    */
-  return clamp(
-    pageWidth *
-      (
-        side === 'left'
-          ? 0.19
-          : 0.20
-      ),
-    side === 'left'
-      ? 300
-      : 320,
-    side === 'left'
-      ? 460
-      : 500
-  )
+  if (
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+  ) {
+    return side === 'left'
+      ? clamp(
+        effectiveWidth * 0.22,
+        420,
+        640
+      )
+      : clamp(
+        effectiveWidth * 0.25,
+        500,
+        760
+      )
+  }
+
+  return side === 'left'
+    ? clamp(
+      pageWidth * 0.19,
+      340,
+      520
+    )
+    : clamp(
+      pageWidth * 0.21,
+      380,
+      580
+    )
 }
 
 function updateLayoutMode() {
@@ -3672,15 +3818,27 @@ function updateLayoutMode() {
     window.innerWidth
 
   const nextMode: LayoutMode =
-    pageWidth >= 1440
+    pageWidth >= 1280
       ? 'large'
-      : pageWidth >= 820
+      : pageWidth >= 860
         ? 'medium'
         : 'small'
 
+  const modeChanged =
+    previousLayoutMode !== nextMode
+
   layoutMode.value = nextMode
 
-  if (!leftPanelManuallyResized) {
+  /*
+   * 面板宽度由模板统一管理：
+   * - 初次进入按屏幕给默认宽度；
+   * - 用户拖拽后不再被 ResizeObserver 拉回默认值；
+   * - 只有 large / medium / small 布局切换时重新给合理默认。
+   */
+  if (
+    modeChanged ||
+    !leftPanelManuallyResized
+  ) {
     leftPanelWidth.value =
       getAdaptivePanelWidth(
         'left',
@@ -3689,7 +3847,10 @@ function updateLayoutMode() {
       )
   }
 
-  if (!rightPanelManuallyResized) {
+  if (
+    modeChanged ||
+    !rightPanelManuallyResized
+  ) {
     rightPanelWidth.value =
       getAdaptivePanelWidth(
         'right',
@@ -3697,6 +3858,9 @@ function updateLayoutMode() {
         pageWidth
       )
   }
+
+  previousLayoutMode =
+    nextMode
 }
 
 function getPanelResizeBounds(
@@ -3706,13 +3870,25 @@ function getPanelResizeBounds(
     pageRef.value?.clientWidth ||
     window.innerWidth
 
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
   if (layoutMode.value === 'small') {
     return {
-      min: 220,
+      min:
+        side === 'left'
+          ? 220
+          : 240,
       max: Math.max(
-        220,
+        side === 'left'
+          ? 220
+          : 240,
         Math.min(
-          400,
+          side === 'left'
+            ? 420
+            : 440,
           pageWidth * 0.86
         )
       ),
@@ -3721,29 +3897,65 @@ function getPanelResizeBounds(
 
   if (layoutMode.value === 'medium') {
     return {
-      min: 280,
+      min:
+        side === 'left'
+          ? 280
+          : 300,
       max: Math.max(
-        280,
+        side === 'left'
+          ? 280
+          : 300,
         Math.min(
-          560,
-          pageWidth * 0.58
+          side === 'left'
+            ? 640
+            : 700,
+          pageWidth * 0.60
         )
       ),
     }
   }
 
+  /*
+   * large 分两档：
+   * 1. 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
+   * 2. 超大屏：有效宽度 2200px 以上。
+   *
+   * 这里必须用 effectiveWidth，而不是只用 pageWidth。
+   * 否则普通 1920 电脑在浏览器缩放或投屏环境下，
+   * 可能被误判成 2200+，导致最大拖拽宽度失效。
+   */
+  const isUltraLargeScreen =
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+
   return {
     min:
       side === 'left'
-        ? 280
-        : 300,
+        ? 300
+        : 340,
     max: Math.max(
       side === 'left'
-        ? 280
-        : 300,
+        ? 300
+        : 340,
       Math.min(
-        720,
-        pageWidth * 0.50
+        side === 'left'
+          ? (
+            isUltraLargeScreen
+              ? 820
+              : 560
+          )
+          : (
+            isUltraLargeScreen
+              ? 900
+              : 620
+          ),
+        effectiveWidth *
+          (
+            isUltraLargeScreen
+              ? 0.54
+              : 0.38
+          )
       )
     ),
   }
@@ -3766,6 +3978,8 @@ function startResize(
     return
   }
 
+  event.stopPropagation()
+
   if (side === 'left') {
     leftPanelManuallyResized = true
   } else {
@@ -3773,6 +3987,22 @@ function startResize(
   }
 
   isPanelResizing = true
+
+  const handle =
+    event.currentTarget as HTMLElement | null
+
+  if (
+    handle &&
+    typeof handle.setPointerCapture === 'function'
+  ) {
+    try {
+      handle.setPointerCapture(
+        event.pointerId
+      )
+    } catch {
+      // 部分触控环境可能不支持 pointer capture，继续使用 document 监听兜底。
+    }
+  }
 
   const startX = event.clientX
 
@@ -3809,19 +4039,23 @@ function startResize(
   }
 
   const finishResize = () => {
-    window.removeEventListener(
+    document.removeEventListener(
       'pointermove',
       onMove
     )
 
-    window.removeEventListener(
+    document.removeEventListener(
       'pointerup',
       finishResize
     )
 
-    window.removeEventListener(
+    document.removeEventListener(
       'pointercancel',
       finishResize
+    )
+
+    document.body.classList.remove(
+      'geo-panel-resizing'
     )
 
     document.body.style.cursor = ''
@@ -3832,19 +4066,23 @@ function startResize(
     scheduleSceneResize(0)
   }
 
-  window.addEventListener(
+  document.addEventListener(
     'pointermove',
     onMove
   )
 
-  window.addEventListener(
+  document.addEventListener(
     'pointerup',
     finishResize
   )
 
-  window.addEventListener(
+  document.addEventListener(
     'pointercancel',
     finishResize
+  )
+
+  document.body.classList.add(
+    'geo-panel-resizing'
   )
 
   document.body.style.cursor =
@@ -3948,6 +4186,13 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   pageResizeObserver?.disconnect()
   pageResizeObserver = null
+
+  document.body.classList.remove(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
 
   cancelAnimationFrame(
     timelineAnimationFrameId

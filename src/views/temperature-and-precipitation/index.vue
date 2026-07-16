@@ -1,33 +1,14 @@
 <template>
   <div class="tp-container">
-    <!-- 顶部标题栏 -->
+    <!-- 顶部标题栏：标题居中 -->
     <header class="tp-header">
-      <div class="header-left">
-        <span class="header-tag">一起做</span>
-        <h1 class="header-title">绘制气温曲线和降水量柱状图</h1>
-      </div>
-      <div class="header-tip" v-if="!currentCity">
-        <el-icon><InfoFilled /></el-icon>
-        <span>请在地图上点击城市或在下方下拉框选择城市</span>
-      </div>
-      <div class="header-tip active" v-else>
-        <el-icon><Location /></el-icon>
-        <span>当前城市：<b>{{ currentCity.name }}</b>（{{ climateTypeLabel }}）</span>
-      </div>
+      <h1 class="header-title">绘制气温曲线和降水量柱状图</h1>
     </header>
 
     <!-- 左右主体 -->
     <main class="tp-main">
-      <!-- 左侧：地图控制面板 -->
+      <!-- 左侧：地图控制面板（始终占 1/3） -->
       <aside class="tp-left">
-        <div class="left-card glass-panel">
-          <div class="card-title">
-            <el-icon><Reading /></el-icon>
-            <span>操作说明</span>
-          </div>
-          <p class="card-desc">在左侧地图上点击城市，或在下方下拉框中选择城市，右侧将显示该城市各月平均气温、降水量统计表以及气温曲线和降水量柱状图。</p>
-        </div>
-
         <div class="left-card glass-panel">
           <div class="card-title">
             <el-icon><Filter /></el-icon>
@@ -49,10 +30,31 @@
           </el-select>
         </div>
 
+        <!-- 城市气候类型信息卡（仅在选中城市时显示） -->
+        <div v-if="currentCity" class="left-card glass-panel">
+          <div class="card-title">
+            <el-icon><Document /></el-icon>
+            <span>城市气候类型</span>
+          </div>
+          <div class="city-info">
+            <div class="city-info-name">
+              {{ currentCity.name }}（海拔{{ currentCity.altitude }}米）
+            </div>
+            <div class="city-info-line">
+              <span class="city-info-label">气候类型：</span>
+              <span class="city-info-value">{{ currentCity.climateName }}</span>
+            </div>
+            <div class="city-info-line">
+              <span class="city-info-label">气候特点：</span>
+              <span class="city-info-value">{{ currentCity.feature }}</span>
+            </div>
+          </div>
+        </div>
+
         <div class="left-card map-card glass-panel">
           <div class="card-title">
             <el-icon><Globe /></el-icon>
-            <span>全球主要城市分布</span>
+            <span>世界气候类型典型城市分布</span>
           </div>
           <div ref="mapRef" class="leaflet-map"></div>
         </div>
@@ -97,6 +99,15 @@
           <div class="card-title">
             <el-icon><TrendCharts /></el-icon>
             <span>{{ currentCity.name }}气温曲线和降水量柱状图</span>
+            <el-button
+              class="card-title-export"
+              type="primary"
+              size="default"
+              :icon="Download"
+              @click="exportChart"
+            >
+              导出图片
+            </el-button>
           </div>
           <div ref="chartRef" class="echart-box"></div>
         </div>
@@ -118,40 +129,181 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, shallowRef, computed, nextTick, watch } from 'vue'
+import { Download } from '@element-plus/icons-vue'
 import L, { type Map as LMap, type Marker as LMarker } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import * as echarts from 'echarts'
 
 interface CityItem {
   id: string
-  name: string
+  name: string // 城市名（不含国家前缀）
   lat: number
   lng: number
-  climate: 'mediterranean' | 'tropical' | 'temperate' | 'continental' | 'arid' | 'polar'
+  altitude: number // 海拔（米）
+  climateKey: string
+  climateName: string // 气候类型中文名
+  feature: string // 气候特点
   temperature: number[] // 12 个月
   precipitation: number[] // 12 个月
 }
 
-// 气候类型中文映射
-const climateMap: Record<CityItem['climate'], string> = {
-  mediterranean: '地中海气候',
-  tropical: '热带气候',
-  temperate: '温带气候',
-  continental: '大陆性气候',
-  arid: '干旱气候',
-  polar: '极地气候',
-}
-
-// 目前只标注希腊雅典，后续补充其它主要城市
+// 12 个世界气候类型典型城市（数据按图片 Y 轴 -60~40℃ / 0~500mm 刻度逐月精确还原，保留 1 位小数）
 const cityList: CityItem[] = [
   {
+    id: 'ibadan',
+    name: '伊基托斯',
+    lat: 7.3775,
+    lng: 3.9470,
+    altitude: 126,
+    climateKey: 'tropical-rainforest',
+    climateName: '热带雨林气候',
+    feature: '分布在赤道附近，全年高温多雨，生长着茂密的森林，有多种鸟类和动物栖息。',
+    // 气温：全年 25~27℃；降水：全年 150~310mm
+    temperature: [26.0, 27.0, 27.0, 27.0, 26.0, 25.0, 25.0, 25.0, 25.0, 26.0, 26.0, 25.0],
+    precipitation: [260.0, 220.0, 250.0, 300.0, 260.0, 210.0, 170.0, 160.0, 200.0, 230.0, 270.0, 280.0],
+  },
+  {
+    id: 'bamako',
+    name: '巴马科',
+    lat: 12.6392,
+    lng: -8.0029,
+    altitude: 331,
+    climateKey: 'tropical-savanna',
+    climateName: '热带稀树草原气候',
+    feature: '分布在热带雨林地区的南北两侧，一年分为湿季和干季，地面树木稀疏，长着较高的草。',
+    // 气温：5月最高 33℃；降水：8月最高 330mm
+    temperature: [24.0, 27.0, 30.0, 32.0, 33.0, 30.0, 27.0, 26.0, 26.0, 27.0, 26.0, 24.0],
+    precipitation: [0.0, 0.0, 5.0, 20.0, 60.0, 140.0, 220.0, 330.0, 190.0, 60.0, 5.0, 0.0],
+  },
+  {
+    id: 'huzhiming',
+    name: '胡志明市',
+    lat: 10.8231,
+    lng: 106.6297,
+    altitude: 6,
+    climateKey: 'tropical-monsoon',
+    climateName: '热带季风气候',
+    feature: '分布在南亚、东南亚地区，全年高温，夏季降水丰沛，冬季降水稀少。',
+    // 气温：4-5月最高 30℃；降水：6/9月最高 300/320mm
+    temperature: [25.5, 26.5, 28.5, 30.0, 30.0, 29.0, 28.0, 28.0, 27.5, 27.0, 26.5, 25.5],
+    precipitation: [10.0, 5.0, 10.0, 50.0, 220.0, 300.0, 280.0, 260.0, 320.0, 240.0, 100.0, 30.0],
+  },
+  {
+    id: 'bilma',
+    name: '比尔马',
+    lat: 18.6853,
+    lng: 12.9167,
+    altitude: 359,
+    climateKey: 'tropical-desert',
+    climateName: '热带沙漠气候',
+    feature: '分布在南、北回归线附近的大陆西部和中部，终年干旱酷热，地面沙漠广布，只有很少的耐旱植物。',
+    // 气温：7月最高 40℃；降水：全年几乎为 0
+    temperature: [20.0, 22.0, 26.0, 31.0, 35.0, 38.0, 40.0, 39.0, 36.0, 30.0, 25.0, 21.0],
+    precipitation: [0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 10.0, 15.0, 5.0, 0.0, 0.0, 0.0],
+  },
+  {
+    id: 'shanghai',
+    name: '上海',
+    lat: 31.2304,
+    lng: 121.4737,
+    altitude: 4,
+    climateKey: 'subtropical-monsoon',
+    climateName: '亚热带季风气候和亚热带湿润气候',
+    feature: '分布在亚热带地区的大陆东岸，受季风影响，夏季高温多雨，冬季温度较低，雨量偏少。',
+    // 气温：7-8月最高 28℃；降水：6月最高 140mm
+    temperature: [2.0, 4.5, 8.5, 14.5, 20.0, 24.5, 28.5, 28.0, 24.5, 19.0, 12.5, 6.0],
+    precipitation: [50.0, 60.0, 80.0, 90.0, 110.0, 140.0, 130.0, 130.0, 120.0, 60.0, 50.0, 40.0],
+  },
+  {
+    id: 'moscow',
+    name: '莫斯科',
+    lat: 55.7558,
+    lng: 37.6173,
+    altitude: 149,
+    climateKey: 'temperate-continental',
+    climateName: '温带大陆性气候',
+    feature: '分布在亚欧大陆和北美大陆的内陆地区，受海洋影响小，终年干旱少雨，冬季严寒，夏季炎热，气温年较差很大。',
+    // 气温：7月最高 22℃；降水：7月最高 80mm
+    temperature: [-10.0, -8.0, -2.0, 6.0, 14.0, 18.0, 22.0, 20.0, 14.0, 6.0, 0.0, -6.0],
+    precipitation: [40.0, 30.0, 40.0, 40.0, 50.0, 60.0, 80.0, 70.0, 60.0, 60.0, 50.0, 40.0],
+  },
+  {
     id: 'athens',
-    name: '希腊雅典',
+    name: '雅典',
     lat: 37.9842,
     lng: 23.7281,
-    climate: 'mediterranean',
-    temperature: [8.7, 9.3, 11.2, 15.3, 20.7, 25.6, 28.0, 27.4, 23.3, 18.1, 13.7, 10.3],
-    precipitation: [56.9, 46.7, 40.7, 30.8, 22.7, 10.6, 5.8, 6.0, 13.9, 52.6, 58.3, 69.1],
+    altitude: 107,
+    climateKey: 'mediterranean',
+    climateName: '地中海气候',
+    feature: '在地中海地区分布最广，夏季炎热干燥，冬季温和湿润。',
+    // 气温：7-8月最高 28℃；降水：12月最高 60mm，7-8月接近 0
+    temperature: [10.0, 11.0, 13.0, 16.0, 21.0, 26.0, 28.0, 28.0, 24.0, 19.0, 14.0, 11.0],
+    precipitation: [50.0, 40.0, 30.0, 20.0, 15.0, 5.0, 3.0, 3.0, 10.0, 40.0, 50.0, 60.0],
+  },
+  {
+    id: 'yakutsk',
+    name: '雅库茨克',
+    lat: 62.0355,
+    lng: 129.6755,
+    altitude: 99,
+    climateKey: 'subarctic',
+    climateName: '亚寒带针叶林气候',
+    feature: '分布在亚欧大陆和北美洲的北部，冬季严寒，夏季温暖，地面生长着大片针叶林。',
+    // 气温：7月最高 20℃；降水：7-8月最高 50mm
+    temperature: [-42.0, -35.0, -22.0, -6.0, 6.0, 16.0, 20.0, 16.0, 6.0, -8.0, -28.0, -40.0],
+    precipitation: [10.0, 10.0, 5.0, 10.0, 20.0, 40.0, 50.0, 50.0, 30.0, 20.0, 15.0, 10.0],
+  },
+  {
+    id: 'beijing',
+    name: '北京',
+    lat: 39.9042,
+    lng: 116.4074,
+    altitude: 31,
+    climateKey: 'temperate-monsoon',
+    climateName: '温带季风气候',
+    feature: '分布在温带地区的亚欧大陆东岸，受季风影响，夏季高温多雨，冬季寒冷干燥。',
+    // 气温：8月最高 30℃；降水：8月最高 240mm
+    temperature: [-4.0, -1.0, 6.0, 13.5, 20.0, 24.5, 28.0, 30.0, 22.0, 14.0, 6.0, 0.0],
+    precipitation: [3.0, 5.0, 10.0, 25.0, 35.0, 70.0, 180.0, 240.0, 55.0, 25.0, 10.0, 3.0],
+  },
+  {
+    id: 'lhasa',
+    name: '拉萨',
+    lat: 29.6520,
+    lng: 91.1721,
+    altitude: 3648,
+    climateKey: 'plateau',
+    climateName: '高原山地气候',
+    feature: '分布在亚洲、欧洲、非洲和南、北美洲的一些海拔很高的高山高原地区。一般来说，地势越高，气温越低。',
+    // 气温：7-8月最高 18℃；降水：8月最高 140mm
+    temperature: [-2.0, 1.0, 4.0, 8.0, 12.0, 16.0, 18.0, 18.0, 14.0, 8.0, 2.0, -1.0],
+    precipitation: [0.0, 2.0, 3.0, 5.0, 30.0, 70.0, 120.0, 140.0, 60.0, 10.0, 2.0, 1.0],
+  },
+  {
+    id: 'london',
+    name: '伦敦',
+    lat: 51.5074,
+    lng: -0.1278,
+    altitude: 60,
+    climateKey: 'temperate-marine',
+    climateName: '温带海洋性气候',
+    feature: '分布在温带地区的大陆西岸，受海面吹来的暖湿西风影响，全年温和多雨。',
+    // 气温：7-8月最高 18℃；降水：全年均匀 50~70mm
+    temperature: [5.0, 5.0, 7.0, 10.0, 13.0, 16.0, 18.0, 18.0, 15.0, 11.0, 7.0, 5.0],
+    precipitation: [60.0, 50.0, 50.0, 55.0, 60.0, 60.0, 60.0, 65.0, 60.0, 70.0, 65.0, 60.0],
+  },
+  {
+    id: 'vostok',
+    name: '东方站',
+    lat: -78.4644,
+    lng: 106.8370,
+    altitude: 3420,
+    climateKey: 'polar',
+    climateName: '极地气候',
+    feature: '分布在南极大陆和格陵兰岛的大部分地区，气温极低，地面全被冰雪覆盖。',
+    // 气温：7-8月最低 -72℃；降水：全年 0
+    temperature: [-32.0, -45.0, -58.0, -64.0, -68.0, -70.0, -72.0, -72.0, -68.0, -58.0, -44.0, -32.0],
+    precipitation: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
   },
 ]
 
@@ -164,8 +316,6 @@ const chartInstance = shallowRef<echarts.ECharts | null>(null)
 
 const selectedCityId = ref<string>('')
 const currentCity = ref<CityItem | null>(null)
-
-const climateTypeLabel = computed(() => (currentCity.value ? climateMap[currentCity.value.climate] : ''))
 
 // 防抖 resize 处理
 let resizeTimer: ReturnType<typeof setTimeout> | null = null
@@ -182,12 +332,9 @@ function onCityChange(id: string) {
   const city = cityList.find((c) => c.id === id) || null
   if (city) {
     currentCity.value = city
-    // 地图飞向该城市
+    // 地图飞向该城市（不打开 popup，因为已经去掉了主要气候类型文字框）
     if (mapInstance.value) {
       mapInstance.value.flyTo([city.lat, city.lng], 4, { duration: 1.0 })
-      // 高亮对应 marker
-      const m = markerMap.get(city.id)
-      if (m) m.openPopup()
     }
     nextTick(() => renderChart())
   }
@@ -207,9 +354,9 @@ function initMap() {
     fadeAnimation: false,
     zoomAnimation: true,
   })
-  // 瓦片底图：google-tiles 服务（仅此一个瓦片源，无 fallback）
+  // 瓦片底图：arcgis-tiles 服务（仅此一个瓦片源，无 fallback）
   const tileLayer = L.tileLayer(
-    'https://zdys.szjx.ai-study.net/geo-resources-folder/tiles/google-tiles/{z}/{x}/{y}.png',
+    'https://zdys.szjx.ai-study.net/geo-resources-folder/tiles/arcgis-tiles/{z}/{x}/{y}.png',
     {
       minZoom: 0,
       maxZoom: 5,
@@ -229,34 +376,30 @@ function initMap() {
   // 缩放控件放置右下
   L.control.zoom({ position: 'bottomright' }).addTo(map)
 
-  // 红色大头针图标（自定义）：标签 = 城市名称（经纬度）
-  const redPinIcon = L.divIcon({
-    className: 'tp-pin-wrapper',
-    html: `
-      <div class="tp-pin">
-        <div class="tp-pin-head"></div>
-        <div class="tp-pin-stick"></div>
-        <div class="tp-pin-label">${cityList[0].name}（${cityList[0].lng.toFixed(2)}°E，${cityList[0].lat.toFixed(2)}°N）</div>
-      </div>
-    `,
-    iconSize: [220, 60],
-    iconAnchor: [20, 28],
-    popupAnchor: [0, -36],
-  })
-
-  // 标注城市
+  // 标注所有城市
   cityList.forEach((city) => {
-    const marker = L.marker([city.lat, city.lng], { icon: redPinIcon }).addTo(map)
-    marker.bindPopup(
-      `<div class="tp-popup">
-        <div class="tp-popup-name">${city.name}（${city.lng.toFixed(2)}°E，${city.lat.toFixed(2)}°N）</div>
-        <div class="tp-popup-climate">主要气候类型：<b>${climateMap[city.climate]}</b></div>
-      </div>`,
-      { closeButton: false, autoPan: true }
-    )
+    // 关键：使用 Leaflet 原生 marker + custom icon，
+    // iconSize 与 iconAnchor 使用「像素-像素坐标」而非「经纬度坐标」，
+    // 这样缩放时大头针不会飘动（位置由 marker 的 latLng 锁定）
+    const redPinIcon = L.icon({
+      iconUrl: makePinSvg(city.name, city.lat, city.lng),
+      iconSize: [220, 56],
+      iconAnchor: [20, 50], // 针尖对准坐标点
+      popupAnchor: [0, -46],
+    })
+    const marker = L.marker([city.lat, city.lng], {
+      icon: redPinIcon,
+      // 关键：禁用拖拽、设置 riseOffset 让选中的 marker 在最上层
+      riseOnHover: true,
+      riseOffset: 250,
+      keyboard: false,
+    }).addTo(map)
+    // 不再 bindPopup（已去掉主要气候类型文字框）
     marker.on('click', () => {
       selectedCityId.value = city.id
       currentCity.value = city
+      // 飞向该城市（仅移动地图，不打开 popup）
+      map.flyTo([city.lat, city.lng], 4, { duration: 1.0 })
       nextTick(() => renderChart())
     })
     markerMap.set(city.id, marker)
@@ -271,6 +414,34 @@ function initMap() {
   window.addEventListener('resize', handleResize)
 }
 
+// 用 SVG 内联生成大头针图标（避免使用 divIcon 缩放时位置漂移）
+function makePinSvg(name: string, lat: number, lng: number): string {
+  const label = `${name}（${lng.toFixed(2)}°E，${lat.toFixed(2)}N）`
+  // 转义 XML 特殊字符
+  const safe = label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="56" viewBox="0 0 220 56">
+  <defs>
+    <radialGradient id="g" cx="35%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#ff6b7a"/>
+      <stop offset="60%" stop-color="#e63946"/>
+      <stop offset="100%" stop-color="#b71c1c"/>
+    </radialGradient>
+    <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <!-- 红色圆形针头 -->
+  <circle cx="20" cy="20" r="10" fill="url(#g)" stroke="#fff" stroke-width="2" filter="url(#s)"/>
+  <!-- 针身 -->
+  <line x1="20" y1="28" x2="20" y2="42" stroke="#b71c1c" stroke-width="2"/>
+  <!-- 文字框 -->
+  <rect x="38" y="6" width="178" height="28" rx="6" ry="6" fill="rgba(230,57,70,0.95)" stroke="#fff" stroke-width="1" filter="url(#s)"/>
+  <text x="127" y="25" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">${safe}</text>
+</svg>`
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+}
+
 function onResize() {
   handleResize()
 }
@@ -282,6 +453,16 @@ function renderChart() {
     chartInstance.value = echarts.init(chartRef.value)
   }
   const months = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
+  // 根据当前城市数据动态计算 Y 轴范围
+  const tMin = Math.min(...currentCity.value.temperature)
+  const tMax = Math.max(...currentCity.value.temperature)
+  const pMax = Math.max(...currentCity.value.precipitation)
+  // 气温 Y 轴：上下留 10℃ 余量，整 5 对齐
+  const yTempMin = Math.floor((tMin - 10) / 5) * 5
+  const yTempMax = Math.ceil((tMax + 10) / 5) * 5
+  // 降水 Y 轴：向上取 50 整
+  const yPrecMax = Math.ceil((pMax + 50) / 50) * 50
+
   const option: echarts.EChartsCoreOption = {
     tooltip: {
       trigger: 'axis',
@@ -295,6 +476,9 @@ function renderChart() {
       textStyle: { color: '#0b3660' },
       top: 6,
       itemGap: 24,
+    },
+    toolbox: {
+      show: false, // 不在图表内部显示工具栏（导出图片按钮在标题栏）
     },
     grid: {
       left: 60,
@@ -320,9 +504,8 @@ function renderChart() {
       {
         type: 'value',
         name: '气温/℃',
-        min: -10,
-        max: 40,
-        interval: 5,
+        min: yTempMin,
+        max: yTempMax,
         nameTextStyle: { color: '#0b3660', fontWeight: 600 },
         axisLine: { lineStyle: { color: '#2ec4b6' } },
         axisLabel: { color: '#0b3660' },
@@ -332,8 +515,7 @@ function renderChart() {
         type: 'value',
         name: '降水量/毫米',
         min: 0,
-        max: 250,
-        interval: 25,
+        max: yPrecMax,
         nameTextStyle: { color: '#0b3660', fontWeight: 600 },
         axisLine: { lineStyle: { color: '#247cff' } },
         axisLabel: { color: '#0b3660' },
@@ -388,6 +570,22 @@ function renderChart() {
   chartInstance.value.resize()
 }
 
+// 导出当前城市的 ECharts 图为 PNG 图片
+function exportChart() {
+  if (!chartInstance.value || !currentCity.value) return
+  const url = chartInstance.value.getDataURL({
+    type: 'png',
+    pixelRatio: 2,
+    backgroundColor: '#ffffff',
+  })
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${currentCity.value.name}_气温曲线和降水量柱状图.png`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
 watch(currentCity, () => {
   nextTick(() => renderChart())
 })
@@ -418,78 +616,55 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-/* ==================== 顶部标题栏 ==================== */
+/* ==================== 顶部标题栏（标题居中） ==================== */
 .tp-header {
   position: relative;
   flex-shrink: 0;
-  height: 64px;
+  height: 60px;
   padding: 0 24px;
   display: flex;
   align-items: center;
-  gap: 18px;
+  justify-content: center;
   background: linear-gradient(90deg, rgba(46, 196, 182, 0.18) 0%, rgba(36, 124, 255, 0.18) 100%);
   border-bottom: 1px solid rgba(46, 196, 182, 0.35);
   backdrop-filter: blur(8px);
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-.header-tag {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 28px 0 14px;
-  background: linear-gradient(90deg, #2ec4b6 0%, #247cff 100%);
-  color: #fff;
-  font-weight: 700;
-  letter-spacing: 2px;
-  font-size: 14px;
-  clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0% 100%);
-  box-shadow: 0 4px 12px rgba(46, 196, 182, 0.35);
-  flex-shrink: 0;
-}
-
 .header-title {
   margin: 0;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
-  color: #fff;
-  letter-spacing: 1px;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  background: linear-gradient(90deg, #2ec4b6 0%, #247cff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 2px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: center;
+  position: relative;
+  padding: 0 18px;
 }
 
-.header-tip {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.85);
-  background: rgba(11, 54, 96, 0.35);
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(46, 196, 182, 0.4);
-  white-space: nowrap;
-  flex-shrink: 0;
+.header-title::before,
+.header-title::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #2ec4b6, #247cff);
+  border-radius: 2px;
 }
 
-.header-tip.active {
-  background: linear-gradient(90deg, rgba(46, 196, 182, 0.3) 0%, rgba(36, 124, 255, 0.3) 100%);
-  border-color: rgba(46, 196, 182, 0.7);
+.header-title::before {
+  left: -50px;
+  background: linear-gradient(90deg, transparent, #2ec4b6);
 }
 
-.header-tip b {
-  color: #fff;
-  margin: 0 4px;
+.header-title::after {
+  right: -50px;
+  background: linear-gradient(90deg, #247cff, transparent);
 }
 
 /* ==================== 主体布局 ==================== */
@@ -517,9 +692,30 @@ onBeforeUnmount(() => {
   font-weight: 700;
   font-size: 15px;
   color: #0b3660;
-  padding: 14px 16px 8px 16px;
+  padding: 12px 16px 8px 16px;
   border-bottom: 1px solid rgba(46, 196, 182, 0.25);
   flex-shrink: 0;
+}
+
+/* 标题栏右侧的导出图片按钮（与标题同一行） */
+.card-title-export {
+  margin-left: auto !important;
+  background: linear-gradient(90deg, #2ec4b6 0%, #247cff 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  letter-spacing: 1px;
+  box-shadow: 0 2px 8px rgba(46, 196, 182, 0.35);
+  transition: all 0.2s;
+}
+
+.card-title-export:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(46, 196, 182, 0.5);
+}
+
+.card-title-export :deep(.el-icon) {
+  font-size: 16px;
 }
 
 .card-desc {
@@ -530,11 +726,11 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-/* ==================== 左侧面板 ==================== */
+/* ==================== 左侧面板（固定占 1/3） ==================== */
 .tp-left {
-  width: 380px;
-  min-width: 280px;
-  max-width: 460px;
+  /* 关键：使用百分比宽度固定占 1/3（不论分辨率） */
+  width: 33.333%;
+  min-width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -558,9 +754,46 @@ onBeforeUnmount(() => {
   margin: 8px 16px 4px 16px;
 }
 
+/* ==================== 城市气候类型信息卡 ==================== */
+.city-info {
+  padding: 10px 16px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.city-info-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0b3660;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed rgba(46, 196, 182, 0.35);
+}
+
+.city-info-line {
+  display: flex;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #4a6582;
+}
+
+.city-info-label {
+  font-weight: 600;
+  color: #247cff;
+  flex-shrink: 0;
+}
+
+.city-info-value {
+  color: #0b3660;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
 .left-card.map-card {
   flex: 1 1 auto;
-  min-height: 360px;
+  min-height: 320px;
   overflow: hidden;
 }
 
@@ -571,7 +804,7 @@ onBeforeUnmount(() => {
 .leaflet-map {
   flex: 1 1 auto;
   width: 100%;
-  min-height: 280px;
+  min-height: 240px;
   border-bottom-left-radius: 14px;
   border-bottom-right-radius: 14px;
   overflow: hidden;
@@ -818,41 +1051,38 @@ onBeforeUnmount(() => {
 
 /* ==================== 响应式：多断点自适应 ==================== */
 
-/* 平板横屏 / 小笔记本：1024px ~ 1200px */
+/* 平板横屏 / 小笔记本：1024px ~ 1200px（仍保持 1/3 布局） */
 @media (max-width: 1200px) {
   .tp-header {
     height: 56px;
     padding: 0 16px;
-    gap: 12px;
-  }
-  .header-tag {
-    height: 26px;
-    padding: 0 24px 0 10px;
-    font-size: 12px;
-    letter-spacing: 1px;
-    clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0% 100%);
   }
   .header-title {
-    font-size: 17px;
+    font-size: 18px;
+    letter-spacing: 1px;
   }
-  .header-tip {
-    font-size: 12px;
-    padding: 4px 10px;
+  .header-title::before,
+  .header-title::after {
+    width: 40px;
+  }
+  .header-title::before {
+    left: -30px;
+  }
+  .header-title::after {
+    right: -30px;
   }
   .tp-main {
     gap: 12px;
     padding: 12px;
   }
   .tp-left {
-    width: 320px;
-    min-width: 240px;
     gap: 10px;
   }
   .left-card.map-card {
-    min-height: 300px;
+    min-height: 280px;
   }
   .leaflet-map {
-    min-height: 240px;
+    min-height: 220px;
   }
   .tp-right {
     gap: 12px;
@@ -863,28 +1093,33 @@ onBeforeUnmount(() => {
   .echart-box {
     min-height: 240px;
   }
+  .city-info-name {
+    font-size: 13px;
+  }
+  .city-info-line {
+    font-size: 12px;
+  }
 }
 
-/* 平板竖屏 / 大手机横屏：768px ~ 1024px */
+/* 平板竖屏 / 大手机横屏：< 1024px（切换为上下布局） */
 @media (max-width: 1024px) {
   .tp-header {
     height: 50px;
     padding: 0 12px;
-    gap: 10px;
-  }
-  .header-tag {
-    height: 24px;
-    padding: 0 20px 0 8px;
-    font-size: 11px;
-    clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0% 100%);
   }
   .header-title {
-    font-size: 15px;
-    letter-spacing: 0.5px;
+    font-size: 16px;
+    letter-spacing: 1px;
   }
-  .header-tip {
-    font-size: 11px;
-    padding: 3px 8px;
+  .header-title::before,
+  .header-title::after {
+    width: 24px;
+  }
+  .header-title::before {
+    left: -16px;
+  }
+  .header-title::after {
+    right: -16px;
   }
   .tp-main {
     flex-direction: column;
@@ -895,7 +1130,7 @@ onBeforeUnmount(() => {
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    max-height: 45%;
+    max-height: 50%;
     gap: 8px;
   }
   .left-card.map-card {
@@ -916,10 +1151,6 @@ onBeforeUnmount(() => {
   .card-title {
     font-size: 13px;
     padding: 10px 12px 6px 12px;
-  }
-  .card-desc {
-    font-size: 12px;
-    padding: 8px 12px 10px 12px;
   }
   .placeholder-icon {
     width: 80px;
@@ -955,26 +1186,21 @@ onBeforeUnmount(() => {
   .tp-header {
     height: 44px;
     padding: 0 8px;
-    gap: 8px;
-  }
-  .header-tag {
-    display: none;
   }
   .header-title {
-    font-size: 13px;
+    font-size: 14px;
+    letter-spacing: 0.5px;
   }
-  .header-tip span {
+  .header-title::before,
+  .header-title::after {
     display: none;
-  }
-  .header-tip b {
-    display: inline;
   }
   .tp-main {
     gap: 8px;
     padding: 8px;
   }
   .tp-left {
-    max-height: 40%;
+    max-height: 45%;
     gap: 6px;
   }
   .left-card.map-card {
@@ -998,13 +1224,18 @@ onBeforeUnmount(() => {
     padding: 8px 10px 4px 10px;
     gap: 4px;
   }
-  .card-desc {
-    font-size: 11px;
-    padding: 6px 10px 8px 10px;
-  }
   .city-select {
     width: calc(100% - 20px);
     margin: 6px 10px 2px 10px;
+  }
+  .city-info {
+    padding: 8px 10px 10px 10px;
+  }
+  .city-info-name {
+    font-size: 12px;
+  }
+  .city-info-line {
+    font-size: 11px;
   }
   .table-wrap {
     padding: 8px;
