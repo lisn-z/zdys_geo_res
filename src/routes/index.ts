@@ -93,7 +93,7 @@ export const routes = [
     path: '/soil-profile',
     name: 'soil-profile',
     meta: {
-      title: '土壤发生学沙盒',
+      title: '土壤剖析',
     },
     component: () => import('@/views/soil-profile/index.vue'),
   },
@@ -124,13 +124,13 @@ export const routes = [
       import('@/views/general-atmospheric-circulation/index.vue'),
   },
   {
-    path: '/aaa',
-    name: 'aaa',
+    path: '/water-recycle',
+    name: 'water-recycle',
     meta: {
-      title: 'aaa',
+      title: '水循环',
     },
     component: () =>
-      import('@/views/aaa/index.vue'),
+      import('@/views/water-recycle/index.vue'),
   },
   {
     path: '/soil-erosion',

@@ -6,7 +6,7 @@
           alt="智地有申" />
       </div>
 
-      <h1 class="page-title">土壤发生学沙盒</h1>
+      <h1 class="page-title">土壤剖析</h1>
 
       <div class="toolbar-actions">
         <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAnalysisPanel">
@@ -1344,25 +1344,24 @@ function getAdaptiveLeftPanelWidth(
   pageWidth: number,
   mode: LayoutMode
 ) {
+  void mode
+
   const effectiveWidth =
     getEffectiveTemplateWidth(pageWidth)
 
-  if (mode === 'small') {
-    return clamp(
-      pageWidth * 0.76,
-      260,
-      360
-    )
-  }
-
-  if (mode === 'medium') {
-    return clamp(
-      pageWidth * 0.36,
-      320,
-      480
-    )
-  }
-
+  /*
+   * 宽度不再跟 small / medium / large 分段绑定。
+   * layoutMode 只负责布局形态，面板宽度用连续公式计算。
+   *
+   * 之前的问题：
+   * - 1280px 以上 large：pageWidth * 0.19，约 340px
+   * - 1280px 以下 medium：pageWidth * 0.26，约 333px，已经较平滑
+   * - 860px 以下 small：pageWidth * 0.76，约 653px，突然变大
+   *
+   * 现在：
+   * - 859 / 860 / 1279 / 1280 都走同一套连续公式
+   * - 只有超大屏单独放宽
+   */
   if (effectiveWidth >= 2200) {
     return clamp(
       effectiveWidth * 0.22,
@@ -1372,9 +1371,9 @@ function getAdaptiveLeftPanelWidth(
   }
 
   return clamp(
-    pageWidth * 0.19,
-    340,
-    520
+    pageWidth * 0.24,
+    300,
+    360
   )
 }
 
@@ -1386,37 +1385,22 @@ function getPanelResizeBounds() {
   const effectiveWidth =
     getEffectiveTemplateWidth(pageWidth)
 
-  if (layoutMode.value === 'small') {
-    return {
-      min: 220,
-      max: Math.max(
-        220,
-        Math.min(420, pageWidth * 0.86)
-      )
-    }
-  }
-
-  if (layoutMode.value === 'medium') {
-    return {
-      min: 280,
-      max: Math.max(
-        280,
-        Math.min(640, pageWidth * 0.60)
-      )
-    }
-  }
-
   const isUltraLarge =
     effectiveWidth >= 2200
 
+  /*
+   * 拖拽边界也不要按 860 / 1280 分段跳变。
+   * 普通屏：最多 420px 或页面宽度的 42%
+   * 超大屏：最多 820px 或页面宽度的 54%
+   */
   return {
-    min: 300,
+    min: 280,
     max: Math.max(
-      300,
+      280,
       Math.min(
-        isUltraLarge ? 820 : 560,
+        isUltraLarge ? 820 : 420,
         effectiveWidth * (
-          isUltraLarge ? 0.54 : 0.38
+          isUltraLarge ? 0.54 : 0.42
         )
       )
     )
@@ -4327,6 +4311,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 9px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(8px);
+  overflow: auto;
 }
 
 .data-title {
@@ -5013,4 +4998,12 @@ input[type="range"]::-webkit-slider-thumb {
       min(260px, calc(100% - 20px));
   }
 }
+
+/* ===================== v12: 左侧面板宽度连续化 =====================
+   对应 script 中 getAdaptiveLeftPanelWidth / getPanelResizeBounds。
+   目的：
+   - 1280 断点不突然跳宽；
+   - 860 断点不突然跳宽；
+   - layoutMode 只负责布局形态，不再决定面板宽度。
+*/
 </style>

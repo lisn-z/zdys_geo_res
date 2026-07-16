@@ -609,8 +609,8 @@ const speedOptions = [1, 2, 5, 10, 20]
  * 否则公共 CSS 放大了面板，业务变量仍会按旧值运行。
  */
 
-const leftPanelWidth = ref(420)
-const rightPanelWidth = ref(480)
+const leftPanelWidth = ref(360)
+const rightPanelWidth = ref(420)
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
 
@@ -1166,25 +1166,20 @@ function getAdaptivePanelWidth(
   mode: LayoutMode,
   pageWidth: number
 ) {
-  if (mode === 'small') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.78, 260, 360)
-      : clampPanelNumber(pageWidth * 0.82, 280, 380)
-  }
-
-  if (mode === 'medium') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.38, 320, 460)
-      : clampPanelNumber(pageWidth * 0.40, 340, 500)
-  }
+  void mode
 
   /*
-   * 2K / 4K / 教室超大屏：
-   * 普通 1920×1080 电脑不再触发超大屏面板宽度。
-   * 组件 workspace 上有 inline CSS 变量，
-   * 公共 CSS 很难完全覆盖默认宽度，
-   * 所以这里业务侧也要给出更合理的默认值。
+   * 面板宽度连续化：
+   * layoutMode 只负责布局形态，不再决定面板宽度。
+   *
+   * 原逻辑里：
+   * - large:  left 0.19 / right 0.20
+   * - medium: left 0.38 / right 0.40
+   * - small:  left 0.78 / right 0.82
+   *
+   * 所以在 1440 和 820 附近会突然变宽。
    */
+
   const isTeachingLargeScreen =
     pageWidth >= 2200
 
@@ -1195,8 +1190,8 @@ function getAdaptivePanelWidth(
   }
 
   return side === 'left'
-    ? clampPanelNumber(pageWidth * 0.19, 340, 500)
-    : clampPanelNumber(pageWidth * 0.20, 360, 540)
+    ? clampPanelNumber(pageWidth * 0.24, 300, 360)
+    : clampPanelNumber(pageWidth * 0.28, 320, 420)
 }
 
 function syncResponsivePanelWidths(
@@ -1248,91 +1243,46 @@ function getPanelResizeBounds(
     pageRef.value?.clientWidth ||
     window.innerWidth
 
-  if (layoutMode.value === 'small') {
-    return {
-      min:
-        side === 'left'
-          ? 220
-          : 240,
-      max:
-        Math.max(
-          side === 'left'
-            ? 220
-            : 240,
-          Math.min(
-            side === 'left'
-              ? 420
-              : 440,
-            pageWidth * 0.86
-          )
-        ),
-    }
-  }
-
-  if (layoutMode.value === 'medium') {
-    return {
-      min:
-        side === 'left'
-          ? 280
-          : 300,
-      max:
-        Math.max(
-          side === 'left'
-            ? 280
-            : 300,
-          Math.min(
-            side === 'left'
-              ? 620
-              : 660,
-            pageWidth * 0.58
-          )
-        ),
-    }
-  }
-
   /*
-   * 普通 1920×1080 电脑仍然属于 large，
-   * 但不应该拥有和 2K / 4K / 教室超大屏一样的拖拽上限。
-   *
-   * 1440 ~ 2199：
-   * - 左侧最多 560px
-   * - 右侧最多 620px
-   *
-   * 2200 以上：
-   * - 左侧最多 820px
-   * - 右侧最多 900px
+   * 拖拽边界也连续化：
+   * 不再按 layoutMode.value === small / medium / large 分段。
    */
   const isUltraLargeScreen =
     pageWidth >= 2200
 
+  const min =
+    side === 'left'
+      ? 280
+      : 300
+
+  const maxLimit =
+    side === 'left'
+      ? (
+        isUltraLargeScreen
+          ? 820
+          : 420
+      )
+      : (
+        isUltraLargeScreen
+          ? 900
+          : 480
+      )
+
+  const ratio =
+    isUltraLargeScreen
+      ? 0.54
+      : side === 'left'
+        ? 0.42
+        : 0.46
+
   return {
-    min:
-      side === 'left'
-        ? 300
-        : 340,
+    min,
     max:
       Math.max(
-        side === 'left'
-          ? 300
-          : 340,
+        min,
         Math.min(
-          side === 'left'
-            ? (
-              isUltraLargeScreen
-                ? 820
-                : 560
-            )
-            : (
-              isUltraLargeScreen
-                ? 900
-                : 620
-            ),
-          pageWidth *
-          (
-            isUltraLargeScreen
-              ? 0.54
-              : 0.38
-          )
+          maxLimit,
+          pageWidth * ratio
         )
       ),
   }
@@ -2811,5 +2761,12 @@ onUnmounted(() => {
    - 1440 ~ 2199：左侧最多 560px，右侧最多 620px
    - 2200 以上：左侧最多 820px，右侧最多 900px
    - 普通 1920 默认宽度和最大拖拽宽度都不再按超大屏处理
+*/
+
+/* ===================== v32: 面板宽度连续化 =====================
+   对应 script 中 getAdaptivePanelWidth / getPanelResizeBounds。
+   - 修复 1440 断点面板突然变宽；
+   - 修复 820 断点面板突然变宽；
+   - layoutMode 只负责布局形态，不再决定面板宽度。
 */
 </style>

@@ -26,6 +26,12 @@ import { fileURLToPath } from 'url'
 // - 新增 getEffectiveTemplateWidth / isUltraLargeTemplateScreen。
 // - 默认面板宽度和最大拖拽宽度都用有效宽度判断，避免浏览器缩放或投屏环境误判。
 
+// v18:
+// - 面板默认宽度改为连续算法，不再按 small / medium / large 分段跳变。
+// - 拖拽最大宽度同步改为连续算法，普通屏左侧最多 420px、右侧最多 480px。
+// - 只有 2200px 以上才放开超大屏宽度；layoutMode 只负责布局形态，不再决定面板宽度。
+// - 提示词同步修正：非 layout-floating 中小屏不要变悬浮抽屉，layout-floating 才走覆盖式抽屉。
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
@@ -333,7 +339,12 @@ function buildTemplateUsagePrompt({
   const floatingText =
     useFloating
       ? '当前页面启用了 layout-floating 悬浮毛玻璃布局：Header、左右面板和时间轴会悬浮在主场景上方，主场景铺满整个页面。不要再给面板、Header、时间轴重新写背景、透明度、毛玻璃和阴影。'
-      : '当前页面使用普通模板布局：Header 在顶部，面板和主场景按模板布局排列。不要额外改 workspace、side-panel、center-stage 的基础布局。'
+      : '当前页面使用普通模板布局：Header 在顶部，面板和主场景按模板布局排列。非 layout-floating 页面在中小屏也不要变成悬浮面板；不要给 root 额外添加 layout-floating。不要额外改 workspace、side-panel、center-stage 的基础布局。'
+
+  const responsivePanelText =
+    useFloating
+      ? '- 当前是 layout-floating：layout-medium / layout-small 下左右面板可以按公共 CSS 走覆盖式抽屉；底部 timeline-dock、图例、主场景浮层不要再用 100% - leftPanelWidth - rightPanelWidth 计算宽度。'
+      : '- 当前不是 layout-floating：layout-medium / layout-small 下左右面板不要改成 absolute 悬浮抽屉，应保持普通模板布局；不要给 root 手动补 layout-floating。'
 
   const areaLines = [
     '- top-toolbar：放 Logo、页面标题、全局按钮，例如“收起面板 / 展开面板”。不要放业务表单和大段说明。',
@@ -496,16 +507,17 @@ function buildTemplateUsagePrompt({
     '- 业务组件只补当前业务独有的布局、尺寸、定位、图形和动画样式。',
     '',
     '【布局与面板适配强制规范】',
-    '- root 根节点只放 geo-template-page、geo-page、theme-*、layout-floating 和 layout-* 类，不要在 root 上写 --left-panel-width / --right-panel-width。',
+    '- root 根节点只放 geo-template-page、geo-page、theme-*、按需 layout-floating，以及 layout-* 类；不是悬浮模板时不要添加 layout-floating。不要在 root 上写 --left-panel-width / --right-panel-width。',
     '- --left-panel-width / --right-panel-width 只能写在 <main class="workspace"> 的 :style 上，避免和公共 CSS 的大屏变量互相覆盖。',
     '- left-panel / right-panel 必须保留 resize-handle、panel-collapse-btn、panel-entry-btn，不要删掉拖拽手柄。',
     '- resize-handle 必须使用 @pointerdown.stop.prevent="startResize(\'left\', $event)" 或 right，防止拖拽事件冒泡到 Three.js / Leaflet / ECharts 场景。',
-    '- 不要在业务组件里重新写 Math.min(420)、Math.min(460)、Math.min(360) 这类固定拖拽上限。',
-    '- 默认宽度和拖拽上限统一由 getAdaptivePanelWidth、getPanelResizeBounds、startResize 管理。',
+    '- 不要在业务组件里重新写 Math.min(420)、Math.min(460)、Math.min(360) 这类孤立固定拖拽上限；统一改 getPanelResizeBounds。',
+    '- 默认宽度和拖拽上限统一由 getAdaptivePanelWidth、getPanelResizeBounds、startResize 管理；layoutMode 只负责布局形态，不再决定面板宽度。',
     '- 拖拽后必须设置 leftPanelManuallyResized / rightPanelManuallyResized，ResizeObserver 不要把用户拖宽后的面板又重置回默认宽度。',
-    '- layout-medium / layout-small 下左右面板是覆盖式抽屉，底部 timeline-dock、图例、主场景浮层不要再用 100% - leftPanelWidth - rightPanelWidth 计算宽度。',
+    responsivePanelText,
     '- 普通 1920 × 1080 电脑按普通 large 布局处理，不要默认套希沃 / 超大屏字号和面板宽度。',
-    '- 普通 large 的最大拖拽宽度也要收敛：1440~2199 左侧最多约 560px，右侧最多约 620px；2200px 以上才允许 820px / 900px。',
+    '- 面板宽度必须连续化：普通屏默认左侧 clamp(pageWidth * 0.24, 300, 360)，右侧 clamp(pageWidth * 0.28, 320, 420)，不要再写 small 0.76 / medium 0.36 / large 0.19 这种跳变算法。',
+    '- 拖拽边界也必须连续化：普通屏左侧最多约 420px，右侧最多约 480px；2200px 以上才允许左侧 820px、右侧 900px。',
     '- 判断 2200px 超大屏时不能只看 pageRef.clientWidth，要同时参考 window.innerWidth、visualViewport.width、screen.width，避免普通 1920 在缩放环境下误判。',
     '- 大屏 / 希沃适配优先走公共模板 CSS 和模板内统一面板逻辑，不要在业务组件里单独新建 seewoMode。',
     '',
@@ -3578,8 +3590,8 @@ const hasRightPanel = ${hasRight}
 const layoutMode =
   ref<LayoutMode>('large')
 
-const leftPanelWidth = ref(420)
-const rightPanelWidth = ref(500)
+const leftPanelWidth = ref(360)
+const rightPanelWidth = ref(420)
 
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
@@ -3735,51 +3747,25 @@ function getAdaptivePanelWidth(
   mode: LayoutMode,
   pageWidth: number
 ) {
+  void mode
+
   const effectiveWidth =
     getEffectiveTemplateWidth(
       pageWidth
     )
 
-  if (mode === 'small') {
-    return side === 'left'
-      ? clamp(
-        pageWidth * 0.76,
-        260,
-        360
-      )
-      : clamp(
-        pageWidth * 0.80,
-        280,
-        380
-      )
-  }
-
   /*
-   * 中屏是覆盖式抽屉，不再挤压主场景。
-   * 因此可以比普通并排布局更宽，但不能挡住主场景太多。
-   */
-  if (mode === 'medium') {
-    return side === 'left'
-      ? clamp(
-        pageWidth * 0.36,
-        320,
-        480
-      )
-      : clamp(
-        pageWidth * 0.40,
-        360,
-        540
-      )
-  }
-
-  /*
-   * 2K / 4K / 教室超大屏增强：
-   * 普通 1920×1080 电脑不默认触发。
+   * 面板宽度连续化：
+   * layoutMode 只负责布局形态，不再决定面板宽度。
    *
-   * 注意：
-   * 这里不能只看 pageRef.clientWidth。
-   * 浏览器缩放、外层容器、投屏环境都可能让 CSS 宽度被放大。
-   * 因此用 effectiveWidth 兜底，确保普通 1920 物理屏不会误入超大屏逻辑。
+   * 旧逻辑在 1280 / 860 附近容易跳变：
+   * - small:  left 0.76 / right 0.80
+   * - medium: left 0.36 / right 0.40
+   * - large:  left 0.19 / right 0.21
+   *
+   * 新逻辑：
+   * - 普通屏始终走同一套连续公式；
+   * - 只有 2200px 以上才进入超大屏增强。
    */
   if (
     isUltraLargeTemplateScreen(
@@ -3801,14 +3787,14 @@ function getAdaptivePanelWidth(
 
   return side === 'left'
     ? clamp(
-      pageWidth * 0.19,
-      340,
-      520
+      pageWidth * 0.24,
+      300,
+      360
     )
     : clamp(
-      pageWidth * 0.21,
-      380,
-      580
+      pageWidth * 0.28,
+      320,
+      420
     )
 }
 
@@ -3833,7 +3819,8 @@ function updateLayoutMode() {
    * 面板宽度由模板统一管理：
    * - 初次进入按屏幕给默认宽度；
    * - 用户拖拽后不再被 ResizeObserver 拉回默认值；
-   * - 只有 large / medium / small 布局切换时重新给合理默认。
+   * - large / medium / small 只负责布局形态；
+   * - 面板宽度使用连续算法，避免在 1280 / 860 附近突然变宽。
    */
   if (
     modeChanged ||
@@ -3875,87 +3862,47 @@ function getPanelResizeBounds(
       pageWidth
     )
 
-  if (layoutMode.value === 'small') {
-    return {
-      min:
-        side === 'left'
-          ? 220
-          : 240,
-      max: Math.max(
-        side === 'left'
-          ? 220
-          : 240,
-        Math.min(
-          side === 'left'
-            ? 420
-            : 440,
-          pageWidth * 0.86
-        )
-      ),
-    }
-  }
-
-  if (layoutMode.value === 'medium') {
-    return {
-      min:
-        side === 'left'
-          ? 280
-          : 300,
-      max: Math.max(
-        side === 'left'
-          ? 280
-          : 300,
-        Math.min(
-          side === 'left'
-            ? 640
-            : 700,
-          pageWidth * 0.60
-        )
-      ),
-    }
-  }
-
   /*
-   * large 分两档：
-   * 1. 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
-   * 2. 超大屏：有效宽度 2200px 以上。
-   *
-   * 这里必须用 effectiveWidth，而不是只用 pageWidth。
-   * 否则普通 1920 电脑在浏览器缩放或投屏环境下，
-   * 可能被误判成 2200+，导致最大拖拽宽度失效。
+   * 拖拽边界连续化：
+   * 不再按 layoutMode.value === small / medium / large 分段。
    */
   const isUltraLargeScreen =
     isUltraLargeTemplateScreen(
       effectiveWidth
     )
 
+  const min =
+    side === 'left'
+      ? 280
+      : 300
+
+  const maxLimit =
+    side === 'left'
+      ? (
+        isUltraLargeScreen
+          ? 820
+          : 420
+      )
+      : (
+        isUltraLargeScreen
+          ? 900
+          : 480
+      )
+
+  const ratio =
+    isUltraLargeScreen
+      ? 0.54
+      : side === 'left'
+        ? 0.42
+        : 0.46
+
   return {
-    min:
-      side === 'left'
-        ? 300
-        : 340,
+    min,
     max: Math.max(
-      side === 'left'
-        ? 300
-        : 340,
+      min,
       Math.min(
-        side === 'left'
-          ? (
-            isUltraLargeScreen
-              ? 820
-              : 560
-          )
-          : (
-            isUltraLargeScreen
-              ? 900
-              : 620
-          ),
-        effectiveWidth *
-          (
-            isUltraLargeScreen
-              ? 0.54
-              : 0.38
-          )
+        maxLimit,
+        effectiveWidth * ratio
       )
     ),
   }

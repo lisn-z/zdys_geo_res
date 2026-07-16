@@ -971,7 +971,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
   color: #2ec4b6;
   background:
-    radial-gradient(circle at 50% 0%, rgba(30, 64, 175, 0.16), transparent 42%),
+    radial-gradient(circle at 50% 0%, rgba(36, 124, 255, 0.12), transparent 38%),
+    radial-gradient(ellipse at 80% 20%, rgba(46, 196, 182, 0.1), transparent 35%),
     #020617;
   font-family:
     Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
@@ -1007,7 +1008,10 @@ onBeforeUnmount(() => {
 
 .page-header h1 {
   margin: 0 0 8px;
-  color: #2ec4b6;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   font-size: clamp(24px, 2.5vw, 36px);
   line-height: 1.1;
   letter-spacing: 0.04em;
@@ -1029,7 +1033,7 @@ onBeforeUnmount(() => {
   color: #2ec4b6;
   font-size: clamp(12px, 0.9vw, 14px);
   font-weight: 600;
-  background: rgba(46, 196, 182, 0.1);
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.1), rgba(36, 124, 255, 0.08));
   border: 1px solid rgba(46, 196, 182, 0.22);
   border-radius: 999px;
 }
@@ -1139,7 +1143,7 @@ onBeforeUnmount(() => {
 }
 
 .switch-button.active {
-  background: #2ec4b6;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
 }
 
 .switch-knob {
@@ -1321,14 +1325,14 @@ onBeforeUnmount(() => {
   width: clamp(60px, 5vw, 80px);
   height: clamp(60px, 5vw, 80px);
   place-items: center;
-  color: #2ec4b6;
+  color: #e2e8f0;
   font-size: clamp(10px, 0.85vw, 13px);
   font-weight: 700;
   background:
-    linear-gradient(to right, #0f172a 50%, rgba(59, 130, 246, 0.96) 50%);
+    linear-gradient(to right, #0f172a 50%, #247cff 50%);
   border-radius: 50%;
   box-shadow:
-    0 0 24px rgba(59, 130, 246, 0.42),
+    0 0 28px rgba(36, 124, 255, 0.35),
     inset 0 0 13px rgba(0, 0, 0, 0.8);
   transform: translate(-50%, -50%);
 }
@@ -1397,12 +1401,15 @@ onBeforeUnmount(() => {
 
 .phase-name {
   margin-top: 18px;
-  color: #2ec4b6;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   font-size: clamp(24px, 2.5vw, 33px);
   font-weight: 800;
   letter-spacing: 0.12em;
   text-align: center;
-  text-shadow: 0 0 16px rgba(46, 196, 182, 0.58);
+  filter: drop-shadow(0 0 12px rgba(46, 196, 182, 0.4));
 }
 
 .hemisphere-note {
@@ -1482,22 +1489,24 @@ onBeforeUnmount(() => {
   place-items: center;
   color: #fff;
   cursor: pointer;
-  background: #2ec4b6;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
   border: 0;
   border-radius: 50%;
-  box-shadow: 0 10px 24px rgba(46, 196, 182, 0.3);
+  box-shadow: 0 10px 24px rgba(46, 196, 182, 0.25);
   transition:
     background 0.2s ease,
+    box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
 .play-button:hover {
   transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(46, 196, 182, 0.35);
 }
 
 .play-button.playing {
-  background: #ef4444;
-  box-shadow: 0 10px 24px rgba(239, 68, 68, 0.28);
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 10px 24px rgba(239, 68, 68, 0.25);
 }
 
 .play-icon {
@@ -1533,7 +1542,7 @@ onBeforeUnmount(() => {
 .speed-group button.active {
   color: #fff;
   opacity: 1;
-  background: #2ec4b6;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
 }
 
 .timeline {
@@ -1570,10 +1579,10 @@ onBeforeUnmount(() => {
   height: 20px;
   margin-top: -8px;
   appearance: none;
-  background: #2ec4b6;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
   border: 0;
   border-radius: 50%;
-  box-shadow: 0 0 12px rgba(46, 196, 182, 0.58);
+  box-shadow: 0 0 14px rgba(46, 196, 182, 0.5);
 }
 
 .timeline input[type="range"]::-moz-range-track {
@@ -1585,10 +1594,10 @@ onBeforeUnmount(() => {
 .timeline input[type="range"]::-moz-range-thumb {
   width: 20px;
   height: 20px;
-  background: #2ec4b6;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
   border: 0;
   border-radius: 50%;
-  box-shadow: 0 0 12px rgba(46, 196, 182, 0.58);
+  box-shadow: 0 0 14px rgba(46, 196, 182, 0.5);
 }
 
 .knowledge-grid {

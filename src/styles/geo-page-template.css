@@ -5166,3 +5166,203 @@
       clamp(20px, 1.2vw, 28px) !important;
   }
 }
+
+/* =========================================================
+   V26：非 layout-floating 中小屏不再使用覆盖式抽屉
+   =========================================================
+   背景：
+   - 原公共样式里 .layout-medium / .layout-small 会统一把 side-panel
+     改成 absolute 覆盖式抽屉。
+   - 这会导致普通模板，也就是没有 layout-floating 的页面，
+     在平板 / 小屏下也变成悬浮面板。
+   - 本补丁只影响非 layout-floating 页面。
+   - layout-floating 原有悬浮面板逻辑完全保留。
+   ========================================================= */
+
+/* 非悬浮模板：medium / small 恢复普通 grid 工作区 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace,
+.geo-template-page:not(.layout-floating).layout-small .workspace {
+  display:
+    grid !important;
+  width:
+    100% !important;
+  height:
+    100% !important;
+  min-width:
+    0 !important;
+  min-height:
+    0 !important;
+  overflow:
+    hidden !important;
+}
+
+/* 非悬浮模板：左 + 中 + 右 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace.has-left.has-right,
+.geo-template-page:not(.layout-floating).layout-small .workspace.has-left.has-right {
+  grid-template-columns:
+    var(--left-panel-width) minmax(0, 1fr) var(--right-panel-width) !important;
+}
+
+/* 非悬浮模板：左 + 中 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace.has-left:not(.has-right),
+.geo-template-page:not(.layout-floating).layout-small .workspace.has-left:not(.has-right) {
+  grid-template-columns:
+    var(--left-panel-width) minmax(0, 1fr) !important;
+}
+
+/* 非悬浮模板：中 + 右 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace.has-right:not(.has-left),
+.geo-template-page:not(.layout-floating).layout-small .workspace.has-right:not(.has-left) {
+  grid-template-columns:
+    minmax(0, 1fr) var(--right-panel-width) !important;
+}
+
+/* 非悬浮模板：只有主场景 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace:not(.has-left):not(.has-right),
+.geo-template-page:not(.layout-floating).layout-small .workspace:not(.has-left):not(.has-right) {
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+}
+
+/* 非悬浮模板：中小屏主场景不再被抽屉逻辑改成覆盖层 */
+.geo-template-page:not(.layout-floating).layout-medium .center-stage,
+.geo-template-page:not(.layout-floating).layout-small .center-stage {
+  position:
+    relative !important;
+  width:
+    100% !important;
+  height:
+    100% !important;
+  min-width:
+    0 !important;
+  min-height:
+    0 !important;
+  overflow:
+    hidden !important;
+}
+
+/* 非悬浮模板：中小屏侧栏恢复普通 grid 子项 */
+.geo-template-page:not(.layout-floating).layout-medium .side-panel,
+.geo-template-page:not(.layout-floating).layout-small .side-panel {
+  position:
+    relative !important;
+  top:
+    auto !important;
+  right:
+    auto !important;
+  bottom:
+    auto !important;
+  left:
+    auto !important;
+  z-index:
+    30 !important;
+  display:
+    block !important;
+  width:
+    100% !important;
+  max-width:
+    none !important;
+  height:
+    100% !important;
+  min-width:
+    0 !important;
+  min-height:
+    0 !important;
+  transform:
+    none !important;
+}
+
+/* 非悬浮模板：左右面板宽度由 grid-template-columns 控制，不再自己 absolute 定宽 */
+.geo-template-page:not(.layout-floating).layout-medium .left-panel,
+.geo-template-page:not(.layout-floating).layout-small .left-panel,
+.geo-template-page:not(.layout-floating).layout-medium .right-panel,
+.geo-template-page:not(.layout-floating).layout-small .right-panel {
+  width:
+    100% !important;
+  max-width:
+    none !important;
+}
+
+/* 非悬浮模板：收起时不要滑出屏幕，宽度由 --left/right-panel-width = 0px 控制 */
+.geo-template-page:not(.layout-floating).layout-medium .left-panel.collapsed,
+.geo-template-page:not(.layout-floating).layout-small .left-panel.collapsed,
+.geo-template-page:not(.layout-floating).layout-medium .right-panel.collapsed,
+.geo-template-page:not(.layout-floating).layout-small .right-panel.collapsed {
+  transform:
+    none !important;
+}
+
+/* 非悬浮模板：展开状态也不要重新套覆盖式抽屉背景 */
+.geo-template-page:not(.layout-floating).layout-medium .side-panel:not(.collapsed),
+.geo-template-page:not(.layout-floating).layout-small .side-panel:not(.collapsed) {
+  background:
+    var(--panel-background) !important;
+  border-color:
+    var(--panel-border) !important;
+  backdrop-filter:
+    blur(18px) !important;
+  -webkit-backdrop-filter:
+    blur(18px) !important;
+  box-shadow:
+    var(--panel-shadow) !important;
+}
+
+/* 非悬浮模板：左侧面板保持普通左边框逻辑 */
+.geo-template-page:not(.layout-floating).layout-medium .left-panel,
+.geo-template-page:not(.layout-floating).layout-small .left-panel {
+  border-width:
+    0 1px 0 0 !important;
+}
+
+/* 非悬浮模板：右侧面板保持普通右边框逻辑 */
+.geo-template-page:not(.layout-floating).layout-medium .right-panel,
+.geo-template-page:not(.layout-floating).layout-small .right-panel {
+  border-width:
+    0 0 0 1px !important;
+}
+
+/* 非悬浮模板：entry 按钮仍然可用，但不再按覆盖抽屉错位 */
+.geo-template-page:not(.layout-floating).layout-medium .panel-entry-btn.entry-left,
+.geo-template-page:not(.layout-floating).layout-small .panel-entry-btn.entry-left {
+  left:
+    0 !important;
+}
+
+.geo-template-page:not(.layout-floating).layout-medium .panel-entry-btn.entry-right,
+.geo-template-page:not(.layout-floating).layout-small .panel-entry-btn.entry-right {
+  right:
+    0 !important;
+}
+
+/* 非悬浮模板：时间轴继续按普通模板底部居中，不受覆盖式抽屉影响 */
+.geo-template-page:not(.layout-floating).layout-medium .timeline-dock,
+.geo-template-page:not(.layout-floating).layout-small .timeline-dock {
+  left:
+    50% !important;
+  right:
+    auto !important;
+  transform:
+    translateX(-50%) !important;
+}
+
+/* 极窄屏兜底：
+   真正手机宽度下，如果左右面板同时存在，仍然容易挤压主场景。
+   这里不再把面板变悬浮，只是允许主页面横向结构维持，
+   业务页面可自行选择是否在 <860px 主动 collapsed。
+*/
+@media (max-width: 640px) {
+  .geo-template-page:not(.layout-floating).layout-small .workspace.has-left.has-right {
+    grid-template-columns:
+      var(--left-panel-width) minmax(320px, 1fr) var(--right-panel-width) !important;
+  }
+
+  .geo-template-page:not(.layout-floating).layout-small .workspace.has-left:not(.has-right) {
+    grid-template-columns:
+      var(--left-panel-width) minmax(320px, 1fr) !important;
+  }
+
+  .geo-template-page:not(.layout-floating).layout-small .workspace.has-right:not(.has-left) {
+    grid-template-columns:
+      minmax(320px, 1fr) var(--right-panel-width) !important;
+  }
+}

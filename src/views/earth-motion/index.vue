@@ -587,8 +587,8 @@ const layoutMode =
  * 都必须在本组件 JS 里同步放开。
  */
 
-const leftPanelWidth = ref(420)
-const rightPanelWidth = ref(500)
+const leftPanelWidth = ref(360)
+const rightPanelWidth = ref(420)
 
 const leftCollapsed = panelCollapsed
 const rightCollapsed = ref(false)
@@ -667,17 +667,19 @@ function getAdaptivePanelWidth(
   mode: LayoutMode,
   pageWidth: number
 ): number {
-  if (mode === 'small') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.76, 260, 360)
-      : clampPanelNumber(pageWidth * 0.80, 280, 380)
-  }
+  void mode
 
-  if (mode === 'medium') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.36, 320, 480)
-      : clampPanelNumber(pageWidth * 0.40, 360, 540)
-  }
+  /*
+   * 面板宽度连续化：
+   * layoutMode 只负责布局形态，不再决定面板宽度。
+   *
+   * 原逻辑：
+   * - small:  left 0.76 / right 0.80
+   * - medium: left 0.36 / right 0.40
+   * - large:  left 0.19 / right 0.21
+   *
+   * 所以在 1440 和 800 附近会突然变宽。
+   */
 
   const isTeachingLargeScreen =
     pageWidth >= 2200
@@ -689,8 +691,8 @@ function getAdaptivePanelWidth(
   }
 
   return side === 'left'
-    ? clampPanelNumber(pageWidth * 0.19, 340, 520)
-    : clampPanelNumber(pageWidth * 0.21, 380, 580)
+    ? clampPanelNumber(pageWidth * 0.24, 300, 360)
+    : clampPanelNumber(pageWidth * 0.28, 320, 420)
 }
 
 function getPanelResizeBounds(
@@ -700,86 +702,46 @@ function getPanelResizeBounds(
     rootRef.value?.clientWidth ||
     window.innerWidth
 
-  if (layoutMode.value === 'small') {
-    return {
-      min:
-        side === 'left'
-          ? 220
-          : 240,
-      max:
-        Math.max(
-          side === 'left'
-            ? 220
-            : 240,
-          Math.min(
-            side === 'left'
-              ? 420
-              : 440,
-            pageWidth * 0.86
-          )
-        ),
-    }
-  }
-
-  if (layoutMode.value === 'medium') {
-    return {
-      min:
-        side === 'left'
-          ? 280
-          : 300,
-      max:
-        Math.max(
-          side === 'left'
-            ? 280
-            : 300,
-          Math.min(
-            side === 'left'
-              ? 640
-              : 700,
-            pageWidth * 0.60
-          )
-        ),
-    }
-  }
-
   /*
-   * large 分两档：
-   * 1. 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
-   *    这类屏幕最大拖拽宽度要收敛，避免压迫主场景。
-   *
-   * 2. 超大屏：2200px 以上，才放开到教室大屏 / 2K / 4K 的拖拽上限。
+   * 拖拽边界连续化：
+   * 不再按 layoutMode.value === small / medium / large 分段。
    */
   const isUltraLargeScreen =
     pageWidth >= 2200
 
+  const min =
+    side === 'left'
+      ? 280
+      : 300
+
+  const maxLimit =
+    side === 'left'
+      ? (
+        isUltraLargeScreen
+          ? 820
+          : 420
+      )
+      : (
+        isUltraLargeScreen
+          ? 900
+          : 480
+      )
+
+  const ratio =
+    isUltraLargeScreen
+      ? 0.54
+      : side === 'left'
+        ? 0.42
+        : 0.46
+
   return {
-    min:
-      side === 'left'
-        ? 300
-        : 340,
+    min,
     max:
       Math.max(
-        side === 'left'
-          ? 300
-          : 340,
+        min,
         Math.min(
-          side === 'left'
-            ? (
-              isUltraLargeScreen
-                ? 820
-                : 560
-            )
-            : (
-              isUltraLargeScreen
-                ? 900
-                : 620
-            ),
-          pageWidth *
-          (
-            isUltraLargeScreen
-              ? 0.54
-              : 0.38
-          )
+          maxLimit,
+          pageWidth * ratio
         )
       ),
   }
@@ -3796,5 +3758,12 @@ function normalizeLon(value: number) {
    - 默认宽度阈值从 1880 提升到 2200
    - 最大拖拽宽度：普通 large 左 560 / 右 620；2200 以上左 820 / 右 900
    - 右侧实时数据字号增强只在 2200px 以上触发
+*/
+
+/* ===================== v13: 面板宽度连续化 =====================
+   对应 script 中 getAdaptivePanelWidth / getPanelResizeBounds。
+   - 修复 1440 断点面板突然变宽；
+   - 修复 800 断点面板突然变宽；
+   - layoutMode 只负责布局形态，不再决定面板宽度。
 */
 </style>

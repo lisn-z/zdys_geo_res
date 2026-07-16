@@ -1,16 +1,10 @@
 <template>
-  <div
-    ref="pageRef"
-    class="soil-erosion-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="soil-erosion-container geo-template-page geo-page theme-dark"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
       <h1 class="page-title">水土流失</h1>
       <div class="toolbar-actions">
@@ -20,15 +14,15 @@
       </div>
     </header>
 
-    <main
-      class="workspace"
-      :class="{ 'has-left': hasLeftPanel, 'has-right': hasRightPanel }"
-      :style="{ '--left-panel-width': leftCollapsed ? '0px' : leftPanelWidth + 'px', '--right-panel-width': rightCollapsed ? '0px' : rightPanelWidth + 'px' }"
-    >
+    <main class="workspace" :class="{ 'has-left': hasLeftPanel, 'has-right': hasRightPanel }"
+      :style="{ '--left-panel-width': leftCollapsed ? '0px' : leftPanelWidth + 'px', '--right-panel-width': rightCollapsed ? '0px' : rightPanelWidth + 'px' }">
       <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
         <div class="panel-scroll">
           <div class="panel-heading">
-            <div><h2>实验变量调控</h2><p>调整参数观察水土流失变化</p></div>
+            <div>
+              <h2>实验变量调控</h2>
+              <p>调整参数观察水土流失变化</p>
+            </div>
             <span class="panel-badge">CONTROL</span>
           </div>
 
@@ -58,7 +52,8 @@
               <div class="control-copy"><strong>🌱 土壤质地</strong><span>不同质地对侵蚀的影响</span></div>
             </div>
             <div class="soil-type-grid">
-              <button v-for="s in soilOptions" :key="s.value" type="button" class="theme-btn option-btn" :class="{ active: soilTypeState === s.value }" @click="selectSoil(s.value)">
+              <button v-for="s in soilOptions" :key="s.value" type="button" class="theme-btn option-btn"
+                :class="{ active: soilTypeState === s.value }" @click="selectSoil(s.value)">
                 {{ s.icon }} {{ s.label }}
               </button>
             </div>
@@ -67,10 +62,12 @@
           <section class="geo-card control-section">
             <h3 class="section-title">⚡ 快速预设场景</h3>
             <div class="preset-grid">
-              <button type="button" class="theme-btn option-btn" :class="{ active: activePreset === 'forest' }" @click="applyPreset('forest')">
+              <button type="button" class="theme-btn option-btn" :class="{ active: activePreset === 'forest' }"
+                @click="applyPreset('forest')">
                 🌲 生态林区 · 高覆盖 / 缓坡 / 壤土
               </button>
-              <button type="button" class="theme-btn option-btn" :class="{ active: activePreset === 'plateau' }" @click="applyPreset('plateau')">
+              <button type="button" class="theme-btn option-btn" :class="{ active: activePreset === 'plateau' }"
+                @click="applyPreset('plateau')">
                 🏜️ 黄土高原 · 低覆盖 / 陡坡 / 黏土
               </button>
             </div>
@@ -79,7 +76,8 @@
           <section class="geo-card control-section">
             <h3 class="section-title">🎬 模拟控制</h3>
             <div class="sim-control-row">
-              <button type="button" class="theme-btn option-btn" :class="{ 'sim-active': isRaining }" @click="toggleSimulation">{{ simulateButtonText }}</button>
+              <button type="button" class="theme-btn option-btn" :class="{ 'sim-active': isRaining }"
+                @click="toggleSimulation">{{ simulateButtonText }}</button>
               <button type="button" class="theme-btn option-btn" @click="resetAll">重置场景</button>
             </div>
             <div v-if="isRaining || progress > 0" class="timer-display">
@@ -92,7 +90,8 @@
           </section>
         </div>
         <div class="resize-handle resize-right" @pointerdown.stop.prevent="startResize('left', $event)"></div>
-        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板" @click="leftCollapsed = true">‹</button>
+        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
+          @click="leftCollapsed = true">‹</button>
       </aside>
 
       <section class="center-stage">
@@ -101,44 +100,61 @@
             <canvas ref="canvasRef" class="scene-canvas"></canvas>
           </div>
           <div v-if="isRaining" class="sim-status-badge sim-running"><span class="sim-dot"></span>模拟运行中</div>
-          <div v-else-if="progress > 0 && progress < 100" class="sim-status-badge sim-paused"><span class="sim-dot"></span>模拟已暂停</div>
+          <div v-else-if="progress > 0 && progress < 100" class="sim-status-badge sim-paused"><span
+              class="sim-dot"></span>模拟已暂停</div>
           <div v-else class="sim-status-badge sim-idle"><span class="sim-dot"></span>待机中</div>
           <div v-if="progress === 0" class="scene-hint">点击"开始降雨模拟"，观察径流、侵蚀与含沙量变化</div>
         </div>
 
         <div class="timeline-dock">
-          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }" :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlay">
-            <el-icon><VideoPause v-if="isPlaying" /><VideoPlay v-else /></el-icon>
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlay">
+            <el-icon>
+              <VideoPause v-if="isPlaying" />
+              <VideoPlay v-else />
+            </el-icon>
           </button>
           <div class="timeline-main">
             <div class="timeline-copy"><span>模拟进度</span><strong>{{ Math.round(progress) }}%</strong></div>
             <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" @change="onProgressSeek" />
           </div>
-          <button type="button" class="theme-btn speed-btn" @click="cycleSpeed" :title="'倍速: ' + playbackSpeed + '×'">{{ playbackSpeed }}×</button>
+          <button type="button" class="theme-btn speed-btn" @click="cycleSpeed" :title="'倍速: ' + playbackSpeed + '×'">{{
+            playbackSpeed }}×</button>
         </div>
       </section>
 
       <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: rightCollapsed }">
         <div class="panel-scroll">
           <div class="panel-heading">
-            <div><h2>模拟结果</h2><p>实时水土流失监测数据</p></div>
+            <div>
+              <h2>模拟结果</h2>
+              <p>实时水土流失监测数据</p>
+            </div>
             <span class="panel-badge">DATA</span>
           </div>
           <div class="data-grid">
-            <article class="geo-card data-card" :class="dataCardClass(0)"><span>💧 地表径流量</span><strong>{{ simStats.runoff }}</strong><small>L/s · 水流强度</small></article>
-            <article class="geo-card data-card" :class="dataCardClass(1)"><span>⛰️ 流失土壤量</span><strong>{{ simStats.erosion.toFixed(1) }}</strong><small>kg · 土壤损失</small></article>
-            <article class="geo-card data-card" :class="dataCardClass(2)"><span>🟠 河流含沙量</span><strong>{{ simStats.sediment }}</strong><small>% · 浑浊度</small></article>
+            <article class="geo-card data-card" :class="dataCardClass(0)"><span>💧 地表径流量</span><strong>{{
+                simStats.runoff }}</strong><small>L/s · 水流强度</small></article>
+            <article class="geo-card data-card" :class="dataCardClass(1)"><span>⛰️ 流失土壤量</span><strong>{{
+              simStats.erosion.toFixed(1) }}</strong><small>kg · 土壤损失</small></article>
+            <article class="geo-card data-card" :class="dataCardClass(2)"><span>🟠 河流含沙量</span><strong>{{
+              simStats.sediment }}</strong><small>% · 浑浊度</small></article>
           </div>
           <div class="erosion-level-card geo-card">
-            <div class="level-header"><span>流失等级评估</span><span class="level-badge" :class="levelClass">{{ levelText }}</span></div>
-            <div class="level-track"><div class="level-fill" :style="{ width: levelPercent + '%' }"></div></div>
+            <div class="level-header"><span>流失等级评估</span><span class="level-badge" :class="levelClass">{{ levelText
+                }}</span></div>
+            <div class="level-track">
+              <div class="level-fill" :style="{ width: levelPercent + '%' }"></div>
+            </div>
             <div class="level-labels"><span>轻度</span><span>中度</span><span>重度</span></div>
           </div>
           <el-collapse v-model="activePanels" class="analysis-collapse">
             <el-collapse-item title="🌍 什么是水土流失" name="concept">
               <div class="collapse-content principle-content">
                 <p><strong>定义：</strong>水土流失是指土壤在<strong>水力、风力、重力</strong>等外力作用下，被破坏、剥蚀、搬运和沉积的过程。</p>
-                <p><strong>主要分布区：</strong>我国水土流失主要发生在<strong>山区、丘陵区和风沙区</strong>，尤其是<strong>黄土高原</strong>。我国是世界上水土流失最严重的国家之一。</p>
+                <p>
+                  <strong>主要分布区：</strong>我国水土流失主要发生在<strong>山区、丘陵区和风沙区</strong>，尤其是<strong>黄土高原</strong>。我国是世界上水土流失最严重的国家之一。
+                </p>
                 <p><strong>发生过程：</strong>降雨落在地面→土壤被雨滴打散→地表水汇成径流→冲刷土壤→携带泥沙流入河流→在低洼处沉积。</p>
               </div>
             </el-collapse-item>
@@ -149,7 +165,9 @@
                 <p>② <strong>气候：</strong>温带季风气候，<strong>夏季降水集中</strong>且多暴雨。</p>
                 <p>③ <strong>地形：</strong>坡度大，<strong>沟壑纵横</strong>，利于水流冲刷。</p>
                 <p>④ <strong>植被：</strong>天然植被<strong>覆盖率低</strong>，保护作用弱。</p>
-                <p><strong>人为原因：</strong><strong>过度开垦</strong>陡坡、<strong>过度放牧</strong>、<strong>过度砍伐</strong>、<strong>露天开矿</strong>等破坏地表植被。</p>
+                <p>
+                  <strong>人为原因：</strong><strong>过度开垦</strong>陡坡、<strong>过度放牧</strong>、<strong>过度砍伐</strong>、<strong>露天开矿</strong>等破坏地表植被。
+                </p>
               </div>
             </el-collapse-item>
             <el-collapse-item title="⚠️ 水土流失的危害" name="harm">
@@ -171,11 +189,14 @@
           </el-collapse>
         </div>
         <div class="resize-handle resize-left" @pointerdown.stop.prevent="startResize('right', $event)"></div>
-        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板" @click="rightCollapsed = true">›</button>
+        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
+          @click="rightCollapsed = true">›</button>
       </aside>
 
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left" aria-label="展开左侧面板" @click="leftCollapsed = false">›</button>
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right" aria-label="展开右侧面板" @click="rightCollapsed = false">‹</button>
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left" aria-label="展开左侧面板"
+        @click="leftCollapsed = false">›</button>
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+        aria-label="展开右侧面板" @click="rightCollapsed = false">‹</button>
     </main>
   </div>
 </template>
@@ -190,8 +211,8 @@ const pageRef = ref<HTMLElement | null>(null)
 const hasLeftPanel = true
 const hasRightPanel = true
 const layoutMode = ref<'large' | 'medium' | 'small'>('large')
-const leftPanelWidth = ref(420)
-const rightPanelWidth = ref(500)
+const leftPanelWidth = ref(360)
+const rightPanelWidth = ref(420)
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
 
@@ -304,20 +325,63 @@ function gtf(fw?: number): number {
 function iuls(fw?: number) { return gtf(fw) >= 2200 }
 
 function gapw(side: 'left' | 'right', mode: string, pw: number) {
+  void mode
+
   const e = gtf(pw)
-  if (mode === 'small') return side === 'left' ? cl(pw * 0.76, 260, 360) : cl(pw * 0.8, 280, 380)
-  if (mode === 'medium') return side === 'left' ? cl(pw * 0.36, 320, 480) : cl(pw * 0.4, 360, 540)
-  if (iuls(e)) return side === 'left' ? cl(e * 0.22, 420, 640) : cl(e * 0.25, 500, 760)
-  return side === 'left' ? cl(pw * 0.19, 340, 520) : cl(pw * 0.21, 380, 580)
+
+  /*
+   * 面板宽度连续化：
+   * layoutMode 只负责布局形态，不再参与面板宽度计算。
+   *
+   * 原逻辑：
+   * - large:  left 0.19 / right 0.21
+   * - medium: left 0.36 / right 0.40
+   * - small:  left 0.76 / right 0.80
+   *
+   * 这会导致 1280 和 860 附近突然变宽。
+   */
+  if (iuls(e)) {
+    return side === 'left'
+      ? cl(e * 0.22, 420, 640)
+      : cl(e * 0.25, 500, 760)
+  }
+
+  return side === 'left'
+    ? cl(pw * 0.24, 300, 360)
+    : cl(pw * 0.28, 320, 420)
 }
 
 function gprb(side: 'left' | 'right') {
   const pw = pageRef.value?.clientWidth || window.innerWidth
   const e = gtf(pw)
-  if (layoutMode.value === 'small') return { min: side === 'left' ? 220 : 240, max: Math.max(side === 'left' ? 220 : 240, Math.min(side === 'left' ? 420 : 440, pw * 0.86)) }
-  if (layoutMode.value === 'medium') return { min: side === 'left' ? 280 : 300, max: Math.max(side === 'left' ? 280 : 300, Math.min(side === 'left' ? 640 : 700, pw * 0.6)) }
   const u = iuls(e)
-  return { min: side === 'left' ? 300 : 340, max: Math.max(side === 'left' ? 300 : 340, Math.min(side === 'left' ? (u ? 820 : 560) : (u ? 900 : 620), e * (u ? 0.54 : 0.38))) }
+
+  /*
+   * 拖拽边界也连续化：
+   * - 普通屏左侧最多 420px，右侧最多 480px
+   * - 超大屏保留更大的拖拽范围
+   */
+  const min = side === 'left' ? 280 : 300
+  const maxLimit = side === 'left'
+    ? (u ? 820 : 420)
+    : (u ? 900 : 480)
+
+  const ratio = u
+    ? 0.54
+    : side === 'left'
+      ? 0.42
+      : 0.46
+
+  return {
+    min,
+    max: Math.max(
+      min,
+      Math.min(
+        maxLimit,
+        e * ratio
+      )
+    )
+  }
 }
 
 function ulm() {
@@ -797,6 +861,7 @@ onBeforeUnmount(() => {
 .scene-host {
   overflow: hidden;
 }
+
 .scene-host canvas {
   display: block;
   background: #c8e6fa;
@@ -819,14 +884,54 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(6px);
   z-index: 2;
 }
-.sim-running { background: rgba(239, 68, 68, 0.78); color: #fff; }
-.sim-paused { background: rgba(245, 158, 11, 0.78); color: #fff; }
-.sim-idle { background: rgba(0, 0, 0, 0.4); color: rgba(255, 255, 255, 0.85); }
-.sim-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-.sim-running .sim-dot { background: #ff6b6b; box-shadow: 0 0 6px rgba(255, 107, 107, 0.6); animation: pulse-dot 1.2s ease-in-out infinite; }
-.sim-paused .sim-dot { background: #fbbf24; }
-.sim-idle .sim-dot { background: rgba(255, 255, 255, 0.5); }
-@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.sim-running {
+  background: rgba(239, 68, 68, 0.78);
+  color: #fff;
+}
+
+.sim-paused {
+  background: rgba(245, 158, 11, 0.78);
+  color: #fff;
+}
+
+.sim-idle {
+  background: rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sim-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.sim-running .sim-dot {
+  background: #ff6b6b;
+  box-shadow: 0 0 6px rgba(255, 107, 107, 0.6);
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+.sim-paused .sim-dot {
+  background: #fbbf24;
+}
+
+.sim-idle .sim-dot {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+@keyframes pulse-dot {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
 
 /* ===== Scene Hint ===== */
 .scene-hint {
@@ -844,33 +949,141 @@ onBeforeUnmount(() => {
 }
 
 /* ===== Soil Type ===== */
-.soil-type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.soil-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
 
 /* ===== Sim Control ===== */
-.sim-control-row { display: flex; gap: 10px; }
-.sim-control-row button { min-height: 44px; font-size: 14px; }
-.sim-control-row button:first-child { flex: 1; }
-.timer-display { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; font-weight: 800; color: var(--theme-warning, #e67e22); }
-.timer-icon { font-size: 16px; }
-.sound-switch-row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--inactive-border, rgba(255, 255, 255, 0.08)); }
+.sim-control-row {
+  display: flex;
+  gap: 10px;
+}
+
+.sim-control-row button {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.sim-control-row button:first-child {
+  flex: 1;
+}
+
+.timer-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--theme-warning, #e67e22);
+}
+
+.timer-icon {
+  font-size: 16px;
+}
+
+.sound-switch-row {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--inactive-border, rgba(255, 255, 255, 0.08));
+}
 
 /* ===== Erosion Level ===== */
-.erosion-level-card { padding: 14px 16px; margin-bottom: 12px; }
-.level-header { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; margin-bottom: 10px; }
-.level-badge { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 900; }
-.level-good { background: #dcfce7; color: #15803d; }
-.level-mid { background: #ffedd5; color: #c2410c; }
-.level-bad { background: #fee2e2; color: #b91c1c; }
-.level-track { height: 8px; background: rgba(255, 255, 255, 0.12); border-radius: 999px; overflow: hidden; }
-.level-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #22c55e, #f97316, #ef4444); transition: width 0.25s ease; }
-.level-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--text-muted); font-weight: 700; }
+.erosion-level-card {
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.level-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.level-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.level-good {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.level-mid {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.level-bad {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.level-track {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.level-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22c55e, #f97316, #ef4444);
+  transition: width 0.25s ease;
+}
+
+.level-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
 
 /* ===== Knowledge ===== */
-.principle-content p { margin-bottom: 10px; font-size: 13px; line-height: 1.7; }
-.principle-content p:last-child { margin-bottom: 0; }
-.principle-content strong { color: var(--theme-primary, #2ec4b6); }
+.principle-content p {
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.principle-content p:last-child {
+  margin-bottom: 0;
+}
+
+.principle-content strong {
+  color: var(--theme-primary, #2ec4b6);
+}
 
 /* ===== Data Grid ===== */
-.data-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 12px; }
-@media (min-width: 1600px) { .data-grid { grid-template-columns: repeat(2, 1fr); } }
+.data-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+@media (min-width: 1600px) {
+  .data-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ===================== v1: 面板宽度连续化 =====================
+   对应 script 中 gapw / gprb。
+   - 修复 1280 断点面板突然变宽；
+   - 修复 860 断点面板突然变宽；
+   - layoutMode 只负责布局形态，不再决定面板宽度。
+*/
 </style>

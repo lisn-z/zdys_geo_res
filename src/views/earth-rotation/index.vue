@@ -251,7 +251,7 @@
                 <span class="axis-info-item">A: <b style="color:#ef4444">{{ formatLon(pointA.lon) }}</b></span>
                 <span class="axis-info-item">B: <b style="color:#247cff">{{ formatLon(pointB.lon) }}</b></span>
                 <span class="axis-info-item">经度差: <b style="color:#fbbf24">{{ calcLonDiff(pointA.lon, pointB.lon)
-                    }}°</b></span>
+                }}°</b></span>
                 <span class="axis-info-item">时差: <b style="color:#2ec4b6">{{ formatTimeDiff(calcLonDiff(pointA.lon,
                   pointB.lon) / 15) }}</b></span>
                 <span class="axis-info-item">{{ pointA.lon > pointB.lon ? 'A东B西' : 'B东A西' }}</span>
@@ -593,8 +593,8 @@ const gridLabelDefs: { text: string; lat: number; lon: number; special?: boolean
 const containerRef = ref<HTMLDivElement>()
 const rootRef = ref<HTMLElement>()
 const layoutMode = ref<'large' | 'medium' | 'small'>('large')
-const leftPanelWidth = ref(420)
-const rightPanelWidth = ref(500)
+const leftPanelWidth = ref(360)
+const rightPanelWidth = ref(420)
 const bottomAxisVisible = ref(true)
 const allPanelsCollapsed = computed(() =>
   panelCollapsed.value &&
@@ -705,27 +705,25 @@ function getAdaptivePanelWidth(
   mode: 'large' | 'medium' | 'small',
   pageWidth: number
 ): number {
+  void mode
+
   const effectiveWidth =
     getEffectiveTemplateWidth(
       pageWidth
     )
 
-  if (mode === 'small') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.76, 260, 360)
-      : clampPanelNumber(pageWidth * 0.80, 280, 380)
-  }
-
-  if (mode === 'medium') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.36, 320, 480)
-      : clampPanelNumber(pageWidth * 0.40, 360, 540)
-  }
-
   /*
-   * 2K / 4K / 教室超大屏增强：
-   * 普通 1920×1080 电脑不默认触发。
+   * 面板宽度连续化：
+   * layoutMode 只负责布局形态，不再决定面板宽度。
+   *
+   * 原逻辑：
+   * - small:  left 0.76 / right 0.80
+   * - medium: left 0.36 / right 0.40
+   * - large:  left 0.19 / right 0.21
+   *
+   * 所以在 1280 和 860 附近会突然变宽。
    */
+
   if (
     isUltraLargeTemplateScreen(
       effectiveWidth
@@ -737,8 +735,8 @@ function getAdaptivePanelWidth(
   }
 
   return side === 'left'
-    ? clampPanelNumber(pageWidth * 0.19, 340, 520)
-    : clampPanelNumber(pageWidth * 0.21, 380, 580)
+    ? clampPanelNumber(pageWidth * 0.24, 300, 360)
+    : clampPanelNumber(pageWidth * 0.28, 320, 420)
 }
 
 function getPanelResizeBounds(
@@ -753,88 +751,48 @@ function getPanelResizeBounds(
       pageWidth
     )
 
-  if (layoutMode.value === 'small') {
-    return {
-      min:
-        side === 'left'
-          ? 220
-          : 240,
-      max:
-        Math.max(
-          side === 'left'
-            ? 220
-            : 240,
-          Math.min(
-            side === 'left'
-              ? 420
-              : 440,
-            pageWidth * 0.86
-          )
-        ),
-    }
-  }
-
-  if (layoutMode.value === 'medium') {
-    return {
-      min:
-        side === 'left'
-          ? 280
-          : 300,
-      max:
-        Math.max(
-          side === 'left'
-            ? 280
-            : 300,
-          Math.min(
-            side === 'left'
-              ? 640
-              : 700,
-            pageWidth * 0.60
-          )
-        ),
-    }
-  }
-
   /*
-   * 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
-   * 左侧最多 560px，右侧最多 620px。
-   *
-   * 超大屏：有效宽度 2200px 以上。
-   * 左侧最多 820px，右侧最多 900px。
+   * 拖拽边界连续化：
+   * 不再按 layoutMode.value === small / medium / large 分段。
    */
   const isUltraLargeScreen =
     isUltraLargeTemplateScreen(
       effectiveWidth
     )
 
+  const min =
+    side === 'left'
+      ? 280
+      : 300
+
+  const maxLimit =
+    side === 'left'
+      ? (
+        isUltraLargeScreen
+          ? 820
+          : 420
+      )
+      : (
+        isUltraLargeScreen
+          ? 900
+          : 480
+      )
+
+  const ratio =
+    isUltraLargeScreen
+      ? 0.54
+      : side === 'left'
+        ? 0.42
+        : 0.46
+
   return {
-    min:
-      side === 'left'
-        ? 300
-        : 340,
+    min,
     max:
       Math.max(
-        side === 'left'
-          ? 300
-          : 340,
+        min,
         Math.min(
-          side === 'left'
-            ? (
-              isUltraLargeScreen
-                ? 820
-                : 560
-            )
-            : (
-              isUltraLargeScreen
-                ? 900
-                : 620
-            ),
-          effectiveWidth *
-          (
-            isUltraLargeScreen
-              ? 0.54
-              : 0.38
-          )
+          maxLimit,
+          effectiveWidth * ratio
         )
       ),
   }
@@ -5744,4 +5702,11 @@ body.geo-panel-resizing {
       end;
   }
 }
+
+/* ===================== v22: 面板宽度连续化 =====================
+   对应 script 中 getAdaptivePanelWidth / getPanelResizeBounds。
+   - 修复 1280 断点面板突然变宽；
+   - 修复 860 断点面板突然变宽；
+   - layoutMode 只负责布局形态，不再决定面板宽度。
+*/
 </style>
