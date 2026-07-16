@@ -124,7 +124,6 @@ export const routes = [
       import('@/views/general-atmospheric-circulation/index.vue'),
   },
   {
-<<<<<<< HEAD
     path: '/water-recycle',
     name: 'water-recycle',
     meta: {
@@ -132,7 +131,8 @@ export const routes = [
     },
     component: () =>
       import('@/views/water-recycle/index.vue'),
-=======
+  },
+  {
     path: '/soil-erosion',
     name: 'soil-erosion',
     meta: {
@@ -140,7 +140,6 @@ export const routes = [
     },
     component: () =>
       import('@/views/soil-erosion/index.vue'),
->>>>>>> 3975dfb1a83f9b1e0778bb8f4c3aaa1035fe5d6b
   },
 ]
 
