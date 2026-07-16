@@ -3370,10 +3370,10 @@ let microCamera: THREE.PerspectiveCamera | null = null
 let microRenderer: THREE.WebGLRenderer | null = null
 let microControls: OrbitControls | null = null
 let microAnimationId = 0
+let microResizeObserver: ResizeObserver | null = null
 let microResizeFrame = 0
 let microLastWidth = 0
 let microLastHeight = 0
-let microResizeObserver: ResizeObserver | null = null
 let microRoot: THREE.Group | null = null
 let microLoaded = false
 
@@ -3462,8 +3462,30 @@ function buildMicroFallback() {
 function initMicroScene() {
   if (!microContainerRef.value || microScene) return
 
-  const width = Math.max(microContainerRef.value.clientWidth, 1)
-  const height = Math.max(microContainerRef.value.clientHeight, 1)
+  const rect =
+    microContainerRef.value.getBoundingClientRect()
+
+  const width =
+    Math.max(
+      1,
+      Math.round(
+        rect.width ||
+        microContainerRef.value.clientWidth ||
+        microContainerRef.value.offsetWidth ||
+        1
+      )
+    )
+
+  const height =
+    Math.max(
+      1,
+      Math.round(
+        rect.height ||
+        microContainerRef.value.clientHeight ||
+        microContainerRef.value.offsetHeight ||
+        1
+      )
+    )
 
   microScene = new THREE.Scene()
   microScene.background = new THREE.Color(0xfffdf7)
@@ -3484,7 +3506,6 @@ function initMicroScene() {
   microRenderer.domElement.style.display = 'block'
   microRenderer.domElement.style.width = '100%'
   microRenderer.domElement.style.height = '100%'
-
   microContainerRef.value.appendChild(microRenderer.domElement)
 
   microControls = new OrbitControls(microCamera, microRenderer.domElement)
@@ -3525,34 +3546,29 @@ function initMicroScene() {
 
   buildMicroFallback()
 
-  microResizeObserver = new ResizeObserver(resizeMicroScene)
+  microResizeObserver?.disconnect()
+  microResizeObserver = new ResizeObserver(() => {
+    scheduleMicroSceneResize(true)
+  })
   microResizeObserver.observe(microContainerRef.value)
 
+  resizeMicroScene(true)
   startMicroAnimation()
 }
 
-function resizeMicroSceneNow(force = false) {
-  const container =
-    microContainerRef.value
-
-  if (
-    !container ||
-    !microCamera ||
-    !microRenderer
-  ) {
-    return
-  }
+function resizeMicroScene(force = false) {
+  if (!microContainerRef.value || !microRenderer || !microCamera) return
 
   const rect =
-    container.getBoundingClientRect()
+    microContainerRef.value.getBoundingClientRect()
 
   const width =
     Math.max(
       1,
       Math.round(
         rect.width ||
-        container.clientWidth ||
-        container.offsetWidth ||
+        microContainerRef.value.clientWidth ||
+        microContainerRef.value.offsetWidth ||
         1
       )
     )
@@ -3562,8 +3578,8 @@ function resizeMicroSceneNow(force = false) {
       1,
       Math.round(
         rect.height ||
-        container.clientHeight ||
-        container.offsetHeight ||
+        microContainerRef.value.clientHeight ||
+        microContainerRef.value.offsetHeight ||
         1
       )
     )
@@ -3583,29 +3599,14 @@ function resizeMicroSceneNow(force = false) {
   microCamera.updateProjectionMatrix()
 
   microRenderer.setPixelRatio(
-    Math.min(
-      window.devicePixelRatio || 1,
-      2
-    )
+    Math.min(window.devicePixelRatio || 1, 2)
   )
 
-  microRenderer.setSize(
-    width,
-    height,
-    false
-  )
+  microRenderer.setSize(width, height, false)
 
-  const canvas =
-    microRenderer.domElement
-
-  canvas.style.width =
-    `${width}px`
-
-  canvas.style.height =
-    `${height}px`
-
-  canvas.style.display =
-    'block'
+  microRenderer.domElement.style.display = 'block'
+  microRenderer.domElement.style.width = '100%'
+  microRenderer.domElement.style.height = '100%'
 }
 
 function scheduleMicroSceneResize(force = false) {
@@ -3616,25 +3617,11 @@ function scheduleMicroSceneResize(force = false) {
   microResizeFrame =
     requestAnimationFrame(() => {
       microResizeFrame = 0
-      resizeMicroSceneNow(force)
+      resizeMicroScene(force)
     })
 }
 
-function bindMicroResizeObserver() {
-  const container =
-    microContainerRef.value
-
-  if (!container) return
-
-  microResizeObserver?.disconnect()
-
-  microResizeObserver =
-    new ResizeObserver(() => {
-      scheduleMicroSceneResize(true)
-    })
-
-  microResizeObserver.observe(container)
-
+function resizeMicroSceneAfterModalOpen() {
   scheduleMicroSceneResize(true)
 
   window.setTimeout(() => {
@@ -3833,17 +3820,14 @@ function startMicroAnimation() {
 async function openMicroModal() {
   microOpen.value = true
   await nextTick()
-
-  bindMicroResizeObserver()
   initMicroScene()
-  resizeMicroSceneNow(true)
+  resizeMicroScene(true)
+  resizeMicroSceneAfterModalOpen()
   loadMicroModel()
 }
 
 function closeMicroModal() {
-
-  microResizeObserver?.disconnect()
-  microResizeObserver = null
+  microOpen.value = false
 
   if (microResizeFrame) {
     cancelAnimationFrame(microResizeFrame)
@@ -3852,8 +3836,6 @@ function closeMicroModal() {
 
   microLastWidth = 0
   microLastHeight = 0
-
-  microOpen.value = false
 }
 
 /* ============================== 生命周期 ============================== */
@@ -3915,6 +3897,17 @@ function disposeMainScene() {
 }
 
 function disposeMicroScene() {
+  microResizeObserver?.disconnect()
+  microResizeObserver = null
+
+  if (microResizeFrame) {
+    cancelAnimationFrame(microResizeFrame)
+    microResizeFrame = 0
+  }
+
+  microLastWidth = 0
+  microLastHeight = 0
+
   microControls?.dispose()
   microResizeObserver?.disconnect()
 
@@ -4876,12 +4869,14 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 
-/* ===================== v10: 微观弹窗 3D 场景平板 resize 修复 =====================
-   - 不改公共模板按钮 / Header / 面板样式；
-   - 只修复微观生态弹窗里的 Three.js 容器尺寸；
-   - 平板弹窗宽高变化后，canvas 必须跟随 .micro-scene 重新计算。
+/* ===================== v11: 微观弹窗可见性修复 + 时间轴收短圆角 + 平板分析面板避让 =====================
+   - 修复 v10 重复 microResizeObserver / 函数名不一致导致微观模型不可见；
+   - 平板弹窗打开后按真实容器宽高 resize 微观 Three.js；
+   - 底部进度条中小屏短一点，并补圆角；
+   - 平板上主场景分析面板挪到右侧，避开覆盖式左面板。
 */
 
+/* 微观弹窗 Three 容器：只处理弹窗内部，不碰模板按钮/面板 */
 .micro-scene {
   position:
     relative;
@@ -4893,8 +4888,6 @@ input[type="range"]::-webkit-slider-thumb {
     320px;
   overflow:
     hidden;
-  contain:
-    layout size;
 }
 
 .micro-scene :deep(canvas),
@@ -4936,6 +4929,88 @@ input[type="range"]::-webkit-slider-thumb {
       min(42vh, 340px);
     min-height:
       240px;
+  }
+}
+
+/* 底部进度条：中小屏短一点 + 圆角 */
+.soil-main-area .timeline-dock {
+  width:
+    min(640px, calc(100% - 64px));
+  border-radius:
+    22px;
+}
+
+.soil-main-area .timeline-dock :deep(.el-slider__runway),
+.soil-main-area .timeline-dock :deep(.el-slider__bar),
+.soil-main-area .timeline-dock :deep(.el-slider__button) {
+  border-radius:
+    999px;
+}
+
+.layout-medium .soil-main-area .timeline-dock {
+  width:
+    min(500px, calc(100% - 84px));
+  border-radius:
+    20px;
+}
+
+.layout-small .soil-main-area .timeline-dock {
+  width:
+    min(420px, calc(100% - 72px));
+  border-radius:
+    18px;
+}
+
+@media (max-width: 720px) {
+  .soil-main-area .timeline-dock {
+    width:
+      min(360px, calc(100% - 44px));
+    border-radius:
+      18px;
+  }
+}
+
+/* 平板：分析面板移到右侧，避开覆盖式左面板 */
+.layout-medium .soil-main-area .analysis-panel {
+  left:
+    auto;
+  right:
+    clamp(12px, 2vw, 22px);
+  top:
+    clamp(54px, 6vh, 72px);
+  width:
+    min(300px, calc(100% - 36px));
+  max-height:
+    calc(100% - 152px);
+  z-index:
+    42;
+}
+
+@media (max-width: 1180px) {
+  .soil-main-area .analysis-panel {
+    left:
+      auto;
+    right:
+      clamp(12px, 2vw, 22px);
+    top:
+      clamp(54px, 6vh, 72px);
+    width:
+      min(300px, calc(100% - 36px));
+    max-height:
+      calc(100% - 152px);
+    z-index:
+      42;
+  }
+}
+
+@media (max-width: 760px) {
+  .soil-main-area .analysis-panel {
+    left:
+      auto;
+    right:
+      10px;
+    width:
+      min(260px, calc(100% - 20px));
   }
 }
 </style>

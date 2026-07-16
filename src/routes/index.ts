@@ -132,6 +132,15 @@ export const routes = [
     component: () =>
       import('@/views/aaa/index.vue'),
   },
+  {
+    path: '/soil-erosion',
+    name: 'soil-erosion',
+    meta: {
+      title: '水土流失',
+    },
+    component: () =>
+      import('@/views/soil-erosion/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
