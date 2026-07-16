@@ -8,7 +8,7 @@
           alt="logo" />
       </div>
 
-      <h1 class="page-title">地球自转专项训练器</h1>
+      <h1 class="page-title">地球自转与时区</h1>
 
       <div class="toolbar-actions">
         <div class="tab-group header-mode-tabs">
@@ -47,6 +47,30 @@
             </div>
             <span class="panel-badge">CTRL</span>
           </div>
+          <section class="geo-card control-section rotation-time-dock">
+            <div class="ctrl-title">⏱ 自转演示</div>
+            <div class="time-dock-main">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <button class="timeline-icon-btn" :class="{ active: isPlaying }" :aria-label="isPlaying ? '暂停' : '播放'"
+                  @click="isPlaying = !isPlaying">
+                  <svg v-if="isPlaying" class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 5h4v14H7z"></path>
+                    <path d="M13 5h4v14h-4z"></path>
+                  </svg>
+                  <svg v-else class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5v14l11-7z"></path>
+                  </svg>
+                </button>
+                <span class="time-dock-title">地球自转演示时间轴</span>
+              </div>
+              <div style="padding:0 4px;">
+                <el-slider v-model="rotSpeed" :min="0.1" :max="10" :step="0.1" size="small" :show-tooltip="false" />
+              </div>
+              <div class="time-dock-meta single" style="margin-top:4px;">
+                <span>速度 {{ rotSpeed.toFixed(1) }}×</span>
+              </div>
+            </div>
+          </section>
           <section class="geo-card control-section brightness-control-section">
             <div class="ctrl-title">💡 亮度</div>
 
@@ -157,6 +181,8 @@
               </button>
             </div>
           </section>
+
+
         </div>
 
         <div class="resize-handle resize-right" @pointerdown.stop.prevent="startResize('left', $event)"></div>
@@ -194,7 +220,7 @@
 
           </div>
 
-          <div v-show="bottomDockVisible" class="bottom-dock-stack">
+          <div v-show="bottomAxisVisible" class="bottom-dock-stack">
             <!-- 底部经度轴 -->
             <section v-show="trainingMode === 'learn'" class="longitude-axis ab-axis-dock">
               <div class="axis-label">🌍 经度轴 · 拖动 A / B 标记</div>
@@ -208,13 +234,15 @@
                 </div>
                 <!-- A 点 -->
                 <div class="axis-point point-a" :class="{ disabled: trainingMode === 'test' }"
-                  :style="{ left: getAxisPercent(pointA.lon) + '%' }" @mousedown="onAxisMouseDown('A')">
+                  :style="{ left: getAxisPercent(pointA.lon) + '%' }"
+                  @pointerdown.stop.prevent="onAxisPointerDown('A', $event)">
                   <span class="point-badge a">A</span>
                   <span class="point-lon">{{ formatLon(pointA.lon) }}</span>
                 </div>
                 <!-- B 点 -->
                 <div class="axis-point point-b" :class="{ disabled: trainingMode === 'test' }"
-                  :style="{ left: getAxisPercent(pointB.lon) + '%' }" @mousedown="onAxisMouseDown('B')">
+                  :style="{ left: getAxisPercent(pointB.lon) + '%' }"
+                  @pointerdown.stop.prevent="onAxisPointerDown('B', $event)">
                   <span class="point-badge b">B</span>
                   <span class="point-lon">{{ formatLon(pointB.lon) }}</span>
                 </div>
@@ -230,27 +258,6 @@
               </div>
             </section>
 
-            <section class="rotation-time-dock">
-              <button class="timeline-icon-btn" :class="{ active: isPlaying }" :aria-label="isPlaying ? '暂停' : '播放'"
-                @click="isPlaying = !isPlaying">
-                <svg v-if="isPlaying" class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 5h4v14H7z"></path>
-                  <path d="M13 5h4v14h-4z"></path>
-                </svg>
-
-                <svg v-else class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 5v14l11-7z"></path>
-                </svg>
-              </button>
-
-              <div class="time-dock-main">
-                <div class="time-dock-title">地球自转演示时间轴</div>
-                <el-slider v-model="rotSpeed" :min="0.1" :max="10" :step="0.1" size="small" :show-tooltip="false" />
-                <div class="time-dock-meta single">
-                  <span>速度 {{ rotSpeed.toFixed(1) }}×</span>
-                </div>
-              </div>
-            </section>
           </div>
         </div>
       </section>
@@ -588,12 +595,11 @@ const rootRef = ref<HTMLElement>()
 const layoutMode = ref<'large' | 'medium' | 'small'>('large')
 const leftPanelWidth = ref(420)
 const rightPanelWidth = ref(500)
-const bottomDockVisible = ref(true)
-
+const bottomAxisVisible = ref(true)
 const allPanelsCollapsed = computed(() =>
   panelCollapsed.value &&
   knowledgeCollapsed.value &&
-  !bottomDockVisible.value
+  !bottomAxisVisible.value
 )
 
 function toggleAllPanels() {
@@ -604,7 +610,7 @@ function toggleAllPanels() {
     !shouldExpand
   knowledgeCollapsed.value =
     !shouldExpand
-  bottomDockVisible.value =
+  bottomAxisVisible.value =
     shouldExpand
 }
 
@@ -2175,8 +2181,6 @@ function initThree() {
 
   renderer.domElement.addEventListener('click', onCanvasClick)
   window.addEventListener('resize', onResize)
-  window.addEventListener('mousemove', onAxisMouseMove)
-  window.addEventListener('mouseup', onAxisMouseUp)
 
   applyLayerVisibility()
   generateProblem()
@@ -2888,12 +2892,19 @@ function onLegendDragEnd() {
   legendDragging = false
 }
 
-function onAxisMouseDown(point: 'A' | 'B') {
+function onAxisPointerDown(point: 'A' | 'B', event: PointerEvent) {
   if (trainingMode.value === 'test') return
   axisDragging.value = point
+  const handle = event.currentTarget as HTMLElement | null
+  if (handle && typeof handle.setPointerCapture === 'function') {
+    try { handle.setPointerCapture(event.pointerId) } catch { /* ignore */ }
+  }
+  window.addEventListener('pointermove', onAxisPointerMove)
+  window.addEventListener('pointerup', onAxisPointerUp, { once: true })
+  window.addEventListener('pointercancel', onAxisPointerUp, { once: true })
 }
 
-function onAxisMouseMove(event: MouseEvent) {
+function onAxisPointerMove(event: PointerEvent) {
   if (!axisDragging.value) return
   const axis = document.querySelector('.longitude-axis-bar') as HTMLElement
   if (!axis) return
@@ -2905,8 +2916,11 @@ function onAxisMouseMove(event: MouseEvent) {
   updateABMarkers()
 }
 
-function onAxisMouseUp() {
+function onAxisPointerUp() {
   axisDragging.value = null
+  window.removeEventListener('pointermove', onAxisPointerMove)
+  window.removeEventListener('pointerup', onAxisPointerUp)
+  window.removeEventListener('pointercancel', onAxisPointerUp)
 }
 
 function getAxisPercent(lon: number): number {
@@ -2956,10 +2970,11 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
   window.removeEventListener('resize', onResize)
+  window.removeEventListener('pointermove', onAxisPointerMove)
+  window.removeEventListener('pointerup', onAxisPointerUp)
+  window.removeEventListener('pointercancel', onAxisPointerUp)
   document.removeEventListener('pointermove', onPanelResizeMove)
   document.body.classList.remove('geo-panel-resizing')
-  window.removeEventListener('mousemove', onAxisMouseMove)
-  window.removeEventListener('mouseup', onAxisMouseUp)
   renderer?.domElement.removeEventListener('click', onCanvasClick)
   controls?.dispose()
   renderer?.dispose()
@@ -3123,6 +3138,8 @@ body {
   background: linear-gradient(135deg, rgba(46, 196, 182, 0.2), rgba(36, 124, 255, 0.2));
 }
 
+
+
 .control-panel .collapse-btn {
   right: -15px;
 }
@@ -3202,6 +3219,8 @@ body {
 .ctrl-btn.primary:hover {
   background: linear-gradient(135deg, #3dd4c4, #3b8cff);
 }
+
+
 
 .ctrl-btn.active {
   background: linear-gradient(135deg, rgba(46, 196, 182, 0.25), rgba(36, 124, 255, 0.25));
@@ -3536,6 +3555,8 @@ body {
   color: #ef4444;
 }
 
+
+
 .slide-up-enter-active,
 .slide-up-leave-active {
   transition: all 0.3s ease;
@@ -3709,6 +3730,8 @@ body {
   color: #ef4444;
 }
 
+
+
 .preview-body {
   padding: 12px 16px;
 }
@@ -3832,10 +3855,7 @@ body {
   white-space: nowrap;
 }
 
-.tab-btn:hover {
-  border-color: #2ec4b6;
-  color: #cbd5e1;
-}
+
 
 .tab-btn.active {
   background: linear-gradient(135deg, #2ec4b6, #247cff);
@@ -4128,6 +4148,7 @@ body {
   top: 50%;
   transform: translate(-50%, -50%);
   cursor: grab;
+  touch-action: none;
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -4316,8 +4337,7 @@ body {
     none;
 }
 
-.ab-axis-dock,
-.rotation-time-dock {
+.ab-axis-dock {
   pointer-events:
     auto;
   position:
@@ -4352,28 +4372,6 @@ body {
 .longitude-axis-bar {
   width:
     100%;
-}
-
-.rotation-time-dock {
-  display:
-    grid;
-  grid-template-columns:
-    auto minmax(0,
-      1fr);
-  align-items:
-    center;
-  gap:
-    12px;
-  padding:
-    10px 14px;
-  border:
-    1px solid rgba(46, 196, 182, 0.22);
-  border-radius:
-    16px;
-  background:
-    rgba(8, 14, 30, 0.72);
-  backdrop-filter:
-    blur(12px);
 }
 
 .timeline-icon-btn {
@@ -4559,13 +4557,6 @@ body {
 .ab-axis-dock {
   width:
     75% !important;
-  justify-self:
-    center;
-}
-
-.rotation-time-dock {
-  width:
-    50% !important;
   justify-self:
     center;
 }
@@ -4804,9 +4795,7 @@ body {
 }
 
 @media (max-width: 960px) {
-
-  .ab-axis-dock,
-  .rotation-time-dock {
+  .ab-axis-dock {
     width:
       100% !important;
   }
@@ -4976,15 +4965,20 @@ body {
 }
 
 .theme-btn.option-btn.answer-action:hover {
-  transform:
-    translateY(-1px);
   border-color:
-    rgba(46, 196, 182, 0.96);
+    rgba(46, 196, 182, 0.78);
   background:
     linear-gradient(135deg,
-      rgba(46, 196, 182, 0.46),
-      rgba(36, 124, 255, 0.32));
+      rgba(46, 196, 182, 0.34),
+      rgba(36, 124, 255, 0.24));
+  color:
+    #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(46, 196, 182, 0.16),
+    0 8px 22px rgba(46, 196, 182, 0.14);
 }
+
+
 
 @media (max-width: 960px) {
   .bottom-dock-stack {
@@ -5198,8 +5192,7 @@ body.geo-panel-resizing {
     none !important;
   transform:
     none !important;
-  display:
-    flex !important;
+  display: flex;
   flex-direction:
     column !important;
   align-items:
@@ -5216,8 +5209,7 @@ body.geo-panel-resizing {
     none;
 }
 
-.earth-rotation-template .rotation-stage-content .ab-axis-dock,
-.earth-rotation-template .rotation-stage-content .rotation-time-dock {
+.earth-rotation-template .rotation-stage-content .ab-axis-dock {
   pointer-events:
     auto;
   justify-self:
@@ -5236,15 +5228,7 @@ body.geo-panel-resizing {
     720px !important;
 }
 
-.earth-rotation-template .rotation-stage-content .rotation-time-dock {
-  width:
-    min(520px, 100%) !important;
-  max-width:
-    520px !important;
-}
-
-.earth-rotation-template .rotation-stage-content .longitude-axis-bar,
-.earth-rotation-template .rotation-stage-content .time-dock-main {
+.earth-rotation-template .rotation-stage-content .longitude-axis-bar {
   min-width:
     0 !important;
 }
@@ -5276,13 +5260,6 @@ body.geo-panel-resizing {
       1120px !important;
   }
 
-  .earth-rotation-template .rotation-stage-content .rotation-time-dock {
-    width:
-      min(760px, 100%) !important;
-    max-width:
-      760px !important;
-  }
-
   .earth-rotation-template .rotation-stage-content .scene-legend-card {
     bottom:
       clamp(260px, 25vh, 320px) !important;
@@ -5300,7 +5277,7 @@ body.geo-panel-resizing {
 
   .earth-rotation-template .rotation-stage-content .ab-axis-dock {
     width:
-      min(640px, 100%) !important;
+      min(540px, 100%) !important;
     max-width:
       640px !important;
   }
@@ -5330,8 +5307,7 @@ body.geo-panel-resizing {
       10px !important;
   }
 
-  .earth-rotation-template .rotation-stage-content .ab-axis-dock,
-  .earth-rotation-template .rotation-stage-content .rotation-time-dock {
+  .earth-rotation-template .rotation-stage-content .ab-axis-dock {
     width:
       100% !important;
     max-width:
@@ -5579,7 +5555,7 @@ body.geo-panel-resizing {
 }
 
 /* 960 以下：改成 A/B 两列，时差信息单独一行，避免中间列硬挤 */
-@media (max-width: 960px) {
+@media (max-width: 1366px) {
   .earth-rotation-template .right-panel .ab-compare-panel.right-info-card {
     padding:
       10px !important;

@@ -44,10 +44,11 @@ const navItems = computed(() => routesNav.filter((item) => item.path !== '/'))
 
 .home-page {
   height: 100%;
+  padding: 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  overflow: auto;
   background: linear-gradient(135deg, #0b3660 0%, #1a6ba0 100%);
 }
 

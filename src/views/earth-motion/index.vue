@@ -181,28 +181,6 @@
           </div>
 
           <div class="orbit-overlay-layer">
-            <section v-show="subSceneVisible" ref="subSceneRef" class="sub-scene-window scene-float-card" :style="{
-              width: `${subSceneSize.width}px`,
-              height: `${subSceneSize.height}px`,
-            }">
-              <header class="sub-scene-head">
-                <div class="sub-title">
-                  <span>副机位观察</span>
-                  <strong>{{ subViewLabel }}</strong>
-                </div>
-
-                <el-select v-model="subViewMode" class="theme-select sub-view-select"
-                  popper-class="geo-select-popper geo-select-popper-dark" size="small" :teleported="false">
-                  <el-option v-for="view in subViewModes" :key="view.key" :label="view.label" :value="view.key" />
-                </el-select>
-              </header>
-
-              <canvas ref="subCanvasRef" class="sub-canvas"></canvas>
-
-              <button class="sub-resize-handle" type="button" title="拖动调整副机位大小"
-                @pointerdown.stop.prevent="onSubResizeStart"></button>
-            </section>
-
             <section v-show="timelineDockVisible" class="timeline-dock orbit-time-dock">
               <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
                 :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
@@ -457,6 +435,30 @@
         ›
       </button>
     </main>
+
+    <section v-show="subSceneVisible" ref="subSceneRef" class="sub-scene-window scene-float-card" :style="{
+      width: `${subSceneSize.width}px`,
+      height: `${subSceneSize.height}px`,
+      left: subPosX + 'px',
+      top: subPosY + 'px',
+    }">
+      <header class="sub-scene-head" @pointerdown.stop.prevent="onSubDragStart">
+        <div class="sub-title">
+          <span>副机位观察</span>
+          <strong>{{ subViewLabel }}</strong>
+        </div>
+
+        <el-select v-model="subViewMode" class="theme-select sub-view-select"
+          popper-class="geo-select-popper geo-select-popper-dark" size="small" :teleported="false">
+          <el-option v-for="view in subViewModes" :key="view.key" :label="view.label" :value="view.key" />
+        </el-select>
+      </header>
+
+      <canvas ref="subCanvasRef" class="sub-canvas"></canvas>
+
+      <button class="sub-resize-handle" type="button" title="拖动调整副机位大小"
+        @pointerdown.stop.prevent="onSubResizeStart"></button>
+    </section>
   </section>
 </template>
 
@@ -1095,11 +1097,46 @@ const clickAddEnabled = ref(false)
 const sunTrackVisible = ref(true)
 const observationPanelVisible = ref(true)
 const timelineDockVisible = ref(true)
-const subSceneVisible = ref(true)
+const subSceneVisible = ref(false)
 const yearProgress = ref(dayOfYearToCalendarProgress(356))
 const subViewMode = ref<SubViewMode>('dawn')
 const subSceneSize = reactive({ width: 360, height: 268 })
+const subPosX = ref(0)
+const subPosY = ref(0)
+let subDragState: { startX: number; startY: number; posX: number; posY: number } | null = null
 const referenceSolarHour = ref(3.9)
+
+function onSubDragStart(event: PointerEvent) {
+  event.stopPropagation()
+  subDragState = {
+    startX: event.clientX,
+    startY: event.clientY,
+    posX: subPosX.value,
+    posY: subPosY.value,
+  }
+  document.body.classList.add('geo-panel-resizing')
+  document.body.style.cursor = 'move'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', onSubDragMove)
+  window.addEventListener('pointerup', onSubDragEnd, { once: true })
+  window.addEventListener('pointercancel', onSubDragEnd, { once: true })
+}
+
+function onSubDragMove(event: PointerEvent) {
+  if (!subDragState) return
+  subPosX.value = subDragState.posX + (event.clientX - subDragState.startX)
+  subPosY.value = subDragState.posY + (event.clientY - subDragState.startY)
+}
+
+function onSubDragEnd() {
+  subDragState = null
+  document.body.classList.remove('geo-panel-resizing')
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('pointermove', onSubDragMove)
+  window.removeEventListener('pointerup', onSubDragEnd)
+  window.removeEventListener('pointercancel', onSubDragEnd)
+}
 
 const toggles = reactive<DisplayToggleMap>({
   terminator: true,
@@ -1326,6 +1363,8 @@ onMounted(() => {
   nextTick(() => {
     try {
       initScene()
+      subPosX.value = Math.round((window.innerWidth - subSceneSize.width) / 2)
+      subPosY.value = 82 + 12
       animate(0)
     } catch (error) {
       console.error('EarthOrbitSimulator 初始化失败：', error)
@@ -1342,6 +1381,9 @@ onUnmounted(() => {
   pageResizeObserver = null
   window.removeEventListener('click', onWindowClick)
   window.removeEventListener('pointermove', onSubResizeMove)
+  window.removeEventListener('pointermove', onSubDragMove)
+  window.removeEventListener('pointerup', onSubDragEnd)
+  window.removeEventListener('pointercancel', onSubDragEnd)
   document.removeEventListener('pointermove', onPanelResizeMove)
   document.removeEventListener('pointerup', stopPanelResize)
   document.removeEventListener('pointercancel', stopPanelResize)
@@ -2893,11 +2935,8 @@ function normalizeLon(value: number) {
 }
 
 .sub-scene-window {
-  position: absolute;
-  top:
-    calc(var(--orbit-header-offset) + 8px);
-  right:
-    calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
+  position: fixed;
+  z-index: 9999;
   width: auto;
   height: auto;
   display: grid;
@@ -2919,6 +2958,17 @@ function normalizeLon(value: number) {
     1px solid rgba(var(--theme-primary-light-rgb), 0.16);
   background:
     rgba(8, 20, 34, 0.24);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.sub-scene-head:active {
+  cursor: grabbing;
+}
+
+.sub-scene-window {
+  touch-action: none;
 }
 
 .sub-title {
@@ -3217,13 +3267,6 @@ function normalizeLon(value: number) {
         286px);
   }
 
-  .sub-scene-window {
-    top:
-      calc(var(--orbit-header-offset) + 6px);
-    right:
-      calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
-  }
-
   .orbit-time-dock {
     left:
       50% !important;
@@ -3269,13 +3312,6 @@ function normalizeLon(value: number) {
 
   .obs-track-card {
     display: none;
-  }
-
-  .sub-scene-window {
-    top:
-      calc(var(--orbit-header-offset) + 6px);
-    right:
-      calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
   }
 
   .sub-view-select {
@@ -3344,13 +3380,6 @@ function normalizeLon(value: number) {
   .obs-body dl>div {
     padding:
       5px 7px;
-  }
-
-  .sub-scene-window {
-    top:
-      calc(var(--orbit-header-offset) + 6px);
-    right:
-      calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
   }
 
   .sub-scene-head {
@@ -3423,13 +3452,6 @@ function normalizeLon(value: number) {
 
   .obs-body dd {
     font-size: 10px;
-  }
-
-  .sub-scene-window {
-    top:
-      calc(var(--orbit-header-offset) + 6px);
-    right:
-      calc(var(--right-panel-width, 0px) + var(--orbit-overlay-gap));
   }
 
   .sub-scene-head {
@@ -3541,7 +3563,7 @@ function normalizeLon(value: number) {
   .earth-orbit-template.layout-medium .orbit-time-dock,
   .earth-orbit-template.layout-small .orbit-time-dock {
     width:
-      min(680px, calc(100% - 24px)) !important;
+      min(440px, calc(100% - 24px)) !important;
     min-width:
       0 !important;
     max-width:
@@ -3715,9 +3737,9 @@ function normalizeLon(value: number) {
   bottom:
     clamp(12px, 2vh, 22px) !important;
   width:
-    min(920px, calc(100% - 36px)) !important;
+    min(700px, calc(100% - 36px)) !important;
   min-width:
-    min(520px, calc(100% - 36px)) !important;
+    0 !important;
   max-width:
     calc(100% - 36px) !important;
   grid-template-columns:
@@ -3736,7 +3758,7 @@ function normalizeLon(value: number) {
 @media (max-width: 1280px) {
   .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
     width:
-      min(820px, calc(100% - 28px)) !important;
+      min(500px, calc(100% - 28px)) !important;
     min-width:
       min(500px, calc(100% - 28px)) !important;
     max-width:
@@ -3749,7 +3771,7 @@ function normalizeLon(value: number) {
 @media (max-width: 960px) {
   .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
     width:
-      min(680px, calc(100% - 24px)) !important;
+      min(400px, calc(100% - 36px)) !important;
     min-width:
       0 !important;
     max-width:

@@ -3583,9 +3583,9 @@ input[type="range"]::-moz-range-thumb {
   right:
     calc(var(--right-panel-width, 0px) + 18px) !important;
   width:
-    min(720px, calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 36px)) !important;
+    min(520px, calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 36px)) !important;
   max-width:
-    min(720px, calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 36px)) !important;
+    min(520px, calc(100% - var(--left-panel-width, 0px) - var(--right-panel-width, 0px) - 36px)) !important;
   margin-inline:
     auto !important;
   transform:
@@ -3609,7 +3609,7 @@ input[type="range"]::-moz-range-thumb {
   right:
     auto !important;
   width:
-    min(720px, calc(100% - 28px)) !important;
+    min(520px, calc(100% - 28px)) !important;
   max-width:
     calc(100% - 28px) !important;
   margin-inline:
@@ -3642,7 +3642,7 @@ input[type="range"]::-moz-range-thumb {
     right:
       auto !important;
     width:
-      min(720px, calc(100% - 28px)) !important;
+      min(520px, calc(100% - 28px)) !important;
     max-width:
       calc(100% - 28px) !important;
     margin-inline:
@@ -3659,7 +3659,7 @@ input[type="range"]::-moz-range-thumb {
     right:
       auto !important;
     width:
-      min(620px, calc(100% - 18px)) !important;
+      min(520px, calc(100% - 18px)) !important;
     max-width:
       calc(100% - 18px) !important;
     bottom:

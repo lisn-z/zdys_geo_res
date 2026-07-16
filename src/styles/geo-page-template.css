@@ -2509,10 +2509,11 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
 }
 
+/* 
 .geo-template-page.layout-floating .top-toolbar .theme-btn:hover {
   background:
     rgba(8, 20, 34, 0.18) !important;
-}
+} */
 
 /* 亮色主题：同样让 header 真正悬浮透明 */
 .geo-template-page.theme-light.layout-floating .top-toolbar {
@@ -4156,7 +4157,7 @@
       var(--seewo-panel-padding);
   }
 
-  .geo-template-page .side-panel {
+  .geo-template-page.layout-floating .side-panel {
     border-radius:
       var(--seewo-radius);
   }

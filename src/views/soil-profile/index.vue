@@ -1,265 +1,307 @@
 <template>
-  <div ref="rootRef" class="soil-profile-container">
-    <div class="soil-app">
-      <!-- 左侧控制栏 -->
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-icon">
-            <LucideIcon name="Layers3" :size="18" />
+  <div ref="rootRef" class="soil-profile-page geo-template-page geo-page theme-light" :class="'layout-' + layoutMode">
+    <header class="top-toolbar soil-template-header">
+      <div class="brand-area">
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="智地有申" />
+      </div>
+
+      <h1 class="page-title">土壤发生学沙盒</h1>
+
+      <div class="toolbar-actions">
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAnalysisPanel">
+          {{ analysisPanelCollapsed ? '展开分析面板' : '收起分析面板' }}
+        </button>
+
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleLeftPanel">
+          {{ leftCollapsed ? '展开左侧面板' : '收起左侧面板' }}
+        </button>
+      </div>
+    </header>
+
+    <main class="workspace" :class="{ 'has-left': true }" :style="{
+      '--left-panel-width': leftCollapsed
+        ? '0px'
+        : leftPanelWidth + 'px'
+    }">
+      <aside class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
+        <div class="panel-scroll">
+          <div class="panel-heading">
+            <div>
+              <h2>场景控制</h2>
+              <p>调整土壤剖面发生条件与演化参数</p>
+            </div>
+
+            <span class="panel-badge">CONTROL</span>
           </div>
-          <div>
-            <h1>Z-Vision 土壤发生学沙盒</h1>
-            <p>土壤肥力核心版</p>
-          </div>
-        </div>
 
-        <div v-if="!compareMode" class="controls-scroll">
-          <section class="control-section">
-            <div class="section-title">
-              <LucideIcon name="Boxes" :size="16" />
-              <span>母质（Parent Material）</span>
-            </div>
-
-            <div class="option-grid two">
-              <label v-for="item in parentOptions" :key="item.value" class="radio-option"
-                :class="{ active: state.parentMaterial === item.value }">
-                <input v-model="state.parentMaterial" type="radio" :value="item.value" />
-                <span class="radio-dot"></span>
-                <span>{{ item.label }}</span>
-              </label>
-            </div>
-          </section>
-
-          <section class="control-section">
-            <div class="section-title">
-              <LucideIcon name="Hand" :size="16" />
-              <span>人类干预（Human Interventions）</span>
-            </div>
-
-            <div class="option-list">
-              <label v-for="item in humanOptions" :key="item.value" class="radio-option"
-                :class="{ active: state.human === item.value }">
-                <input v-model="state.human" type="radio" :value="item.value" />
-                <span class="radio-dot"></span>
-                <span>{{ item.label }}</span>
-              </label>
-            </div>
-          </section>
-
-          <section class="control-section">
-            <div class="section-title">
-              <LucideIcon name="Sprout" :size="16" />
-              <span>自然生物（Biology）</span>
-            </div>
-
-            <div class="option-grid two">
-              <label v-for="item in biologyOptions" :key="item.value" class="radio-option" :class="{
-                active: state.biology === item.value,
-                disabled: biologyDisabled(item.value)
-              }">
-                <input v-model="state.biology" type="radio" :value="item.value"
-                  :disabled="biologyDisabled(item.value)" />
-                <span class="radio-dot"></span>
-                <span>{{ item.label }}</span>
-              </label>
-            </div>
-
-            <div v-if="biologyWarning" class="warning">
-              <LucideIcon name="TriangleAlert" :size="14" />
-              <span>{{ biologyWarning }}</span>
-            </div>
-          </section>
-
-          <section class="control-section">
-            <div class="section-title">
-              <LucideIcon name="CloudSun" :size="16" />
-              <span>气候（Climate）</span>
-            </div>
-
-            <div class="preset-row">
-              <button v-for="preset in climatePresets" :key="preset.label" type="button" class="preset-btn"
-                @click="applyPreset(preset)">
-                {{ preset.label }}
-              </button>
-            </div>
-
-            <div class="range-block">
-              <div class="range-header">
-                <span>
-                  <LucideIcon name="Droplets" :size="14" />
-                  降水（决定水分与淋溶）
-                </span>
-                <strong>{{ state.precipitation }} mm</strong>
+          <div v-if="!compareMode" class="controls-scroll">
+            <section class="control-section">
+              <div class="section-title">
+                <LucideIcon name="Boxes" :size="16" />
+                <span>母质（Parent Material）</span>
               </div>
-              <input v-model.number="state.precipitation" type="range" min="0" max="2500" step="10" />
-            </div>
 
-            <div class="range-block">
-              <div class="range-header">
-                <span>
-                  <LucideIcon name="Thermometer" :size="14" />
-                  温度（决定热量与分解）
-                </span>
-                <strong>{{ state.temperature }} ℃</strong>
+              <div class="option-grid two">
+                <label v-for="item in parentOptions" :key="item.value" class="radio-option"
+                  :class="{ active: state.parentMaterial === item.value }">
+                  <input v-model="state.parentMaterial" type="radio" :value="item.value" />
+                  <span class="radio-dot"></span>
+                  <span>{{ item.label }}</span>
+                </label>
               </div>
-              <input v-model.number="state.temperature" type="range" min="-20" max="35" step="1" />
-            </div>
-          </section>
+            </section>
 
-          <section class="control-section">
+            <section class="control-section">
+              <div class="section-title">
+                <LucideIcon name="Hand" :size="16" />
+                <span>人类干预（Human Interventions）</span>
+              </div>
+
+              <div class="option-list">
+                <label v-for="item in humanOptions" :key="item.value" class="radio-option"
+                  :class="{ active: state.human === item.value }">
+                  <input v-model="state.human" type="radio" :value="item.value" />
+                  <span class="radio-dot"></span>
+                  <span>{{ item.label }}</span>
+                </label>
+              </div>
+            </section>
+
+            <section class="control-section">
+              <div class="section-title">
+                <LucideIcon name="Sprout" :size="16" />
+                <span>自然生物（Biology）</span>
+              </div>
+
+              <div class="option-grid two">
+                <label v-for="item in biologyOptions" :key="item.value" class="radio-option" :class="{
+                  active: state.biology === item.value,
+                  disabled: biologyDisabled(item.value)
+                }">
+                  <input v-model="state.biology" type="radio" :value="item.value"
+                    :disabled="biologyDisabled(item.value)" />
+                  <span class="radio-dot"></span>
+                  <span>{{ item.label }}</span>
+                </label>
+              </div>
+
+              <div v-if="biologyWarning" class="warning">
+                <LucideIcon name="TriangleAlert" :size="14" />
+                <span>{{ biologyWarning }}</span>
+              </div>
+            </section>
+
+            <section class="control-section">
+              <div class="section-title">
+                <LucideIcon name="CloudSun" :size="16" />
+                <span>气候（Climate）</span>
+              </div>
+
+              <div class="preset-row">
+                <button v-for="preset in climatePresets" :key="preset.label" type="button" class="preset-btn"
+                  @click="applyPreset(preset)">
+                  {{ preset.label }}
+                </button>
+              </div>
+
+              <div class="range-block">
+                <div class="range-header">
+                  <span>
+                    <LucideIcon name="Droplets" :size="14" />
+                    降水（决定水分与淋溶）
+                  </span>
+                  <strong>{{ state.precipitation }} mm</strong>
+                </div>
+                <el-slider v-model="state.precipitation" :min="0" :max="2500" :step="10" :show-tooltip="false"
+                  aria-label="降水控制" />
+              </div>
+
+              <div class="range-block">
+                <div class="range-header">
+                  <span>
+                    <LucideIcon name="Thermometer" :size="14" />
+                    温度（决定热量与分解）
+                  </span>
+                  <strong>{{ state.temperature }} ℃</strong>
+                </div>
+                <el-slider v-model="state.temperature" :min="-20" :max="35" :step="1" :show-tooltip="false"
+                  aria-label="温度控制" />
+              </div>
+            </section>
+
+            <section class="control-section">
+              <div class="section-title">
+                <LucideIcon name="Mountain" :size="16" />
+                <span>地形部位（Topography）</span>
+              </div>
+
+              <div class="option-grid three">
+                <label v-for="item in topographyOptions" :key="item.value" class="radio-option compact"
+                  :class="{ active: state.topography === item.value }">
+                  <input v-model="state.topography" type="radio" :value="item.value" />
+                  <span class="radio-dot"></span>
+                  <span>{{ item.label }}</span>
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <div v-else class="compare-info">
             <div class="section-title">
-              <LucideIcon name="Mountain" :size="16" />
-              <span>地形部位（Topography）</span>
+              <LucideIcon name="Columns2" :size="16" />
+              <span>预设对比（Preset Comparison）</span>
             </div>
 
-            <div class="option-grid three">
-              <label v-for="item in topographyOptions" :key="item.value" class="radio-option compact"
-                :class="{ active: state.topography === item.value }">
-                <input v-model="state.topography" type="radio" :value="item.value" />
-                <span class="radio-dot"></span>
-                <span>{{ item.label }}</span>
-              </label>
+            <div class="compare-intro">
+              四个剖面共享同一条时间轴，用于比较不同环境条件下土壤层序和发育速度的差异。
             </div>
-          </section>
+
+            <article v-for="scenario in compareScenarios" :key="scenario.title" class="scenario-card">
+              <h3>{{ scenario.title }}</h3>
+              <p>{{ scenario.description }}</p>
+            </article>
+
+            <button type="button" class="back-btn" @click="toggleCompareMode">
+              <LucideIcon name="ChevronLeft" :size="16" />
+              返回单剖面探究
+            </button>
+          </div>
         </div>
 
-        <div v-else class="compare-info">
-          <div class="section-title">
-            <LucideIcon name="Columns2" :size="16" />
-            <span>预设对比（Preset Comparison）</span>
-          </div>
+        <div class="resize-handle resize-right" @pointerdown.stop.prevent="startResize('left', $event)"></div>
 
-          <div class="compare-intro">
-            四个剖面共享同一条时间轴，用于比较不同环境条件下土壤层序和发育速度的差异。
-          </div>
-
-          <article v-for="scenario in compareScenarios" :key="scenario.title" class="scenario-card">
-            <h3>{{ scenario.title }}</h3>
-            <p>{{ scenario.description }}</p>
-          </article>
-
-          <button type="button" class="back-btn" @click="toggleCompareMode">
-            <LucideIcon name="ChevronLeft" :size="16" />
-            返回单剖面探究
-          </button>
-        </div>
+        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
+          @click="leftCollapsed = true; scheduleTemplateResize()">
+          ‹
+        </button>
       </aside>
 
-      <!-- 右侧主区域 -->
-      <main class="main-area">
-        <div class="engine-tip">
-          <LucideIcon name="MousePointer2" :size="14" />
-          <span>空间定位推演引擎｜鼠标拖拽 360° 观察剖面</span>
+      <section class="center-stage">
+        <div class="stage-content">
+          <main class="main-area soil-main-area">
+            <div class="engine-tip">
+              <LucideIcon name="MousePointer2" :size="14" />
+              <span>空间定位推演引擎｜鼠标拖拽 360° 观察剖面</span>
+            </div>
+
+            <div ref="sceneContainerRef" class="scene-stage">
+              <div v-show="!compareMode && !analysisPanelCollapsed" class="data-panel analysis-panel">
+                <div class="data-title">
+                  <LucideIcon name="PieChart" :size="17" />
+                  <span>宏观剖面理化分析</span>
+                </div>
+
+                <div class="data-row">
+                  <span>发育阶段</span>
+                  <strong class="teal">{{ profile.stage }}</strong>
+                </div>
+                <div class="data-row">
+                  <span>推断类型</span>
+                  <strong>{{ profile.soilType }}</strong>
+                </div>
+                <div class="data-row">
+                  <span>酸碱度（pH）</span>
+                  <strong>{{ profile.ph }}</strong>
+                </div>
+
+                <div class="fertility-card">
+                  <div class="fertility-title">
+                    <span>综合土壤肥力评估</span>
+                    <strong>{{ profile.fertility.overall }}</strong>
+                  </div>
+                  <p>土壤的本质属性：供应和协调植物生长所需的能力</p>
+
+                  <div class="fertility-grid">
+                    <div>
+                      <span>养分(肥)</span>
+                      <strong>{{ profile.fertility.nutrient }}</strong>
+                    </div>
+                    <div>
+                      <span>水分(水)</span>
+                      <strong>{{ profile.fertility.water }}</strong>
+                    </div>
+                    <div>
+                      <span>空气(气)</span>
+                      <strong>{{ profile.fertility.air }}</strong>
+                    </div>
+                    <div>
+                      <span>热量(热)</span>
+                      <strong>{{ profile.fertility.heat }}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="map-card">
+                  <div class="map-title">
+                    <span>
+                      <LucideIcon name="MapPinned" :size="14" />
+                      土壤可能分布
+                    </span>
+                    <em>ECharts</em>
+                  </div>
+
+                  <div class="map-stage">
+                    <div ref="mapContainerRef" class="map-chart"></div>
+                    <div v-if="mapLoading" class="map-loading">
+                      {{ mapMessage }}
+                    </div>
+                  </div>
+
+                  <p>{{ currentMapProfile.desc }}</p>
+                  <strong>{{ currentMapProfile.regions }}</strong>
+                </div>
+              </div>
+
+              <button type="button" class="floating-btn compare-btn" :class="{ active: compareMode }"
+                @click="toggleCompareMode">
+                <LucideIcon v-if="compareMode" name="ChevronLeft" :size="16" />
+                <LucideIcon v-else name="Columns2" :size="16" />
+                {{ compareMode ? '单剖面探究' : '预设对比' }}
+              </button>
+
+              <button v-if="profile.hasBiota && !compareMode" type="button" class="floating-btn micro-btn"
+                @click="openMicroModal">
+                <LucideIcon name="Microscope" :size="16" />
+                微观生态观察
+              </button>
+
+              <div v-show="!compareMode" class="labels-layer">
+                <div v-for="layer in layerDefinitions" :key="layer.id" class="soil-label"
+                  :style="labelStyles[layer.id]">
+                  <div class="label-line"></div>
+                  <div class="label-box">{{ layer.name }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="timeline-dock">
+              <button type="button" class="timeline-icon-btn" :class="{ active: playing }" @click="togglePlay">
+                <LucideIcon v-if="playing" name="Pause" :size="20" />
+                <LucideIcon v-else name="Play" :size="20" />
+              </button>
+
+              <div class="timeline-main">
+                <el-slider v-model="state.time" :min="0" :max="25000" :step="25" :show-tooltip="false"
+                  aria-label="土壤发育时间进度" @input="playing = false" @mousedown="playing = false"
+                  @touchstart="playing = false" />
+
+                <div class="timeline-labels">
+                  <span>0 年（裸露基岩）</span>
+                  <strong>{{ Math.round(state.time) }} 相对年</strong>
+                  <span>2.5 万年（成熟极限）</span>
+                </div>
+              </div>
+            </div>
+          </main>
         </div>
+      </section>
 
-        <div ref="sceneContainerRef" class="scene-stage">
-          <div v-show="!compareMode" class="data-panel">
-            <div class="data-title">
-              <LucideIcon name="PieChart" :size="17" />
-              <span>宏观剖面理化分析</span>
-            </div>
-
-            <div class="data-row">
-              <span>发育阶段</span>
-              <strong class="teal">{{ profile.stage }}</strong>
-            </div>
-            <div class="data-row">
-              <span>推断类型</span>
-              <strong>{{ profile.soilType }}</strong>
-            </div>
-            <div class="data-row">
-              <span>酸碱度（pH）</span>
-              <strong>{{ profile.ph }}</strong>
-            </div>
-
-            <div class="fertility-card">
-              <div class="fertility-title">
-                <span>综合土壤肥力评估</span>
-                <strong>{{ profile.fertility.overall }}</strong>
-              </div>
-              <p>土壤的本质属性：供应和协调植物生长所需的能力</p>
-
-              <div class="fertility-grid">
-                <div>
-                  <span>养分(肥)</span>
-                  <strong>{{ profile.fertility.nutrient }}</strong>
-                </div>
-                <div>
-                  <span>水分(水)</span>
-                  <strong>{{ profile.fertility.water }}</strong>
-                </div>
-                <div>
-                  <span>空气(气)</span>
-                  <strong>{{ profile.fertility.air }}</strong>
-                </div>
-                <div>
-                  <span>热量(热)</span>
-                  <strong>{{ profile.fertility.heat }}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div class="map-card">
-              <div class="map-title">
-                <span>
-                  <LucideIcon name="MapPinned" :size="14" />
-                  土壤可能分布
-                </span>
-                <em>ECharts</em>
-              </div>
-
-              <div class="map-stage">
-                <div ref="mapContainerRef" class="map-chart"></div>
-                <div v-if="mapLoading" class="map-loading">
-                  {{ mapMessage }}
-                </div>
-              </div>
-
-              <p>{{ currentMapProfile.desc }}</p>
-              <strong>{{ currentMapProfile.regions }}</strong>
-            </div>
-          </div>
-
-          <button type="button" class="floating-btn compare-btn" :class="{ active: compareMode }"
-            @click="toggleCompareMode">
-            <LucideIcon v-if="compareMode" name="ChevronLeft" :size="16" />
-            <LucideIcon v-else name="Columns2" :size="16" />
-            {{ compareMode ? '单剖面探究' : '预设对比' }}
-          </button>
-
-          <button v-if="profile.hasBiota && !compareMode" type="button" class="floating-btn micro-btn"
-            @click="openMicroModal">
-            <LucideIcon name="Microscope" :size="16" />
-            微观生态观察
-          </button>
-
-          <div v-show="!compareMode" class="labels-layer">
-            <div v-for="layer in layerDefinitions" :key="layer.id" class="soil-label" :style="labelStyles[layer.id]">
-              <div class="label-line"></div>
-              <div class="label-box">{{ layer.name }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="timeline">
-          <button type="button" class="play-btn" @click="togglePlay">
-            <LucideIcon v-if="playing" name="Pause" :size="20" />
-            <LucideIcon v-else name="Play" :size="20" />
-          </button>
-
-          <div class="timeline-main">
-            <input v-model.number="state.time" type="range" min="0" max="25000" step="25"
-              @pointerdown="playing = false" />
-
-            <div class="timeline-labels">
-              <span>0 年（裸露基岩）</span>
-              <strong>{{ Math.round(state.time) }} 相对年</strong>
-              <span>2.5 万年（成熟极限）</span>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+      <button v-if="leftCollapsed" type="button" class="panel-entry-btn entry-left" aria-label="展开左侧面板"
+        @click="leftCollapsed = false; scheduleTemplateResize()">
+        ›
+      </button>
+    </main>
 
     <!-- 微观生态弹窗 -->
     <Transition name="modal">
@@ -340,6 +382,9 @@ import {
   ref,
   watch
 } from 'vue'
+import '@/styles/geo-page-template.css'
+import { ElSlider } from 'element-plus'
+import 'element-plus/es/components/slider/style/css'
 import * as THREE from 'three'
 import * as echarts from 'echarts'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -472,6 +517,16 @@ const microLoading = ref(false)
 const mapLoading = ref(true)
 const mapMessage = ref('正在加载本地中国省级行政区数据…')
 const pageVisible = ref(true)
+
+type LayoutMode = 'large' | 'medium' | 'small'
+const layoutMode = ref<LayoutMode>('large')
+
+const leftPanelWidth = ref(420)
+const leftCollapsed = ref(false)
+const analysisPanelCollapsed = ref(false)
+
+let leftPanelManuallyResized = false
+let isPanelResizing = false
 
 type LucideIconNode = Array<
   [string, Record<string, string | number>]
@@ -1209,6 +1264,283 @@ watch(
     }
   }
 )
+
+
+function syncLayoutMode() {
+  const width =
+    rootRef.value?.clientWidth ||
+    window.innerWidth
+
+  const nextMode: LayoutMode =
+    width >= 1280
+      ? 'large'
+      : width >= 860
+        ? 'medium'
+        : 'small'
+
+  const modeChanged =
+    layoutMode.value !== nextMode
+
+  layoutMode.value = nextMode
+
+  if (
+    modeChanged ||
+    !leftPanelManuallyResized
+  ) {
+    leftPanelWidth.value =
+      getAdaptiveLeftPanelWidth(
+        width,
+        nextMode
+      )
+  }
+}
+
+
+function getEffectiveTemplateWidth(
+  fallbackWidth?: number
+) {
+  const candidates: number[] = []
+
+  if (
+    typeof fallbackWidth === 'number' &&
+    Number.isFinite(fallbackWidth) &&
+    fallbackWidth > 0
+  ) {
+    candidates.push(fallbackWidth)
+  }
+
+  const pageWidth =
+    rootRef.value?.clientWidth
+
+  if (
+    typeof pageWidth === 'number' &&
+    Number.isFinite(pageWidth) &&
+    pageWidth > 0
+  ) {
+    candidates.push(pageWidth)
+  }
+
+  ;[
+    window.innerWidth,
+    window.visualViewport?.width,
+    window.screen?.width,
+    window.screen?.availWidth
+  ].forEach((value) => {
+    if (
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      value > 0
+    ) {
+      candidates.push(value)
+    }
+  })
+
+  return candidates.length
+    ? Math.min(...candidates)
+    : 0
+}
+
+function getAdaptiveLeftPanelWidth(
+  pageWidth: number,
+  mode: LayoutMode
+) {
+  const effectiveWidth =
+    getEffectiveTemplateWidth(pageWidth)
+
+  if (mode === 'small') {
+    return clamp(
+      pageWidth * 0.76,
+      260,
+      360
+    )
+  }
+
+  if (mode === 'medium') {
+    return clamp(
+      pageWidth * 0.36,
+      320,
+      480
+    )
+  }
+
+  if (effectiveWidth >= 2200) {
+    return clamp(
+      effectiveWidth * 0.22,
+      420,
+      640
+    )
+  }
+
+  return clamp(
+    pageWidth * 0.19,
+    340,
+    520
+  )
+}
+
+function getPanelResizeBounds() {
+  const pageWidth =
+    rootRef.value?.clientWidth ||
+    window.innerWidth
+
+  const effectiveWidth =
+    getEffectiveTemplateWidth(pageWidth)
+
+  if (layoutMode.value === 'small') {
+    return {
+      min: 220,
+      max: Math.max(
+        220,
+        Math.min(420, pageWidth * 0.86)
+      )
+    }
+  }
+
+  if (layoutMode.value === 'medium') {
+    return {
+      min: 280,
+      max: Math.max(
+        280,
+        Math.min(640, pageWidth * 0.60)
+      )
+    }
+  }
+
+  const isUltraLarge =
+    effectiveWidth >= 2200
+
+  return {
+    min: 300,
+    max: Math.max(
+      300,
+      Math.min(
+        isUltraLarge ? 820 : 560,
+        effectiveWidth * (
+          isUltraLarge ? 0.54 : 0.38
+        )
+      )
+    )
+  }
+}
+
+function scheduleTemplateResize() {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      resizeScene()
+      mapChart?.resize()
+    })
+  })
+}
+
+function toggleLeftPanel() {
+  leftCollapsed.value = !leftCollapsed.value
+  scheduleTemplateResize()
+}
+
+function toggleAnalysisPanel() {
+  analysisPanelCollapsed.value = !analysisPanelCollapsed.value
+  scheduleTemplateResize()
+}
+
+function startResize(
+  side: 'left',
+  event: PointerEvent
+) {
+  if (
+    side === 'left' &&
+    leftCollapsed.value
+  ) {
+    return
+  }
+
+  event.stopPropagation()
+  leftPanelManuallyResized = true
+  isPanelResizing = true
+
+  const handle =
+    event.currentTarget as HTMLElement | null
+
+  if (
+    handle &&
+    typeof handle.setPointerCapture === 'function'
+  ) {
+    try {
+      handle.setPointerCapture(event.pointerId)
+    } catch {
+      // 某些触控环境不支持 pointer capture，继续使用 document 监听。
+    }
+  }
+
+  const startX = event.clientX
+  const startWidth = leftPanelWidth.value
+  const bounds = getPanelResizeBounds()
+
+  const onMove = (
+    moveEvent: PointerEvent
+  ) => {
+    const deltaX =
+      moveEvent.clientX - startX
+
+    leftPanelWidth.value = clamp(
+      startWidth + deltaX,
+      bounds.min,
+      bounds.max
+    )
+
+    scheduleTemplateResize()
+  }
+
+  const finishResize = () => {
+    document.removeEventListener(
+      'pointermove',
+      onMove
+    )
+
+    document.removeEventListener(
+      'pointerup',
+      finishResize
+    )
+
+    document.removeEventListener(
+      'pointercancel',
+      finishResize
+    )
+
+    document.body.classList.remove(
+      'geo-panel-resizing'
+    )
+
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    isPanelResizing = false
+    scheduleTemplateResize()
+  }
+
+  document.addEventListener(
+    'pointermove',
+    onMove
+  )
+
+  document.addEventListener(
+    'pointerup',
+    finishResize
+  )
+
+  document.addEventListener(
+    'pointercancel',
+    finishResize
+  )
+
+  document.body.classList.add(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    'col-resize'
+
+  document.body.style.userSelect =
+    'none'
+}
 
 /* ============================== 主 Three.js ============================== */
 
@@ -3038,6 +3370,9 @@ let microCamera: THREE.PerspectiveCamera | null = null
 let microRenderer: THREE.WebGLRenderer | null = null
 let microControls: OrbitControls | null = null
 let microAnimationId = 0
+let microResizeFrame = 0
+let microLastWidth = 0
+let microLastHeight = 0
 let microResizeObserver: ResizeObserver | null = null
 let microRoot: THREE.Group | null = null
 let microLoaded = false
@@ -3145,6 +3480,11 @@ function initMicroScene() {
   microRenderer.outputColorSpace = THREE.SRGBColorSpace
   microRenderer.toneMapping = THREE.ACESFilmicToneMapping
   microRenderer.toneMappingExposure = 1.65
+  microRenderer.domElement.className = 'micro-scene-canvas'
+  microRenderer.domElement.style.display = 'block'
+  microRenderer.domElement.style.width = '100%'
+  microRenderer.domElement.style.height = '100%'
+
   microContainerRef.value.appendChild(microRenderer.domElement)
 
   microControls = new OrbitControls(microCamera, microRenderer.domElement)
@@ -3191,15 +3531,119 @@ function initMicroScene() {
   startMicroAnimation()
 }
 
-function resizeMicroScene() {
-  if (!microContainerRef.value || !microRenderer || !microCamera) return
+function resizeMicroSceneNow(force = false) {
+  const container =
+    microContainerRef.value
 
-  const width = Math.max(microContainerRef.value.clientWidth, 1)
-  const height = Math.max(microContainerRef.value.clientHeight, 1)
+  if (
+    !container ||
+    !microCamera ||
+    !microRenderer
+  ) {
+    return
+  }
+
+  const rect =
+    container.getBoundingClientRect()
+
+  const width =
+    Math.max(
+      1,
+      Math.round(
+        rect.width ||
+        container.clientWidth ||
+        container.offsetWidth ||
+        1
+      )
+    )
+
+  const height =
+    Math.max(
+      1,
+      Math.round(
+        rect.height ||
+        container.clientHeight ||
+        container.offsetHeight ||
+        1
+      )
+    )
+
+  if (
+    !force &&
+    width === microLastWidth &&
+    height === microLastHeight
+  ) {
+    return
+  }
+
+  microLastWidth = width
+  microLastHeight = height
 
   microCamera.aspect = width / height
   microCamera.updateProjectionMatrix()
-  microRenderer.setSize(width, height, false)
+
+  microRenderer.setPixelRatio(
+    Math.min(
+      window.devicePixelRatio || 1,
+      2
+    )
+  )
+
+  microRenderer.setSize(
+    width,
+    height,
+    false
+  )
+
+  const canvas =
+    microRenderer.domElement
+
+  canvas.style.width =
+    `${width}px`
+
+  canvas.style.height =
+    `${height}px`
+
+  canvas.style.display =
+    'block'
+}
+
+function scheduleMicroSceneResize(force = false) {
+  if (microResizeFrame) {
+    cancelAnimationFrame(microResizeFrame)
+  }
+
+  microResizeFrame =
+    requestAnimationFrame(() => {
+      microResizeFrame = 0
+      resizeMicroSceneNow(force)
+    })
+}
+
+function bindMicroResizeObserver() {
+  const container =
+    microContainerRef.value
+
+  if (!container) return
+
+  microResizeObserver?.disconnect()
+
+  microResizeObserver =
+    new ResizeObserver(() => {
+      scheduleMicroSceneResize(true)
+    })
+
+  microResizeObserver.observe(container)
+
+  scheduleMicroSceneResize(true)
+
+  window.setTimeout(() => {
+    scheduleMicroSceneResize(true)
+  }, 80)
+
+  window.setTimeout(() => {
+    scheduleMicroSceneResize(true)
+  }, 220)
 }
 
 function disposeObject(root: THREE.Object3D) {
@@ -3389,12 +3833,26 @@ function startMicroAnimation() {
 async function openMicroModal() {
   microOpen.value = true
   await nextTick()
+
+  bindMicroResizeObserver()
   initMicroScene()
-  resizeMicroScene()
+  resizeMicroSceneNow(true)
   loadMicroModel()
 }
 
 function closeMicroModal() {
+
+  microResizeObserver?.disconnect()
+  microResizeObserver = null
+
+  if (microResizeFrame) {
+    cancelAnimationFrame(microResizeFrame)
+    microResizeFrame = 0
+  }
+
+  microLastWidth = 0
+  microLastHeight = 0
+
   microOpen.value = false
 }
 
@@ -3473,6 +3931,8 @@ function disposeMicroScene() {
 }
 
 onMounted(async () => {
+  syncLayoutMode()
+  window.addEventListener('resize', syncLayoutMode)
   await nextTick()
 
   initScene()
@@ -3483,6 +3943,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncLayoutMode)
   cancelAnimationFrame(animationId)
   cancelAnimationFrame(microAnimationId)
   document.removeEventListener('visibilitychange', handleVisibility)
@@ -3588,11 +4049,10 @@ onBeforeUnmount(() => {
 .compare-info {
   flex: 1;
   overflow-y: auto;
-  padding: 18px;
 }
 
 .control-section {
-  padding: 0 0 18px;
+  padding: 18px;
   margin-bottom: 18px;
   border-bottom: 1px solid #edf2f7;
 }
@@ -3839,6 +4299,7 @@ input[type="range"]::-webkit-slider-thumb {
   border: 1px solid #edf2f7;
   border-radius: 999px;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+  width: 300px;
 }
 
 .scene-stage {
@@ -4372,6 +4833,109 @@ input[type="range"]::-webkit-slider-thumb {
   .micro-scene {
     border-right: 0;
     border-bottom: 1px solid #e2e8f0;
+  }
+}
+
+
+/* ===================== v9: 回归 3号模板公共样式 =====================
+   本版不再覆盖 top-toolbar、toolbar-actions、panel-collapse-btn、
+   panel-entry-btn、resize-handle 的样式。
+   这些全部交给 geo-page-template.css。
+   这里只保留土壤业务主场景本身的尺寸。
+*/
+
+.soil-main-area {
+  position:
+    relative;
+  display:
+    flex;
+  width:
+    100%;
+  height:
+    100%;
+  min-width:
+    0;
+  min-height:
+    0;
+  flex-direction:
+    column;
+  overflow:
+    hidden;
+}
+
+.soil-main-area .scene-stage {
+  flex:
+    1 1 auto;
+  min-height:
+    0;
+}
+
+.soil-main-area .timeline-dock {
+  flex:
+    0 0 auto;
+}
+
+
+/* ===================== v10: 微观弹窗 3D 场景平板 resize 修复 =====================
+   - 不改公共模板按钮 / Header / 面板样式；
+   - 只修复微观生态弹窗里的 Three.js 容器尺寸；
+   - 平板弹窗宽高变化后，canvas 必须跟随 .micro-scene 重新计算。
+*/
+
+.micro-scene {
+  position:
+    relative;
+  width:
+    100%;
+  min-width:
+    0;
+  min-height:
+    320px;
+  overflow:
+    hidden;
+  contain:
+    layout size;
+}
+
+.micro-scene :deep(canvas),
+.micro-scene-canvas {
+  display:
+    block;
+  width:
+    100% !important;
+  height:
+    100% !important;
+}
+
+@media (max-width: 1024px) {
+  .micro-content {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  .micro-scene {
+    width:
+      100%;
+    height:
+      min(46vh, 420px);
+    min-height:
+      280px;
+  }
+}
+
+@media (max-width: 720px) {
+  .micro-modal {
+    width:
+      min(94vw, 680px);
+    max-height:
+      92vh;
+  }
+
+  .micro-scene {
+    height:
+      min(42vh, 340px);
+    min-height:
+      240px;
   }
 }
 </style>
