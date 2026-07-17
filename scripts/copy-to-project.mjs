@@ -47,7 +47,7 @@ const MAPPINGS = [
     src: join(OUTPUT_DIR, 'astro'),
     dest: join(TARGET_DIR, 'src', 'pages', 'geo'),
     filter: (name) =>
-      name.endsWith('.astro') && whitelistMatch(name),
+      name.endsWith('.astro') && whitelistMatch(name.replace(/\.astro$/, '')),
   },
   {
     label: '样式文件',
@@ -172,6 +172,8 @@ function main() {
   report.keys = Object.keys(report)
     .filter(k => !['target', 'timestamp', 'keys', '样式文件', 'copyTime', 'copyDate'].includes(k))
     .map(k => ({ key: k, name: report[k].name || '' }))
+
+  report.keysArray = report.keys.map(k => k.key)
 
   // 输出 JSON 报告
   const logsDir = join(root, 'logs')
