@@ -1,94 +1,191 @@
 <template>
-  <div class="china-map-container">
-    <div class="header-section">
-      <h1 class="page-title">🇨🇳 中国省级行政区划</h1>
-      <p class="page-subtitle">点击右侧省份选中 · 再点击地图对应位置 · 正确匹配即高亮🎯</p>
-      <!-- 进度条 -->
-      <div class="progress-area">
-        <div class="progress-bar-wrap">
-          <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
-        </div>
-        <div class="progress-info">
-          <span class="progress-text">{{ matchedCount }}/{{ totalCount }} 已匹配</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 右上角倒计时 -->
-    <div class="countdown-badge" :class="{ warn: timeLeft <= 30 }">
-      <span class="countdown-label">⏱</span>
-      <span class="countdown-value">{{ formatTime(timeLeft) }}</span>
-    </div>
-
-    <div class="main-area">
-      <!-- ECharts 地图放置区 -->
-      <div class="map-zone">
-        <div id="china-map" ref="chartRef"></div>
-        <div v-if="activeProvince && !dropResult" class="selected-hint">
-          已选中：<span>{{ activeProvince }}</span> · 请点击地图上对应位置
-        </div>
-        <div v-if="dropResult" class="drop-feedback" :class="{ success: dropResult.success }">
-          {{ dropResult.msg }}
-        </div>
+  <div ref="pageRef" class="china-map-container geo-template-page geo-page theme-dark" :class="'layout-' + layoutMode">
+    <header class="top-toolbar">
+      <div class="brand-area">
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
-      <!-- 全部完成弹窗 -->
-      <teleport to="body">
-        <div v-if="showCompletion" class="completion-overlay" @click.self="dismissCompletion">
-          <div class="completion-card">
-            <div class="completion-icon">🎉</div>
-            <h2 class="completion-title">全部完成！</h2>
-            <p class="completion-sub">34 个省级行政区全部匹配正确</p>
-            <div class="completion-time">
-              <span class="time-label">用时</span>
-              <span class="time-value">{{ completionTime }}</span>
+      <h1 class="page-title">拼一拼（中国省级行政区）</h1>
+
+      <div class="toolbar-actions">
+        <button type="button" class="theme-btn toolbar-btn" @click="resetGame">
+          重新开始
+        </button>
+
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
+          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        </button>
+      </div>
+    </header>
+
+    <main class="workspace" :class="{
+      'has-right': hasRightPanel,
+    }" :style="{
+      '--right-panel-width':
+        rightCollapsed
+          ? '0px'
+          : rightPanelWidth + 'px',
+    }">
+      <section class="center-stage">
+        <div class="stage-content china-map-stage">
+          <div class="map-zone">
+            <div id="china-map" ref="chartRef" class="china-map-chart"></div>
+
+            <div class="map-approval-number">
+              GS(2025)5996
             </div>
-            <button class="completion-btn" @click="dismissCompletion">知道了</button>
+
+            <div v-if="activeProvince && !dropResult" class="selected-hint">
+              已选中：<span>{{ activeProvince }}</span> · 请点击地图上对应位置
+            </div>
+
+            <div v-if="dropResult" class="drop-feedback" :class="{ success: dropResult.success }">
+              {{ dropResult.msg }}
+            </div>
           </div>
         </div>
-      </teleport>
+      </section>
 
-      <!-- 超时弹窗 -->
-      <teleport to="body">
-        <div v-if="showTimeout" class="completion-overlay" @click.self="dismissTimeout">
-          <div class="completion-card timeout-card">
-            <div class="completion-icon">⏰</div>
-            <h2 class="completion-title timeout-title">再接再厉！</h2>
-            <p class="completion-sub">{{ timeoutMessage }}</p>
-            <p class="timeout-encourage">{{ encourageWord }}</p>
-            <button class="completion-btn timeout-btn" @click="dismissTimeout">再来一次</button>
+      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: rightCollapsed }">
+        <div class="panel-scroll">
+          <div class="panel-heading">
+            <div>
+              <h2>省级行政区</h2>
+              <p>选择右侧名称，再点击地图对应位置</p>
+            </div>
+
+            <span class="panel-badge">DATA</span>
           </div>
+
+          <section class="geo-card progress-card">
+            <div class="progress-head">
+              <div>
+                <strong>匹配进度</strong>
+                <span>{{ matchedCount }}/{{ totalCount }} 已匹配</span>
+              </div>
+
+              <div class="countdown-badge" :class="{ warn: timeLeft <= 30 }">
+                <span class="countdown-label">⏱</span>
+                <span class="countdown-value">{{ formatTime(timeLeft) }}</span>
+              </div>
+            </div>
+
+            <div class="progress-bar-wrap">
+              <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
+            </div>
+          </section>
+
+          <section class="geo-card province-list-card">
+            <div class="province-list-head">
+              <h3>34 个省级行政区</h3>
+              <span>只显示名称</span>
+            </div>
+
+            <div class="province-name-grid">
+              <button v-for="p in provinceList" :key="p.name" type="button" class="province-card" :class="{
+                active: activeProvince && activeProvince === p.name,
+                matched: matchedSet.has(p.name),
+              }" @click="selectProvince(p.name)">
+                <span class="province-name">{{ p.name }}</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="geo-card map-note-card">
+            <h3>操作说明</h3>
+            <p>先点击右侧省级行政区名称，再点击地图中对应位置。</p>
+            <p>匹配正确后，该省份会高亮，右侧名称会变为已完成状态。</p>
+          </section>
         </div>
-      </teleport>
 
-      <!-- 右侧栏 -->
-      <div class="province-sidebar">
-        <div class="sidebar-title">34 个省级行政区</div>
-        <div class="sidebar-scroll">
-          <div
-            v-for="p in provinceList"
-            :key="p.name"
-            class="province-card"
-            :class="{ active: activeProvince === p.name, matched: matchedSet.has(p.name) }"
-            @click="selectProvince(p.name)"
-          >
-            <svg viewBox="0 0 100 100" class="province-svg">
-              <path :d="p.svgPath" fill="#2ec4b688" stroke="#2ec4b6" stroke-width="0.8" />
-            </svg>
-            <span class="province-name">{{ p.name }}</span>
+        <div class="resize-handle resize-left" @pointerdown.stop.prevent="
+          startResize('right', $event)
+          "></div>
+
+        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
+          @click="rightCollapsed = true">
+          ›
+        </button>
+      </aside>
+
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+        aria-label="展开右侧面板" @click="rightCollapsed = false">
+        ‹
+      </button>
+    </main>
+
+    <teleport to="body">
+      <div v-if="showCompletion" class="completion-overlay" @click.self="dismissCompletion">
+        <div class="completion-card">
+          <div class="completion-icon">🎉</div>
+          <h2 class="completion-title">全部完成！</h2>
+          <p class="completion-sub">34 个省级行政区全部匹配正确</p>
+          <div class="completion-time">
+            <span class="time-label">用时</span>
+            <span class="time-value">{{ completionTime }}</span>
           </div>
+          <button class="completion-btn" @click="dismissCompletion">
+            知道了
+          </button>
         </div>
       </div>
-    </div>
+    </teleport>
+
+    <teleport to="body">
+      <div v-if="showTimeout" class="completion-overlay" @click.self="dismissTimeout">
+        <div class="completion-card timeout-card">
+          <div class="completion-icon">⏰</div>
+          <h2 class="completion-title timeout-title">再接再厉！</h2>
+          <p class="completion-sub">{{ timeoutMessage }}</p>
+          <p class="timeout-encourage">{{ encourageWord }}</p>
+          <button class="completion-btn timeout-btn" @click="dismissTimeout">
+            再来一次
+          </button>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
+
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 // @ts-ignore
 import * as echarts from 'echarts'
+import '@/styles/geo-page-template.css'
 
+const pageRef = ref<HTMLElement | null>(null)
 const chartRef = ref<HTMLDivElement>()
+
+type LayoutMode =
+  | 'large'
+  | 'medium'
+  | 'small'
+
+const layoutMode = ref<LayoutMode>('large')
+const hasRightPanel = true
+const rightPanelWidth = ref(420)
+const rightCollapsed = ref(false)
+const allPanelsCollapsed = computed(() => rightCollapsed.value)
+
+let previousLayoutMode:
+  | LayoutMode
+  | null = null
+
+let pageResizeObserver:
+  | ResizeObserver
+  | null = null
+
+let rightPanelManuallyResized = false
+let panelResizeState:
+  | {
+    startX: number
+    width: number
+  }
+  | null = null
+
+let chartResizeFrame = 0
 const activeProvince = ref('')
 const provinceList = ref<Array<{ name: string; shortName: string; svgPath: string }>>([])
 const dropResult = ref<{ msg: string; success: boolean } | null>(null)
@@ -119,6 +216,342 @@ let geoJsonData: any = null
 let dropTimer: number | null = null
 let countdownTimer: number | null = null
 let startTime = 0
+
+
+function clampPanelNumber(
+  value: number,
+  min: number,
+  max: number
+): number {
+  return Math.min(
+    max,
+    Math.max(
+      min,
+      value
+    )
+  )
+}
+
+function getLayoutMode(
+  width: number
+): LayoutMode {
+  if (width < 800) {
+    return 'small'
+  }
+
+  if (width < 1440) {
+    return 'medium'
+  }
+
+  return 'large'
+}
+
+function getEffectiveTemplateWidth(
+  fallbackWidth?: number
+): number {
+  const candidates: number[] = []
+
+  if (
+    typeof fallbackWidth === 'number' &&
+    Number.isFinite(fallbackWidth) &&
+    fallbackWidth > 0
+  ) {
+    candidates.push(fallbackWidth)
+  }
+
+  const pageWidth =
+    pageRef.value?.clientWidth
+
+  if (
+    typeof pageWidth === 'number' &&
+    Number.isFinite(pageWidth) &&
+    pageWidth > 0
+  ) {
+    candidates.push(pageWidth)
+  }
+
+  if (typeof window !== 'undefined') {
+    const values = [
+      window.innerWidth,
+      window.visualViewport?.width,
+      window.screen?.width,
+      window.screen?.availWidth,
+    ]
+
+    values.forEach((value) => {
+      if (
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value > 0
+      ) {
+        candidates.push(value)
+      }
+    })
+  }
+
+  if (!candidates.length) {
+    return 0
+  }
+
+  return Math.min(...candidates)
+}
+
+function isUltraLargeTemplateScreen(
+  fallbackWidth?: number
+): boolean {
+  return getEffectiveTemplateWidth(
+    fallbackWidth
+  ) >= 2200
+}
+
+function getAdaptivePanelWidth(
+  side: 'right',
+  mode: LayoutMode,
+  pageWidth: number
+): number {
+  void side
+  void mode
+
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
+  if (
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+  ) {
+    return clampPanelNumber(
+      effectiveWidth * 0.25,
+      500,
+      760
+    )
+  }
+
+  return clampPanelNumber(
+    pageWidth * 0.28,
+    320,
+    420
+  )
+}
+
+function getPanelResizeBounds(
+  side: 'right'
+) {
+  void side
+
+  const pageWidth =
+    pageRef.value?.clientWidth ||
+    window.innerWidth
+
+  const effectiveWidth =
+    getEffectiveTemplateWidth(
+      pageWidth
+    )
+
+  const isUltraLargeScreen =
+    isUltraLargeTemplateScreen(
+      effectiveWidth
+    )
+
+  const min = 300
+
+  const maxLimit =
+    isUltraLargeScreen
+      ? 900
+      : 480
+
+  const ratio =
+    isUltraLargeScreen
+      ? 0.54
+      : 0.46
+
+  return {
+    min,
+    max: Math.max(
+      min,
+      Math.min(
+        maxLimit,
+        effectiveWidth * ratio
+      )
+    ),
+  }
+}
+
+function scheduleChartResize() {
+  if (chartResizeFrame) {
+    window.cancelAnimationFrame(chartResizeFrame)
+  }
+
+  chartResizeFrame =
+    window.requestAnimationFrame(() => {
+      chartResizeFrame = 0
+      chart?.resize()
+    })
+}
+
+function syncTemplateLayout() {
+  const width =
+    pageRef.value?.clientWidth ||
+    window.innerWidth
+
+  const nextMode =
+    getLayoutMode(width)
+
+  const modeChanged =
+    previousLayoutMode !== nextMode
+
+  layoutMode.value =
+    nextMode
+
+  if (
+    modeChanged ||
+    !rightPanelManuallyResized
+  ) {
+    rightPanelWidth.value =
+      Math.round(
+        getAdaptivePanelWidth(
+          'right',
+          nextMode,
+          width
+        )
+      )
+  }
+
+  previousLayoutMode =
+    nextMode
+}
+
+function toggleAllPanels() {
+  rightCollapsed.value =
+    !allPanelsCollapsed.value
+
+  nextTick(scheduleChartResize)
+}
+
+function startResize(
+  target: 'right',
+  event: PointerEvent
+) {
+  void target
+
+  if (rightCollapsed.value) {
+    return
+  }
+
+  event.stopPropagation()
+
+  panelResizeState = {
+    startX: event.clientX,
+    width: rightPanelWidth.value,
+  }
+
+  const handle =
+    event.currentTarget as HTMLElement | null
+
+  if (
+    handle &&
+    typeof handle.setPointerCapture === 'function'
+  ) {
+    try {
+      handle.setPointerCapture(
+        event.pointerId
+      )
+    } catch {
+      // 部分触控屏或老浏览器可能不支持 pointer capture，继续使用 document 监听兜底。
+    }
+  }
+
+  document.body.classList.add(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor =
+    'col-resize'
+
+  document.body.style.userSelect =
+    'none'
+
+  document.addEventListener(
+    'pointermove',
+    onPanelResizeMove
+  )
+
+  document.addEventListener(
+    'pointerup',
+    stopPanelResize,
+    {
+      once: true,
+    }
+  )
+
+  document.addEventListener(
+    'pointercancel',
+    stopPanelResize,
+    {
+      once: true,
+    }
+  )
+}
+
+function onPanelResizeMove(
+  event: PointerEvent
+) {
+  if (!panelResizeState) {
+    return
+  }
+
+  const bounds =
+    getPanelResizeBounds('right')
+
+  const delta =
+    event.clientX -
+    panelResizeState.startX
+
+  rightPanelWidth.value =
+    clampPanelNumber(
+      panelResizeState.width - delta,
+      bounds.min,
+      bounds.max
+    )
+
+  rightPanelManuallyResized = true
+  scheduleChartResize()
+}
+
+function stopPanelResize() {
+  panelResizeState = null
+
+  document.body.classList.remove(
+    'geo-panel-resizing'
+  )
+
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+
+  document.removeEventListener(
+    'pointermove',
+    onPanelResizeMove
+  )
+
+  document.removeEventListener(
+    'pointerup',
+    stopPanelResize
+  )
+
+  document.removeEventListener(
+    'pointercancel',
+    stopPanelResize
+  )
+
+  scheduleChartResize()
+}
+
+function resetGame() {
+  window.location.reload()
+}
+
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -272,9 +705,41 @@ function onMapClick(params: any) {
 
 // ---- 生命周期 ----
 onMounted(async () => {
+  syncTemplateLayout()
+
+  pageResizeObserver =
+    new ResizeObserver(() => {
+      syncTemplateLayout()
+      scheduleChartResize()
+    })
+
+  if (pageRef.value) {
+    pageResizeObserver.observe(pageRef.value)
+  }
+
   try {
     const res = await fetch('/geo-resources-folder/geojson/中国矢量数据/中国省级行政区.geojson')
     geoJsonData = await res.json()
+
+    /*
+     * 去掉 GeoJSON 里的附属小框 / 空白要素：
+     * - 部分中国省级 GeoJSON 会带南海诸岛小框；
+     * - 该要素可能没有 properties.name，右侧会生成空白卡片；
+     * - 地图上也会出现右下角 inset 小框。
+     */
+    geoJsonData.features =
+      geoJsonData.features.filter((feature: any) => {
+        const name =
+          String(
+            feature?.properties?.name || ''
+          ).trim()
+
+        return (
+          name &&
+          name !== '南海诸岛'
+        )
+      })
+
     echarts.registerMap('china', geoJsonData)
   } catch (e) {
     console.error('GeoJSON 加载失败:', e)
@@ -297,11 +762,37 @@ onMounted(async () => {
     return
   }
 
-  provinceList.value = geoJsonData.features.map((f: any) => {
-    const coords = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : [f.geometry.coordinates]
-    const { path } = normalizeCoords(coords)
-    return { name: f.properties.name, shortName: f.properties.name, svgPath: path }
-  })
+  provinceList.value =
+    geoJsonData.features
+      .map((f: any) => {
+        const coords =
+          f.geometry.type === 'MultiPolygon'
+            ? f.geometry.coordinates
+            : [f.geometry.coordinates]
+
+        const { path } =
+          normalizeCoords(coords)
+
+        const name =
+          String(
+            f.properties?.name || ''
+          ).trim()
+
+        return {
+          name,
+          shortName: name,
+          svgPath: path,
+        }
+      })
+      .filter((item: any) => {
+        return (
+          item.name &&
+          item.name !== '南海诸岛'
+        )
+      })
+
+  totalCount.value =
+    provinceList.value.length
 
   chart.setOption({
     backgroundColor: 'transparent',
@@ -313,6 +804,8 @@ onMounted(async () => {
       emphasis: { label: { show: false }, itemStyle: { areaColor: '#9ca3af' } },
     },
   })
+
+  scheduleChartResize()
 
   // 监听地图底层点击（silent 模式下用 getZr 捕获像素坐标）
   chart.getZr().on('click', onMapClick)
@@ -349,6 +842,29 @@ function handleResize() { chart?.resize() }
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+
+  pageResizeObserver?.disconnect()
+  pageResizeObserver = null
+
+  if (chartResizeFrame) {
+    window.cancelAnimationFrame(chartResizeFrame)
+    chartResizeFrame = 0
+  }
+
+  document.removeEventListener(
+    'pointermove',
+    onPanelResizeMove
+  )
+
+  document.removeEventListener(
+    'pointerup',
+    stopPanelResize
+  )
+
+  document.removeEventListener(
+    'pointercancel',
+    stopPanelResize
+  )
   chart?.dispose()
   if (dropTimer) clearTimeout(dropTimer)
   if (countdownTimer) clearInterval(countdownTimer)
@@ -356,222 +872,454 @@ onUnmounted(() => {
 </script>
 
 <style>
-body { margin: 0; background: #0c1222; overflow: hidden; }
-::-webkit-scrollbar { display: none; }
-* { scrollbar-width: none; -ms-overflow-style: none; }
+body {
+  margin: 0;
+  background: #0c1222;
+}
 </style>
 
 <style scoped>
 .china-map-container {
-  height: 100vh; width: 100vw;
-  background: linear-gradient(135deg, #0c1222 0%, #1a1a3e 50%, #0c1222 100%);
-  display: flex; flex-direction: column; overflow: hidden;
-}
-.header-section { text-align: center; padding: 8px 20px 6px; flex-shrink: 0; }
-.page-title { font-size: 24px; color: #2ec4b6; margin: 0; letter-spacing: 2px; }
-.page-subtitle { font-size: 12px; color: #fbbf24; margin: 2px 0 8px; }
-
-/* 进度条 + 计时 */
-.progress-area { width: 100%; max-width: 600px; margin: 0 auto; }
-.progress-bar-wrap {
-  height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;
-}
-.progress-bar-fill {
-  height: 100%; background: linear-gradient(90deg, #2ec4b6, #2ec4b6);
-  border-radius: 4px; transition: width 0.4s ease;
-}
-.progress-info {
-  display: flex; justify-content: center; align-items: center;
-  margin-top: 4px; font-size: 11px;
-}
-.progress-text { color: #94a3b8; }
-
-/* 右上角倒计时 */
-.countdown-badge {
-  position: fixed; top: 14px; right: 200px; z-index: 60;
-  display: flex; align-items: center; gap: 8px;
-  background: rgba(8, 12, 28, 0.85);
-  border: 1px solid rgba(46, 196, 182, 0.3);
-  border-radius: 12px;
-  padding: 8px 18px;
-  backdrop-filter: blur(6px);
-}
-.countdown-label { font-size: 16px; }
-.countdown-value {
-  font-size: 22px; color: #2ec4b6; font-weight: 700;
-  font-variant-numeric: tabular-nums; letter-spacing: 2px;
-}
-.countdown-badge.warn {
-  border-color: rgba(239, 68, 68, 0.5);
-  animation: pulse 1s infinite;
-}
-.countdown-badge.warn .countdown-value { color: #ef4444; }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
-.main-area { flex: 1; display: flex; overflow: hidden; position: relative; }
-
-/* ---- 地图区 ---- */
-.map-zone {
-  flex: 1; min-width: 0;
+.china-map-stage {
   position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
-#china-map { width: 100%; height: 100%; }
 
-/* 选中提示条 */
-.selected-hint {
-  position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-  padding: 8px 20px; border-radius: 10px;
-  font-size: 13px; color: #fbbf24; z-index: 50;
+.map-zone {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.china-map-chart {
+  width: 100%;
+  height: 100%;
+}
+
+.map-approval-number {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 80;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: rgba(234, 248, 255, 0.86);
+  background: rgba(8, 18, 34, 0.78);
+  border: 1px solid rgba(116, 234, 229, 0.22);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.selected-hint,
+.drop-feedback {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 9px 22px;
+  border-radius: 12px;
   background: rgba(8, 12, 28, 0.9);
-  border: 1px solid rgba(251, 191, 36, 0.4);
-  white-space: nowrap; pointer-events: none;
+  backdrop-filter: blur(10px);
+  white-space: nowrap;
+  pointer-events: none;
   animation: dropPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.selected-hint span { color: #2ec4b6; font-weight: bold; }
 
-/* 拖放反馈浮动消息 */
-.drop-feedback {
-  position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-  padding: 10px 24px; border-radius: 10px;
-  font-size: 15px; font-weight: bold; z-index: 50;
-  animation: dropPop 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: none;
-  background: rgba(8, 12, 28, 0.9);
-  border: 1px solid;
-  white-space: nowrap;
+.selected-hint {
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  font-size: 13px;
 }
-.drop-feedback.success { color: #2ec4b6; border-color: #2ec4b6; }
-.drop-feedback:not(.success) { color: #ef4444; border-color: #ef4444; }
+
+.selected-hint span {
+  color: #2ec4b6;
+  font-weight: 800;
+}
+
+.drop-feedback {
+  font-size: 15px;
+  font-weight: 800;
+  border: 1px solid;
+}
+
+.drop-feedback.success {
+  color: #2ec4b6;
+  border-color: #2ec4b6;
+}
+
+.drop-feedback:not(.success) {
+  color: #ef4444;
+  border-color: #ef4444;
+}
 
 @keyframes dropPop {
-  0% { transform: translateX(-50%) scale(0.6); opacity: 0; }
-  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+  0% {
+    transform: translateX(-50%) scale(0.7);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
 }
 
-/* 全部完成弹窗 */
-.completion-overlay {
-  position: fixed; inset: 0; z-index: 999;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex; align-items: center; justify-content: center;
-  animation: fadeIn 0.3s ease;
-}
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-.completion-card {
-  background: linear-gradient(145deg, #1a1a3e, #0c1222);
-  border: 2px solid #2ec4b6; border-radius: 20px;
-  padding: 40px 50px; text-align: center;
-  animation: cardPop 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  max-width: 400px; width: 90%;
-}
-@keyframes cardPop {
-  0% { transform: scale(0.5); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+.progress-card {
+  padding: 12px;
+  margin-bottom: 12px;
 }
 
-.completion-icon { font-size: 56px; margin-bottom: 10px; }
-.completion-title { font-size: 32px; color: #2ec4b6; margin: 0 0 8px; letter-spacing: 4px; }
-.completion-sub { font-size: 14px; color: #94a3b8; margin: 0 0 24px; }
-
-.completion-time {
-  display: inline-flex; align-items: baseline; gap: 8px;
-  background: rgba(46, 196, 182, 0.1);
-  border-radius: 12px; padding: 12px 28px;
-  margin-bottom: 28px;
-}
-.time-label { font-size: 14px; color: #94a3b8; }
-.time-value {
-  font-size: 36px; color: #fbbf24; font-weight: 700;
-  font-variant-numeric: tabular-nums; letter-spacing: 2px;
+.progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.completion-btn {
-  background: #2ec4b6; color: #0c1222; border: none;
-  padding: 10px 36px; border-radius: 8px;
-  font-size: 15px; font-weight: 600; cursor: pointer;
-  transition: all 0.2s;
+.progress-head strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 15px;
 }
-.completion-btn:hover { background: #3dd4c4; transform: translateY(-1px); }
 
-/* 超时弹窗 */
-.timeout-card { border-color: #2ec4b6; }
-.timeout-title { color: #2ec4b6; }
-.timeout-encourage {
-  font-size: 14px; color: #94a3b8; font-style: italic;
-  margin: -16px 0 20px; line-height: 1.6;
+.progress-head span {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
-.timeout-btn { background: #2ec4b6; }
-.timeout-btn:hover { background: #3dd4c4; }
 
-/* ---- 右侧省份图栏 ---- */
-.province-sidebar {
-  width: 180px; flex-shrink: 0;
-  background: rgba(15, 23, 42, 0.75);
-  border-left: 1px solid rgba(46, 196, 182, 0.2);
-  display: flex; flex-direction: column;
-  backdrop-filter: blur(6px);
+.progress-bar-wrap {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  overflow: hidden;
 }
-.sidebar-title {
-  font-size: 15px; color: #2ec4b6; font-weight: bold;
-  text-align: center; padding: 14px 8px 10px;
-  border-bottom: 1px solid rgba(46, 196, 182, 0.15);
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2ec4b6, #39a7ff);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.countdown-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(8, 12, 28, 0.72);
+  border: 1px solid rgba(46, 196, 182, 0.30);
 }
-.sidebar-scroll {
-  flex: 1; overflow-y: auto; overflow-x: hidden;
-  padding: 6px 8px;
+
+.countdown-label {
+  font-size: 15px;
+}
+
+.countdown-value {
+  color: #2ec4b6;
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+.countdown-badge.warn {
+  border-color: rgba(239, 68, 68, 0.55);
+  animation: pulse 1s infinite;
+}
+
+.countdown-badge.warn .countdown-value {
+  color: #ef4444;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.62;
+  }
+}
+
+.province-list-card {
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.province-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.province-list-head h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.province-list-head span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.province-name-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .province-card {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 8px 4px 6px; margin-bottom: 6px;
+  position: relative;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
   border-radius: 10px;
+  border: 1px solid rgba(116, 234, 229, 0.14);
+  background: rgba(15, 35, 54, 0.55);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
-  user-select: none;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    opacity 0.18s ease;
 }
+
 .province-card:hover {
-  background: rgba(46, 196, 182, 0.1);
-  border-color: rgba(46, 196, 182, 0.25);
+  transform: translateY(-1px);
+  background: rgba(46, 196, 182, 0.12);
+  border-color: rgba(46, 196, 182, 0.45);
 }
+
 .province-card.active {
-  background: rgba(251, 191, 36, 0.15);
+  background: rgba(251, 191, 36, 0.18);
   border-color: #fbbf24;
-  box-shadow: 0 0 12px rgba(251, 191, 36, 0.3);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.24);
 }
+
 .province-card.matched {
-  opacity: 0.45;
+  opacity: 0.48;
   pointer-events: none;
 }
-.province-card.matched .province-svg path {
-  fill: #2ec4b688;
-}
+
 .province-card.matched::after {
   content: '✓';
-  position: absolute; top: 2px; right: 6px;
-  font-size: 12px; color: #2ec4b6;
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  color: #2ec4b6;
+  font-size: 12px;
+  font-weight: 900;
 }
-.province-card { position: relative; }
 
-.province-svg { width: 40px; height: 40px; flex-shrink: 0; }
 .province-name {
-  font-size: 10px; color: #cbd5e1; font-weight: 500;
-  text-align: center; margin-top: 3px; line-height: 1.3;
-  overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  word-break: break-all;
+  display: block;
+  overflow: hidden;
+  color: inherit;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.map-note-card {
+  padding: 12px;
+}
+
+.map-note-card h3 {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+  font-size: 15px;
+
+}
+
+.map-note-card p {
+  margin: 6px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+
+}
+
+
+/* 全部完成 / 超时弹窗 */
+.completion-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.70);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.completion-card {
+  width: min(90vw, 420px);
+  padding: 38px 46px;
+  text-align: center;
+  border: 2px solid #2ec4b6;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(46, 196, 182, 0.16), transparent 42%),
+    linear-gradient(145deg, #1a1a3e, #0c1222);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
+  animation: cardPop 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cardPop {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.completion-icon {
+  margin-bottom: 10px;
+  font-size: 56px;
+}
+
+.completion-title {
+  margin: 0 0 8px;
+  color: #2ec4b6;
+  font-size: 32px;
+  letter-spacing: 4px;
+}
+
+.completion-sub {
+  margin: 0 0 24px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.completion-time {
+  padding: 12px 28px;
+  margin-bottom: 28px;
+  border-radius: 14px;
+  background: rgba(46, 196, 182, 0.10);
+}
+
+.time-label {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.time-value {
+  color: #fbbf24;
+  font-size: 36px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 2px;
+}
+
+.completion-btn {
+  padding: 10px 36px;
+  border: none;
+  border-radius: 10px;
+  background: #2ec4b6;
+  color: #0c1222;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.completion-btn:hover {
+  transform: translateY(-1px);
+  background: #3dd4c4;
+}
+
+.timeout-card {
+  border-color: #2ec4b6;
+}
+
+.timeout-title {
+  color: #2ec4b6;
+}
+
+.timeout-encourage {
+  margin: -14px 0 20px;
+  color: #94a3b8;
+  font-size: 14px;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+/* ECharts 内部画布兜底 */
+:deep(canvas) {
+  display: block;
 }
 
 @media (max-width: 900px) {
-  .province-sidebar { width: 140px; }
-  .province-svg { width: 32px; height: 32px; }
+  .province-name-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .progress-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .countdown-badge {
+    justify-content: center;
+  }
 }
+
 @media (max-width: 640px) {
-  .province-sidebar { width: 100px; }
-  .province-svg { width: 26px; height: 26px; }
+  .province-name {
+    font-size: 12px;
+  }
+
+  .selected-hint,
+  .drop-feedback {
+    max-width: calc(100% - 28px);
+    white-space: normal;
+  }
 }
+
+/* ===================== v2: 去掉南海小框与空白省份卡 =====================
+   - 过滤 GeoJSON 中空 name / 南海诸岛要素；
+   - 右侧省份列表不再出现空白卡片；
+   - 审图号只保留在主场景左下角。
+*/
 </style>

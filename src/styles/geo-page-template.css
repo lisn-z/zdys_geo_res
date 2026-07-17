@@ -4186,8 +4186,6 @@
     --header-side-reserve:
       clamp(300px, 14vw, 460px);
 
-    min-height:
-      clamp(72px, 4.2vw, 92px);
     padding:
       0 clamp(18px, 1vw, 32px);
   }
@@ -5055,10 +5053,7 @@
    ========================================================= */
 
 @media (min-width: 2200px) and (min-height: 1200px) and (min-aspect-ratio: 16 / 10) {
-  .geo-template-page .top-toolbar {
-    min-height:
-      clamp(72px, 4.2vw, 92px);
-  }
+  .geo-template-page .top-toolbar {}
 
   .geo-template-page .toolbar-actions {
     align-items:
@@ -5138,8 +5133,6 @@
   }
 
   .geo-template-page:not(.layout-floating).layout-large>.workspace>.side-panel {
-    margin-top:
-      var(--non-floating-large-panel-top-gap) !important;
     height:
       calc(100% - var(--non-floating-large-panel-top-gap)) !important;
     max-height:

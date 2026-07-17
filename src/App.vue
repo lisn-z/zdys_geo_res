@@ -7,6 +7,7 @@
         <div v-for="item in navItems" :key="item.path" class="nav-card" @click="router.push(item.path)">
           <div class="nav-card-icon">📖</div>
           <div class="nav-card-title">{{ item.meta?.title || item.name }}</div>
+          <div class="nav-card-title">{{ item.path.slice(1) }}</div>
         </div>
       </div>
     </div>
@@ -101,9 +102,10 @@ const navItems = computed(() => routesNav.filter((item) => item.path !== '/'))
 }
 
 .nav-card-title {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   text-align: center;
+  line-height: 1.5;
 }
 
 .back-home-btn {

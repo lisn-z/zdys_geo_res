@@ -1013,6 +1013,174 @@ function getDisplayHeight(realHeight: number): number {
   return (realHeight - BASE_ELEVATION) * HEIGHT_SCALE
 }
 
+/*
+ * 等高线表面抬升：
+ * Marching Squares 算出的等高线点在平滑后，X/Z 会发生微小移动。
+ * 如果仍然使用固定的 level 高度，局部就会卡进山体。
+ * 这里重新按 X/Z 采样地形表面高度，再向上抬一点点。
+ */
+const CONTOUR_SURFACE_OFFSET = 0.024
+const FEATURE_LINE_SURFACE_OFFSET = 0.032
+
+function sampleTerrainHeightAtSceneXZ(
+  sceneX: number,
+  sceneZ: number
+): number {
+  const normalizedX =
+    Math.min(
+      1,
+      Math.max(
+        0,
+        sceneX / TERRAIN_SIZE + 0.5
+      )
+    )
+
+  const normalizedRow =
+    Math.min(
+      1,
+      Math.max(
+        0,
+        sceneZ / TERRAIN_SIZE + 0.5
+      )
+    )
+
+  const gx =
+    normalizedX * (GRID_SIZE - 1)
+
+  const gz =
+    normalizedRow * (GRID_SIZE - 1)
+
+  const x0 =
+    Math.max(
+      0,
+      Math.min(
+        GRID_SIZE - 1,
+        Math.floor(gx)
+      )
+    )
+
+  const z0 =
+    Math.max(
+      0,
+      Math.min(
+        GRID_SIZE - 1,
+        Math.floor(gz)
+      )
+    )
+
+  const x1 =
+    Math.min(
+      GRID_SIZE - 1,
+      x0 + 1
+    )
+
+  const z1 =
+    Math.min(
+      GRID_SIZE - 1,
+      z0 + 1
+    )
+
+  const tx =
+    gx - x0
+
+  const tz =
+    gz - z0
+
+  const h00 =
+    heightsData[z0]?.[x0] ?? BASE_ELEVATION
+
+  const h10 =
+    heightsData[z0]?.[x1] ?? h00
+
+  const h01 =
+    heightsData[z1]?.[x0] ?? h00
+
+  const h11 =
+    heightsData[z1]?.[x1] ?? h10
+
+  const h0 =
+    h00 * (1 - tx) + h10 * tx
+
+  const h1 =
+    h01 * (1 - tx) + h11 * tx
+
+  const realHeight =
+    h0 * (1 - tz) + h1 * tz
+
+  return getDisplayHeight(realHeight)
+}
+
+function liftContourToTerrainSurface(
+  points: Float32Array,
+  offset = CONTOUR_SURFACE_OFFSET
+): Float32Array {
+  const lifted =
+    new Float32Array(points.length)
+
+  for (let i = 0; i < points.length; i += 3) {
+    const x =
+      points[i] ?? 0
+
+    const z =
+      points[i + 2] ?? 0
+
+    lifted[i] =
+      x
+
+    lifted[i + 1] =
+      sampleTerrainHeightAtSceneXZ(
+        x,
+        z
+      ) + offset
+
+    lifted[i + 2] =
+      z
+  }
+
+  return lifted
+}
+
+function createSurfaceContourLine(
+  points: Float32Array,
+  color: number,
+  opacity = 0.9,
+  renderOrder = 10
+): THREE.Line {
+  const lineGeo =
+    new THREE.BufferGeometry()
+
+  lineGeo.setAttribute(
+    'position',
+    new THREE.BufferAttribute(
+      points,
+      3
+    )
+  )
+
+  const lineMat =
+    new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthTest: true,
+      depthWrite: false,
+    })
+
+  const line =
+    new THREE.Line(
+      lineGeo,
+      lineMat
+    )
+
+  line.renderOrder =
+    renderOrder
+
+  line.frustumCulled =
+    false
+
+  return line
+}
+
 // ============================================================
 // 绿褐色系分层设色
 // 深绿 → 绿 → 浅绿 → 浅黄 → 黄 → 深黄 → 浅褐 → 褐 → 深褐
@@ -1458,17 +1626,30 @@ function buildContoursAndProjection() {
 
   const SMOOTH_ITER = 2
 
-  // 1. 3D 地形表面等高线 — 使用 Line2 贴合地形（深紫色）
+  // 1. 3D 地形表面等高线 — 先平滑，再重新采样山体表面并抬升，避免卡进山体
   for (const level of levels) {
     const y = getDisplayHeight(level)
     const rawPolylines = connectContourPolylines(segments, level, y)
     for (const pts of rawPolylines) {
-      const smoothPts = chaikinSmooth(pts, SMOOTH_ITER)
-      // 用 LineBasicMaterial 创建普通等高线（无 polygonOffset 依赖，直接嵌入地形表面）
-      const lineGeo = new THREE.BufferGeometry()
-      lineGeo.setAttribute('position', new THREE.BufferAttribute(smoothPts, 3))
-      const lineMat = new THREE.LineBasicMaterial({ color: 0x5a0d9a, transparent: true, opacity: 0.85 })
-      const line = new THREE.Line(lineGeo, lineMat)
+      const smoothPts =
+        chaikinSmooth(
+          pts,
+          SMOOTH_ITER
+        )
+
+      const liftedPts =
+        liftContourToTerrainSurface(
+          smoothPts
+        )
+
+      const line =
+        createSurfaceContourLine(
+          liftedPts,
+          0x5a0d9a,
+          0.92,
+          10
+        )
+
       contourGroup3D.add(line)
     }
   }
@@ -1518,9 +1699,20 @@ function buildRidges(segments: ContourSegment[]) {
   // ---- 山脊线（红色） ----
   const ridgePts = traceRidgeLine(segments)
   if (ridgePts) {
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(ridgePts, 3))
-    ridgeGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xff2222 })))
+    const liftedRidgePts =
+      liftContourToTerrainSurface(
+        ridgePts,
+        FEATURE_LINE_SURFACE_OFFSET
+      )
+
+    ridgeGroup.add(
+      createSurfaceContourLine(
+        liftedRidgePts,
+        0xff2222,
+        0.95,
+        12
+      )
+    )
 
     const proj = new Float32Array(ridgePts.length)
     for (let k = 0; k < ridgePts.length; k += 3) { proj[k] = ridgePts[k]; proj[k + 1] = BASE_PLANE_Y + 0.006; proj[k + 2] = ridgePts[k + 2] }
@@ -1532,9 +1724,20 @@ function buildRidges(segments: ContourSegment[]) {
   // ---- 山谷线（蓝色） ----
   const valleyPts = traceValleyLine(segments)
   if (valleyPts) {
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(valleyPts, 3))
-    ridgeGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x2266ff })))
+    const liftedValleyPts =
+      liftContourToTerrainSurface(
+        valleyPts,
+        FEATURE_LINE_SURFACE_OFFSET
+      )
+
+    ridgeGroup.add(
+      createSurfaceContourLine(
+        liftedValleyPts,
+        0x2266ff,
+        0.95,
+        12
+      )
+    )
 
     const proj = new Float32Array(valleyPts.length)
     for (let k = 0; k < valleyPts.length; k += 3) { proj[k] = valleyPts[k]; proj[k + 1] = BASE_PLANE_Y + 0.006; proj[k + 2] = valleyPts[k + 2] }
@@ -3607,5 +3810,12 @@ onUnmounted(() => {
    - 修复 1440 断点面板突然变宽；
    - 修复 800 断点面板突然变宽；
    - layoutMode 只负责布局形态，不再决定面板宽度。
+*/
+
+/* ===================== v18: 等高线贴合山体表面 =====================
+   - 3D 等高线平滑后重新采样 terrain 高度；
+   - 等高线整体向上轻微抬升，避免卡进山体；
+   - 山脊线 / 山谷线同步抬升；
+   - 不使用 depthTest:false，避免背面等高线穿透显示。
 */
 </style>

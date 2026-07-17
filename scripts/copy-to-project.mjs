@@ -18,26 +18,54 @@ const OUTPUT_DIR = join(root, 'output')
 /** 目标项目根路径 */
 const TARGET_DIR = 'D:\\company\\geography-design-tool'
 
+/**
+ * 复制白名单 — 只复制列表中包含的文件/文件夹名称。
+ * 如果数组为空，则复制全部（原行为）。
+ * 支持按目录限定，例如只复制 astro 中的某几个文件：
+ *   COPY_WHITELIST = ['apparent-motion-of-the-sun.astro', 'soil-erosion.astro']
+ * 或只复制某几个 geo 组件：
+ *   COPY_WHITELIST = ['apparent-motion-of-the-sun', 'soil-erosion']
+ */
+const COPY_WHITELIST = [
+  // 示例：取消注释即可只复制这几项
+  // 'apparent-motion-of-the-sun.astro',
+  // 'soil-erosion.astro',
+  // 'apparent-motion-of-the-sun',
+  // 'soil-erosion',
+]
+
 const MAPPINGS = [
   {
     label: 'astro 页面',
     src: join(OUTPUT_DIR, 'astro'),
     dest: join(TARGET_DIR, 'src', 'pages', 'geo'),
-    filter: (name) => name.endsWith('.astro'),
+    filter: (name) =>
+      name.endsWith('.astro') && whitelistMatch(name),
   },
   {
     label: '样式文件',
     src: join(OUTPUT_DIR, 'styles'),
     dest: join(TARGET_DIR, 'src', 'styles'),
-    filter: (name) => name.endsWith('.css'),
+    filter: (name) =>
+      name.endsWith('.css'),
   },
   {
     label: 'geo 组件',
     src: join(OUTPUT_DIR, 'geo'),
     dest: join(TARGET_DIR, 'src', 'components', 'geo'),
-    filter: () => true, // 复制所有子文件夹
+    filter: (name) => whitelistMatch(name),
   },
 ]
+
+// ======================== 白名单辅助 ========================
+
+/**
+ * 检查名称是否在白名单中。白名单为空时放行所有项目。
+ */
+function whitelistMatch(name) {
+  if (COPY_WHITELIST.length === 0) return true
+  return COPY_WHITELIST.includes(name)
+}
 
 // ======================== 主逻辑 ========================
 
