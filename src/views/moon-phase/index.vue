@@ -23,82 +23,117 @@
       <section class="center-stage moon-center-stage">
         <div class="stage-content moon-stage-content">
           <main class="main-grid">
-            <section class="panel global-panel">
-              <div class="panel-header global-view-header">
-                <h2 class="global-view-title">
-                  <span class="panel-icon">◎</span>
-                  {{ is3DMode ? '上帝视角（三维空间）' : '上帝视角（二维平面）' }}
-                </h2>
+            <!-- 左侧：主视图 + 时间轴 -->
+            <section class="left-column">
+              <section class="panel global-panel" :class="{ 'is-3d-mode': is3DMode }">
+                <div class="panel-header global-view-header">
+                  <h2 class="global-view-title">
+                    <span class="panel-icon">◎</span>
+                    {{ is3DMode ? '三维空间' : '二维平面' }}
+                  </h2>
 
-                <div class="header-actions global-view-actions">
-                  <button class="pill-button" type="button" @click="toggle3DMode">
-                    <span>{{ is3DMode ? '▣' : '◇' }}</span>
-                    <span>{{ is3DMode ? '返回 2D' : '切换为 3D' }}</span>
+                  <div class="header-actions global-view-actions">
+                    <button class="pill-button" type="button" @click="toggle3DMode">
+                      <span>{{ is3DMode ? '▣' : '◇' }}</span>
+                      <span>{{ is3DMode ? '返回 2D' : '切换为 3D' }}</span>
+                    </button>
+
+                    <div v-show="!is3DMode" class="angle-switch">
+                      <span>显示夹角</span>
+                      <el-switch v-model="isAngleVisible" size="small" class="theme-switch angle-el-switch"
+                        aria-label="显示日月地夹角" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2D 视图容器 -->
+                <div v-show="!is3DMode" ref="viewportRef" class="viewport-container is-2d-mode">
+                  <div class="view-2d">
+                    <div class="sun-glow"></div>
+                    <div class="sun-light-label">太阳直射光</div>
+
+                    <svg class="sight-line-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                      <line x1="50" y1="50" x2="100" y2="50" stroke="rgba(250, 204, 21, 0.45)" stroke-width="0.3"
+                        stroke-dasharray="1.5 1.5" />
+
+                      <path v-show="showAngleGraphic" :d="angleArcPath" fill="rgba(46, 196, 182, 0.2)" stroke="#2ec4b6"
+                        stroke-width="0.35" />
+
+                      <text v-show="showAngleGraphic" :x="angleTextPosition.x" :y="angleTextPosition.y" fill="#2ec4b6"
+                        font-size="3.5" font-weight="700" text-anchor="middle" dominant-baseline="middle">
+                        {{ Math.round(elongationAngle) }}°
+                      </text>
+
+                      <line x1="50" y1="50" :x2="moonPosition.x" :y2="moonPosition.y" stroke="rgba(255, 255, 255, 0.65)"
+                        stroke-width="0.5" stroke-dasharray="1.5 1.5" />
+                    </svg>
+
+                    <div class="orbit-circle"></div>
+
+                    <div class="orbit-markers" aria-hidden="true">
+                      <div v-for="(marker, index) in orbitMarkers" :key="marker.angle" class="orbit-marker"
+                        :style="markerPositionStyle(marker.angle)">
+                        <canvas :ref="(element) => setMarkerCanvas(element, index)" class="marker-moon" width="40"
+                          height="40"></canvas>
+                      </div>
+
+                      <div v-for="marker in orbitMarkers" :key="`label-${marker.angle}`" class="orbit-label"
+                        :class="markerLabelClass(marker.angle)" :style="markerLabelStyle(marker.angle)">
+                        <strong>{{ marker.name }}</strong>
+                        <span>{{ marker.date }}</span>
+                      </div>
+                    </div>
+
+                    <div class="earth-2d">
+                      <span>地球</span>
+                    </div>
+
+                    <div class="moon-global" :style="{
+                      left: `${moonPosition.x}%`,
+                      top: `${moonPosition.y}%`
+                    }">
+                      <span>月球</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 3D 视图：占满整个面板 -->
+                <div v-show="is3DMode" ref="view3DRef" class="view-3d-full" aria-label="三维日地月模型"></div>
+              </section>
+
+              <section class="panel control-panel">
+                <div class="playback-controls">
+                  <button class="theme-btn timeline-icon-btn moon-play-btn" :class="{ active: isPlaying }" type="button"
+                    :aria-label="isPlaying ? '暂停动画' : '播放动画'" @click="togglePlay">
+                    <span v-if="!isPlaying" class="play-icon">▶</span>
+                    <span v-else class="pause-icon">Ⅱ</span>
                   </button>
 
-                  <div v-show="!is3DMode" class="angle-switch">
-                    <span>显示夹角</span>
-                    <el-switch v-model="isAngleVisible" size="small" class="theme-switch angle-el-switch"
-                      aria-label="显示日月地夹角" />
-                  </div>
-                </div>
-              </div>
-
-              <div ref="viewportRef" class="viewport-container"
-                :class="{ 'is-3d-mode': is3DMode, 'is-2d-mode': !is3DMode }">
-                <div v-show="!is3DMode" class="view-2d">
-                  <div class="sun-glow"></div>
-                  <div class="sun-light-label">太阳直射光</div>
-
-                  <svg class="sight-line-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                    <line x1="50" y1="50" x2="100" y2="50" stroke="rgba(250, 204, 21, 0.45)" stroke-width="0.3"
-                      stroke-dasharray="1.5 1.5" />
-
-                    <path v-show="showAngleGraphic" :d="angleArcPath" fill="rgba(46, 196, 182, 0.2)" stroke="#2ec4b6"
-                      stroke-width="0.35" />
-
-                    <text v-show="showAngleGraphic" :x="angleTextPosition.x" :y="angleTextPosition.y" fill="#2ec4b6"
-                      font-size="3.5" font-weight="700" text-anchor="middle" dominant-baseline="middle">
-                      {{ Math.round(elongationAngle) }}°
-                    </text>
-
-                    <line x1="50" y1="50" :x2="moonPosition.x" :y2="moonPosition.y" stroke="rgba(255, 255, 255, 0.65)"
-                      stroke-width="0.5" stroke-dasharray="1.5 1.5" />
-                  </svg>
-
-                  <div class="orbit-circle"></div>
-
-                  <div class="orbit-markers" aria-hidden="true">
-                    <div v-for="(marker, index) in orbitMarkers" :key="marker.angle" class="orbit-marker"
-                      :style="markerPositionStyle(marker.angle)">
-                      <canvas :ref="(element) => setMarkerCanvas(element, index)" class="marker-moon" width="40"
-                        height="40"></canvas>
-                    </div>
-
-                    <div v-for="marker in orbitMarkers" :key="`label-${marker.angle}`" class="orbit-label"
-                      :class="markerLabelClass(marker.angle)" :style="markerLabelStyle(marker.angle)">
-                      <strong>{{ marker.name }}</strong>
-                      <span>{{ marker.date }}</span>
-                    </div>
-                  </div>
-
-                  <div class="earth-2d">
-                    <span>地球</span>
-                  </div>
-
-                  <div class="moon-global" :style="{
-                    left: `${moonPosition.x}%`,
-                    top: `${moonPosition.y}%`
-                  }">
-                    <span>月球</span>
+                  <div class="speed-group">
+                    <button v-for="speed in speedOptions" :key="speed" type="button" class="theme-btn speed-btn"
+                      :class="{ active: speedMultiplier === speed }" @click="speedMultiplier = speed">
+                      {{ speed }}x
+                    </button>
                   </div>
                 </div>
 
-                <div v-show="is3DMode" ref="view3DRef" class="view-3d" aria-label="三维日地月模型"></div>
-              </div>
+                <div class="timeline">
+                  <div class="timeline-labels">
+                    <span>新月（朔）</span>
+                    <span>上弦月</span>
+                    <span>满月（望）</span>
+                    <span>下弦月</span>
+                    <span>新月</span>
+                  </div>
+
+                  <el-slider v-model="phaseProgress" :min="0" :max="360" :step="0.5" :show-tooltip="false"
+                    class="theme-slider moon-phase-slider" aria-label="月相周期进度" @pointerdown="pauseForDrag" />
+                </div>
+              </section>
             </section>
 
-            <section class="side-column">
+            <!-- 右侧：观测面板 + 数据面板 + 知识卡片 -->
+            <section class="right-column">
               <div class="panel observation-panel">
                 <h2>
                   <span class="panel-icon">◉</span>
@@ -106,7 +141,7 @@
                 </h2>
 
                 <div class="moon-preview">
-                  <canvas ref="moonPhaseCanvasRef" class="moon-phase-canvas" width="320" height="320"></canvas>
+                  <div ref="moonPhase3DRef" class="moon-phase-3d"></div>
                 </div>
 
                 <div class="phase-name">{{ phaseName }}</div>
@@ -133,68 +168,38 @@
                   </div>
                 </div>
               </div>
-            </section>
 
-            <section class="panel control-panel">
-              <div class="playback-controls">
-                <button class="theme-btn timeline-icon-btn moon-play-btn" :class="{ active: isPlaying }" type="button"
-                  :aria-label="isPlaying ? '暂停动画' : '播放动画'" @click="togglePlay">
-                  <span v-if="!isPlaying" class="play-icon">▶</span>
-                  <span v-else class="pause-icon">Ⅱ</span>
-                </button>
+              <section class="knowledge-grid">
+                <article class="knowledge-card">
+                  <h3>◷ 朔望月与恒星月</h3>
+                  <p>
+                    模拟器展示的月相周期约为 29.53 天，称为朔望月。月球相对于恒星绕地球运行一周约为
+                    27.32 天，称为恒星月。
+                  </p>
+                </article>
 
-                <div class="speed-group">
-                  <button v-for="speed in speedOptions" :key="speed" type="button" class="theme-btn speed-btn"
-                    :class="{ active: speedMultiplier === speed }" @click="speedMultiplier = speed">
-                    {{ speed }}x
-                  </button>
-                </div>
-              </div>
+                <article class="knowledge-card">
+                  <h3>⇄ 潮汐锁定</h3>
+                  <p>
+                    月球自转周期与绕地球公转周期基本相同，因此从地球上观察，月球大体始终以同一面朝向地球。
+                  </p>
+                </article>
 
-              <div class="timeline">
-                <div class="timeline-labels">
-                  <span>新月（朔）</span>
-                  <span>上弦月</span>
-                  <span>满月（望）</span>
-                  <span>下弦月</span>
-                  <span>新月</span>
-                </div>
+                <article class="knowledge-card">
+                  <h3>∠ 黄道与白道交角</h3>
+                  <p>
+                    本模型为了突出月相原理，将日、地、月近似放在同一平面。真实月球轨道面与黄道面约有
+                    5.14° 的倾角。
+                  </p>
+                </article>
 
-                <el-slider v-model="phaseProgress" :min="0" :max="360" :step="0.5" :show-tooltip="false"
-                  class="theme-slider moon-phase-slider" aria-label="月相周期进度" @pointerdown="pauseForDrag" />
-              </div>
-            </section>
-
-            <section class="knowledge-grid">
-              <article class="knowledge-card">
-                <h3>◷ 朔望月与恒星月</h3>
-                <p>
-                  模拟器展示的月相周期约为 29.53 天，称为朔望月。月球相对于恒星绕地球运行一周约为
-                  27.32 天，称为恒星月。
-                </p>
-              </article>
-
-              <article class="knowledge-card">
-                <h3>⇄ 潮汐锁定</h3>
-                <p>
-                  月球自转周期与绕地球公转周期基本相同，因此从地球上观察，月球大体始终以同一面朝向地球。
-                </p>
-              </article>
-
-              <article class="knowledge-card">
-                <h3>∠ 黄道与白道交角</h3>
-                <p>
-                  本模型为了突出月相原理，将日、地、月近似放在同一平面。真实月球轨道面与黄道面约有
-                  5.14° 的倾角。
-                </p>
-              </article>
-
-              <article class="knowledge-card">
-                <h3>◐ 晨昏圈</h3>
-                <p>
-                  除特殊遮挡情况外，太阳始终照亮月球表面的一半。月相变化来自地球观察者所见亮面比例的改变。
-                </p>
-              </article>
+                <article class="knowledge-card">
+                  <h3>◐ 晨昏圈</h3>
+                  <p>
+                    除特殊遮挡情况外，太阳始终照亮月球表面的一半。月相变化来自地球观察者所见亮面比例的改变。
+                  </p>
+                </article>
+              </section>
             </section>
           </main>
         </div>
@@ -235,7 +240,7 @@ const rootRef = ref<HTMLElement | null>(null)
 const viewportRef = ref<HTMLElement | null>(null)
 const view3DRef = ref<HTMLElement | null>(null)
 const starCanvasRef = ref<HTMLCanvasElement | null>(null)
-const moonPhaseCanvasRef = ref<HTMLCanvasElement | null>(null)
+const moonPhase3DRef = ref<HTMLElement | null>(null)
 
 const phaseProgress = ref(0)
 const isPlaying = ref(false)
@@ -361,6 +366,127 @@ function setMarkerCanvas(
     element instanceof HTMLCanvasElement ? element : null
 }
 
+/* -----------------------------
+ * Three.js 月相预览（地球观测视角）
+ * --------------------------- */
+
+let moonPhaseScene: THREE.Scene | null = null
+let moonPhaseCamera: THREE.PerspectiveCamera | null = null
+let moonPhaseRenderer: THREE.WebGLRenderer | null = null
+let moonPhaseMesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial> | null = null
+let moonPhaseLight: THREE.DirectionalLight | null = null
+let isMoonPhase3DReady = false
+
+function initMoonPhase3D() {
+  const container = moonPhase3DRef.value
+  if (!container || isMoonPhase3DReady) return
+
+  const size = Math.min(container.clientWidth, container.clientHeight) || 320
+
+  moonPhaseScene = new THREE.Scene()
+
+  moonPhaseCamera = new THREE.PerspectiveCamera(30, 1, 0.1, 100)
+  moonPhaseCamera.position.set(0, 0, 12)
+
+  moonPhaseRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+  moonPhaseRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  moonPhaseRenderer.setSize(size, size, false)
+  moonPhaseRenderer.outputColorSpace = THREE.SRGBColorSpace
+  moonPhaseRenderer.domElement.className = 'moon-phase-canvas-3d'
+  container.appendChild(moonPhaseRenderer.domElement)
+
+  // 环境光提供最低限度的暗面可见性
+  moonPhaseScene.add(new THREE.AmbientLight(0x1a2a4a, 0.5))
+
+  // 主方向光模拟太阳光，位置会根据月相角度动态更新
+  moonPhaseLight = new THREE.DirectionalLight(0xfff9e8, 3.2)
+  moonPhaseScene.add(moonPhaseLight)
+
+  const textureLoader = new THREE.TextureLoader()
+  const moonTexture = textureLoader.load(
+    MOON_TEXTURE_URL,
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace
+      tex.needsUpdate = true
+    },
+    undefined,
+    (error) => console.error('月相预览纹理加载失败：', error)
+  )
+
+  const geometry = new THREE.SphereGeometry(3.2, 64, 64)
+  const material = new THREE.MeshStandardMaterial({
+    map: moonTexture,
+    roughness: 0.82,
+    metalness: 0.02,
+    color: 0xffffff
+  })
+  moonPhaseMesh = new THREE.Mesh(geometry, material)
+  moonPhaseScene.add(moonPhaseMesh)
+
+  isMoonPhase3DReady = true
+  updateMoonPhase3D()
+}
+
+function updateMoonPhase3D() {
+  if (!isMoonPhase3DReady || !moonPhaseLight || !moonPhaseMesh) return
+
+  const rad = angleRadians.value
+
+  // 地球观测视角：相机代表地球观察者在月球前方(z轴正方向)
+  // 太阳光围绕月球旋转，模拟月球绕地球公转时太阳光照射方向的变化
+  //
+  // 关键对应关系（从地球看向月球）：
+  //   rad=0°（新月）：太阳在月球正后方 → 我们看到暗面
+  //                 光照从z轴负方向来（从月球背后照向观察者）
+  //   rad=90°（上弦月）：太阳在月球右侧 → 我们看到右半亮
+  //                 光照从x轴正方向来
+  //   rad=180°（满月）：太阳在月球正前方 → 我们看到亮面
+  //                 光照从z轴正方向来（从观察者方向照向月球）
+  //   rad=270°（下弦月）：太阳在月球左侧 → 我们看到左半亮
+  //                 光照从x轴负方向来
+  //
+  // 光源绕Y轴旋转：角度 = rad（从z轴负方向开始，逆时针）
+  // rad=0时：light在(0, 0, -15)，从背后照月球 → 正面全暗 ✓
+  // rad=π/2时：light在(15, 0, 0)，从右侧照 → 右半亮 ✓
+  // rad=π时：light在(0, 0, 15)，从前方照 → 全亮 ✓
+  // rad=3π/2时：light在(-15, 0, 0)，从左侧照 → 左半亮 ✓
+  const lightX = 15 * Math.sin(rad)
+  const lightZ = -15 * Math.cos(rad)
+  moonPhaseLight.position.set(lightX, 0, lightZ)
+
+  // 月球潮汐锁定：始终以同一面朝向地球（z轴正方向即观察者）
+  // 不需要额外旋转，默认即面向z轴正方向
+}
+
+function renderMoonPhase3D() {
+  if (!isMoonPhase3DReady || !moonPhaseRenderer || !moonPhaseScene || !moonPhaseCamera) return
+  moonPhaseRenderer.render(moonPhaseScene, moonPhaseCamera)
+}
+
+function disposeMoonPhase3D() {
+  if (moonPhaseRenderer) {
+    moonPhaseRenderer.dispose()
+    moonPhaseRenderer.forceContextLoss()
+    moonPhaseRenderer.domElement.remove()
+  }
+  if (moonPhaseMesh) {
+    moonPhaseMesh.geometry.dispose()
+    const mat = moonPhaseMesh.material as THREE.MeshStandardMaterial
+    mat.map?.dispose()
+    mat.dispose()
+  }
+  moonPhaseScene?.traverse((obj) => {
+    const mesh = obj as THREE.Mesh
+    if (mesh.geometry && mesh !== moonPhaseMesh) mesh.geometry.dispose()
+  })
+  moonPhaseScene = null
+  moonPhaseCamera = null
+  moonPhaseRenderer = null
+  moonPhaseMesh = null
+  moonPhaseLight = null
+  isMoonPhase3DReady = false
+}
+
 function renderPhaseOnContext(
   context: CanvasRenderingContext2D,
   centerX: number,
@@ -422,24 +548,6 @@ function renderPhaseOnContext(
     context.fillStyle = angle < 270 ? lightColor : darkColor
     context.fill()
   }
-}
-
-function drawMainMoonPhase() {
-  const canvas = moonPhaseCanvasRef.value
-  if (!canvas) return
-
-  const context = canvas.getContext('2d')
-  if (!context) return
-
-  renderPhaseOnContext(
-    context,
-    canvas.width / 2,
-    canvas.height / 2,
-    150,
-    normalizedAngle.value,
-    '#0f172a',
-    '#2ec4b6'
-  )
 }
 
 function drawMarkerMoons() {
@@ -642,13 +750,6 @@ function init3D() {
   sunlight.position.set(62, 0, 0)
   scene3D.add(sunlight)
 
-  // 单独给月球增加主题色光照。
-  // 该灯光只作用于第 1 图层，不会把地球和其他模型染绿。
-  const moonTintLight = new THREE.DirectionalLight(0x36ffd8, 2.15)
-  moonTintLight.position.set(62, 0, 0)
-  moonTintLight.layers.set(1)
-  scene3D.add(moonTintLight)
-
   const textureLoader = new THREE.TextureLoader()
 
   const sunTexture = textureLoader.load(
@@ -716,8 +817,7 @@ function init3D() {
 
   const moonGeometry = new THREE.SphereGeometry(2.4, 64, 64)
   const moonMaterial = new THREE.MeshStandardMaterial({
-    // 比原主题色更明亮、饱和，用于抵消月球纹理本身的灰度压暗。
-    color: 0x55ffdc,
+    color: 0xffffff,
     map: moonTexture,
     bumpMap: moonTexture,
     bumpScale: 0.08,
@@ -725,10 +825,6 @@ function init3D() {
     metalness: 0
   })
   moonMesh3D = new THREE.Mesh(moonGeometry, moonMaterial)
-
-  // 月球同时处于默认图层和专用灯光图层：
-  // 默认白色太阳光负责明暗，专用青绿色光增强受光面的绿色。
-  moonMesh3D.layers.enable(1)
 
   scene3D.add(moonMesh3D)
 
@@ -910,6 +1006,11 @@ function animationLoop(timestamp: number) {
       controls3D?.update()
       renderer3D.render(scene3D, camera3D)
     }
+
+    // 渲染右侧月相预览 3D
+    if (isMoonPhase3DReady) {
+      renderMoonPhase3D()
+    }
   }
 
   animationFrameId = requestAnimationFrame(animationLoop)
@@ -921,14 +1022,14 @@ function handleVisibilityChange() {
 }
 
 watch(normalizedAngle, () => {
-  drawMainMoonPhase()
+  updateMoonPhase3D()
   update3DModel()
 })
 
 onMounted(async () => {
   await nextTick()
 
-  drawMainMoonPhase()
+  initMoonPhase3D()
   drawMarkerMoons()
   resizeStarfield()
   syncLayoutMode()
@@ -946,8 +1047,9 @@ onMounted(async () => {
     if (is3DMode.value) resize3D()
   })
 
-  if (viewportRef.value) {
-    viewportResizeObserver.observe(viewportRef.value)
+  // 观察 3D 视图容器以支持响应式调整
+  if (view3DRef.value) {
+    viewportResizeObserver.observe(view3DRef.value)
   }
 
   document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -959,6 +1061,7 @@ onBeforeUnmount(() => {
   rootResizeObserver?.disconnect()
   viewportResizeObserver?.disconnect()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  disposeMoonPhase3D()
   dispose3D()
 })
 </script>
@@ -1369,6 +1472,13 @@ onBeforeUnmount(() => {
   gap: 22px;
 }
 
+.right-column {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr);
+  gap: clamp(12px, 1vw, 18px);
+}
+
 .observation-panel {
   display: flex;
   flex-direction: column;
@@ -1393,10 +1503,17 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 0 34px rgba(0, 0, 0, 0.62);
 }
 
-.moon-phase-canvas {
-  display: block;
+.moon-phase-3d {
   width: 100%;
   height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.moon-phase-3d :deep(.moon-phase-canvas-3d) {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .phase-name {
@@ -2146,6 +2263,11 @@ onBeforeUnmount(() => {
   gap: clamp(12px, 1vw, 18px);
 }
 
+.moon-phase-template2 .right-column {
+  grid-template-rows: minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr);
+  gap: clamp(12px, 1vw, 18px);
+}
+
 .moon-phase-template2 .observation-panel,
 .moon-phase-template2 .data-panel {
   min-width: 0;
@@ -2185,8 +2307,8 @@ onBeforeUnmount(() => {
     max-height: min(70vh, 820px);
   }
 
-  .moon-phase-template2 .side-column {
-    grid-template-rows: auto minmax(0, 1fr);
+  .moon-phase-template2 .right-column {
+    grid-template-rows: minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr);
   }
 
   .moon-phase-template2 .moon-preview {
@@ -2380,7 +2502,7 @@ onBeforeUnmount(() => {
 /* ===================== v3: 中小屏保持左右对照观察 =====================
    v2 问题：
    - 1180px 以下直接把主区改成单列；
-   - “地球观测视角”被挤到下方，失去左侧上帝视角 / 右侧观测视角的对照关系。
+   - "地球观测视角"被挤到下方，失去左侧上帝视角 / 右侧观测视角的对照关系。
 
    v3 处理：
    - 1180px ~ 821px：继续保持左右两列；
@@ -2405,24 +2527,31 @@ onBeforeUnmount(() => {
       100% !important;
     min-height:
       0 !important;
-    display:
-      grid !important;
     grid-template-columns:
       minmax(0, 1.42fr) minmax(230px, 0.72fr) !important;
     grid-template-rows:
-      minmax(0, 1fr) auto !important;
-    grid-template-areas:
-      "global side"
-      "control knowledge" !important;
+      minmax(0, 1fr) !important;
     gap:
       12px !important;
     align-items:
       stretch !important;
   }
 
+  .moon-phase-template2 .left-column {
+    grid-template-rows:
+      minmax(0, 1fr) clamp(70px, 12vh, 100px) !important;
+    gap:
+      10px !important;
+  }
+
+  .moon-phase-template2 .right-column {
+    grid-template-rows:
+      minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr) !important;
+    gap:
+      10px !important;
+  }
+
   .moon-phase-template2 .global-panel {
-    grid-area:
-      global;
     min-height:
       0 !important;
     padding:
@@ -2431,26 +2560,7 @@ onBeforeUnmount(() => {
       hidden;
   }
 
-  .moon-phase-template2 .side-column {
-    grid-area:
-      side;
-    display:
-      grid !important;
-    grid-template-columns:
-      minmax(0, 1fr) !important;
-    grid-template-rows:
-      auto minmax(0, 1fr) !important;
-    gap:
-      10px !important;
-    min-height:
-      0;
-    overflow:
-      hidden;
-  }
-
   .moon-phase-template2 .control-panel {
-    grid-area:
-      control;
     min-width:
       0;
     padding:
@@ -2458,8 +2568,6 @@ onBeforeUnmount(() => {
   }
 
   .moon-phase-template2 .knowledge-grid {
-    grid-area:
-      knowledge;
     grid-template-columns:
       repeat(2, minmax(0, 1fr)) !important;
     gap:
@@ -2682,32 +2790,19 @@ onBeforeUnmount(() => {
     grid-template-columns:
       minmax(0, 1fr) !important;
     grid-template-rows:
-      auto auto auto auto !important;
-    grid-template-areas:
-      "global"
-      "side"
-      "control"
-      "knowledge" !important;
+      auto !important;
+    gap:
+      10px !important;
   }
 
-  .moon-phase-template2 .global-panel {
-    grid-area:
-      global;
+  .moon-phase-template2 .left-column {
+    grid-template-rows:
+      minmax(350px, auto) clamp(70px, 12vh, 100px) !important;
   }
 
-  .moon-phase-template2 .side-column {
-    grid-area:
-      side;
-  }
-
-  .moon-phase-template2 .control-panel {
-    grid-area:
-      control;
-  }
-
-  .moon-phase-template2 .knowledge-grid {
-    grid-area:
-      knowledge;
+  .moon-phase-template2 .right-column {
+    grid-template-rows:
+      minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr) !important;
   }
 
   .moon-phase-template2 .viewport-container {
@@ -2720,11 +2815,6 @@ onBeforeUnmount(() => {
 
 /* 720 以下保持上一版小屏收敛，但这里明确使用上下结构 */
 @media (max-width: 720px) {
-  .moon-phase-template2 .side-column {
-    grid-template-columns:
-      minmax(0, 1fr) !important;
-  }
-
   .moon-phase-template2 .viewport-container {
     width:
       min(100%, calc(100vw - 48px)) !important;
@@ -2735,8 +2825,8 @@ onBeforeUnmount(() => {
 /* ===================== v4: 一屏展示无滚动条布局 =====================
    目标：
    - 不再依赖滚动条；
-   - 保持左侧“上帝视角”和右侧“地球观测视角”对照观察；
-   - 播放控制和知识点压缩到下方；
+   - 左侧为主视图和时间轴；
+   - 右侧为地球观测视角 + 实时数据 + 知识卡片；
    - 中小屏通过缩小圆形视窗、月相预览、卡片内边距和文字行数保证一屏展示。
 */
 
@@ -2754,16 +2844,18 @@ onBeforeUnmount(() => {
     100% !important;
   max-height:
     100% !important;
+  min-height:
+    0 !important;
   box-sizing:
     border-box;
   padding:
     clamp(10px, 1vw, 18px) !important;
 }
 
-/* large：上方左右对照，下面两行分别放控制条和知识点 */
+/* 主网格：左右两列 */
 .moon-phase-template2 .main-grid {
   width:
-    min(100%, 1920px) !important;
+    100% !important;
   height:
     100% !important;
   min-height:
@@ -2773,13 +2865,9 @@ onBeforeUnmount(() => {
   display:
     grid !important;
   grid-template-columns:
-    minmax(0, 1.68fr) minmax(260px, 0.68fr) !important;
+    minmax(0, 1.55fr) minmax(320px, 0.72fr) !important;
   grid-template-rows:
-    minmax(0, 1fr) clamp(78px, 10.5vh, 116px) clamp(92px, 13.5vh, 150px) !important;
-  grid-template-areas:
-    "global side"
-    "control control"
-    "knowledge knowledge" !important;
+    minmax(0, 1fr) !important;
   gap:
     clamp(8px, 0.78vw, 14px) !important;
   overflow:
@@ -2788,9 +2876,25 @@ onBeforeUnmount(() => {
     stretch !important;
 }
 
+/* 左侧列：主视图 + 时间轴 */
+.moon-phase-template2 .left-column {
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) clamp(76px, 10vh, 108px) !important;
+  gap: clamp(8px, 0.75vw, 12px) !important;
+  overflow: hidden !important;
+}
+
+/* 右侧列：观测面板 + 数据面板 + 知识卡片 */
+.moon-phase-template2 .right-column {
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr) !important;
+  gap: clamp(8px, 0.75vw, 12px) !important;
+  overflow: hidden !important;
+}
+
 .moon-phase-template2 .global-panel {
-  grid-area:
-    global !important;
   min-height:
     0 !important;
   display:
@@ -2803,26 +2907,7 @@ onBeforeUnmount(() => {
     clamp(12px, 1vw, 20px) !important;
 }
 
-.moon-phase-template2 .side-column {
-  grid-area:
-    side !important;
-  min-height:
-    0 !important;
-  display:
-    grid !important;
-  grid-template-columns:
-    minmax(0, 1fr) !important;
-  grid-template-rows:
-    auto minmax(0, 1fr) !important;
-  gap:
-    clamp(8px, 0.75vw, 12px) !important;
-  overflow:
-    hidden !important;
-}
-
 .moon-phase-template2 .control-panel {
-  grid-area:
-    control !important;
   min-height:
     0 !important;
   height:
@@ -2842,8 +2927,6 @@ onBeforeUnmount(() => {
 }
 
 .moon-phase-template2 .knowledge-grid {
-  grid-area:
-    knowledge !important;
   min-height:
     0 !important;
   height:
@@ -2851,7 +2934,7 @@ onBeforeUnmount(() => {
   display:
     grid !important;
   grid-template-columns:
-    repeat(4, minmax(0, 1fr)) !important;
+    repeat(2, minmax(0, 1fr)) !important;
   gap:
     clamp(8px, 0.7vw, 12px) !important;
   overflow:
@@ -3083,15 +3166,21 @@ onBeforeUnmount(() => {
     grid-template-columns:
       minmax(0, 1.34fr) minmax(210px, 0.62fr) !important;
     grid-template-rows:
-      minmax(0, 1fr) clamp(82px, 13vh, 112px) clamp(70px, 11vh, 96px) !important;
-    grid-template-areas:
-      "global side"
-      "control control"
-      "knowledge knowledge" !important;
+      minmax(0, 1fr) !important;
     gap:
       8px !important;
     overflow:
       hidden !important;
+  }
+
+  .moon-phase-template2 .left-column {
+    grid-template-rows:
+      minmax(0, 1fr) clamp(82px, 13vh, 112px) !important;
+  }
+
+  .moon-phase-template2 .right-column {
+    grid-template-rows:
+      minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr) !important;
   }
 
   .moon-phase-template2 .global-panel,
@@ -3126,9 +3215,9 @@ onBeforeUnmount(() => {
       min(100%, 50vh, 500px) !important;
   }
 
-  .moon-phase-template2 .side-column {
+  .moon-phase-template2 .right-column {
     grid-template-rows:
-      auto minmax(0, 1fr) !important;
+      minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr) !important;
     gap:
       8px !important;
   }
@@ -3241,13 +3330,19 @@ onBeforeUnmount(() => {
     grid-template-columns:
       minmax(0, 1.2fr) minmax(150px, 0.58fr) !important;
     grid-template-rows:
-      minmax(0, 1fr) 76px 58px !important;
-    grid-template-areas:
-      "global side"
-      "control control"
-      "knowledge knowledge" !important;
+      minmax(0, 1fr) !important;
     gap:
       7px !important;
+  }
+
+  .moon-phase-template2 .left-column {
+    grid-template-rows:
+      minmax(0, 1fr) 76px !important;
+  }
+
+  .moon-phase-template2 .right-column {
+    grid-template-rows:
+      minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr) !important;
   }
 
   .moon-phase-template2 .global-panel,
@@ -3293,9 +3388,9 @@ onBeforeUnmount(() => {
       min(100%, 42vh, 360px) !important;
   }
 
-  .moon-phase-template2 .side-column {
+  .moon-phase-template2 .right-column {
     grid-template-rows:
-      auto auto !important;
+      minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr) !important;
     gap:
       6px !important;
   }
@@ -3563,28 +3658,22 @@ onBeforeUnmount(() => {
     grid-template-columns:
       minmax(0, 1fr) !important;
     grid-template-rows:
-      minmax(0, 1fr) 92px 70px 48px !important;
-    grid-template-areas:
-      "global"
-      "side"
-      "control"
-      "knowledge" !important;
+      auto !important;
+  }
+
+  .moon-phase-template2 .left-column {
+    grid-template-rows:
+      minmax(0, 1fr) clamp(76px, 14vh, 100px) !important;
+  }
+
+  .moon-phase-template2 .right-column {
+    grid-template-rows:
+      minmax(0, 0.32fr) minmax(0, 0.22fr) minmax(0, 0.46fr) !important;
   }
 
   .moon-phase-template2 {
     --moon-viewport-size:
       min(100%, 32vh, calc(100vw - 42px), 300px);
-  }
-
-  .moon-phase-template2 .side-column {
-    display:
-      grid !important;
-    grid-template-columns:
-      minmax(0, 0.72fr) minmax(0, 1fr) !important;
-    grid-template-rows:
-      minmax(0, 1fr) !important;
-    gap:
-      6px !important;
   }
 
   .moon-phase-template2 .moon-preview {
@@ -3764,40 +3853,31 @@ onBeforeUnmount(() => {
     50% !important;
 }
 
-.moon-phase-template2 .viewport-container.is-3d-mode {
-  flex:
-    1 1 auto !important;
-  width:
-    min(100%, 86vh, 980px) !important;
-  height:
-    min(100%, 62vh, 680px) !important;
-  max-width:
-    100% !important;
-  max-height:
-    100% !important;
-  aspect-ratio:
-    16 / 10 !important;
-  margin:
-    auto !important;
-  border-radius:
-    clamp(18px, 1.4vw, 28px) !important;
+/* 3D 模式下 global-panel 让 3D 视图占满 */
+.moon-phase-template2 .global-panel.is-3d-mode {
+  position: relative;
+}
+
+/* 3D 全屏视图：占满整个 global-panel */
+.moon-phase-template2 .view-3d-full {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border-radius: clamp(14px, 1vw, 20px);
+  overflow: hidden;
+  cursor: grab;
   background:
-    radial-gradient(circle at 50% 50%, rgba(36, 124, 255, 0.14), rgba(2, 6, 23, 0.88)) !important;
+    radial-gradient(circle at 50% 50%, rgba(36, 124, 255, 0.14), rgba(2, 6, 23, 0.88));
 }
 
-.moon-phase-template2 .viewport-container.is-3d-mode .view-3d {
-  border-radius:
-    inherit !important;
+.moon-phase-template2 .view-3d-full:active {
+  cursor: grabbing;
 }
 
-.moon-phase-template2 .viewport-container.is-3d-mode .view-2d {
-  border-radius:
-    inherit !important;
-}
-
-.moon-phase-template2 .viewport-container.is-3d-mode :deep(.three-canvas) {
-  border-radius:
-    inherit;
+.moon-phase-template2 .view-3d-full :deep(.three-canvas) {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* 4. 文字颜色层次：减少满屏绿色 */
@@ -3916,14 +3996,6 @@ onBeforeUnmount(() => {
       7px !important;
   }
 
-  .moon-phase-template2 .viewport-container.is-3d-mode {
-    width:
-      min(100%, 70vh, 720px) !important;
-    height:
-      min(100%, 50vh, 470px) !important;
-    aspect-ratio:
-      16 / 10 !important;
-  }
 }
 
 /* 窄屏：标题和按钮仍保持左右两段，不堆在中间 */
@@ -3965,25 +4037,10 @@ onBeforeUnmount(() => {
       40px !important;
   }
 
-  .moon-phase-template2 .viewport-container.is-3d-mode {
-    width:
-      min(100%, 46vh, calc(100vw - 170px), 420px) !important;
-    height:
-      min(100%, 34vh, 300px) !important;
-    border-radius:
-      16px !important;
-  }
 }
 
 /* 超窄屏：只保留 3D 切换按钮，夹角开关在 v4 已隐藏 */
 @media (max-width: 520px) {
-  .moon-phase-template2 .viewport-container.is-3d-mode {
-    width:
-      min(100%, calc(100vw - 42px), 420px) !important;
-    height:
-      min(100%, 30vh, 280px) !important;
-  }
-
   .moon-phase-template2 .orbit-marker,
   .moon-phase-template2 .marker-moon {
     width:

@@ -108,7 +108,7 @@ const initMap = () => {
     center: [20, 0],
     zoom: 3,
     minZoom: 2,
-    maxZoom: 8,
+    maxZoom: 5,
     maxBounds: [[-85, -180], [85, 180]],
     maxBoundsViscosity: 1.0,
     zoomControl: false // 1. 禁用默认的左上角放大缩小控件
@@ -229,16 +229,16 @@ const nextRound = () => {
   feedbackMsg.value = '';
   countdown.value = 20;
 
-  // 1. 随机生成 10 个候选点位
+  // 1. 随机生成 20 个候选点位
   const points = [];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 20; i++) {
     const lat = (Math.random() * 140) - 70;
     const lng = (Math.random() * 320) - 160;
     points.push({ lat, lng, id: i + 1 });
   }
 
   // 2. 从中抽取一个作为正确目标
-  const targetIndex = Math.floor(Math.random() * 10);
+  const targetIndex = Math.floor(Math.random() * 20);
   const targetPoint = points[targetIndex];
   targetLat.value = targetPoint.lat;
   targetLng.value = targetPoint.lng;
@@ -365,10 +365,10 @@ const clearRoundLayers = () => {
 .marker-peer {
   width: 32px;
   height: 32px;
-  background: rgba(0, 119, 182, 0.9);
+  background: rgba(255, 255, 255, 0.95);
   border: 2px solid #2ec4b6;
   border-radius: 50%;
-  color: white;
+  color: #1a1a2e;
   font-weight: bold;
   display: flex;
   align-items: center;
@@ -381,6 +381,7 @@ const clearRoundLayers = () => {
 .marker-peer:hover {
   transform: scale(1.2);
   background: #2ec4b6;
+  color: white;
 }
 
 .marker-peer-correct {
