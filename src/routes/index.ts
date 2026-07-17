@@ -141,6 +141,15 @@ export const routes = [
     component: () =>
       import('@/views/soil-erosion/index.vue'),
   },
+  {
+    path: '/earth-evolution',
+    name: 'earth-evolution',
+    meta: {
+      title: '地球演化',
+    },
+    component: () =>
+      import('@/views/earth-evolution/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
