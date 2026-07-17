@@ -35,9 +35,11 @@ const isContain = computed<boolean>(
   () => props.fitMode === 'contain',
 )
 
+const ERA_IMAGE_BASE = '/geo-resources-folder/images'
+
 const imageSrc = computed<string>(
   () =>
-    `/images/eras/${props.era.scene}.png`,
+    `${ERA_IMAGE_BASE}/${props.era.scene}.png`,
 )
 </script>
 
