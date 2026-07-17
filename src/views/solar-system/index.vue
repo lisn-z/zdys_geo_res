@@ -75,7 +75,7 @@
               <div class="motion-toggle-copy">
                 <strong>行星自转</strong>
                 <span>
-                  开启后八大行星会持续自转
+                  按各自行星自转周期与轴倾角运动
                 </span>
               </div>
 
@@ -109,13 +109,74 @@
           </div>
 
           <!-- 2. 场景元素开关 -->
-          <div class="control-group">
-            <label>🎨 场景元素</label>
-            <div class="toggle-row"><el-switch v-model="showOrbits" size="small" /> 行星轨道线</div>
-            <div class="toggle-row"><el-switch v-model="showLabels" size="small" /> 行星标签</div>
-            <div class="toggle-row"><el-switch v-model="showAsteroids" size="small" /> 小行星带</div>
-            <div class="toggle-row"><el-switch v-model="showKuiper" size="small" /> 柯伊伯带</div>
-            <div class="toggle-row"><el-switch v-model="showComet" size="small" /> 哈雷彗星</div>
+          <div class="control-group scene-elements-card">
+            <div class="scene-elements-head">
+              <div>
+                <label>🎨 场景元素</label>
+                <p>按需叠加轨道、标签与小天体</p>
+              </div>
+
+              <span class="scene-elements-count">
+                {{ enabledSceneElementCount }}/5 开启
+              </span>
+            </div>
+
+            <div class="scene-toggle-grid">
+              <div class="scene-toggle-item" :class="{ active: showOrbits }">
+                <div class="scene-toggle-copy">
+                  <span class="scene-toggle-icon">◎</span>
+                  <div>
+                    <strong>行星轨道</strong>
+                    <small>椭圆与轨道倾角</small>
+                  </div>
+                </div>
+                <el-switch v-model="showOrbits" size="small" />
+              </div>
+
+              <div class="scene-toggle-item" :class="{ active: showLabels }">
+                <div class="scene-toggle-copy">
+                  <span class="scene-toggle-icon">Aa</span>
+                  <div>
+                    <strong>行星标签</strong>
+                    <small>显示天体名称</small>
+                  </div>
+                </div>
+                <el-switch v-model="showLabels" size="small" />
+              </div>
+
+              <div class="scene-toggle-item" :class="{ active: showAsteroids }">
+                <div class="scene-toggle-copy">
+                  <span class="scene-toggle-icon">•••</span>
+                  <div>
+                    <strong>小行星带</strong>
+                    <small>火星与木星之间</small>
+                  </div>
+                </div>
+                <el-switch v-model="showAsteroids" size="small" />
+              </div>
+
+              <div class="scene-toggle-item" :class="{ active: showKuiper }">
+                <div class="scene-toggle-copy">
+                  <span class="scene-toggle-icon">❄</span>
+                  <div>
+                    <strong>柯伊伯带</strong>
+                    <small>海王星轨道之外</small>
+                  </div>
+                </div>
+                <el-switch v-model="showKuiper" size="small" />
+              </div>
+
+              <div class="scene-toggle-item scene-toggle-wide" :class="{ active: showComet }">
+                <div class="scene-toggle-copy">
+                  <span class="scene-toggle-icon comet-icon">☄</span>
+                  <div>
+                    <strong>哈雷彗星</strong>
+                    <small>高偏心率、逆向变速公转</small>
+                  </div>
+                </div>
+                <el-switch v-model="showComet" size="small" />
+              </div>
+            </div>
           </div>
 
           <!-- 3. 视角/聚焦 -->
@@ -492,7 +553,11 @@ import '@/styles/geo-page-template.css'
 interface PlanetDef {
   id: string; name: string; color: number; emissive?: number;
   sceneRadius: number; sceneDistance: number;
-  rotSpeed: number; tilt: number; hasRings?: boolean;
+  axialTilt: number;              // 自转轴倾角（度）
+  ascendingNode: number;          // 升交点黄经（度）
+  argumentOfPerihelion: number;   // 近日点幅角（度）
+  meanAnomalyAtEpoch: number;     // 初始平近点角（度）
+  hasRings?: boolean;
   hasMoon?: boolean; bandColors?: number[];
   // —— 课本主要数据 ——
   au: number;        // 距日距离(地球=1)
@@ -511,35 +576,40 @@ interface PlanetDef {
 
 const planetData: PlanetDef[] = [
   {
-    id: 'mercury', name: '水星', color: 0x9c8b7d, sceneRadius: 0.35, sceneDistance: 9, rotSpeed: 0.004, tilt: 0.03,
+    id: 'mercury', name: '水星', color: 0x9c8b7d, sceneRadius: 0.35, sceneDistance: 9,
+    axialTilt: 0.034, ascendingNode: 48.331, argumentOfPerihelion: 29.124, meanAnomalyAtEpoch: 174.796,
     au: 0.39, years: 0.24, rotation: 58.79, orbitTilt: 7.00, eccentricity: 0.205,
     volume: 0.06, mass: 0.06, density: 5.43, temperature: '167',
     typeShort: '类地', cat: 'earth', type: '类地行星', moons: '0',
     desc: '【基本数据】水星是距太阳最近（0.39 AU）、也是最小（直径4879 km）的行星。表面无大气，白天427°C，夜间-173°C，温差达600°C。\n【轨道与自转】公转周期88天，自转周期58.79天，水星上的一天约等于59个地球日。轨道偏心率0.205，是所有行星中轨道最扁的。\n【结构与磁场】核心占体积约85%，是一个巨大铁核，产生强度约为地球1%的磁场。表面布满陨石坑，外观类似月球。NASA信使号探测器获取了大量成分数据。'
   },
   {
-    id: 'venus', name: '金星', color: 0xe6b87d, emissive: 0x3a2a10, sceneRadius: 0.52, sceneDistance: 12, rotSpeed: -0.002, tilt: 3.39,
+    id: 'venus', name: '金星', color: 0xe6b87d, emissive: 0x3a2a10, sceneRadius: 0.52, sceneDistance: 12,
+    axialTilt: 177.36, ascendingNode: 76.680, argumentOfPerihelion: 54.884, meanAnomalyAtEpoch: 50.115,
     au: 0.72, years: 0.62, rotation: 243.69, orbitTilt: 3.39, eccentricity: 0.007,
     volume: 0.86, mass: 0.82, density: 5.24, temperature: '464',
     typeShort: '类地', cat: 'earth', type: '类地行星', moons: '0',
     desc: '【基本数据】太阳系中最热行星，表面464°C。大小与地球相近（直径12104 km），被称为地球"姊妹星"。表面大气压为地球92倍。\n【极端环境】浓密CO₂大气产生极强温室效应。硫酸云层完全覆盖表面，雷达显示有大量火山和熔岩平原。\n【奇特自转】自转方向与公转相反（逆向自转），自转周期243.69天比公转周期224.7天还长。苏联探测器曾着陆，最长仅工作约2小时。'
   },
   {
-    id: 'earth', name: '地球', color: 0x2e6fd6, sceneRadius: 0.55, sceneDistance: 15.5, rotSpeed: 0.02, tilt: 0.00, hasMoon: true,
+    id: 'earth', name: '地球', color: 0x2e6fd6, sceneRadius: 0.55, sceneDistance: 15.5,
+    axialTilt: 23.44, ascendingNode: -11.261, argumentOfPerihelion: 114.208, meanAnomalyAtEpoch: 357.517, hasMoon: true,
     au: 1.00, years: 1.00, rotation: 1.00, orbitTilt: 0.00, eccentricity: 0.017,
     volume: 1.00, mass: 1.00, density: 5.51, temperature: '15',
     typeShort: '类地', cat: 'earth', type: '类地行星', moons: '1',
     desc: '【基本数据】目前已知唯一存在生命的行星。直径12742 km，质量5.97×10²⁴ kg，71%表面覆盖液态水。平均温度约15°C。\n【大气与磁场】氮氧大气层提供适宜呼吸环境。液态外核产生磁场保护生物免受太阳风侵害。臭氧层吸收紫外线，为生命提供关键保护。\n【地质活动】板块构造运动驱动地表演化，火山地震塑造大陆海洋。月球稳定了地球自转轴倾角，潮汐力影响海洋。'
   },
   {
-    id: 'mars', name: '火星', color: 0xc1502e, sceneRadius: 0.42, sceneDistance: 19, rotSpeed: 0.019, tilt: 1.85,
+    id: 'mars', name: '火星', color: 0xc1502e, sceneRadius: 0.42, sceneDistance: 19,
+    axialTilt: 25.19, ascendingNode: 49.558, argumentOfPerihelion: 286.502, meanAnomalyAtEpoch: 19.373,
     au: 1.52, years: 1.88, rotation: 1.03, orbitTilt: 1.85, eccentricity: 0.094,
     volume: 0.15, mass: 0.11, density: 3.93, temperature: '-63',
     typeShort: '类地', cat: 'earth', type: '类地行星', moons: '2',
     desc: '【基本数据】"红色星球"，直径6792 km。自转周期1.03天与地球极近，倾角25°有分明四季，但每季约地球两倍长。平均温度约-63°C。\n【地理特征】拥有太阳系最高峰奥林匹斯山（21.9 km）和最长峡谷水手号（4000 km）。稀薄CO₂大气（仅地球0.6%）无法保温。\n【探测历史】两颗卫星形状不规则，可能是捕获的小行星。多国探测器（含中国天问一号）已成功着陆火星表面。'
   },
   {
-    id: 'jupiter', name: '木星', color: 0xd8a86a, sceneRadius: 1.7, sceneDistance: 28, rotSpeed: 0.045, tilt: 1.30,
+    id: 'jupiter', name: '木星', color: 0xd8a86a, sceneRadius: 1.7, sceneDistance: 28,
+    axialTilt: 3.13, ascendingNode: 100.464, argumentOfPerihelion: 273.867, meanAnomalyAtEpoch: 20.020,
     bandColors: [0xd8a86a, 0xb8854a, 0xe0c094, 0x9a6b3a, 0xc99a5a],
     au: 5.20, years: 11.86, rotation: 0.42, orbitTilt: 1.30, eccentricity: 0.049,
     volume: 1321.33, mass: 317.83, density: 1.33, temperature: '-161~108',
@@ -547,21 +617,24 @@ const planetData: PlanetDef[] = [
     desc: '【基本数据】太阳系最大行星（直径142984 km），质量是地球317.83倍，超过其他行星质量之和的2倍。气态巨行星，无固态表面。\n【大气与风暴】主要由氢（90%）和氦（10%）组成。大红斑是一个持续至少350年的巨型风暴，比地球还大。自转极快（9.93小时），呈椭球状。\n【卫星系统】95颗已知卫星。伽利略卫星（伊奥、欧罗巴、盖尼米得、卡利斯托）由伽利略1610年发现。欧罗巴冰壳下或存在液态海洋。'
   },
   {
-    id: 'saturn', name: '土星', color: 0xe6d4a0, sceneRadius: 1.45, sceneDistance: 37, rotSpeed: 0.04, tilt: 2.49, hasRings: true,
+    id: 'saturn', name: '土星', color: 0xe6d4a0, sceneRadius: 1.45, sceneDistance: 37,
+    axialTilt: 26.73, ascendingNode: 113.665, argumentOfPerihelion: 339.392, meanAnomalyAtEpoch: 317.020, hasRings: true,
     au: 9.58, years: 29.46, rotation: 0.45, orbitTilt: 2.49, eccentricity: 0.057,
     volume: 763.59, mass: 95.16, density: 0.69, temperature: '-189~-139',
     typeShort: '巨行星', cat: 'giant', type: '巨行星', moons: '146',
     desc: '【基本数据】太阳系第二大行星（直径120536 km）。平均密度0.69 g/cm³，比水还小，理论上可漂浮在水面。光环含数十亿冰粒，厚度仅约10米。\n【大气与环】大气以氢和氦为主，风速可达1800 km/h。环由冰粒和岩石碎块组成（微米级到米级），跨度达28万公里。\n【卫星系统】146颗已知卫星。土卫六（泰坦）拥有太阳系唯一浓密大气层，大气压为地球1.5倍。卡西尼号探测器探测13年。'
   },
   {
-    id: 'uranus', name: '天王星', color: 0x9fe0e6, sceneRadius: 1.0, sceneDistance: 45, rotSpeed: -0.03, tilt: 0.77,
+    id: 'uranus', name: '天王星', color: 0x9fe0e6, sceneRadius: 1.0, sceneDistance: 45,
+    axialTilt: 97.77, ascendingNode: 74.006, argumentOfPerihelion: 96.999, meanAnomalyAtEpoch: 142.239,
     au: 19.20, years: 84.01, rotation: 0.72, orbitTilt: 0.77, eccentricity: 0.046,
     volume: 63.08, mass: 14.54, density: 1.27, temperature: '-220~-197',
     typeShort: '远日', cat: 'far', type: '远日行星', moons: '27',
     desc: '【基本数据】自转轴倾角约98°，几乎"躺倒"在轨道上滚动公转。直径51118 km，冰巨行星，内部以水、甲烷和氨的"冰"为主。\n【大气与颜色】外部大气甲烷赋予青蓝色。公转周期84年，每42年极昼/极夜交替。环系统暗淡狭窄，颗粒较暗。\n【卫星与探测】27颗卫星以莎士比亚剧中人物命名。磁场异常，磁轴与自转轴夹角60°。仅旅行者2号于1986年飞掠。'
   },
   {
-    id: 'neptune', name: '海王星', color: 0x3a6ed8, sceneRadius: 0.95, sceneDistance: 52, rotSpeed: 0.032, tilt: 1.77,
+    id: 'neptune', name: '海王星', color: 0x3a6ed8, sceneRadius: 0.95, sceneDistance: 52,
+    axialTilt: 28.32, ascendingNode: 131.784, argumentOfPerihelion: 273.187, meanAnomalyAtEpoch: 256.228,
     au: 30.05, years: 164.80, rotation: 0.67, orbitTilt: 1.77, eccentricity: 0.011,
     volume: 57.74, mass: 17.15, density: 1.64, temperature: '-218~-201',
     typeShort: '远日', cat: 'far', type: '远日行星', moons: '14',
@@ -690,6 +763,18 @@ const showLabels = ref(true)
 const showAsteroids = ref(true)
 const showKuiper = ref(true)
 const showComet = ref(true)
+
+const enabledSceneElementCount =
+  computed(() => {
+    return [
+      showOrbits.value,
+      showLabels.value,
+      showAsteroids.value,
+      showKuiper.value,
+      showComet.value,
+    ].filter(Boolean).length
+  })
+
 const allPanelsCollapsed =
   computed(() => {
     return (
@@ -762,12 +847,34 @@ function cleanupPanelResizeState(
 let lastSceneWidth = 0
 let lastSceneHeight = 0
 
-// 哈雷彗星轨道参数（场景单位）
-const COMET_A = 45     // 半长轴
-const COMET_E = 0.85   // 偏心率
-const COMET_INCL = 0.3 // 轨道倾角 ~17°（真实 162.2°=逆向 17.8°）
-const COMET_PERI = 75  // 公转周期（模拟天数比例）
-let cometAngle = 0     // 当前轨道角度
+// 哈雷彗星轨道参数
+// 真实偏心率用于开普勒方程和变速规律；
+// 场景椭圆单独压缩，避免真实比例下近日点落入太阳模型。
+const COMET_PHYSICAL_E = 0.967
+const COMET_PERIOD_YEARS = 75.3
+const COMET_PERIOD_DAYS = COMET_PERIOD_YEARS * 365.25
+const COMET_INCLINATION = 162.2
+const COMET_ASCENDING_NODE = 58.42
+const COMET_ARGUMENT_OF_PERIHELION = 111.33
+const COMET_MEAN_ANOMALY_AT_EPOCH = 0
+
+const COMET_VISUAL_PERIHELION = 5.6
+const COMET_VISUAL_APHELION = 88.5
+const COMET_VISUAL_A =
+  (
+    COMET_VISUAL_PERIHELION +
+    COMET_VISUAL_APHELION
+  ) / 2
+
+const COMET_VISUAL_E =
+  (
+    COMET_VISUAL_APHELION -
+    COMET_VISUAL_PERIHELION
+  ) /
+  (
+    COMET_VISUAL_APHELION +
+    COMET_VISUAL_PERIHELION
+  )
 let cometGroup: THREE.Group
 let cometNucleus: THREE.Mesh
 let cometGlow: THREE.Sprite
@@ -850,10 +957,31 @@ let sunGlow: THREE.Sprite
 let sunLight: THREE.PointLight
 
 
-interface PlanetObj { group: THREE.Group; mesh: THREE.Mesh; pivot: THREE.Object3D; def: PlanetDef; label: THREE.Sprite; moon?: THREE.Mesh; moonPivot?: THREE.Object3D; moonOrbit?: THREE.LineLoop }
+interface PlanetObj {
+  group: THREE.Group
+  axialGroup: THREE.Group
+  mesh: THREE.Mesh
+  pivot: THREE.Object3D
+  def: PlanetDef
+  label: THREE.Sprite
+  moon?: THREE.Mesh
+  moonPivot?: THREE.Object3D
+  moonOrbit?: THREE.LineLoop
+}
+
 const planetObjs: PlanetObj[] = []
 let asteroidBelt: THREE.Points
 let kuiperBelt: THREE.Points
+
+interface MeteoroidObj {
+  mesh: THREE.Mesh
+  velocity: THREE.Vector3
+  spin: THREE.Vector3
+  resetDistance: number
+}
+
+let meteoroidGroup: THREE.Group
+const meteoroidObjs: MeteoroidObj[] = []
 
 // 单个可交互小行星（涵盖所有个体）
 interface InteractiveAsteroidObj {
@@ -889,11 +1017,201 @@ const genericDescriptions: Record<string, string[]> = {
 const raycaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2()
 
-let orbitLines: THREE.Mesh[] = []
+let orbitLines: THREE.Object3D[] = []
 let animFrameId = 0
 let clock = new THREE.Clock()
 // 太阳系整体放大倍数
 const SS = 1.4
+
+const TAU = Math.PI * 2
+const DEG_TO_RAD = Math.PI / 180
+
+function normalizeRadians(angle: number) {
+  return (
+    (angle % TAU) +
+    TAU
+  ) % TAU
+}
+
+function solveKeplerEquation(
+  meanAnomaly: number,
+  eccentricity: number
+) {
+  const normalizedMeanAnomaly =
+    normalizeRadians(meanAnomaly)
+
+  let eccentricAnomaly =
+    eccentricity < 0.8
+      ? normalizedMeanAnomaly
+      : Math.PI
+
+  for (let i = 0; i < 12; i++) {
+    const f =
+      eccentricAnomaly -
+      eccentricity *
+      Math.sin(eccentricAnomaly) -
+      normalizedMeanAnomaly
+
+    const derivative =
+      1 -
+      eccentricity *
+      Math.cos(eccentricAnomaly)
+
+    const correction =
+      f /
+      Math.max(
+        derivative,
+        0.000001
+      )
+
+    eccentricAnomaly -= correction
+
+    if (
+      Math.abs(correction) <
+      0.0000001
+    ) {
+      break
+    }
+  }
+
+  return eccentricAnomaly
+}
+
+function getOrbitalPositionFromMeanAnomaly(
+  semiMajorAxis: number,
+  eccentricity: number,
+  inclinationDegrees: number,
+  ascendingNodeDegrees: number,
+  argumentOfPerihelionDegrees: number,
+  meanAnomaly: number,
+  target = new THREE.Vector3()
+) {
+  const eccentricAnomaly =
+    solveKeplerEquation(
+      meanAnomaly,
+      eccentricity
+    )
+
+  const orbitalX =
+    semiMajorAxis *
+    (
+      Math.cos(eccentricAnomaly) -
+      eccentricity
+    )
+
+  const orbitalZ =
+    semiMajorAxis *
+    Math.sqrt(
+      Math.max(
+        0,
+        1 -
+        eccentricity *
+        eccentricity
+      )
+    ) *
+    Math.sin(eccentricAnomaly)
+
+  const argumentOfPerihelion =
+    argumentOfPerihelionDegrees *
+    DEG_TO_RAD
+
+  const inclination =
+    inclinationDegrees *
+    DEG_TO_RAD
+
+  const ascendingNode =
+    ascendingNodeDegrees *
+    DEG_TO_RAD
+
+  // 先在轨道面内旋转近日点方向
+  const perihelionX =
+    orbitalX *
+    Math.cos(argumentOfPerihelion) -
+    orbitalZ *
+    Math.sin(argumentOfPerihelion)
+
+  const perihelionZ =
+    orbitalX *
+    Math.sin(argumentOfPerihelion) +
+    orbitalZ *
+    Math.cos(argumentOfPerihelion)
+
+  // 再按轨道倾角抬升轨道面
+  const inclinedY =
+    -perihelionZ *
+    Math.sin(inclination)
+
+  const inclinedZ =
+    perihelionZ *
+    Math.cos(inclination)
+
+  // 最后绕黄道北极旋转升交点方向
+  const worldX =
+    perihelionX *
+    Math.cos(ascendingNode) +
+    inclinedZ *
+    Math.sin(ascendingNode)
+
+  const worldZ =
+    -perihelionX *
+    Math.sin(ascendingNode) +
+    inclinedZ *
+    Math.cos(ascendingNode)
+
+  return target.set(
+    worldX,
+    inclinedY,
+    worldZ
+  )
+}
+
+function getPlanetMeanAnomaly(
+  def: PlanetDef,
+  simulatedDays: number
+) {
+  const orbitalPeriodDays =
+    def.years * 365.25
+
+  return (
+    def.meanAnomalyAtEpoch *
+    DEG_TO_RAD +
+    TAU *
+    simulatedDays /
+    orbitalPeriodDays
+  )
+}
+
+function getPlanetOrbitPosition(
+  def: PlanetDef,
+  simulatedDays: number,
+  target = new THREE.Vector3()
+) {
+  return getOrbitalPositionFromMeanAnomaly(
+    def.sceneDistance,
+    def.eccentricity,
+    def.orbitTilt,
+    def.ascendingNode,
+    def.argumentOfPerihelion,
+    getPlanetMeanAnomaly(
+      def,
+      simulatedDays
+    ),
+    target
+  )
+}
+
+function setPlanetPosition(
+  planet: PlanetObj,
+  simulatedDays: number
+) {
+  planet.group.position.copy(
+    getPlanetOrbitPosition(
+      planet.def,
+      simulatedDays
+    )
+  )
+}
+
 // 太阳系父组（统一缩放，银河背景不随之缩放）
 let solarGroup: THREE.Group
 
@@ -1194,6 +1512,300 @@ function createAsteroidBelt(): { main: THREE.Points; kuiper: THREE.Points } {
   return { main, kuiper }
 }
 
+
+// ===== 太阳系流星体 =====
+// 这里表现的是在太阳系空间中漂移的小型岩石天体，
+// 不绘制大气层中的发光尾迹，避免与彗星混淆。
+function createIrregularMeteoroidGeometry() {
+  const geometry =
+    new THREE.DodecahedronGeometry(
+      1,
+      1
+    )
+
+  const position =
+    geometry.getAttribute(
+      'position'
+    ) as THREE.BufferAttribute
+
+  for (
+    let i = 0;
+    i < position.count;
+    i += 1
+  ) {
+    const x = position.getX(i)
+    const y = position.getY(i)
+    const z = position.getZ(i)
+
+    const distortion =
+      0.72 +
+      Math.random() *
+      0.48
+
+    position.setXYZ(
+      i,
+      x * distortion,
+      y * (
+        0.74 +
+        Math.random() *
+        0.42
+      ),
+      z * (
+        0.76 +
+        Math.random() *
+        0.44
+      )
+    )
+  }
+
+  position.needsUpdate = true
+  geometry.computeVertexNormals()
+
+  return geometry
+}
+
+function resetMeteoroid(
+  meteoroid: MeteoroidObj,
+  initial = false
+) {
+  const outerRadius =
+    initial
+      ? 16 + Math.random() * 62
+      : 76 + Math.random() * 18
+
+  const theta =
+    Math.random() *
+    TAU
+
+  const verticalSpread =
+    (
+      Math.random() -
+      0.5
+    ) *
+    (
+      initial
+        ? 15
+        : 22
+    )
+
+  meteoroid.mesh.position.set(
+    Math.cos(theta) *
+    outerRadius,
+    verticalSpread,
+    Math.sin(theta) *
+    outerRadius
+  )
+
+  const inwardBias =
+    meteoroid.mesh.position
+      .clone()
+      .normalize()
+      .multiplyScalar(
+        -(
+          0.012 +
+          Math.random() *
+          0.025
+        )
+      )
+
+  const tangent =
+    new THREE.Vector3(
+      -Math.sin(theta),
+      (
+        Math.random() -
+        0.5
+      ) * 0.008,
+      Math.cos(theta)
+    ).multiplyScalar(
+      0.01 +
+      Math.random() *
+      0.025
+    )
+
+  meteoroid.velocity.copy(
+    inwardBias.add(tangent)
+  )
+
+  meteoroid.spin.set(
+    (
+      Math.random() -
+      0.5
+    ) * 0.055,
+    (
+      Math.random() -
+      0.5
+    ) * 0.07,
+    (
+      Math.random() -
+      0.5
+    ) * 0.05
+  )
+
+  meteoroid.resetDistance =
+    96 +
+    Math.random() *
+    20
+}
+
+function createMeteoroidField() {
+  meteoroidGroup =
+    new THREE.Group()
+
+  meteoroidGroup.name =
+    'meteoroid-field'
+
+  solarGroup.add(
+    meteoroidGroup
+  )
+
+  const colors = [
+    0x75685d,
+    0x8b7969,
+    0x5f646a,
+    0x9a8068,
+    0x6d5d52,
+    0x777b80,
+  ]
+
+  const count = 18
+
+  for (
+    let i = 0;
+    i < count;
+    i += 1
+  ) {
+    const geometry =
+      createIrregularMeteoroidGeometry()
+
+    const material =
+      new THREE.MeshStandardMaterial({
+        color:
+          colors[
+          i % colors.length
+          ],
+        roughness: 0.94,
+        metalness:
+          0.08 +
+          Math.random() *
+          0.16,
+        flatShading: true,
+      })
+
+    const mesh =
+      new THREE.Mesh(
+        geometry,
+        material
+      )
+
+    const size =
+      0.12 +
+      Math.random() *
+      0.36
+
+    mesh.scale.set(
+      size *
+      (
+        0.78 +
+        Math.random() *
+        0.48
+      ),
+      size *
+      (
+        0.72 +
+        Math.random() *
+        0.52
+      ),
+      size *
+      (
+        0.76 +
+        Math.random() *
+        0.5
+      )
+    )
+
+    mesh.rotation.set(
+      Math.random() * TAU,
+      Math.random() * TAU,
+      Math.random() * TAU
+    )
+
+    mesh.userData.isMeteoroid =
+      true
+
+    meteoroidGroup.add(
+      mesh
+    )
+
+    const meteoroid:
+      MeteoroidObj = {
+      mesh,
+      velocity:
+        new THREE.Vector3(),
+      spin:
+        new THREE.Vector3(),
+      resetDistance: 105,
+    }
+
+    resetMeteoroid(
+      meteoroid,
+      true
+    )
+
+    meteoroidObjs.push(
+      meteoroid
+    )
+  }
+}
+
+function updateMeteoroids(
+  dayStep: number
+) {
+  if (
+    !meteoroidGroup ||
+    !meteoroidGroup.visible
+  ) {
+    return
+  }
+
+  meteoroidObjs.forEach(
+    meteoroid => {
+      meteoroid.mesh.position
+        .addScaledVector(
+          meteoroid.velocity,
+          dayStep
+        )
+
+      meteoroid.mesh.rotation.x +=
+        meteoroid.spin.x *
+        dayStep
+
+      meteoroid.mesh.rotation.y +=
+        meteoroid.spin.y *
+        dayStep
+
+      meteoroid.mesh.rotation.z +=
+        meteoroid.spin.z *
+        dayStep
+
+      const distance =
+        meteoroid.mesh.position
+          .length()
+
+      // 太靠近太阳或飞出场景后重新投放到外围
+      if (
+        distance < 6.6 ||
+        distance >
+        meteoroid.resetDistance
+      ) {
+        resetMeteoroid(
+          meteoroid
+        )
+      }
+    }
+  )
+}
+
+
 // ===== 创建所有可交互个体小行星（可点击查看+注释） =====
 function createInteractiveAsteroids() {
   asteroidInteractiveGroup = new THREE.Group()
@@ -1314,6 +1926,127 @@ function createInteractiveAsteroids() {
   }
 }
 
+// ===== 哈雷彗星轨道坐标 =====
+function getCometMeanAnomaly(
+  simulatedDays: number
+) {
+  return (
+    COMET_MEAN_ANOMALY_AT_EPOCH *
+    DEG_TO_RAD +
+    TAU *
+    simulatedDays /
+    COMET_PERIOD_DAYS
+  )
+}
+
+function getCometVisualPositionFromEccentricAnomaly(
+  eccentricAnomaly: number,
+  target = new THREE.Vector3()
+) {
+  /*
+   * 这里使用场景显示椭圆：
+   * q = 5.6，太阳球体半径为 2.8，
+   * 彗核和彗发都不会再进入太阳模型。
+   */
+  const orbitalX =
+    COMET_VISUAL_A *
+    (
+      Math.cos(eccentricAnomaly) -
+      COMET_VISUAL_E
+    )
+
+  const orbitalZ =
+    COMET_VISUAL_A *
+    Math.sqrt(
+      1 -
+      COMET_VISUAL_E *
+      COMET_VISUAL_E
+    ) *
+    Math.sin(eccentricAnomaly)
+
+  const argumentOfPerihelion =
+    COMET_ARGUMENT_OF_PERIHELION *
+    DEG_TO_RAD
+
+  const inclination =
+    COMET_INCLINATION *
+    DEG_TO_RAD
+
+  const ascendingNode =
+    COMET_ASCENDING_NODE *
+    DEG_TO_RAD
+
+  const perihelionX =
+    orbitalX *
+    Math.cos(argumentOfPerihelion) -
+    orbitalZ *
+    Math.sin(argumentOfPerihelion)
+
+  const perihelionZ =
+    orbitalX *
+    Math.sin(argumentOfPerihelion) +
+    orbitalZ *
+    Math.cos(argumentOfPerihelion)
+
+  const inclinedY =
+    -perihelionZ *
+    Math.sin(inclination)
+
+  const inclinedZ =
+    perihelionZ *
+    Math.cos(inclination)
+
+  const worldX =
+    perihelionX *
+    Math.cos(ascendingNode) +
+    inclinedZ *
+    Math.sin(ascendingNode)
+
+  const worldZ =
+    -perihelionX *
+    Math.sin(ascendingNode) +
+    inclinedZ *
+    Math.cos(ascendingNode)
+
+  return target.set(
+    worldX,
+    inclinedY,
+    worldZ
+  )
+}
+
+function getCometOrbitPositionFromMeanAnomaly(
+  meanAnomaly: number,
+  target = new THREE.Vector3()
+) {
+  /*
+   * 用真实偏心率解开普勒方程，
+   * 保留近日点快、远日点慢的运动规律。
+   */
+  const eccentricAnomaly =
+    solveKeplerEquation(
+      meanAnomaly,
+      COMET_PHYSICAL_E
+    )
+
+  return getCometVisualPositionFromEccentricAnomaly(
+    eccentricAnomaly,
+    target
+  )
+}
+
+function getCometOrbitPositionAtDay(
+  simulatedDays: number,
+  target = new THREE.Vector3()
+) {
+  return getCometOrbitPositionFromMeanAnomaly(
+    getCometMeanAnomaly(
+      simulatedDays
+    ),
+    target
+  )
+}
+
 // ===== 创建哈雷彗星 =====
 function createComet() {
   cometGroup = new THREE.Group()
@@ -1399,7 +2132,7 @@ function createComet() {
   cometGlow.scale.set(2.2, 2.2, 1)
   cometGroup.add(cometGlow)
 
-  // 彗尾：去掉光锥，改成一串逐渐变淡的发光尾迹粒子
+  // 彗尾：沿运动轨迹反方向排列的一串发光尾迹粒子
   cometTailSprites = []
 
   const tailCanvas =
@@ -1450,62 +2183,131 @@ function createComet() {
     cometGroup.add(sprite)
   }
 
-  // 轨道线：显示哈雷彗星高偏心率椭圆轨道
+  /*
+   * 轨道线沿偏近点角均匀采样，而不是按时间/平近点角采样。
+   *
+   * 高偏心率彗星在近日点运动极快：
+   * 如果按时间等间隔取点，近日点附近点距会很大，
+   * Line 会看起来像几段折线。
+   *
+   * 现在使用 960 个均匀椭圆参数点，
+   * 太阳附近也会保持连续、平滑的弧线。
+   */
   const orbitPoints: THREE.Vector3[] = []
-  const segments = 260
+  const segments = 960
 
-  for (let i = 0; i <= segments; i++) {
-    const angle = (i / segments) * Math.PI * 2
-    const r = COMET_A * (1 - COMET_E * COMET_E) / (1 + COMET_E * Math.cos(angle))
-    const x = r * Math.cos(angle)
-    const z = r * Math.sin(angle)
-    const y = -z * Math.sin(COMET_INCL)
-    const zAdj = z * Math.cos(COMET_INCL)
-    orbitPoints.push(new THREE.Vector3(x, y, zAdj))
+  for (let i = 0; i < segments; i++) {
+    const eccentricAnomaly =
+      (i / segments) *
+      TAU
+
+    orbitPoints.push(
+      getCometVisualPositionFromEccentricAnomaly(
+        eccentricAnomaly
+      )
+    )
   }
 
   const orbitGeo =
-    new THREE.BufferGeometry().setFromPoints(orbitPoints)
+    new THREE.BufferGeometry()
+      .setFromPoints(orbitPoints)
 
   const orbitMat =
     new THREE.LineBasicMaterial({
       color: 0x88bbff,
       transparent: true,
       opacity: 0.52,
+      depthWrite: false,
     })
 
   cometOrbitLine =
-    new THREE.Line(orbitGeo, orbitMat)
+    new THREE.LineLoop(
+      orbitGeo,
+      orbitMat
+    )
 
   solarGroup.add(cometOrbitLine)
 
   updateCometPosition(0)
 }
 
-function updateCometPosition(angle: number) {
-  const r = COMET_A * (1 - COMET_E * COMET_E) / (1 + COMET_E * Math.cos(angle))
-  const x = r * Math.cos(angle)
-  const z = r * Math.sin(angle)
-  const y = -z * Math.sin(COMET_INCL)
-  const zAdj = z * Math.cos(COMET_INCL)
+function updateCometPosition(
+  simulatedDays: number
+) {
+  const currentPosition =
+    getCometOrbitPositionAtDay(
+      simulatedDays
+    )
 
-  cometGroup.position.set(x, y, zAdj)
+  cometGroup.position.copy(
+    currentPosition
+  )
 
-  // 彗尾始终朝向远离太阳的一侧
-  const awayFromSun =
-    new THREE.Vector3().copy(cometGroup.position)
+  /*
+   * 使用下一小段模拟时间的位置求真实切向速度方向。
+   * 哈雷彗星轨道倾角为 162.2°，轨道法向量已翻转，
+   * 因而即使平近点角随时间增加，从黄道北侧观察仍是逆向公转。
+   */
+  const nextPosition =
+    getCometOrbitPositionAtDay(
+      simulatedDays + 0.05
+    )
 
-  if (awayFromSun.lengthSq() < 0.0001) {
-    awayFromSun.set(1, 0, 0)
+  const movementDirection =
+    nextPosition
+      .sub(currentPosition)
+      .normalize()
+
+  const behindDirection =
+    movementDirection
+      .clone()
+      .multiplyScalar(-1)
+
+  if (
+    behindDirection.lengthSq() <
+    0.0001
+  ) {
+    behindDirection.set(
+      -1,
+      0,
+      0
+    )
   }
 
-  awayFromSun.normalize()
+  const distanceToSun =
+    currentPosition.length()
 
   const nearSunBoost =
     THREE.MathUtils.clamp(
-      12 / Math.max(r, 1),
-      0.28,
-      1.75
+      12 /
+      Math.max(
+        distanceToSun,
+        1
+      ),
+      0.22,
+      1.9
+    )
+
+  const tailLength =
+    5.2 +
+    nearSunBoost * 3.2
+
+  /*
+   * 尾端参考彗星此前经过的位置：
+   * 近日点速度快，使用较短历史窗口；
+   * 远日点速度慢，使用较长历史窗口；
+   * 视觉上始终从彗核后方拖出，并轻微贴合轨迹弯曲。
+   */
+  const historyWindowDays =
+    THREE.MathUtils.lerp(
+      3,
+      90,
+      THREE.MathUtils.clamp(
+        distanceToSun /
+        COMET_VISUAL_APHELION,
+        0,
+        1
+      )
     )
 
   cometTailSprites.forEach(
@@ -1514,33 +2316,69 @@ function updateCometPosition(angle: number) {
         (index + 1) /
         cometTailSprites.length
 
-      const distance =
-        0.65 +
-        t *
-        (
-          4.8 +
-          nearSunBoost * 2.2
+      const easedT =
+        t * t * (3 - 2 * t)
+
+      const previousPosition =
+        getCometOrbitPositionAtDay(
+          simulatedDays -
+          historyWindowDays *
+          easedT
         )
 
-      sprite.position.copy(
-        awayFromSun
+      const curveDirection =
+        previousPosition
+          .sub(currentPosition)
+          .normalize()
+
+      if (
+        curveDirection.dot(
+          behindDirection
+        ) <
+        0.12
+      ) {
+        curveDirection.copy(
+          behindDirection
+        )
+      }
+
+      const finalDirection =
+        behindDirection
           .clone()
+          .lerp(
+            curveDirection,
+            easedT * 0.84
+          )
+          .normalize()
+
+      const distance =
+        0.42 +
+        easedT * tailLength
+
+      sprite.position.copy(
+        finalDirection
           .multiplyScalar(distance)
       )
 
-      const size =
+      const width =
         (
-          1.15 -
-          t * 0.72
+          1.12 -
+          t * 0.76
         ) *
         (
           1 +
-          nearSunBoost * 0.26
+          nearSunBoost * 0.24
         )
 
       sprite.scale.set(
-        Math.max(0.18, size),
-        Math.max(0.18, size),
+        Math.max(
+          0.16,
+          width
+        ),
+        Math.max(
+          0.16,
+          width
+        ),
         1
       )
 
@@ -1550,9 +2388,12 @@ function updateCometPosition(angle: number) {
 
       material.opacity =
         Math.max(
-          0.04,
-          0.42 *
-          (1 - t) *
+          0.025,
+          0.5 *
+          Math.pow(
+            1 - t,
+            1.45
+          ) *
           (
             0.72 +
             nearSunBoost * 0.22
@@ -1568,9 +2409,13 @@ function updateCometPosition(angle: number) {
   )
 
   cometLight.intensity =
-    1.35 + nearSunBoost * 1.2
+    1.35 +
+    nearSunBoost * 1.2
 
-  cometNucleus.rotation.y += 0.02
+  cometNucleus.rotation.y =
+    normalizeRadians(
+      simulatedDays * 0.22
+    )
 }
 
 // ===== 创建行星 =====
@@ -1580,7 +2425,23 @@ function createPlanet(def: PlanetDef): PlanetObj {
 
   const group = new THREE.Group()
   pivot.add(group)
-  group.position.x = def.sceneDistance
+
+  group.position.copy(
+    getPlanetOrbitPosition(
+      def,
+      0
+    )
+  )
+
+  // 自转轴父组：行星本体和行星环随真实轴倾角一起倾斜
+  const axialGroup =
+    new THREE.Group()
+
+  axialGroup.rotation.z =
+    def.axialTilt *
+    DEG_TO_RAD
+
+  group.add(axialGroup)
 
   // 行星本体（图片纹理 + 着色器渲染）
   const loader = new THREE.TextureLoader()
@@ -1636,10 +2497,9 @@ function createPlanet(def: PlanetDef): PlanetObj {
   const mesh = new THREE.Mesh(geo, mat)
   mesh.castShadow = true
   mesh.receiveShadow = true
-  mesh.rotation.z = def.tilt * Math.PI / 180
   mesh.userData.isPlanet = true
   mesh.userData.planetId = def.id
-  group.add(mesh)
+  axialGroup.add(mesh)
 
   // 土星环
   if (def.hasRings) {
@@ -1670,8 +2530,8 @@ function createPlanet(def: PlanetDef): PlanetObj {
     const ringTex = new THREE.CanvasTexture(rc)
     const ringMat = new THREE.MeshBasicMaterial({ map: ringTex, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
     const ring = new THREE.Mesh(ringGeo, ringMat)
-    ring.rotation.x = Math.PI / 2 - def.tilt
-    group.add(ring)
+    ring.rotation.x = Math.PI / 2
+    axialGroup.add(ring)
   }
 
   // 地球的月亮
@@ -1734,23 +2594,59 @@ function createPlanet(def: PlanetDef): PlanetObj {
   const label = makeLabelSprite(def.name, '#7dd3fc')
   label.position.y = def.sceneRadius + 0.8
   group.add(label)
-  return { group, mesh, pivot, def, label, moon, moonPivot, moonOrbit }
+  return {
+    group,
+    axialGroup,
+    mesh,
+    pivot,
+    def,
+    label,
+    moon,
+    moonPivot,
+    moonOrbit,
+  }
 }
 
 // ===== 轨道线（粗环） =====
-function createOrbitLine(distance: number): THREE.Mesh {
-  const width = 0.25 // 轨道线宽度
-  const geo = new THREE.RingGeometry(distance - width / 2, distance + width / 2, 192)
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0x2ec4b6,
-    transparent: true,
-    opacity: 0.5,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  })
-  const ring = new THREE.Mesh(geo, mat)
-  ring.rotation.x = -Math.PI / 2 // 平铺到轨道平面
-  return ring
+function createOrbitLine(
+  def: PlanetDef
+): THREE.LineLoop {
+  const points: THREE.Vector3[] = []
+  const segments = 320
+
+  for (let i = 0; i < segments; i++) {
+    const meanAnomaly =
+      (i / segments) *
+      TAU
+
+    points.push(
+      getOrbitalPositionFromMeanAnomaly(
+        def.sceneDistance,
+        def.eccentricity,
+        def.orbitTilt,
+        def.ascendingNode,
+        def.argumentOfPerihelion,
+        meanAnomaly
+      )
+    )
+  }
+
+  const geometry =
+    new THREE.BufferGeometry()
+      .setFromPoints(points)
+
+  const material =
+    new THREE.LineBasicMaterial({
+      color: 0x2ec4b6,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+    })
+
+  return new THREE.LineLoop(
+    geometry,
+    material
+  )
 }
 
 // ===== 初始化 =====
@@ -1866,7 +2762,7 @@ function initThree() {
 
   // 轨道线
   planetData.forEach(def => {
-    const line = createOrbitLine(def.sceneDistance)
+    const line = createOrbitLine(def)
     solarGroup.add(line)
     orbitLines.push(line)
   })
@@ -1877,6 +2773,9 @@ function initThree() {
   kuiperBelt = kuiper
   solarGroup.add(main)
   solarGroup.add(kuiper)
+
+  // 太阳系空间中的不规则岩石质流星体
+  createMeteoroidField()
 
   // 所有可交互个体小行星（点击近看+注释）
   createInteractiveAsteroids()
@@ -2051,12 +2950,25 @@ function animateCamera(targetPos: THREE.Vector3, lookTarget: THREE.Vector3) {
 
 function resetTime() {
   simulatedDay.value = 0
-  planetObjs.forEach(o => {
-    o.pivot.rotation.y = 0
-    o.mesh.rotation.y = 0
-  })
 
-  cometAngle = 0
+  planetObjs.forEach(o => {
+    o.pivot.rotation.set(
+      0,
+      0,
+      0
+    )
+
+    setPlanetPosition(
+      o,
+      0
+    )
+
+    o.mesh.rotation.y = 0
+
+    if (o.moonPivot) {
+      o.moonPivot.rotation.y = 0
+    }
+  })
 
   if (cometGroup) {
     updateCometPosition(0)
@@ -2070,6 +2982,12 @@ watch([showOrbits, showLabels, showAsteroids, showKuiper, showComet], () => {
   planetObjs.forEach(o => o.label.visible = showLabels.value)
   asteroidBelt.visible = showAsteroids.value
   kuiperBelt.visible = showKuiper.value
+
+  if (meteoroidGroup) {
+    meteoroidGroup.visible =
+      showAsteroids.value
+  }
+
   // 哈雷彗星
   if (cometGroup) { cometGroup.visible = showComet.value }
   if (cometOrbitLine) { cometOrbitLine.visible = showComet.value }
@@ -2511,19 +3429,56 @@ function animate() {
     const dayStep = animSpeed.value * delta * 5 // 每帧推进的天数
     simulatedDay.value += dayStep
     planetObjs.forEach(o => {
-      // 公转：周期为 def.years 年 = years*365 天
-      const orbitSpeed = (Math.PI * 2) / (o.def.years * 365)
-      o.pivot.rotation.y += orbitSpeed * dayStep
-      // 自转（按自转周期反推角速度，自转一周 = rotation 天）
+      /*
+       * 公转位置由平近点角 -> 开普勒方程 -> 偏近点角计算：
+       * 椭圆轨道、偏心率、轨道倾角和公转周期都会真正参与运动，
+       * 因而自然呈现近日点快、远日点慢。
+       */
+      setPlanetPosition(
+        o,
+        simulatedDay.value
+      )
+
+      /*
+       * 行星绕自身局部 Y 轴旋转。
+       * 金星轴倾角 177.36°、天王星轴倾角 97.77°，
+       * 轴的北端已经翻到黄道面下方，因此视觉上自然呈现逆向自转。
+       */
       if (showRotation.value) {
-        const spinSpeed = (Math.PI * 2) / Math.max(0.01, o.def.rotation)
-        o.mesh.rotation.y += spinSpeed * dayStep * 0.1
+        o.mesh.rotation.y =
+          normalizeRadians(
+            TAU *
+            simulatedDay.value /
+            Math.max(
+              0.01,
+              o.def.rotation
+            )
+          )
       }
-      // 月亮公转
-      if (o.moonPivot) o.moonPivot.rotation.y += 0.05 * dayStep
+
+      // 月球恒星月约 27.32 天
+      if (o.moonPivot) {
+        o.moonPivot.rotation.y =
+          normalizeRadians(
+            TAU *
+            simulatedDay.value /
+            27.321661
+          )
+      }
     })
-    // 太阳自转
-    sunMesh.rotation.y += 0.002 * dayStep
+
+    /*
+     * 太阳自转按需求关闭。
+     * 保留代码作为后续需要恢复时的参考：
+     *
+     * sunMesh.rotation.y =
+     *   normalizeRadians(
+     *     TAU *
+     *     simulatedDay.value /
+     *     25.38
+     *   )
+     */
+
     // 小行星带缓慢旋转（交互组同步旋转）
     asteroidBelt.rotation.y += 0.0008 * dayStep
     kuiperBelt.rotation.y += 0.0003 * dayStep
@@ -2533,10 +3488,17 @@ function animate() {
       a.mesh.rotation.y += 0.008 * dayStep
       a.mesh.rotation.x += 0.004 * dayStep
     })
-    // 哈雷彗星沿自身高偏心率轨道逆向运动
+
+    // 场景中的流星体缓慢漂移并不规则翻滚
+    updateMeteoroids(
+      dayStep
+    )
+
+    // 哈雷彗星：真实 e=0.967 控制变速，安全视觉椭圆控制场景位置
     if (showComet.value) {
-      cometAngle -= dayStep * 0.006
-      updateCometPosition(cometAngle)
+      updateCometPosition(
+        simulatedDay.value
+      )
     }
   }
 
@@ -3641,4 +4603,174 @@ input[type="range"]::-moz-range-thumb {
    - 修复 820 断点面板突然变宽；
    - layoutMode 只负责布局形态，不再决定面板宽度。
 */
+
+/* ===================== v13：场景元素开关卡片 ===================== */
+.scene-elements-card {
+  padding: 12px !important;
+}
+
+.scene-elements-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.scene-elements-head label {
+  margin-bottom: 3px;
+}
+
+.scene-elements-head p {
+  margin: 0;
+  color: #8fa6bf;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.scene-elements-count {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid rgba(46, 196, 182, 0.28);
+  border-radius: 999px;
+  background: rgba(46, 196, 182, 0.1);
+  color: #9af4e9;
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.scene-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.scene-toggle-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: 54px;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid rgba(116, 234, 229, 0.12);
+  border-radius: 9px;
+  background: rgba(7, 19, 33, 0.56);
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.scene-toggle-item:hover {
+  border-color: rgba(116, 234, 229, 0.3);
+  background: rgba(13, 35, 53, 0.72);
+}
+
+.scene-toggle-item.active {
+  border-color: rgba(46, 196, 182, 0.44);
+  background:
+    linear-gradient(135deg,
+      rgba(46, 196, 182, 0.15),
+      rgba(36, 124, 255, 0.1));
+}
+
+.scene-toggle-wide {
+  grid-column: 1 / -1;
+}
+
+.scene-toggle-copy {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+}
+
+.scene-toggle-copy>div {
+  min-width: 0;
+}
+
+.scene-toggle-icon {
+  display: inline-flex;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(116, 234, 229, 0.16);
+  border-radius: 8px;
+  background: rgba(46, 196, 182, 0.08);
+  color: #7de5dc;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.scene-toggle-item.active .scene-toggle-icon {
+  border-color: rgba(46, 196, 182, 0.36);
+  background: rgba(46, 196, 182, 0.16);
+  color: #cafff9;
+}
+
+.scene-toggle-icon.comet-icon {
+  color: #9cc7ff;
+  font-size: 16px;
+}
+
+.scene-toggle-copy strong {
+  display: block;
+  overflow: hidden;
+  color: #eaf6ff;
+  font-size: 10px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-toggle-copy small {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  color: #7f96ad;
+  font-size: 8px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-toggle-item :deep(.el-switch) {
+  flex: 0 0 auto;
+}
+
+.scene-toggle-item :deep(.el-switch.is-checked .el-switch__core) {
+  border-color: transparent;
+  background:
+    linear-gradient(90deg,
+      #2ec4b6,
+      #247cff);
+}
+
+@media (max-width: 1080px) {
+  .scene-toggle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scene-toggle-wide {
+    grid-column: auto;
+  }
+}
+
+
+/* ===================== v15：场景元素开关一行一个 ===================== */
+.scene-elements-card .scene-toggle-grid {
+  grid-template-columns: 1fr !important;
+}
+
+.scene-elements-card .scene-toggle-wide {
+  grid-column: auto !important;
+}
+
+.scene-elements-card .scene-toggle-item {
+  min-height: 50px;
+}
 </style>

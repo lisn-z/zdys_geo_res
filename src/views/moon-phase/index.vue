@@ -6121,4 +6121,621 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr !important;
   }
 }
+
+
+/* ===================== v16: 平板横屏恢复一屏双栏 =====================
+   - v15 把 1199px 以下切成单列，平板横屏会掉下去；
+   - 900~1199px 改回一屏双栏，方便对比主图、观测月球和数据；
+   - 右侧知识卡在平板端压缩为小卡片，优先保证核心信息同屏；
+   - 900px 以下才保持单列滚动。
+*/
+@media (min-width: 900px) and (max-width: 1199px) {
+  .moon-phase-template2 {
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .moon-template-toolbar {
+    position: relative !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .brand-logo {
+    width: clamp(110px, 13vw, 160px) !important;
+  }
+
+  .moon-phase-template2 .page-title {
+    max-width: 56vw !important;
+    font-size: clamp(18px, 2.3vw, 25px) !important;
+    white-space: nowrap !important;
+  }
+
+  .moon-phase-template2 .moon-toolbar-actions,
+  .moon-phase-template2 .sun-source-tip {
+    display: none !important;
+  }
+
+  .moon-phase-template2 .moon-template-workspace {
+    grid-row: 2 !important;
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .moon-center-stage,
+  .moon-phase-template2 .stage-content,
+  .moon-phase-template2 .moon-stage-content {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .moon-stage-content {
+    padding: 8px 12px !important;
+  }
+
+  .moon-phase-template2 .main-grid {
+    display: grid !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    grid-template-columns: minmax(0, 2.05fr) minmax(300px, 0.95fr) !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+
+  .moon-phase-template2 .left-column {
+    display: grid !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+    gap: 9px !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .right-column {
+    display: grid !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    grid-template-rows:
+      minmax(178px, 0.35fr) minmax(122px, 0.24fr) minmax(0, 0.41fr) !important;
+    gap: 8px !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .global-panel {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    padding: 10px !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .global-view-header {
+    align-items: center !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .moon-phase-template2 .global-view-title {
+    font-size: 15px !important;
+  }
+
+  .moon-phase-template2 .global-view-actions {
+    width: auto !important;
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+  }
+
+  .moon-phase-template2 .pill-button,
+  .moon-phase-template2 .angle-switch {
+    padding: 5px 9px !important;
+    font-size: 11px !important;
+  }
+
+  .moon-phase-template2 .viewport-container {
+    width: min(100%, 500px) !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+  }
+
+  .moon-phase-template2 .view-3d-full {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  .moon-phase-template2 .control-panel {
+    display: flex !important;
+    width: 100% !important;
+    min-height: 54px !important;
+    align-items: center !important;
+    flex-direction: row !important;
+    gap: 12px !important;
+    padding: 8px 12px !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .playback-controls {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+  }
+
+  .moon-phase-template2 .moon-play-btn {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+  }
+
+  .moon-phase-template2 .speed-group {
+    max-width: none !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    padding: 3px !important;
+  }
+
+  .moon-phase-template2 .speed-btn {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 9px !important;
+    font-size: 11px !important;
+  }
+
+  .moon-phase-template2 .timeline {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .moon-phase-template2 .timeline-labels {
+    margin-bottom: 3px !important;
+    font-size: 8px !important;
+  }
+
+  .moon-phase-template2 .observation-panel,
+  .moon-phase-template2 .data-panel {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    padding: 10px 12px !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .observation-panel h2 {
+    margin-bottom: 4px !important;
+    font-size: 15px !important;
+  }
+
+  .moon-phase-template2 .observation-body {
+    display: grid !important;
+    width: 100% !important;
+    height: calc(100% - 26px) !important;
+    min-height: 0 !important;
+    grid-template-columns: minmax(126px, 0.46fr) minmax(0, 0.54fr) !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .moon-phase-template2 .moon-preview {
+    width: min(150px, 42vw) !important;
+    max-width: 150px !important;
+    max-height: 150px !important;
+    padding: 6px !important;
+  }
+
+  .moon-phase-template2 .observation-copy {
+    align-items: flex-start !important;
+    text-align: left !important;
+    gap: 4px !important;
+  }
+
+  .moon-phase-template2 .phase-name {
+    margin-top: 0 !important;
+    font-size: clamp(19px, 2.15vw, 25px) !important;
+    line-height: 1.08 !important;
+    text-align: left !important;
+  }
+
+  .moon-phase-template2 .hemisphere-note,
+  .moon-phase-template2 .observation-tip {
+    font-size: 10px !important;
+    line-height: 1.32 !important;
+  }
+
+  .moon-phase-template2 .data-panel h3 {
+    margin-bottom: 4px !important;
+    font-size: 13px !important;
+  }
+
+  .moon-phase-template2 .data-row {
+    flex-wrap: nowrap !important;
+    padding: 7px 0 !important;
+  }
+
+  .moon-phase-template2 .data-row span {
+    font-size: 12px !important;
+  }
+
+  .moon-phase-template2 .data-row strong {
+    font-size: 17px !important;
+  }
+
+  .moon-phase-template2 .data-row small {
+    font-size: 10px !important;
+  }
+
+  .moon-phase-template2 .knowledge-grid {
+    display: grid !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .knowledge-card {
+    height: 100% !important;
+    min-height: 0 !important;
+    padding: 9px 10px !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .knowledge-card h3 {
+    margin-bottom: 0 !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+
+  .moon-phase-template2 .knowledge-card p {
+    display: none !important;
+  }
+}
+
+/* 平板高度更矮时：继续压缩知识区，仍然保持一屏对比 */
+@media (min-width: 900px) and (max-width: 1199px) and (max-height: 700px) {
+  .moon-phase-template2 .moon-stage-content {
+    padding: 6px 10px !important;
+  }
+
+  .moon-phase-template2 .main-grid {
+    grid-template-columns: minmax(0, 2.12fr) minmax(286px, 0.88fr) !important;
+    gap: 8px !important;
+  }
+
+  .moon-phase-template2 .right-column {
+    grid-template-rows:
+      minmax(162px, 0.34fr) minmax(112px, 0.25fr) minmax(0, 0.41fr) !important;
+    gap: 6px !important;
+  }
+
+  .moon-phase-template2 .global-panel {
+    padding: 8px !important;
+  }
+
+  .moon-phase-template2 .control-panel {
+    min-height: 48px !important;
+    padding: 6px 10px !important;
+  }
+
+  .moon-phase-template2 .moon-preview {
+    width: min(132px, 40vw) !important;
+    max-width: 132px !important;
+    max-height: 132px !important;
+  }
+
+  .moon-phase-template2 .phase-name {
+    font-size: clamp(17px, 2vw, 22px) !important;
+  }
+
+  .moon-phase-template2 .data-row {
+    padding: 6px 0 !important;
+  }
+
+  .moon-phase-template2 .knowledge-card {
+    padding: 8px 9px !important;
+  }
+}
+
+/* 真正手机宽度才单列滚动 */
+@media (max-width: 899px) {
+  .moon-phase-template2 {
+    display: block !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+}
+
+
+/* ===================== v17: 平板一屏展示，知识卡正文省略 =====================
+   - 900~1199px 平板横屏继续保持一屏双栏；
+   - 给地球观测视角和实时天文数据更多纵向空间；
+   - 下方四个知识卡不再隐藏正文，改为 1~2 行省略；
+   - 高度更矮时优先压缩知识卡正文行数，仍尽量一屏展示。
+*/
+@media (min-width: 900px) and (max-width: 1199px) {
+  .moon-phase-template2 .right-column {
+    grid-template-rows:
+      minmax(190px, 0.39fr) minmax(132px, 0.28fr) minmax(0, 0.33fr) !important;
+  }
+
+  .moon-phase-template2 .observation-panel {
+    padding: 10px 12px !important;
+  }
+
+  .moon-phase-template2 .observation-body {
+    height: calc(100% - 24px) !important;
+    grid-template-columns: minmax(132px, 0.48fr) minmax(0, 0.52fr) !important;
+  }
+
+  .moon-phase-template2 .moon-preview {
+    width: min(158px, 42vw) !important;
+    max-width: 158px !important;
+    max-height: 158px !important;
+  }
+
+  .moon-phase-template2 .phase-name {
+    font-size: clamp(20px, 2.2vw, 26px) !important;
+  }
+
+  .moon-phase-template2 .data-panel {
+    padding: 10px 14px !important;
+  }
+
+  .moon-phase-template2 .data-panel h3 {
+    font-size: 14px !important;
+  }
+
+  .moon-phase-template2 .data-row {
+    padding: 8px 0 !important;
+  }
+
+  .moon-phase-template2 .data-row span {
+    font-size: 13px !important;
+  }
+
+  .moon-phase-template2 .data-row strong {
+    font-size: 18px !important;
+  }
+
+  .moon-phase-template2 .knowledge-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  .moon-phase-template2 .knowledge-card {
+    display: flex !important;
+    min-height: 0 !important;
+    padding: 8px 10px !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .knowledge-card h3 {
+    flex: 0 0 auto !important;
+    margin-bottom: 3px !important;
+    font-size: 12px !important;
+    line-height: 1.18 !important;
+  }
+
+  .moon-phase-template2 .knowledge-card p {
+    display: -webkit-box !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    color: rgba(226, 248, 255, 0.72) !important;
+    font-size: 10.5px !important;
+    line-height: 1.36 !important;
+    text-align: left !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+  }
+}
+
+/* 平板高度更矮时：正文仍显示，但只保留 1 行省略 */
+@media (min-width: 900px) and (max-width: 1199px) and (max-height: 700px) {
+  .moon-phase-template2 .right-column {
+    grid-template-rows:
+      minmax(172px, 0.38fr) minmax(120px, 0.28fr) minmax(0, 0.34fr) !important;
+  }
+
+  .moon-phase-template2 .moon-preview {
+    width: min(138px, 40vw) !important;
+    max-width: 138px !important;
+    max-height: 138px !important;
+  }
+
+  .moon-phase-template2 .data-row {
+    padding: 6px 0 !important;
+  }
+
+  .moon-phase-template2 .knowledge-card {
+    padding: 7px 8px !important;
+  }
+
+  .moon-phase-template2 .knowledge-card h3 {
+    margin-bottom: 2px !important;
+    font-size: 11.5px !important;
+  }
+
+  .moon-phase-template2 .knowledge-card p {
+    font-size: 10px !important;
+    line-height: 1.28 !important;
+    -webkit-line-clamp: 1 !important;
+  }
+}
+
+/* 900px 以下仍走手机单列逻辑，正文正常展示 */
+@media (max-width: 899px) {
+  .moon-phase-template2 .knowledge-card p {
+    display: block !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+  }
+}
+
+
+/* ===================== v25: 平板 2D 标题栏压缩 + 知识卡取消省略 =====================
+   仅修两个问题：
+   1. 900~1199px 平板下，2D 顶部标题/切换行减少高度，把空间还给 2D；
+   2. 右下四个知识卡正文不再 line-clamp 省略，超出时卡片内部滚动。
+*/
+@media (min-width: 900px) and (max-width: 1199px) {
+
+  /* 只压缩 2D 状态的顶部标题行，不改 3D 布局 */
+  .moon-phase-template2 .global-panel:not(.is-3d-mode) .global-view-header {
+    min-height: 28px !important;
+    margin-bottom: 2px !important;
+    gap: 6px !important;
+  }
+
+  .moon-phase-template2 .global-panel:not(.is-3d-mode) .global-view-title {
+    font-size: 13px !important;
+    line-height: 1.1 !important;
+  }
+
+  .moon-phase-template2 .global-panel:not(.is-3d-mode) .global-view-actions {
+    gap: 5px !important;
+  }
+
+  .moon-phase-template2 .global-panel:not(.is-3d-mode) .global-view-actions .pill-button,
+  .moon-phase-template2 .global-panel:not(.is-3d-mode) .global-view-actions .angle-switch {
+    padding: 3px 7px !important;
+    font-size: 10px !important;
+  }
+
+  /* 2D 继续占满标题行下面的剩余空间 */
+  .moon-phase-template2 .global-panel:not(.is-3d-mode) .viewport-container.is-2d-mode {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    margin: auto !important;
+  }
+
+  /* 知识卡正文不再省略 */
+  .moon-phase-template2 .knowledge-card {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .moon-phase-template2 .knowledge-card p {
+    display: block !important;
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    -webkit-box-orient: initial !important;
+    -webkit-line-clamp: unset !important;
+    line-clamp: unset !important;
+  }
+}
+
+/* 平板高度较矮时也不恢复省略号 */
+@media (min-width: 900px) and (max-width: 1199px) and (max-height: 700px) {
+  .moon-phase-template2 .global-panel:not(.is-3d-mode) .global-view-header {
+    min-height: 26px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .moon-phase-template2 .global-panel:not(.is-3d-mode) .global-view-title {
+    font-size: 12px !important;
+  }
+
+  .moon-phase-template2 .knowledge-card p {
+    display: block !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+    line-clamp: unset !important;
+  }
+}
+
+
+/* ===================== v26: 1920×1080 右栏数据优先 =====================
+   - 仅针对 1500~2199px、901~1200px 高的桌面屏；
+   - 给“实时天文数据”更多纵向空间；
+   - 压缩下方四个知识卡区域；
+   - 知识卡正文不省略，超出时卡片内部滚动；
+   - 不修改 2D、3D、平板端布局。
+*/
+@media (min-width: 1500px) and (max-width: 2199px) and (min-height: 901px) and (max-height: 1200px) {
+  .moon-phase-template2 .right-column {
+    grid-template-rows:
+      minmax(280px, 0.39fr) minmax(210px, 0.30fr) minmax(0, 0.31fr) !important;
+    gap: 10px !important;
+  }
+
+  .moon-phase-template2 .data-panel {
+    min-height: 210px !important;
+    padding: 14px 18px !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .data-panel h3 {
+    margin-bottom: 5px !important;
+  }
+
+  .moon-phase-template2 .data-row {
+    padding: 9px 0 !important;
+  }
+
+  .moon-phase-template2 .knowledge-grid {
+    min-height: 0 !important;
+    gap: 8px !important;
+    overflow: hidden !important;
+  }
+
+  .moon-phase-template2 .knowledge-card {
+    min-height: 0 !important;
+    padding: 10px 12px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .moon-phase-template2 .knowledge-card h3 {
+    margin-bottom: 4px !important;
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+  }
+
+  .moon-phase-template2 .knowledge-card p {
+    display: block !important;
+    max-height: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    font-size: 12px !important;
+    line-height: 1.42 !important;
+    -webkit-box-orient: initial !important;
+    -webkit-line-clamp: unset !important;
+    line-clamp: unset !important;
+  }
+}
 </style>

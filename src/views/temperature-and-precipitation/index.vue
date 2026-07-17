@@ -1,8 +1,11 @@
 <template>
   <div class="tp-container">
-    <!-- 顶部标题栏：标题居中 -->
+    <!-- 顶部标题栏：Logo 左对齐，标题居中 -->
     <header class="tp-header">
+      <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+        alt="logo" />
       <h1 class="header-title">绘制气温曲线和降水量柱状图</h1>
+      <span class="header-spacer"></span>
     </header>
 
     <!-- 左右主体 -->
@@ -11,29 +14,23 @@
       <aside class="tp-left">
         <div class="left-card glass-panel">
           <div class="card-title">
-            <el-icon><Filter /></el-icon>
+            <el-icon>
+              <Filter />
+            </el-icon>
             <span>选择城市</span>
           </div>
-          <el-select
-            v-model="selectedCityId"
-            placeholder="请选择主要城市"
-            class="city-select"
-            :disabled="cityList.length === 0"
-            @change="onCityChange"
-          >
-            <el-option
-              v-for="c in cityList"
-              :key="c.id"
-              :label="c.name"
-              :value="c.id"
-            />
+          <el-select v-model="selectedCityId" placeholder="请选择主要城市" class="city-select"
+            :disabled="cityList.length === 0" @change="onCityChange">
+            <el-option v-for="c in cityList" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </div>
 
         <!-- 城市气候类型信息卡（仅在选中城市时显示） -->
         <div v-if="currentCity" class="left-card glass-panel">
           <div class="card-title">
-            <el-icon><Document /></el-icon>
+            <el-icon>
+              <Document />
+            </el-icon>
             <span>城市气候类型</span>
           </div>
           <div class="city-info">
@@ -53,7 +50,9 @@
 
         <div class="left-card map-card glass-panel">
           <div class="card-title">
-            <el-icon><Globe /></el-icon>
+            <el-icon>
+              <Globe />
+            </el-icon>
             <span>世界气候类型典型城市分布</span>
           </div>
           <div ref="mapRef" class="leaflet-map"></div>
@@ -65,7 +64,9 @@
         <!-- 上：统计表 -->
         <div class="right-card glass-panel">
           <div class="card-title">
-            <el-icon><DataAnalysis /></el-icon>
+            <el-icon>
+              <DataAnalysis />
+            </el-icon>
             <span>{{ currentCity.name }}各月平均气温和降水量统计表</span>
           </div>
           <div class="table-wrap">
@@ -97,15 +98,11 @@
         <!-- 下：ECharts 图表 -->
         <div class="right-card glass-panel">
           <div class="card-title">
-            <el-icon><TrendCharts /></el-icon>
+            <el-icon>
+              <TrendCharts />
+            </el-icon>
             <span>{{ currentCity.name }}气温曲线和降水量柱状图</span>
-            <el-button
-              class="card-title-export"
-              type="primary"
-              size="default"
-              :icon="Download"
-              @click="exportChart"
-            >
+            <el-button class="card-title-export" type="primary" size="default" :icon="Download" @click="exportChart">
               导出图片
             </el-button>
           </div>
@@ -117,7 +114,9 @@
       <section class="tp-right tp-placeholder" v-else>
         <div class="placeholder-inner glass-panel">
           <div class="placeholder-icon">
-            <el-icon :size="64"><Promotion /></el-icon>
+            <el-icon :size="64">
+              <Promotion />
+            </el-icon>
           </div>
           <p class="placeholder-title">请先在左侧地图上选择城市</p>
           <p class="placeholder-desc">点击地图上的城市，或在「选择城市」下拉框中选择一个城市，右侧将显示对应的气温与降水量统计表及图表。</p>
@@ -367,7 +366,7 @@ function initMap() {
         'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="%23aadaff"/></svg>',
     }
   )
-  tileLayer.on('tileerror', (e) => {
+  tileLayer.on('tileerror', (e: any) => {
     // eslint-disable-next-line no-console
     console.warn('[Leaflet] tile load error:', e?.tile?.src)
   })
@@ -624,10 +623,21 @@ onBeforeUnmount(() => {
   padding: 0 24px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   background: linear-gradient(90deg, rgba(46, 196, 182, 0.18) 0%, rgba(36, 124, 255, 0.18) 100%);
   border-bottom: 1px solid rgba(46, 196, 182, 0.35);
   backdrop-filter: blur(8px);
+}
+
+.brand-logo {
+  height: 90%;
+  width: auto;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.header-spacer {
+  flex: 0 0 32px;
 }
 
 .header-title {
@@ -1057,45 +1067,58 @@ onBeforeUnmount(() => {
     height: 56px;
     padding: 0 16px;
   }
+
   .header-title {
     font-size: 18px;
     letter-spacing: 1px;
   }
+
   .header-title::before,
   .header-title::after {
     width: 40px;
   }
+
   .header-title::before {
     left: -30px;
   }
+
   .header-title::after {
     right: -30px;
   }
+
   .tp-main {
     gap: 12px;
     padding: 12px;
   }
+
   .tp-left {
     gap: 10px;
   }
+
   .left-card.map-card {
     min-height: 280px;
   }
+
   .leaflet-map {
     min-height: 220px;
   }
+
   .tp-right {
     gap: 12px;
   }
+
   .right-card:last-child {
     min-height: 240px;
   }
+
   .echart-box {
     min-height: 240px;
   }
+
   .city-info-name {
     font-size: 13px;
   }
+
   .city-info-line {
     font-size: 12px;
   }
@@ -1107,25 +1130,31 @@ onBeforeUnmount(() => {
     height: 50px;
     padding: 0 12px;
   }
+
   .header-title {
     font-size: 16px;
     letter-spacing: 1px;
   }
+
   .header-title::before,
   .header-title::after {
     width: 24px;
   }
+
   .header-title::before {
     left: -16px;
   }
+
   .header-title::after {
     right: -16px;
   }
+
   .tp-main {
     flex-direction: column;
     gap: 10px;
     padding: 10px;
   }
+
   .tp-left {
     width: 100%;
     min-width: 0;
@@ -1133,47 +1162,61 @@ onBeforeUnmount(() => {
     max-height: 50%;
     gap: 8px;
   }
+
   .left-card.map-card {
     min-height: 220px;
   }
+
   .leaflet-map {
     min-height: 180px;
   }
+
   .tp-right {
     gap: 10px;
   }
+
   .right-card:last-child {
     min-height: 220px;
   }
+
   .echart-box {
     min-height: 220px;
   }
+
   .card-title {
     font-size: 13px;
     padding: 10px 12px 6px 12px;
   }
+
   .placeholder-icon {
     width: 80px;
     height: 80px;
   }
+
   .placeholder-icon :deep(.el-icon) {
     font-size: 40px !important;
   }
+
   .placeholder-title {
     font-size: 17px;
   }
+
   .placeholder-desc {
     font-size: 13px;
   }
+
   .placeholder-inner {
     padding: 24px;
   }
+
   .table-wrap {
     padding: 10px;
   }
+
   .tp-table {
     font-size: 12px;
   }
+
   .tp-table th,
   .tp-table td {
     padding: 6px 8px;
@@ -1187,63 +1230,80 @@ onBeforeUnmount(() => {
     height: 44px;
     padding: 0 8px;
   }
+
   .header-title {
     font-size: 14px;
     letter-spacing: 0.5px;
   }
+
   .header-title::before,
   .header-title::after {
     display: none;
   }
+
   .tp-main {
     gap: 8px;
     padding: 8px;
   }
+
   .tp-left {
     max-height: 45%;
     gap: 6px;
   }
+
   .left-card.map-card {
     min-height: 160px;
   }
+
   .leaflet-map {
     min-height: 140px;
   }
+
   .tp-right {
     gap: 8px;
   }
+
   .right-card:last-child {
     min-height: 180px;
   }
+
   .echart-box {
     min-height: 180px;
     padding: 4px 8px 8px 8px;
   }
+
   .card-title {
     font-size: 12px;
     padding: 8px 10px 4px 10px;
     gap: 4px;
   }
+
   .city-select {
     width: calc(100% - 20px);
     margin: 6px 10px 2px 10px;
   }
+
   .city-info {
     padding: 8px 10px 10px 10px;
   }
+
   .city-info-name {
     font-size: 12px;
   }
+
   .city-info-line {
     font-size: 11px;
   }
+
   .table-wrap {
     padding: 8px;
   }
+
   .tp-table {
     font-size: 11px;
     min-width: 520px;
   }
+
   .tp-table th,
   .tp-table td {
     padding: 4px 6px;
