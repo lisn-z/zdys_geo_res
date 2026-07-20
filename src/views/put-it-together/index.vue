@@ -19,14 +19,7 @@
       </div>
     </header>
 
-    <main class="workspace" :class="{
-      'has-right': hasRightPanel,
-    }" :style="{
-      '--right-panel-width':
-        rightCollapsed
-          ? '0px'
-          : rightPanelWidth + 'px',
-    }">
+    <main class="workspace" v-bind="workspaceAttrs">
       <section class="center-stage">
         <div class="stage-content china-map-stage">
           <div class="map-zone">
@@ -47,7 +40,7 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: rightCollapsed }">
+      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -99,18 +92,15 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-left" @pointerdown.stop.prevent="
-          startResize('right', $event)
-          "></div>
+        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
 
-        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
-          @click="rightCollapsed = true">
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
           ›
         </button>
       </aside>
 
       <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        aria-label="展开右侧面板" @click="rightCollapsed = false">
+        v-bind="rightEntryAttrs">
         ‹
       </button>
     </main>
@@ -150,42 +140,99 @@
 
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
+import {
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'vue'
 // @ts-ignore
 import * as echarts from 'echarts'
+/*
+ * 公共模板样式已内置平板宽度与触控拖拽规则。
+ */
 import '@/styles/geo-page-template.css'
+import {
+  useGeoPanelLayout,
+} from '@/hooks/useGeoPanelLayout'
 
-const pageRef = ref<HTMLElement | null>(null)
-const chartRef = ref<HTMLDivElement>()
+const chartRef =
+  ref<HTMLDivElement>()
 
-type LayoutMode =
-  | 'large'
-  | 'medium'
-  | 'small'
-
-const layoutMode = ref<LayoutMode>('large')
 const hasRightPanel = true
-const rightPanelWidth = ref(420)
-const rightCollapsed = ref(false)
-const allPanelsCollapsed = computed(() => rightCollapsed.value)
 
-let previousLayoutMode:
-  | LayoutMode
-  | null = null
-
-let pageResizeObserver:
+let chartResizeObserver:
   | ResizeObserver
   | null = null
 
-let rightPanelManuallyResized = false
-let panelResizeState:
-  | {
-    startX: number
-    width: number
-  }
+let chartResizeTimer:
+  | ReturnType<typeof setTimeout>
   | null = null
 
 let chartResizeFrame = 0
+let chartResizeSettleFrame = 0
+
+let lastChartWidth = 0
+let lastChartHeight = 0
+
+/*
+ * 本页面只有右侧模板面板。
+ *
+ * 平板宽度直接使用公共配置：
+ * - medium 默认 300px，最小 240px；
+ * - small 默认 270px，最小 210px。
+ *
+ * 不再由组件内部写死 300px 最小宽度。
+ */
+const {
+  rootRef: pageRef,
+  layoutMode,
+
+  rightCollapsed,
+  allPanelsCollapsed,
+
+  draggingSide,
+  viewportResizing,
+
+  workspaceAttrs,
+  rightPanelAttrs,
+  rightResizeAttrs,
+  rightCollapseAttrs,
+  rightEntryAttrs,
+
+  toggleAll:
+  toggleAllPanels,
+} = useGeoPanelLayout({
+  left: {
+    enabled: false,
+  },
+
+  right: {
+    enabled: hasRightPanel,
+    resizable: true,
+  },
+
+  onLayoutChange(state) {
+    /*
+     * 面板拖拽和浏览器连续缩放期间，
+     * 不高频执行 ECharts resize。
+     */
+    if (state.resizing) {
+      return
+    }
+
+    scheduleChartResize(90)
+  },
+
+  onResize(payload) {
+    if (
+      payload.phase === 'end' ||
+      payload.phase === 'reset'
+    ) {
+      scheduleChartResize(0)
+    }
+  },
+})
 const activeProvince = ref('')
 const provinceList = ref<Array<{ name: string; shortName: string; svgPath: string }>>([])
 const dropResult = ref<{ msg: string; success: boolean } | null>(null)
@@ -218,335 +265,97 @@ let countdownTimer: number | null = null
 let startTime = 0
 
 
-function clampPanelNumber(
-  value: number,
-  min: number,
-  max: number
-): number {
-  return Math.min(
-    max,
-    Math.max(
-      min,
-      value
-    )
+function isPanelLayoutResizing() {
+  return (
+    draggingSide.value !== null ||
+    viewportResizing.value
   )
 }
 
-function getLayoutMode(
-  width: number
-): LayoutMode {
-  if (width < 800) {
-    return 'small'
-  }
+function resizeChartNow() {
+  const element =
+    chartRef.value
 
-  if (width < 1440) {
-    return 'medium'
-  }
-
-  return 'large'
-}
-
-function getEffectiveTemplateWidth(
-  fallbackWidth?: number
-): number {
-  const candidates: number[] = []
-
-  if (
-    typeof fallbackWidth === 'number' &&
-    Number.isFinite(fallbackWidth) &&
-    fallbackWidth > 0
-  ) {
-    candidates.push(fallbackWidth)
-  }
-
-  const pageWidth =
-    pageRef.value?.clientWidth
-
-  if (
-    typeof pageWidth === 'number' &&
-    Number.isFinite(pageWidth) &&
-    pageWidth > 0
-  ) {
-    candidates.push(pageWidth)
-  }
-
-  if (typeof window !== 'undefined') {
-    const values = [
-      window.innerWidth,
-      window.visualViewport?.width,
-      window.screen?.width,
-      window.screen?.availWidth,
-    ]
-
-    values.forEach((value) => {
-      if (
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value > 0
-      ) {
-        candidates.push(value)
-      }
-    })
-  }
-
-  if (!candidates.length) {
-    return 0
-  }
-
-  return Math.min(...candidates)
-}
-
-function isUltraLargeTemplateScreen(
-  fallbackWidth?: number
-): boolean {
-  return getEffectiveTemplateWidth(
-    fallbackWidth
-  ) >= 2200
-}
-
-function getAdaptivePanelWidth(
-  side: 'right',
-  mode: LayoutMode,
-  pageWidth: number
-): number {
-  void side
-  void mode
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  if (
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-  ) {
-    return clampPanelNumber(
-      effectiveWidth * 0.25,
-      500,
-      760
-    )
-  }
-
-  return clampPanelNumber(
-    pageWidth * 0.28,
-    320,
-    420
-  )
-}
-
-function getPanelResizeBounds(
-  side: 'right'
-) {
-  void side
-
-  const pageWidth =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  const isUltraLargeScreen =
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-
-  const min = 300
-
-  const maxLimit =
-    isUltraLargeScreen
-      ? 900
-      : 480
-
-  const ratio =
-    isUltraLargeScreen
-      ? 0.54
-      : 0.46
-
-  return {
-    min,
-    max: Math.max(
-      min,
-      Math.min(
-        maxLimit,
-        effectiveWidth * ratio
-      )
-    ),
-  }
-}
-
-function scheduleChartResize() {
-  if (chartResizeFrame) {
-    window.cancelAnimationFrame(chartResizeFrame)
-  }
-
-  chartResizeFrame =
-    window.requestAnimationFrame(() => {
-      chartResizeFrame = 0
-      chart?.resize()
-    })
-}
-
-function syncTemplateLayout() {
-  const width =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const nextMode =
-    getLayoutMode(width)
-
-  const modeChanged =
-    previousLayoutMode !== nextMode
-
-  layoutMode.value =
-    nextMode
-
-  if (
-    modeChanged ||
-    !rightPanelManuallyResized
-  ) {
-    rightPanelWidth.value =
-      Math.round(
-        getAdaptivePanelWidth(
-          'right',
-          nextMode,
-          width
-        )
-      )
-  }
-
-  previousLayoutMode =
-    nextMode
-}
-
-function toggleAllPanels() {
-  rightCollapsed.value =
-    !allPanelsCollapsed.value
-
-  nextTick(scheduleChartResize)
-}
-
-function startResize(
-  target: 'right',
-  event: PointerEvent
-) {
-  void target
-
-  if (rightCollapsed.value) {
+  if (!chart || !element) {
     return
   }
 
-  event.stopPropagation()
+  const width = Math.max(
+    1,
+    Math.round(
+      element.clientWidth
+    )
+  )
 
-  panelResizeState = {
-    startX: event.clientX,
-    width: rightPanelWidth.value,
-  }
+  const height = Math.max(
+    1,
+    Math.round(
+      element.clientHeight
+    )
+  )
 
-  const handle =
-    event.currentTarget as HTMLElement | null
-
+  /*
+   * 容器尺寸没有变化时不重复 resize。
+   */
   if (
-    handle &&
-    typeof handle.setPointerCapture === 'function'
+    width === lastChartWidth &&
+    height === lastChartHeight
   ) {
-    try {
-      handle.setPointerCapture(
-        event.pointerId
-      )
-    } catch {
-      // 部分触控屏或老浏览器可能不支持 pointer capture，继续使用 document 监听兜底。
-    }
-  }
-
-  document.body.classList.add(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor =
-    'col-resize'
-
-  document.body.style.userSelect =
-    'none'
-
-  document.addEventListener(
-    'pointermove',
-    onPanelResizeMove
-  )
-
-  document.addEventListener(
-    'pointerup',
-    stopPanelResize,
-    {
-      once: true,
-    }
-  )
-
-  document.addEventListener(
-    'pointercancel',
-    stopPanelResize,
-    {
-      once: true,
-    }
-  )
-}
-
-function onPanelResizeMove(
-  event: PointerEvent
-) {
-  if (!panelResizeState) {
     return
   }
 
-  const bounds =
-    getPanelResizeBounds('right')
+  lastChartWidth = width
+  lastChartHeight = height
 
-  const delta =
-    event.clientX -
-    panelResizeState.startX
+  chart.resize({
+    width,
+    height,
+    silent: true,
+  })
+}
 
-  rightPanelWidth.value =
-    clampPanelNumber(
-      panelResizeState.width - delta,
-      bounds.min,
-      bounds.max
+function scheduleChartResize(
+  delay = 110
+) {
+  if (chartResizeTimer) {
+    clearTimeout(
+      chartResizeTimer
     )
+  }
 
-  rightPanelManuallyResized = true
-  scheduleChartResize()
+  cancelAnimationFrame(
+    chartResizeFrame
+  )
+
+  cancelAnimationFrame(
+    chartResizeSettleFrame
+  )
+
+  /*
+   * 拖拽过程中先让 ECharts DOM 通过 CSS 跟随。
+   * 松手后再做最终像素校准。
+   */
+  if (isPanelLayoutResizing()) {
+    return
+  }
+
+  chartResizeTimer =
+    setTimeout(() => {
+      chartResizeTimer = null
+
+      chartResizeFrame =
+        requestAnimationFrame(() => {
+          chartResizeFrame = 0
+
+          chartResizeSettleFrame =
+            requestAnimationFrame(() => {
+              chartResizeSettleFrame = 0
+              resizeChartNow()
+            })
+        })
+    }, delay)
 }
 
-function stopPanelResize() {
-  panelResizeState = null
-
-  document.body.classList.remove(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-
-  document.removeEventListener(
-    'pointermove',
-    onPanelResizeMove
-  )
-
-  document.removeEventListener(
-    'pointerup',
-    stopPanelResize
-  )
-
-  document.removeEventListener(
-    'pointercancel',
-    stopPanelResize
-  )
-
-  scheduleChartResize()
-}
 
 function resetGame() {
   window.location.reload()
@@ -705,18 +514,6 @@ function onMapClick(params: any) {
 
 // ---- 生命周期 ----
 onMounted(async () => {
-  syncTemplateLayout()
-
-  pageResizeObserver =
-    new ResizeObserver(() => {
-      syncTemplateLayout()
-      scheduleChartResize()
-    })
-
-  if (pageRef.value) {
-    pageResizeObserver.observe(pageRef.value)
-  }
-
   try {
     const res = await fetch('/geo-resources-folder/geojson/中国矢量数据/中国省级行政区.geojson')
     geoJsonData = await res.json()
@@ -805,7 +602,23 @@ onMounted(async () => {
     },
   })
 
-  scheduleChartResize()
+  /*
+   * ECharts 初始化后监听真实地图容器。
+   * 面板拖拽结束时 Hook 也会触发最终 resize。
+   */
+  chartResizeObserver =
+    new ResizeObserver(() => {
+      scheduleChartResize(110)
+    })
+
+  chartResizeObserver.observe(el)
+
+  /*
+   * 初始化时记录当前尺寸并做最终校准。
+   */
+  lastChartWidth = 0
+  lastChartHeight = 0
+  scheduleChartResize(0)
 
   // 监听地图底层点击（silent 模式下用 getZr 捕获像素坐标）
   chart.getZr().on('click', onMapClick)
@@ -829,7 +642,6 @@ onMounted(async () => {
     }
   }, 1000)
 
-  window.addEventListener('resize', handleResize)
 })
 
 function dismissCompletion() { showCompletion.value = false }
@@ -838,33 +650,34 @@ function dismissTimeout() {
   // 重置游戏：刷新页面
   window.location.reload()
 }
-function handleResize() { chart?.resize() }
-
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
+  chartResizeObserver?.disconnect()
+  chartResizeObserver = null
 
-  pageResizeObserver?.disconnect()
-  pageResizeObserver = null
+  if (chartResizeTimer) {
+    clearTimeout(
+      chartResizeTimer
+    )
+
+    chartResizeTimer = null
+  }
 
   if (chartResizeFrame) {
-    window.cancelAnimationFrame(chartResizeFrame)
+    cancelAnimationFrame(
+      chartResizeFrame
+    )
+
     chartResizeFrame = 0
   }
 
-  document.removeEventListener(
-    'pointermove',
-    onPanelResizeMove
-  )
+  if (chartResizeSettleFrame) {
+    cancelAnimationFrame(
+      chartResizeSettleFrame
+    )
 
-  document.removeEventListener(
-    'pointerup',
-    stopPanelResize
-  )
+    chartResizeSettleFrame = 0
+  }
 
-  document.removeEventListener(
-    'pointercancel',
-    stopPanelResize
-  )
   chart?.dispose()
   if (dropTimer) clearTimeout(dropTimer)
   if (countdownTimer) clearInterval(countdownTimer)
@@ -1317,9 +1130,10 @@ body {
   }
 }
 
-/* ===================== v2: 去掉南海小框与空白省份卡 =====================
-   - 过滤 GeoJSON 中空 name / 南海诸岛要素；
-   - 右侧省份列表不再出现空白卡片；
-   - 审图号只保留在主场景左下角。
+/* ===================== v3：公共面板 Hook =====================
+   - 右侧面板宽度、断点、触控拖拽与展开折叠交给 Hook；
+   - 平板最小宽度使用公共配置 240px；
+   - 小屏最小宽度使用公共配置 210px；
+   - 保留过滤南海小框与空白省份卡逻辑。
 */
 </style>

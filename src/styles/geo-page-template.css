@@ -1,6 +1,13 @@
 /* =========================================================
    地理互动页面公共模板样式
    文件位置：src/styles/geo-page-template.css
+
+   本文件已内置：
+   - 普通三栏布局；
+   - 悬浮毛玻璃布局；
+   - useGeoPanelLayout 面板宽度变量；
+   - 平板触控拖拽与安全宽度；
+   - 拖拽期间主场景防误触规则。
    ========================================================= */
 
 .geo-template-page {
@@ -5358,4 +5365,109 @@
     grid-template-columns:
       minmax(320px, 1fr) var(--right-panel-width) !important;
   }
+}
+
+/* =========================================================
+   公共面板 Hook：平板宽度与触控拖拽
+   ---------------------------------------------------------
+   1. --left-panel-width / --right-panel-width 由
+      useGeoPanelLayout 唯一控制；
+   2. CSS 只负责可视区安全上限，不覆盖 Hook 的真实宽度；
+   3. 平板触控手柄扩大命中区域；
+   4. 本段属于 geo-page-template.css 内置规则，
+      业务组件无需再引入额外补丁样式。
+   ========================================================= */
+
+.geo-template-page.layout-floating.layout-medium .left-panel {
+  width:
+    var(--left-panel-width) !important;
+
+  max-width:
+    min(72vw,
+      calc(100% - var(--floating-panel-offset, 12px) * 2)) !important;
+}
+
+.geo-template-page.layout-floating.layout-medium .right-panel {
+  width:
+    var(--right-panel-width) !important;
+
+  max-width:
+    min(72vw,
+      calc(100% - var(--floating-panel-offset, 12px) * 2)) !important;
+}
+
+.geo-template-page.layout-floating.layout-small .left-panel {
+  width:
+    var(--left-panel-width) !important;
+
+  max-width:
+    min(84vw,
+      calc(100% - 16px)) !important;
+}
+
+.geo-template-page.layout-floating.layout-small .right-panel {
+  width:
+    var(--right-panel-width) !important;
+
+  max-width:
+    min(84vw,
+      calc(100% - 16px)) !important;
+}
+
+/*
+ * 平板触控拖拽区域。
+ * 可视宽度仍然很窄，真实命中区域扩大到 24px。
+ */
+.geo-template-page.layout-floating .resize-handle {
+  z-index:
+    160 !important;
+
+  width:
+    24px !important;
+
+  touch-action:
+    none !important;
+
+  pointer-events:
+    auto !important;
+
+  user-select:
+    none !important;
+
+  -webkit-user-select:
+    none !important;
+}
+
+.geo-template-page.layout-floating .resize-right {
+  right:
+    -12px !important;
+}
+
+.geo-template-page.layout-floating .resize-left {
+  left:
+    -12px !important;
+}
+
+/*
+ * 收起状态仍禁止拖拽。
+ */
+.geo-template-page.layout-floating .side-panel.collapsed .resize-handle {
+  visibility:
+    hidden !important;
+
+  pointer-events:
+    none !important;
+}
+
+/*
+ * 防止场景或覆盖层抢走面板手柄的触摸事件。
+ */
+.geo-template-page.layout-floating .side-panel:not(.collapsed) {
+  overflow:
+    visible !important;
+}
+
+.geo-template-page.layout-floating .workspace.panel-resizing .center-stage {
+  pointer-events:
+    none;
 }

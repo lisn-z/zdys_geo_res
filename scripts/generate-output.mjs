@@ -1,9 +1,9 @@
 /**
  * 扫描 src/views/ 下的所有文件夹，生成：
- *   - output/geo/<folder>/index.vue   (原样复制)
- *   - output/geo/<folder>/main.ts     (原样创建)
+ *   - output/geo/<folder>/*           (src/views/<folder>/ 全部文件原样复制)
  *   - output/astro/<folder>.astro     (Astro 页面)
  *   - output/styles/                  (src/styles/ 的复制)
+ *   - output/hooks/                   (src/hooks/ 的复制)
  *   - output/report.json              (JSON 报告)
  *
  */
@@ -28,6 +28,7 @@ const root = join(__dirname, '..')
 const SRC_DIR = join(root, 'src')
 const VIEWS_DIR = join(SRC_DIR, 'views')
 const STYLES_DIR = join(SRC_DIR, 'styles')
+const HOOKS_DIR = join(SRC_DIR, 'hooks')
 const ROUTES_FILE = join(SRC_DIR, 'routes', 'index.ts')
 const OUTPUT_DIR = join(root, 'output')
 const GEO_DIR = join(OUTPUT_DIR, 'geo')
@@ -90,8 +91,6 @@ export function initAPP() {
   app.mount('#app')
 }
 `
-
-
 
 function createAstroContent(folderName, title = '地震') {
   return `<html lang="en" class="dark">
@@ -215,31 +214,25 @@ function main() {
 
   for (const folderName of folders) {
     const srcFolder = join(VIEWS_DIR, folderName)
-    const indexPath = join(srcFolder, 'index.vue')
-    const mainTsPath = join(srcFolder, 'main.ts')
 
     // 目标路径
     const geoFolder = join(GEO_DIR, folderName)
-    const geoIndexPath = join(geoFolder, 'index.vue')
+
+    // 删除已存在的目标目录，整文件夹复制
+    if (existsSync(geoFolder)) {
+      rmSync(geoFolder, { recursive: true, force: true })
+    }
+    cpSync(srcFolder, geoFolder, { recursive: true })
+    console.log(`  ✅ 复制: ${srcFolder} → ${geoFolder}`)
+
+    // 如果目标目录没有 main.ts，用模板创建一个
     const geoMainTsPath = join(geoFolder, 'main.ts')
-
-    // 确保 geo 子目录存在
-    if (!existsSync(geoFolder)) {
-      mkdirSync(geoFolder, { recursive: true })
+    if (!existsSync(geoMainTsPath)) {
+      writeFileSync(geoMainTsPath, MAIN_TS_CONTENT, 'utf-8')
+      console.log(`  ✅ 创建默认 main.ts: ${geoMainTsPath}`)
     }
 
-    // 4a. 复制 index.vue 到 output/geo/<folder>/
-    if (existsSync(indexPath)) {
-      const content = readFileSync(indexPath, 'utf-8')
-      writeFileSync(geoIndexPath, content, 'utf-8')
-      console.log(`  ✅ 复制: ${indexPath} → ${geoIndexPath}`)
-    }
-
-    // 4c. 创建 output/geo/<folder>/main.ts
-    writeFileSync(geoMainTsPath, MAIN_TS_CONTENT, 'utf-8')
-    console.log(`  ✅ 创建: ${geoMainTsPath}`)
-
-    // 4d. 创建 output/astro/<folder>.astro
+    // 创建 output/astro/<folder>.astro
     const folderKey = folderName.toLowerCase()
     const title = titleMap[folderKey] || '地震'
     const astroPath = join(ASTRO_DIR, `${folderName}.astro`)
@@ -247,6 +240,7 @@ function main() {
     console.log(`  ✅ 创建: ${astroPath}`)
 
     // 4e. 记录 index.vue 的最后修改时间
+    const indexPath = join(srcFolder, 'index.vue')
     const stat = statSync(indexPath)
     const mtime = stat.mtime
     const pad = (n) => String(n).padStart(2, '0')
@@ -274,11 +268,23 @@ function main() {
     console.warn('⚠️  src/styles/ 目录不存在，跳过')
   }
 
-  // 7. 生成 report.json
+  // 7. 复制 src/hooks/ → output/hooks/
+  const outputHooksDir = join(OUTPUT_DIR, 'hooks')
+  if (existsSync(HOOKS_DIR)) {
+    if (existsSync(outputHooksDir)) {
+      rmSync(outputHooksDir, { recursive: true, force: true })
+    }
+    cpSync(HOOKS_DIR, outputHooksDir, { recursive: true })
+    console.log(`✅ 复制: ${HOOKS_DIR} → ${outputHooksDir}`)
+  } else {
+    console.warn('⚠️  src/hooks/ 目录不存在，跳过')
+  }
+
+  // 8. 生成 report.json
   writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf-8')
   console.log(`✅ 生成报告: ${reportPath}`)
 
-  // 8. 生成修改报告（仅 modified 为 true 的条目）
+  // 9. 生成修改报告（仅 modified 为 true 的条目）
   const modifiedEntries = Object.fromEntries(
     Object.entries(report).filter(([, entry]) => entry.modified)
   )

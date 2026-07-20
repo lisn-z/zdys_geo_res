@@ -24,20 +24,8 @@
       </div>
     </header>
 
-    <main class="workspace" :class="{
-      'has-left': hasLeftPanel,
-      'has-right': hasRightPanel,
-    }" :style="{
-      '--left-panel-width':
-        leftCollapsed
-          ? '0px'
-          : leftPanelWidth + 'px',
-      '--right-panel-width':
-        rightCollapsed
-          ? '0px'
-          : rightPanelWidth + 'px',
-    }">
-      <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
+    <main class="workspace" v-bind="workspaceAttrs">
+      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -203,12 +191,9 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-right" @pointerdown.stop.prevent="
-          startResize('left', $event)
-          "></div>
+        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
 
-        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
-          @click="leftCollapsed = true">
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
           ‹
         </button>
       </aside>
@@ -262,7 +247,7 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: rightCollapsed }">
+      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -331,23 +316,20 @@
           </el-collapse>
         </div>
 
-        <div class="resize-handle resize-left" @pointerdown.stop.prevent="
-          startResize('right', $event)
-          "></div>
+        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
 
-        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
-          @click="rightCollapsed = true">
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
           ›
         </button>
       </aside>
 
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left" aria-label="展开左侧面板"
-        @click="leftCollapsed = false">
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+        v-bind="leftEntryAttrs">
         ›
       </button>
 
       <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        aria-label="展开右侧面板" @click="rightCollapsed = false">
+        v-bind="rightEntryAttrs">
         ‹
       </button>
 
@@ -362,14 +344,8 @@
         </div>
         <div class="quiz-content">
           <div class="quiz-options">
-            <button
-              v-for="opt in quizOptions"
-              :key="opt"
-              type="button"
-              class="quiz-option"
-              :class="getOptionClass(opt)"
-              :disabled="quizResult !== null"
-              @click="onQuizAnswer(opt)">
+            <button v-for="opt in quizOptions" :key="opt" type="button" class="quiz-option" :class="getOptionClass(opt)"
+              :disabled="quizResult !== null" @click="onQuizAnswer(opt)">
               {{ opt }}
             </button>
           </div>
@@ -392,8 +368,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import {
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'vue'
+
+/*
+ * 公共模板样式已内置悬浮面板、平板宽度与触控拖拽规则。
+ */
 import '@/styles/geo-page-template.css'
+import {
+  useGeoPanelLayout,
+} from '@/hooks/useGeoPanelLayout'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
@@ -416,7 +404,6 @@ const TERRAIN_SIZE = 3.0
 // ============================================================
 // 响应式状态
 // ============================================================
-const pageRef = ref<HTMLElement | null>(null)
 const threeContainerRef = ref<HTMLDivElement | null>(null)
 const profileCanvas = ref<HTMLCanvasElement | null>(null)
 const viewCube = ref<HTMLDivElement | null>(null)
@@ -447,470 +434,90 @@ let savedTerrainGenType = ''  // 进入学习前保存原类型
 let savedHeightValue = 0
 let savedHeightsData: number[][] = []
 
-type LayoutMode =
-  | 'large'
-  | 'medium'
-  | 'small'
-
 const hasLeftPanel = true
 const hasRightPanel = true
 
-const layoutMode =
-  ref<LayoutMode>('large')
-
-
-/*
- * 面板宽度说明：
- * 公共模板 CSS 管视觉样式和大屏兜底；
- * 但本组件会在 workspace 上通过 inline style 写入
- * --left-panel-width / --right-panel-width。
- * 因此默认宽度、拖拽最大宽度、拖拽后是否被 ResizeObserver 重置，
- * 都必须在本组件 JS 中同步放开。
- */
-
-const leftPanelWidth = ref(360)
-const rightPanelWidth = ref(420)
-
-const leftCollapsed = ref(false)
-const rightCollapsed = ref(false)
-
-const allPanelsCollapsed =
-  computed(() =>
-    leftCollapsed.value &&
-    rightCollapsed.value
-  )
-
-
-let previousLayoutMode:
-  | LayoutMode
-  | null = null
-
-let leftPanelManuallyResized = false
-let rightPanelManuallyResized = false
-
-let pageResizeObserver:
+let sceneResizeObserver:
   | ResizeObserver
   | null = null
 
-let resizeTarget:
-  | 'left'
-  | 'right'
+let sceneResizeTimer:
+  | ReturnType<typeof setTimeout>
   | null = null
 
-let resizeStartX = 0
-let resizeStartWidth = 0
+let sceneResizeFrame = 0
+let sceneResizeSettleFrame = 0
 
-function getLayoutMode(width: number): LayoutMode {
-  if (width < 800) {
-    return 'small'
-  }
+let lastSceneWidth = 0
+let lastSceneHeight = 0
+let lastSceneDpr = 0
 
-  if (width < 1440) {
-    return 'medium'
-  }
+/*
+ * 左右悬浮面板统一由公共 Hook 管理：
+ * - large / medium / small 默认宽度；
+ * - 平板最小宽度与拖拽上限；
+ * - 展开、折叠和全部收起；
+ * - Pointer Capture 与触控拖拽；
+ * - 浏览器连续缩放状态。
+ */
+const {
+  rootRef: pageRef,
+  layoutMode,
 
-  return 'large'
-}
+  leftCollapsed,
+  rightCollapsed,
+  allPanelsCollapsed,
 
-function clampPanelNumber(
-  value: number,
-  min: number,
-  max: number
-): number {
-  return Math.min(
-    max,
-    Math.max(
-      min,
-      value
-    )
-  )
-}
+  draggingSide,
+  viewportResizing,
 
-function getEffectiveTemplateWidth(
-  fallbackWidth?: number
-): number {
-  const candidates: number[] = []
+  workspaceAttrs,
+  leftPanelAttrs,
+  rightPanelAttrs,
 
-  if (
-    typeof fallbackWidth === 'number' &&
-    Number.isFinite(fallbackWidth) &&
-    fallbackWidth > 0
-  ) {
-    candidates.push(fallbackWidth)
-  }
+  leftResizeAttrs,
+  rightResizeAttrs,
 
-  const pageWidth =
-    pageRef.value?.clientWidth
+  leftCollapseAttrs,
+  rightCollapseAttrs,
 
-  if (
-    typeof pageWidth === 'number' &&
-    Number.isFinite(pageWidth) &&
-    pageWidth > 0
-  ) {
-    candidates.push(pageWidth)
-  }
+  leftEntryAttrs,
+  rightEntryAttrs,
 
-  if (typeof window !== 'undefined') {
-    const values = [
-      window.innerWidth,
-      window.visualViewport?.width,
-      window.screen?.width,
-      window.screen?.availWidth,
-    ]
+  toggleAll:
+  toggleAllPanels,
+} = useGeoPanelLayout({
+  left: {
+    enabled: hasLeftPanel,
+    resizable: true,
+  },
 
-    values.forEach((value) => {
-      if (
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value > 0
-      ) {
-        candidates.push(value)
-      }
-    })
-  }
+  right: {
+    enabled: hasRightPanel,
+    resizable: true,
+  },
 
-  if (!candidates.length) {
-    return 0
-  }
-
-  /*
-   * 用最小有效宽度判断超大屏。
-   * 普通 1920 屏即使因为浏览器缩放 / 投屏环境导致 CSS 宽度异常变大，
-   * 也不会误判为 2200+。
-   */
-  return Math.min(...candidates)
-}
-
-function isUltraLargeTemplateScreen(
-  fallbackWidth?: number
-): boolean {
-  return getEffectiveTemplateWidth(
-    fallbackWidth
-  ) >= 2200
-}
-
-function getAdaptivePanelWidth(
-  side: 'left' | 'right',
-  mode: LayoutMode,
-  pageWidth: number
-): number {
-  void mode
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  /*
-   * 面板宽度连续化：
-   * layoutMode 只负责布局形态，不再决定面板宽度。
-   *
-   * 原逻辑：
-   * - small:  left 0.76 / right 0.80
-   * - medium: left 0.36 / right 0.40
-   * - large:  left 0.19 / right 0.21
-   *
-   * 所以在 1440 和 800 附近会突然变宽。
-   */
-
-  if (
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-  ) {
-    return side === 'left'
-      ? clampPanelNumber(
-        effectiveWidth * 0.22,
-        420,
-        640
-      )
-      : clampPanelNumber(
-        effectiveWidth * 0.25,
-        500,
-        760
-      )
-  }
-
-  return side === 'left'
-    ? clampPanelNumber(
-      pageWidth * 0.24,
-      300,
-      360
-    )
-    : clampPanelNumber(
-      pageWidth * 0.28,
-      320,
-      420
-    )
-}
-
-function getPanelResizeBounds(
-  side: 'left' | 'right'
-) {
-  const pageWidth =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  /*
-   * 拖拽边界连续化：
-   * 不再按 layoutMode.value === small / medium / large 分段。
-   */
-  const isUltraLargeScreen =
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-
-  const min =
-    side === 'left'
-      ? 280
-      : 300
-
-  const maxLimit =
-    side === 'left'
-      ? (
-        isUltraLargeScreen
-          ? 820
-          : 420
-      )
-      : (
-        isUltraLargeScreen
-          ? 900
-          : 480
-      )
-
-  const ratio =
-    isUltraLargeScreen
-      ? 0.54
-      : side === 'left'
-        ? 0.42
-        : 0.46
-
-  return {
-    min,
-    max:
-      Math.max(
-        min,
-        Math.min(
-          maxLimit,
-          effectiveWidth * ratio
-        )
-      ),
-  }
-}
-
-function syncTemplateLayout() {
-  const width =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const nextMode =
-    getLayoutMode(width)
-
-  const modeChanged =
-    previousLayoutMode !== nextMode
-
-  layoutMode.value =
-    nextMode
-
-  /*
-   * 以前这里会在 large 下把左侧压到 360、右侧压到 390，
-   * medium 下又压到 292 / 308，导致默认宽度和公共模板不一致。
-   * 现在改成统一自适应：
-   * 1. 首次进入按屏幕宽度给默认值；
-   * 2. 用户拖拽后不再被 ResizeObserver 拉回小宽度；
-   * 3. 切换 large / medium / small 时重新给合理默认值。
-   */
-  if (
-    modeChanged ||
-    !leftPanelManuallyResized
-  ) {
-    leftPanelWidth.value =
-      Math.round(
-        getAdaptivePanelWidth(
-          'left',
-          nextMode,
-          width
-        )
-      )
-  }
-
-  if (
-    modeChanged ||
-    !rightPanelManuallyResized
-  ) {
-    rightPanelWidth.value =
-      Math.round(
-        getAdaptivePanelWidth(
-          'right',
-          nextMode,
-          width
-        )
-      )
-  }
-
-  previousLayoutMode =
-    nextMode
-}
-
-function toggleAllPanels() {
-  const shouldExpand =
-    allPanelsCollapsed.value
-
-  leftCollapsed.value =
-    !shouldExpand
-
-  rightCollapsed.value =
-    !shouldExpand
-}
-
-function startResize(
-  target: 'left' | 'right',
-  event: PointerEvent
-) {
-  if (
-    (target === 'left' && leftCollapsed.value) ||
-    (target === 'right' && rightCollapsed.value)
-  ) {
-    return
-  }
-
-  event.stopPropagation()
-
-  resizeTarget =
-    target
-
-  resizeStartX =
-    event.clientX
-
-  resizeStartWidth =
-    target === 'left'
-      ? leftPanelWidth.value
-      : rightPanelWidth.value
-
-  const handle =
-    event.currentTarget as HTMLElement | null
-
-  if (
-    handle &&
-    typeof handle.setPointerCapture === 'function'
-  ) {
-    try {
-      handle.setPointerCapture(
-        event.pointerId
-      )
-    } catch {
-      // 部分触控屏或老浏览器可能不支持 pointer capture，继续用 document 监听兜底。
+  onLayoutChange(state) {
+    /*
+     * 面板拖拽和浏览器连续缩放期间，
+     * 不重建 WebGL / CSS2D drawing buffer。
+     */
+    if (state.resizing) {
+      return
     }
-  }
 
-  document.body.classList.add(
-    'geo-panel-resizing'
-  )
+    scheduleSceneResize(90)
+  },
 
-  document.body.style.cursor =
-    'col-resize'
-
-  document.body.style.userSelect =
-    'none'
-
-  document.addEventListener(
-    'pointermove',
-    handlePanelResize
-  )
-
-  document.addEventListener(
-    'pointerup',
-    stopPanelResize,
-    {
-      once:
-        true,
+  onResize(payload) {
+    if (
+      payload.phase === 'end' ||
+      payload.phase === 'reset'
+    ) {
+      scheduleSceneResize(0)
     }
-  )
-
-  document.addEventListener(
-    'pointercancel',
-    stopPanelResize,
-    {
-      once:
-        true,
-    }
-  )
-}
-
-function handlePanelResize(event: PointerEvent) {
-  if (!resizeTarget) {
-    return
-  }
-
-  const bounds =
-    getPanelResizeBounds(
-      resizeTarget
-    )
-
-  const delta =
-    event.clientX - resizeStartX
-
-  if (resizeTarget === 'left') {
-    leftPanelWidth.value =
-      clampPanelNumber(
-        resizeStartWidth + delta,
-        bounds.min,
-        bounds.max
-      )
-
-    leftPanelManuallyResized =
-      true
-  } else {
-    rightPanelWidth.value =
-      clampPanelNumber(
-        resizeStartWidth - delta,
-        bounds.min,
-        bounds.max
-      )
-
-    rightPanelManuallyResized =
-      true
-  }
-
-  handleResize()
-}
-
-function stopPanelResize() {
-  resizeTarget =
-    null
-
-  document.body.classList.remove(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor =
-    ''
-
-  document.body.style.userSelect =
-    ''
-
-  document.removeEventListener(
-    'pointermove',
-    handlePanelResize
-  )
-
-  document.removeEventListener(
-    'pointerup',
-    stopPanelResize
-  )
-
-  document.removeEventListener(
-    'pointercancel',
-    stopPanelResize
-  )
-
-  handleResize()
-}
+  },
+})
 
 
 // ============================================================
@@ -1527,33 +1134,111 @@ function traceValleyLine(segments: ContourSegment[]): Float32Array | null {
 // 场景初始化 — 更亮的灯光
 // ============================================================
 function initScene() {
-  if (!threeContainerRef.value) return
+  const container =
+    threeContainerRef.value
+
+  if (!container) {
+    return
+  }
+
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  )
 
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x101520)
+  scene.background =
+    new THREE.Color(0x101520)
 
-  const aspect = threeContainerRef.value.clientWidth / threeContainerRef.value.clientHeight
-  camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100)
+  camera =
+    new THREE.PerspectiveCamera(
+      40,
+      width / height,
+      0.1,
+      100
+    )
+
   // 默认前视图（正面对齐地形）
-  camera.position.set(0, 2.5, 7.0)
-  camera.lookAt(0, 0.8, 0)
+  camera.position.set(
+    0,
+    2.5,
+    7.0
+  )
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.setSize(threeContainerRef.value.clientWidth, threeContainerRef.value.clientHeight)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  camera.lookAt(
+    0,
+    0.8,
+    0
+  )
+
+  renderer =
+    new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference:
+        'high-performance',
+    })
+
+  /*
+   * 必须先设置 DPR，再同步真实尺寸。
+   * 避免默认 300×150 drawing buffer 被 CSS 拉伸。
+   */
+  renderer.setPixelRatio(dpr)
+
+  renderer.setSize(
+    width,
+    height,
+    false
+  )
+
+  renderer.domElement.className =
+    'three-canvas terrain-renderer-canvas'
+
+  lastSceneWidth = width
+  lastSceneHeight = height
+  lastSceneDpr = dpr
+
+  contourRes.set(
+    width,
+    height
+  )
+
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.4
-  threeContainerRef.value.appendChild(renderer.domElement)
+  container.appendChild(
+    renderer.domElement
+  )
 
-  labelRenderer = new CSS2DRenderer()
-  labelRenderer.setSize(threeContainerRef.value.clientWidth, threeContainerRef.value.clientHeight)
+  labelRenderer =
+    new CSS2DRenderer()
+
+  labelRenderer.setSize(
+    width,
+    height
+  )
   labelRenderer.domElement.style.position = 'absolute'
   labelRenderer.domElement.style.top = '0'
   labelRenderer.domElement.style.left = '0'
   labelRenderer.domElement.style.pointerEvents = 'none'
-  threeContainerRef.value.appendChild(labelRenderer.domElement)
+  container.appendChild(
+    labelRenderer.domElement
+  )
 
   controls = new OrbitControls(camera, renderer.domElement)
   controls.target.set(0, 0.8, 0)
@@ -2885,30 +2570,157 @@ function animate() {
   animationId = requestAnimationFrame(animate)
 }
 
-function handleResize() {
+function isPanelLayoutResizing() {
+  return (
+    draggingSide.value !== null ||
+    viewportResizing.value
+  )
+}
+
+function resizeSceneNow() {
+  const container =
+    threeContainerRef.value
+
   if (
-    !threeContainerRef.value ||
+    !container ||
     !camera ||
     !renderer ||
-    !labelRenderer
+    !labelRenderer ||
+    !scene
   ) {
     return
   }
 
-  const w = threeContainerRef.value.clientWidth
-  const h = threeContainerRef.value.clientHeight
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
 
-  camera.aspect = w / h
-  camera.updateProjectionMatrix()
-  renderer.setSize(w, h)
-  labelRenderer.setSize(w, h)
-  contourRes.set(w, h)
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  )
+
+  const sizeChanged =
+    width !== lastSceneWidth ||
+    height !== lastSceneHeight ||
+    dpr !== lastSceneDpr
+
+  /*
+   * setSize / setPixelRatio 会重新分配绘图缓冲区。
+   * 只有真实尺寸或 DPR 变化时才执行。
+   */
+  if (sizeChanged) {
+    lastSceneWidth = width
+    lastSceneHeight = height
+    lastSceneDpr = dpr
+
+    camera.aspect =
+      width / height
+
+    camera.updateProjectionMatrix()
+
+    renderer.setPixelRatio(dpr)
+
+    renderer.setSize(
+      width,
+      height,
+      false
+    )
+
+    labelRenderer.setSize(
+      width,
+      height
+    )
+
+    contourRes.set(
+      width,
+      height
+    )
+  }
+
+  /*
+   * 悬浮面板不一定改变主场景尺寸，
+   * 但 Cube 必须根据右面板真实位置重新停靠。
+   */
   applyResponsiveScale()
   updateViewCubeDockPosition()
+
+  controls?.update()
+
+  /*
+   * 缓冲区重建后立即补绘，避免短暂空白。
+   */
+  if (sizeChanged) {
+    renderer.render(
+      scene,
+      camera
+    )
+
+    labelRenderer.render(
+      scene,
+      camera
+    )
+  }
 }
 
-onMounted(() => {
-  syncTemplateLayout()
+function scheduleSceneResize(
+  delay = 110
+) {
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
+  }
+
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
+  /*
+   * 拖拽阶段让 canvas 先通过 CSS 跟随，
+   * 松手后 Hook 会再次触发最终校准。
+   */
+  if (isPanelLayoutResizing()) {
+    return
+  }
+
+  sceneResizeTimer =
+    setTimeout(() => {
+      sceneResizeTimer = null
+
+      sceneResizeFrame =
+        requestAnimationFrame(() => {
+          sceneResizeFrame = 0
+
+          sceneResizeSettleFrame =
+            requestAnimationFrame(() => {
+              sceneResizeSettleFrame = 0
+              resizeSceneNow()
+            })
+        })
+    }, delay)
+}
+
+onMounted(async () => {
+  /*
+   * 等 Hook 先写入平板默认面板宽度，
+   * 再按主场景真实尺寸初始化 Renderer。
+   */
+  await nextTick()
 
   initScene()
   setupLights()
@@ -2916,70 +2728,78 @@ onMounted(() => {
   buildContoursAndProjection()
   buildLabels()
 
-  if (threeContainerRef.value) {
-    contourRes.set(
-      threeContainerRef.value.clientWidth,
-      threeContainerRef.value.clientHeight
+  bindViewCube()
+  applyResponsiveScale()
+  updateViewCubeDockPosition()
+
+  /*
+   * 动画开始前先绘制一帧清晰画面。
+   */
+  controls.update()
+
+  renderer.render(
+    scene,
+    camera
+  )
+
+  labelRenderer.render(
+    scene,
+    camera
+  )
+
+  animate()
+
+  const container =
+    threeContainerRef.value
+
+  if (container) {
+    sceneResizeObserver =
+      new ResizeObserver(() => {
+        scheduleSceneResize(110)
+      })
+
+    sceneResizeObserver.observe(
+      container
     )
   }
 
-  bindViewCube()
-  applyResponsiveScale()
-  animate()
-
-  pageResizeObserver =
-    new ResizeObserver(() => {
-      syncTemplateLayout()
-      handleResize()
-    })
-
-  if (pageRef.value) {
-    pageResizeObserver.observe(pageRef.value)
-  }
-
-  window.addEventListener(
-    'resize',
-    handleResize
-  )
+  /*
+   * Grid、字体和悬浮面板完成首轮布局后再最终校准。
+   */
+  scheduleSceneResize(0)
 })
 
 onUnmounted(() => {
-  document.body.classList.remove(
-    'geo-panel-resizing'
+  cancelAnimationFrame(
+    animationId
   )
 
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-
-  document.removeEventListener(
-    'pointermove',
-    handlePanelResize
+  cancelAnimationFrame(
+    sceneResizeFrame
   )
 
-  document.removeEventListener(
-    'pointerup',
-    stopPanelResize
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
   )
 
-  document.removeEventListener(
-    'pointercancel',
-    stopPanelResize
-  )
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
 
-  cancelAnimationFrame(animationId)
+    sceneResizeTimer = null
+  }
 
-  window.removeEventListener(
-    'resize',
-    handleResize
-  )
+  sceneResizeObserver?.disconnect()
+  sceneResizeObserver = null
 
-  window.removeEventListener(
-    'pointermove',
-    handlePanelResize
-  )
+  if (contourDebounceTimer) {
+    clearTimeout(
+      contourDebounceTimer
+    )
 
-  pageResizeObserver?.disconnect()
-  pageResizeObserver = null
+    contourDebounceTimer = null
+  }
 
   controls?.dispose()
   renderer?.dispose()
@@ -3971,11 +3791,11 @@ onUnmounted(() => {
   }
 }
 
-/* ===================== v17: 面板宽度连续化 =====================
-   对应 script 中 getAdaptivePanelWidth / getPanelResizeBounds。
-   - 修复 1440 断点面板突然变宽；
-   - 修复 800 断点面板突然变宽；
-   - layoutMode 只负责布局形态，不再决定面板宽度。
+/* ===================== v19：公共面板 Hook =====================
+   - 左右悬浮面板宽度、断点和触控拖拽统一交给 Hook；
+   - 平板宽度直接使用公共 medium 配置；
+   - 拖拽期间不重建 WebGL / CSS2D buffer；
+   - Cube 继续读取右侧面板真实 DOM 位置进行停靠。
 */
 
 /* ===================== v18: 等高线贴合山体表面 =====================
@@ -3991,10 +3811,12 @@ onUnmounted(() => {
   inset: 0;
   z-index: 200;
   display: flex;
-  align-items: flex-start;     /* 顶部对齐，不挡地形 */
+  align-items: flex-start;
+  /* 顶部对齐，不挡地形 */
   justify-content: center;
   pointer-events: none;
-  padding-top: calc(70px * var(--ui-scale, 1));  /* 避开工具栏 */
+  padding-top: calc(70px * var(--ui-scale, 1));
+  /* 避开工具栏 */
 }
 
 .quiz-panel {
@@ -4017,12 +3839,14 @@ onUnmounted(() => {
   padding-bottom: calc(10px * var(--ui-scale, 1));
   border-bottom: 1px solid rgba(46, 196, 182, 0.25);
 }
+
 .quiz-title {
   font-size: calc(18px * var(--ui-scale, 1));
   font-weight: 700;
   color: #2ec4b6;
   margin-bottom: calc(4px * var(--ui-scale, 1));
 }
+
 .quiz-subtitle {
   font-size: calc(13px * var(--ui-scale, 1));
   color: #88aabb;
@@ -4048,22 +3872,26 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   text-align: center;
 }
+
 .quiz-option:hover:not(:disabled) {
   background: rgba(46, 196, 182, 0.25);
   border-color: #2ec4b6;
   color: #fff;
   transform: translateY(-2px);
 }
+
 .quiz-option:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }
+
 .quiz-option.option-correct {
   background: rgba(40, 200, 100, 0.35) !important;
   border-color: #2ecc71 !important;
   color: #fff !important;
   box-shadow: 0 0 12px rgba(46, 204, 113, 0.4);
 }
+
 .quiz-option.option-wrong {
   background: rgba(220, 60, 60, 0.35) !important;
   border-color: #e74c3c !important;
@@ -4078,8 +3906,14 @@ onUnmounted(() => {
   margin-bottom: calc(12px * var(--ui-scale, 1));
   min-height: calc(22px * var(--ui-scale, 1));
 }
-.feedback-correct { color: #2ecc71; }
-.feedback-wrong { color: #e74c3c; }
+
+.feedback-correct {
+  color: #2ecc71;
+}
+
+.feedback-wrong {
+  color: #e74c3c;
+}
 
 .quiz-actions {
   display: flex;
@@ -4097,33 +3931,54 @@ onUnmounted(() => {
   border: 1px solid;
   transition: all 0.2s ease;
 }
+
 .quiz-btn-next {
   background: linear-gradient(135deg, rgba(46, 196, 182, 0.25), rgba(36, 124, 255, 0.25));
   border-color: #2ec4b6;
   color: #2ec4b6;
 }
+
 .quiz-btn-next:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
 .quiz-btn-next:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(46, 196, 182, 0.45), rgba(36, 124, 255, 0.45));
   box-shadow: 0 0 12px rgba(46, 196, 182, 0.4);
 }
+
 .quiz-btn-end {
   background: rgba(231, 76, 60, 0.1);
   border-color: rgba(231, 76, 60, 0.4);
   color: #e74c3c;
 }
+
 .quiz-btn-end:hover {
   background: rgba(231, 76, 60, 0.25);
 }
 
 @media (max-width: 768px) {
-  .quiz-options { grid-template-columns: repeat(3, 1fr); }
-  .quiz-panel { width: 95vw; padding: 14px 16px; }
-  .quiz-title { font-size: 16px; }
-  .quiz-subtitle { font-size: 12px; }
-  .quiz-option { font-size: 13px; padding: 8px 4px; }
+  .quiz-options {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .quiz-panel {
+    width: 95vw;
+    padding: 14px 16px;
+  }
+
+  .quiz-title {
+    font-size: 16px;
+  }
+
+  .quiz-subtitle {
+    font-size: 12px;
+  }
+
+  .quiz-option {
+    font-size: 13px;
+    padding: 8px 4px;
+  }
 }
 </style>

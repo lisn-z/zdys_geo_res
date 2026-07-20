@@ -1,60 +1,28 @@
 <template>
-  <div
-    ref="pageRef"
-    class="earth-evolution-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="earth-evolution-container geo-template-page geo-page theme-dark"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
       <h1 class="page-title">地球演化</h1>
 
       <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn toolbar-btn"
-          @click="resetEvolution"
-        >
+        <button type="button" class="theme-btn toolbar-btn" @click="resetEvolution">
           重置进度
         </button>
       </div>
     </header>
 
-    <main
-      class="workspace"
-      :class="{
-        'has-left': hasLeftPanel,
-        'has-right': hasRightPanel,
-      }"
-      :style="{
-        '--left-panel-width':
-          leftCollapsed
-            ? '0px'
-            : leftPanelWidth + 'px',
-        '--right-panel-width':
-          rightCollapsed
-            ? '0px'
-            : rightPanelWidth + 'px',
-      }"
-    >
+    <main class="workspace" v-bind="workspaceAttrs">
       <section class="center-stage evolution-stage">
         <div class="stage-content evolution-content">
           <div class="era-main-stage">
             <!-- 左侧：当前年代介绍卡 -->
-            <div
-              class="era-intro-shell"
-              :class="{ 'is-switching': isSwitching }"
-            >
-              <div
-                class="era-intro-card"
-                :class="'intro-' + currentEra.eon"
-              >
+            <div class="era-intro-shell" :class="{ 'is-switching': isSwitching }">
+              <div class="era-intro-card" :class="'intro-' + currentEra.eon">
                 <div class="era-intro-head">
                   <div class="era-intro-id">
                     <span class="era-intro-eon">
@@ -90,62 +58,35 @@
             </div>
 
             <!-- 右侧：当前年代大图 -->
-            <div
-              class="era-showcase"
-              :class="{ 'is-switching': isSwitching }"
-            >
-              <div
-                class="era-showcase-frame"
-                :class="'frame-' + currentEra.eon"
-              >
-                <EraScene
-                  :era="currentEra"
-                  :hero="true"
-                  fit-mode="contain"
-                />
+            <div class="era-showcase" :class="{ 'is-switching': isSwitching }">
+              <div class="era-showcase-frame" :class="'frame-' + currentEra.eon">
+                <EraScene :era="currentEra" :hero="true" fit-mode="contain" />
               </div>
 
-              <button
-                type="button"
-                class="era-nav-btn era-nav-prev"
-                aria-label="上一阶段"
-                :disabled="currentIndex <= 0"
-                @click="stepEra(-1)"
-              >
-                <el-icon><ArrowLeft /></el-icon>
+              <button type="button" class="era-nav-btn era-nav-prev" aria-label="上一阶段" :disabled="currentIndex <= 0"
+                @click="stepEra(-1)">
+                <el-icon>
+                  <ArrowLeft />
+                </el-icon>
               </button>
 
-              <button
-                type="button"
-                class="era-nav-btn era-nav-next"
-                aria-label="下一阶段"
-                :disabled="currentIndex >= eras.length - 1"
-                @click="stepEra(1)"
-              >
-                <el-icon><ArrowRight /></el-icon>
+              <button type="button" class="era-nav-btn era-nav-next" aria-label="下一阶段"
+                :disabled="currentIndex >= eras.length - 1" @click="stepEra(1)">
+                <el-icon>
+                  <ArrowRight />
+                </el-icon>
               </button>
             </div>
           </div>
 
           <!-- 底部：详尽年代划分 -->
           <div class="scroll-table-shell">
-            <div
-              ref="scrollViewportRef"
-              class="scroll-table-viewport"
-            >
-              <div
-                class="scroll-table-track"
-                :style="{ width: scrollTableWidth + 'px' }"
-              >
+            <div ref="scrollViewportRef" class="scroll-table-viewport">
+              <div class="scroll-table-track" :style="{ width: scrollTableWidth + 'px' }">
                 <div class="scroll-row scroll-thumb-row">
-                  <div
-                    v-for="(era, idx) in eras"
-                    :key="'thumb-' + era.id"
-                    class="scroll-cell scroll-cell-clickable"
+                  <div v-for="(era, idx) in eras" :key="'thumb-' + era.id" class="scroll-cell scroll-cell-clickable"
                     :class="{ 'scroll-active': idx === currentIndex }"
-                    :style="{ width: displayColumnWidths[idx] + 'px' }"
-                    @click.stop="selectEra(idx)"
-                  >
+                    :style="{ width: displayColumnWidths[idx] + 'px' }" @click.stop="selectEra(idx)">
                     <div class="scroll-thumb-img">
                       <EraScene :era="era" :hero="false" />
                     </div>
@@ -153,62 +94,37 @@
                 </div>
 
                 <div class="scroll-row scroll-eon-row">
-                  <div
-                    v-for="(cell, ci) in scrollEonCells"
-                    :key="'eon-' + ci"
-                    class="scroll-cell scroll-merged-cell"
-                    :class="{ 'scroll-active': cell.isActive }"
-                    :style="{ width: cell.width + 'px' }"
-                  >
+                  <div v-for="(cell, ci) in scrollEonCells" :key="'eon-' + ci" class="scroll-cell scroll-merged-cell"
+                    :class="{ 'scroll-active': cell.isActive }" :style="{ width: cell.width + 'px' }">
                     {{ cell.name }}
                   </div>
                 </div>
 
                 <div class="scroll-row scroll-era-row">
-                  <div
-                    v-for="(cell, ci) in scrollEraCells"
-                    :key="'era-' + ci"
-                    class="scroll-cell scroll-merged-cell"
-                    :class="{ 'scroll-active': cell.isActive }"
-                    :style="{ width: cell.width + 'px' }"
-                  >
+                  <div v-for="(cell, ci) in scrollEraCells" :key="'era-' + ci" class="scroll-cell scroll-merged-cell"
+                    :class="{ 'scroll-active': cell.isActive }" :style="{ width: cell.width + 'px' }">
                     {{ cell.name }}
                   </div>
                 </div>
 
                 <div class="scroll-row scroll-period-row">
-                  <div
-                    v-for="(era, idx) in eras"
-                    :key="'period-' + era.id"
-                    class="scroll-cell scroll-cell-clickable"
+                  <div v-for="(era, idx) in eras" :key="'period-' + era.id" class="scroll-cell scroll-cell-clickable"
                     :class="{ 'scroll-active': idx === currentIndex }"
-                    :style="{ width: displayColumnWidths[idx] + 'px' }"
-                    @click.stop="selectEra(idx)"
-                  >
+                    :style="{ width: displayColumnWidths[idx] + 'px' }" @click.stop="selectEra(idx)">
                     {{ era.name }}
                   </div>
                 </div>
 
                 <div class="scroll-row scroll-event-row">
-                  <div
-                    v-for="(cell, ci) in scrollEventCells"
-                    :key="'event-' + ci"
-                    class="scroll-cell"
-                    :class="{ 'scroll-active': cell.isActive }"
-                    :style="{ width: cell.width + 'px' }"
-                  >
+                  <div v-for="(cell, ci) in scrollEventCells" :key="'event-' + ci" class="scroll-cell"
+                    :class="{ 'scroll-active': cell.isActive }" :style="{ width: cell.width + 'px' }">
                     {{ cell.text }}
                   </div>
                 </div>
 
                 <div class="scroll-row scroll-age-row">
-                  <div
-                    v-for="(cell, ci) in scrollAgeCells"
-                    :key="'age-' + ci"
-                    class="scroll-cell"
-                    :class="{ 'scroll-active': cell.isActive }"
-                    :style="{ width: cell.width + 'px' }"
-                  >
+                  <div v-for="(cell, ci) in scrollAgeCells" :key="'age-' + ci" class="scroll-cell"
+                    :class="{ 'scroll-active': cell.isActive }" :style="{ width: cell.width + 'px' }">
                     {{ cell.text }}
                   </div>
                 </div>
@@ -219,14 +135,8 @@
 
         <!-- 底部播放控制条 -->
         <div class="timeline-dock evolution-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="isPlaying = !isPlaying"
-          >
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -241,51 +151,19 @@
               </strong>
             </div>
 
-            <el-slider
-              v-model="progress"
-              :min="0"
-              :max="100"
-              :step="0.05"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="progress" :min="0" :max="100" :step="0.05" :show-tooltip="false" />
           </div>
 
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{
-                active: playbackSpeed === item,
-              }"
-              @click="playbackSpeed = item"
-            >
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn" :class="{
+              active: playbackSpeed === item,
+            }" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
         </div>
       </section>
 
-      <button
-        v-if="hasLeftPanel && leftCollapsed"
-        type="button"
-        class="panel-entry-btn entry-left"
-        aria-label="展开左侧面板"
-        @click="leftCollapsed = false"
-      >
-        ›
-      </button>
-
-      <button
-        v-if="hasRightPanel && rightCollapsed"
-        type="button"
-        class="panel-entry-btn entry-right"
-        aria-label="展开右侧面板"
-        @click="rightCollapsed = false"
-      >
-        ‹
-      </button>
     </main>
   </div>
 </template>
@@ -306,7 +184,13 @@ import {
   watch,
 } from 'vue'
 
+/*
+ * 公共模板样式与页面断点统一由 Hook 管理。
+ */
 import '@/styles/geo-page-template.css'
+import {
+  useGeoPanelLayout,
+} from '@/hooks/useGeoPanelLayout'
 
 import {
   eras,
@@ -314,30 +198,36 @@ import {
 } from './eras'
 import EraScene from './EraScene.vue'
 
-type LayoutMode =
-  | 'large'
-  | 'medium'
-  | 'small'
-
-const pageRef =
-  ref<HTMLElement | null>(null)
 const railViewportRef =
   ref<HTMLElement | null>(null)
+
 const railTrackRef =
   ref<HTMLElement | null>(null)
+
 void railTrackRef
 
-const layoutMode =
-  ref<LayoutMode>('large')
+/*
+ * 当前页面没有模板左右侧栏。
+ *
+ * 仍使用 useGeoPanelLayout 的原因：
+ * - 统一 rootRef；
+ * - 统一 large / medium / small 断点；
+ * - 统一 workspace class 与 CSS 变量；
+ * - 避免每个无侧栏页面重复实现 ResizeObserver。
+ */
+const {
+  rootRef: pageRef,
+  layoutMode,
+  workspaceAttrs,
+} = useGeoPanelLayout({
+  left: {
+    enabled: false,
+  },
 
-const hasLeftPanel = false
-const hasRightPanel = false
-
-const leftPanelWidth = ref(360)
-const rightPanelWidth = ref(420)
-
-const leftCollapsed = ref(false)
-const rightCollapsed = ref(false)
+  right: {
+    enabled: false,
+  },
+})
 
 const currentEraId = ref<string>(eras[0]!.id)
 const isSwitching = ref(false)
@@ -400,7 +290,7 @@ const eonSegments = computed<EonGroup[]>(() => {
       const endIndex = index
       const endX =
         endIndex *
-          (cardWidth + cardGap) +
+        (cardWidth + cardGap) +
         cardWidth
 
       const range =
@@ -458,8 +348,8 @@ const eonIndicatorX = computed(() => {
     6,
     Math.min(
       viewportWidth.value -
-        eonIndicatorWidth.value -
-        6,
+      eonIndicatorWidth.value -
+      6,
       raw,
     ),
   )
@@ -482,7 +372,7 @@ const cursorX = computed(() => {
     Math.min(
       viewportWidth.value - 12,
       (progress.value / 100) *
-        viewportWidth.value,
+      viewportWidth.value,
     ),
   )
 })
@@ -830,9 +720,6 @@ function resetEvolution() {
   }, 380)
 }
 
-let pageResizeObserver:
-  | ResizeObserver
-  | null = null
 let railResizeObserver:
   | ResizeObserver
   | null = null
@@ -842,327 +729,10 @@ let scrollViewportResizeObserver:
 let timelineAnimationFrameId = 0
 let timelineLastTime = 0
 
-let previousLayoutMode:
-  | LayoutMode
-  | null = null
-let leftPanelManuallyResized = false
-let rightPanelManuallyResized = false
-let isPanelResizing = false
-
-function updateLayoutMode() {
-  const pageWidth =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const nextMode: LayoutMode =
-    pageWidth >= 1280
-      ? 'large'
-      : pageWidth >= 860
-        ? 'medium'
-        : 'small'
-
-  const modeChanged =
-    previousLayoutMode !== nextMode
-
-  layoutMode.value = nextMode
-
-  if (
-    modeChanged ||
-    !leftPanelManuallyResized
-  ) {
-    leftPanelWidth.value =
-      getAdaptivePanelWidth(
-        'left',
-        nextMode,
-        pageWidth,
-      )
-  }
-
-  if (
-    modeChanged ||
-    !rightPanelManuallyResized
-  ) {
-    rightPanelWidth.value =
-      getAdaptivePanelWidth(
-        'right',
-        nextMode,
-        pageWidth,
-      )
-  }
-
-  previousLayoutMode = nextMode
-}
-
-function getEffectiveTemplateWidth(
-  fallbackWidth?: number,
-): number {
-  const candidates: number[] = []
-
-  if (
-    typeof fallbackWidth === 'number' &&
-    Number.isFinite(fallbackWidth) &&
-    fallbackWidth > 0
-  ) {
-    candidates.push(fallbackWidth)
-  }
-
-  const pageWidth =
-    pageRef.value?.clientWidth
-
-  if (
-    typeof pageWidth === 'number' &&
-    Number.isFinite(pageWidth) &&
-    pageWidth > 0
-  ) {
-    candidates.push(pageWidth)
-  }
-
-  if (typeof window !== 'undefined') {
-    const innerWidth = window.innerWidth
-    const visualWidth =
-      window.visualViewport?.width
-    const screenWidth = window.screen?.width
-    const availWidth =
-      window.screen?.availWidth
-
-    ;[
-      innerWidth,
-      visualWidth,
-      screenWidth,
-      availWidth,
-    ].forEach((value) => {
-      if (
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value > 0
-      ) {
-        candidates.push(value)
-      }
-    })
-  }
-
-  if (!candidates.length) {
-    return 0
-  }
-
-  return Math.min(...candidates)
-}
-
-function isUltraLargeTemplateScreen(
-  fallbackWidth?: number,
-) {
-  return (
-    getEffectiveTemplateWidth(
-      fallbackWidth,
-    ) >= 2200
-  )
-}
-
-function getAdaptivePanelWidth(
-  side: 'left' | 'right',
-  mode: LayoutMode,
-  pageWidth: number,
-) {
-  void mode
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(pageWidth)
-
-  if (
-    isUltraLargeTemplateScreen(
-      effectiveWidth,
-    )
-  ) {
-    return side === 'left'
-      ? clamp(
-          effectiveWidth * 0.22,
-          420,
-          640,
-        )
-      : clamp(
-          effectiveWidth * 0.25,
-          500,
-          760,
-        )
-  }
-
-  return side === 'left'
-    ? clamp(
-        pageWidth * 0.24,
-        300,
-        360,
-      )
-    : clamp(
-        pageWidth * 0.28,
-        320,
-        420,
-      )
-}
-
-function getPanelResizeBounds(
-  side: 'left' | 'right',
-) {
-  const pageWidth =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(pageWidth)
-
-  const isUltraLargeScreen =
-    isUltraLargeTemplateScreen(
-      effectiveWidth,
-    )
-
-  const min =
-    side === 'left' ? 280 : 300
-
-  const maxLimit =
-    side === 'left'
-      ? isUltraLargeScreen
-        ? 820
-        : 420
-      : isUltraLargeScreen
-        ? 900
-        : 480
-
-  const ratio = isUltraLargeScreen
-    ? 0.54
-    : side === 'left'
-      ? 0.42
-      : 0.46
-
-  return {
-    min,
-    max: Math.max(
-      min,
-      Math.min(
-        maxLimit,
-        effectiveWidth * ratio,
-      ),
-    ),
-  }
-}
-
-function startResize(
-  side: 'left' | 'right',
-  event: PointerEvent,
-) {
-  if (
-    (side === 'left' &&
-      leftCollapsed.value) ||
-    (side === 'right' &&
-      rightCollapsed.value)
-  ) {
-    return
-  }
-
-  event.stopPropagation()
-
-  if (side === 'left') {
-    leftPanelManuallyResized = true
-  } else {
-    rightPanelManuallyResized = true
-  }
-
-  isPanelResizing = true
-
-  const handle =
-    event.currentTarget as HTMLElement | null
-
-  if (
-    handle &&
-    typeof handle.setPointerCapture ===
-      'function'
-  ) {
-    try {
-      handle.setPointerCapture(
-        event.pointerId,
-      )
-    } catch {
-      // 部分触控环境不支持 pointer capture
-    }
-  }
-
-  const startX = event.clientX
-
-  const startWidth =
-    side === 'left'
-      ? leftPanelWidth.value
-      : rightPanelWidth.value
-
-  const bounds = getPanelResizeBounds(side)
-
-  const onMove = (
-    moveEvent: PointerEvent,
-  ) => {
-    const deltaX =
-      moveEvent.clientX - startX
-
-    const nextWidth =
-      side === 'left'
-        ? startWidth + deltaX
-        : startWidth - deltaX
-
-    const width = clamp(
-      nextWidth,
-      bounds.min,
-      bounds.max,
-    )
-
-    if (side === 'left') {
-      leftPanelWidth.value = width
-    } else {
-      rightPanelWidth.value = width
-    }
-  }
-
-  const finishResize = () => {
-    document.removeEventListener(
-      'pointermove',
-      onMove,
-    )
-    document.removeEventListener(
-      'pointerup',
-      finishResize,
-    )
-    document.removeEventListener(
-      'pointercancel',
-      finishResize,
-    )
-
-    document.body.classList.remove(
-      'geo-panel-resizing',
-    )
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-
-    isPanelResizing = false
-  }
-
-  document.addEventListener(
-    'pointermove',
-    onMove,
-  )
-  document.addEventListener(
-    'pointerup',
-    finishResize,
-  )
-  document.addEventListener(
-    'pointercancel',
-    finishResize,
-  )
-
-  document.body.classList.add(
-    'geo-panel-resizing',
-  )
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-}
-
-// 保留 startResize 引用以满足模板骨架
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-void startResize
+/*
+ * 页面断点已由 useGeoPanelLayout 管理。
+ * 本组件只保留演化时间轴自身的尺寸与交互逻辑。
+ */
 
 function animateTimeline(time: number) {
   timelineAnimationFrameId =
@@ -1186,8 +756,8 @@ function animateTimeline(time: number) {
     const next =
       progress.value +
       delta *
-        playbackSpeed.value *
-        4.5
+      playbackSpeed.value *
+      4.5
 
     if (next >= 100) {
       progress.value = 100
@@ -1239,20 +809,6 @@ watch(progress, (value, previous) => {
 })
 
 onMounted(() => {
-  updateLayoutMode()
-
-  pageResizeObserver = new ResizeObserver(
-    () => {
-      updateLayoutMode()
-    },
-  )
-
-  if (pageRef.value) {
-    pageResizeObserver.observe(
-      pageRef.value,
-    )
-  }
-
   railResizeObserver = new ResizeObserver(
     () => {
       if (railViewportRef.value) {
@@ -1330,8 +886,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  pageResizeObserver?.disconnect()
-  pageResizeObserver = null
   railResizeObserver?.disconnect()
   railResizeObserver = null
   scrollViewportResizeObserver?.disconnect()
@@ -1369,10 +923,9 @@ onBeforeUnmount(() => {
     )
   }
 
-  document.body.classList.remove(
-    'geo-panel-resizing',
-  )
-  document.body.style.cursor = ''
+  /*
+   * 时间轴鼠标拖动可能临时禁止文本选择。
+   */
   document.body.style.userSelect = ''
 
   cancelAnimationFrame(
@@ -1382,6 +935,14 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* ===================== v2：公共布局 Hook =====================
+   - 当前页面无左右模板侧栏；
+   - rootRef、响应式断点和 workspace attrs 由 Hook 统一管理；
+   - 删除无效的面板宽度、拖拽和页面 ResizeObserver；
+   - 保留年代表自身的滚动、滑动和尺寸监听。
+*/
+
+
 .earth-evolution-container {
   --eon-hadean-a: #ff5b3c;
   --eon-hadean-b: #6b1d10;
@@ -1413,9 +974,7 @@ onBeforeUnmount(() => {
   gap:
     clamp(10px, 1.2vh, 16px);
   padding:
-    clamp(10px, 1.4vw, 18px)
-    clamp(12px, 1.6vw, 22px)
-    clamp(72px, 10vh, 96px);
+    clamp(10px, 1.4vw, 18px) clamp(12px, 1.6vw, 22px) clamp(72px, 10vh, 96px);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -1460,8 +1019,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   height: 100%;
   padding:
-    clamp(8px, 0.9vw, 12px)
-    clamp(10px, 1.2vw, 16px);
+    clamp(8px, 0.9vw, 12px) clamp(10px, 1.2vw, 16px);
   background:
     var(--panel-background);
   border:
@@ -1479,60 +1037,46 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(
-    120deg,
-    rgba(var(--eon-hadean-a-rgb, 255, 91, 60), 0.18),
-    transparent 60%
-  );
+  background: linear-gradient(120deg,
+      rgba(var(--eon-hadean-a-rgb, 255, 91, 60), 0.18),
+      transparent 60%);
   opacity: 0.85;
 }
 
 .era-intro-card.intro-hadean::before {
-  background: linear-gradient(
-    120deg,
-    rgba(255, 91, 60, 0.22),
-    transparent 60%
-  );
+  background: linear-gradient(120deg,
+      rgba(255, 91, 60, 0.22),
+      transparent 60%);
 }
 
 .era-intro-card.intro-archean::before {
-  background: linear-gradient(
-    120deg,
-    rgba(196, 132, 80, 0.20),
-    transparent 60%
-  );
+  background: linear-gradient(120deg,
+      rgba(196, 132, 80, 0.20),
+      transparent 60%);
 }
 
 .era-intro-card.intro-proterozoic::before {
-  background: linear-gradient(
-    120deg,
-    rgba(46, 167, 224, 0.20),
-    transparent 60%
-  );
+  background: linear-gradient(120deg,
+      rgba(46, 167, 224, 0.20),
+      transparent 60%);
 }
 
 .era-intro-card.intro-paleozoic::before {
-  background: linear-gradient(
-    120deg,
-    rgba(54, 192, 137, 0.20),
-    transparent 60%
-  );
+  background: linear-gradient(120deg,
+      rgba(54, 192, 137, 0.20),
+      transparent 60%);
 }
 
 .era-intro-card.intro-mesozoic::before {
-  background: linear-gradient(
-    120deg,
-    rgba(210, 140, 42, 0.20),
-    transparent 60%
-  );
+  background: linear-gradient(120deg,
+      rgba(210, 140, 42, 0.20),
+      transparent 60%);
 }
 
 .era-intro-card.intro-cenozoic::before {
-  background: linear-gradient(
-    120deg,
-    rgba(79, 159, 226, 0.20),
-    transparent 60%
-  );
+  background: linear-gradient(120deg,
+      rgba(79, 159, 226, 0.20),
+      transparent 60%);
 }
 
 .era-intro-head {
@@ -1569,11 +1113,9 @@ onBeforeUnmount(() => {
     clamp(18px, 1.8vw, 26px);
   font-weight: 900;
   line-height: 1.15;
-  background: linear-gradient(
-    90deg,
-    var(--text-primary),
-    var(--theme-primary)
-  );
+  background: linear-gradient(90deg,
+      var(--text-primary),
+      var(--theme-primary));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -1598,11 +1140,9 @@ onBeforeUnmount(() => {
   font-weight: 800;
   color: var(--theme-on-primary);
   letter-spacing: 0.5px;
-  background: linear-gradient(
-    135deg,
-    var(--theme-primary),
-    var(--theme-secondary)
-  );
+  background: linear-gradient(135deg,
+      var(--theme-primary),
+      var(--theme-secondary));
   border-radius: 999px;
   box-shadow:
     0 4px 12px rgba(var(--theme-primary-rgb), 0.32);
@@ -1636,8 +1176,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 2px;
   padding:
-    clamp(6px, 0.7vw, 10px)
-    clamp(8px, 0.9vw, 12px);
+    clamp(6px, 0.7vw, 10px) clamp(8px, 0.9vw, 12px);
   background: var(--inactive-background);
   border: 1px solid var(--inactive-border);
   border-radius: 8px;
@@ -1692,16 +1231,12 @@ onBeforeUnmount(() => {
     clamp(14px, 1.2vw, 20px);
   overflow: hidden;
   background:
-    radial-gradient(
-      circle at 50% 35%,
+    radial-gradient(circle at 50% 35%,
       rgba(255, 255, 255, 0.08),
-      transparent 60%
-    ),
-    linear-gradient(
-      145deg,
+      transparent 60%),
+    linear-gradient(145deg,
       rgba(10, 28, 48, 0.92),
-      rgba(4, 16, 28, 0.97)
-    );
+      rgba(4, 16, 28, 0.97));
   border: 1px solid var(--panel-border);
   box-shadow:
     0 18px 40px rgba(0, 0, 0, 0.32),
@@ -1714,6 +1249,7 @@ onBeforeUnmount(() => {
     opacity: 0;
     transform: scale(0.985);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -1795,11 +1331,9 @@ onBeforeUnmount(() => {
     clamp(40px, 4.2vh, 48px);
   padding: 4px 14px;
   pointer-events: none;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.08),
-    rgba(255, 255, 255, 0.02)
-  );
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.02));
   border: 1px solid rgba(var(--theme-primary-rgb), 0.42);
   border-radius: 10px;
   box-shadow:
@@ -1814,11 +1348,9 @@ onBeforeUnmount(() => {
 }
 
 .eon-indicator.eon-hadean {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 91, 60, 0.32),
-    rgba(107, 29, 16, 0.12)
-  );
+  background: linear-gradient(135deg,
+      rgba(255, 91, 60, 0.32),
+      rgba(107, 29, 16, 0.12));
   border-color: rgba(255, 91, 60, 0.55);
   box-shadow:
     0 6px 18px rgba(255, 91, 60, 0.22),
@@ -1826,11 +1358,9 @@ onBeforeUnmount(() => {
 }
 
 .eon-indicator.eon-archean {
-  background: linear-gradient(
-    135deg,
-    rgba(196, 132, 80, 0.30),
-    rgba(45, 25, 16, 0.12)
-  );
+  background: linear-gradient(135deg,
+      rgba(196, 132, 80, 0.30),
+      rgba(45, 25, 16, 0.12));
   border-color: rgba(196, 132, 80, 0.55);
   box-shadow:
     0 6px 18px rgba(196, 132, 80, 0.20),
@@ -1838,11 +1368,9 @@ onBeforeUnmount(() => {
 }
 
 .eon-indicator.eon-proterozoic {
-  background: linear-gradient(
-    135deg,
-    rgba(46, 167, 224, 0.30),
-    rgba(10, 42, 64, 0.12)
-  );
+  background: linear-gradient(135deg,
+      rgba(46, 167, 224, 0.30),
+      rgba(10, 42, 64, 0.12));
   border-color: rgba(46, 167, 224, 0.55);
   box-shadow:
     0 6px 18px rgba(46, 167, 224, 0.20),
@@ -1850,11 +1378,9 @@ onBeforeUnmount(() => {
 }
 
 .eon-indicator.eon-phanerozoic {
-  background: linear-gradient(
-    135deg,
-    rgba(46, 196, 182, 0.30),
-    rgba(10, 38, 30, 0.12)
-  );
+  background: linear-gradient(135deg,
+      rgba(46, 196, 182, 0.30),
+      rgba(10, 38, 30, 0.12));
   border-color: rgba(46, 196, 182, 0.55);
   box-shadow:
     0 6px 18px rgba(46, 196, 182, 0.20),
@@ -1910,14 +1436,12 @@ onBeforeUnmount(() => {
   right: 0;
   top: 6px;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--theme-primary) 12%,
-    var(--theme-secondary) 50%,
-    var(--theme-primary) 88%,
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      var(--theme-primary) 12%,
+      var(--theme-secondary) 50%,
+      var(--theme-primary) 88%,
+      transparent);
   border-radius: 2px;
   opacity: 0.7;
 }
@@ -2020,10 +1544,8 @@ onBeforeUnmount(() => {
     clamp(8px, 1.2vh, 14px);
   transform: translateX(-50%);
   width:
-    min(
-      880px,
-      calc(100% - 32px)
-    );
+    min(880px,
+      calc(100% - 32px));
   display: grid;
   grid-template-columns:
     auto minmax(0, 1fr) auto;
@@ -2031,8 +1553,7 @@ onBeforeUnmount(() => {
   gap:
     clamp(8px, 1vw, 14px);
   padding:
-    clamp(5px, 0.6vw, 8px)
-    clamp(10px, 1.2vw, 16px);
+    clamp(5px, 0.6vw, 8px) clamp(10px, 1.2vw, 16px);
 }
 
 .evolution-dock :deep(.timeline-icon-btn) {
@@ -2095,10 +1616,8 @@ onBeforeUnmount(() => {
 
 .layout-medium .evolution-dock {
   width:
-    min(
-      760px,
-      calc(100% - 24px)
-    );
+    min(760px,
+      calc(100% - 24px));
 }
 
 .layout-medium .era-intro-head {
@@ -2167,9 +1686,7 @@ onBeforeUnmount(() => {
   z-index: 2;
   width: 100%;
   padding:
-    clamp(10px, 1.4vh, 16px)
-    0
-    0;
+    clamp(10px, 1.4vh, 16px) 0 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -2221,7 +1738,7 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-.scroll-row + .scroll-row {
+.scroll-row+.scroll-row {
   margin-top:
     clamp(2px, 0.3vh, 4px);
 }

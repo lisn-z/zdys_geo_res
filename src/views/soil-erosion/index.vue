@@ -14,9 +14,8 @@
       </div>
     </header>
 
-    <main class="workspace" :class="{ 'has-left': hasLeftPanel, 'has-right': hasRightPanel }"
-      :style="{ '--left-panel-width': leftCollapsed ? '0px' : leftPanelWidth + 'px', '--right-panel-width': rightCollapsed ? '0px' : rightPanelWidth + 'px' }">
-      <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
+    <main class="workspace" v-bind="workspaceAttrs">
+      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -89,9 +88,11 @@
             </div>
           </section>
         </div>
-        <div class="resize-handle resize-right" @pointerdown.stop.prevent="startResize('left', $event)"></div>
-        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
-          @click="leftCollapsed = true">‹</button>
+        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
+
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
+          ‹
+        </button>
       </aside>
 
       <section class="center-stage">
@@ -123,7 +124,7 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: rightCollapsed }">
+      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -134,7 +135,7 @@
           </div>
           <div class="data-grid">
             <article class="geo-card data-card" :class="dataCardClass(0)"><span>💧 地表径流量</span><strong>{{
-                simStats.runoff }}</strong><small>L/s · 水流强度</small></article>
+              simStats.runoff }}</strong><small>L/s · 水流强度</small></article>
             <article class="geo-card data-card" :class="dataCardClass(1)"><span>⛰️ 流失土壤量</span><strong>{{
               simStats.erosion.toFixed(1) }}</strong><small>kg · 土壤损失</small></article>
             <article class="geo-card data-card" :class="dataCardClass(2)"><span>🟠 河流含沙量</span><strong>{{
@@ -188,15 +189,22 @@
             </el-collapse-item>
           </el-collapse>
         </div>
-        <div class="resize-handle resize-left" @pointerdown.stop.prevent="startResize('right', $event)"></div>
-        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
-          @click="rightCollapsed = true">›</button>
+        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
+
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
+          ›
+        </button>
       </aside>
 
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left" aria-label="展开左侧面板"
-        @click="leftCollapsed = false">›</button>
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+        v-bind="leftEntryAttrs">
+        ›
+      </button>
+
       <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        aria-label="展开右侧面板" @click="rightCollapsed = false">‹</button>
+        v-bind="rightEntryAttrs">
+        ‹
+      </button>
     </main>
   </div>
 </template>
@@ -204,17 +212,79 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
+/*
+ * 公共模板样式已内置平板宽度、触控拖拽与防误触规则。
+ */
 import '@/styles/geo-page-template.css'
+import {
+  useGeoPanelLayout,
+} from '@/hooks/useGeoPanelLayout'
 
 // ===== State =====
-const pageRef = ref<HTMLElement | null>(null)
 const hasLeftPanel = true
 const hasRightPanel = true
-const layoutMode = ref<'large' | 'medium' | 'small'>('large')
-const leftPanelWidth = ref(360)
-const rightPanelWidth = ref(420)
-const leftCollapsed = ref(false)
-const rightCollapsed = ref(false)
+
+/*
+ * 左右面板统一交给公共 Hook。
+ * 业务组件只负责水土流失模拟和主画布最终尺寸校准。
+ */
+const {
+  rootRef: pageRef,
+  layoutMode,
+
+  leftCollapsed,
+  rightCollapsed,
+  allPanelsCollapsed,
+
+  draggingSide,
+  viewportResizing,
+
+  workspaceAttrs,
+  leftPanelAttrs,
+  rightPanelAttrs,
+
+  leftResizeAttrs,
+  rightResizeAttrs,
+
+  leftCollapseAttrs,
+  rightCollapseAttrs,
+
+  leftEntryAttrs,
+  rightEntryAttrs,
+
+  toggleAll: toggleAllPanels,
+} = useGeoPanelLayout({
+  left: {
+    enabled: hasLeftPanel,
+    resizable: true,
+  },
+
+  right: {
+    enabled: hasRightPanel,
+    resizable: true,
+  },
+
+  onLayoutChange(state) {
+    /*
+     * 面板拖拽或浏览器连续缩放期间，
+     * 不重建 2D Canvas 像素缓冲区。
+     */
+    if (state.resizing) {
+      return
+    }
+
+    scheduleCanvasResize(90)
+  },
+
+  onResize(payload) {
+    if (
+      payload.phase === 'end' ||
+      payload.phase === 'reset'
+    ) {
+      scheduleCanvasResize(0)
+    }
+  },
+})
 
 const vegState = ref(55)
 const rainState = ref(35)
@@ -293,142 +363,24 @@ const simulateButtonText = computed(() => {
   return '▶ 继续模拟'
 })
 
-const allPanelsCollapsed = computed(() => {
-  const s: boolean[] = []
-  if (hasLeftPanel) s.push(leftCollapsed.value)
-  if (hasRightPanel) s.push(rightCollapsed.value)
-  return s.length > 0 && s.every(Boolean)
-})
 
-// ===== Layout helpers (from template) =====
-let pageResizeObserver: ResizeObserver | null = null
-let plm: 'large' | 'medium' | 'small' | null = null
-let lpmr = false
-let rpmr = false
-let ipr = false
+// ===== Layout =====
+/*
+ * 面板宽度、断点、拖拽、折叠和事件清理
+ * 已全部由 useGeoPanelLayout 管理。
+ */
 
-function cl(v: number, mn: number, mx: number) { return Math.max(mn, Math.min(mx, v)) }
-
-function gtf(fw?: number): number {
-  const cs: number[] = []
-  if (typeof fw === 'number' && fw > 0) cs.push(fw)
-  const pw = pageRef.value?.clientWidth
-  if (pw && pw > 0) cs.push(pw)
-  if (typeof window !== 'undefined') {
-    ;[window.innerWidth, window.visualViewport?.width, window.screen?.width, window.screen?.availWidth].forEach((v) => {
-      if (typeof v === 'number' && v > 0) cs.push(v)
-    })
-  }
-  return cs.length ? Math.min(...cs) : 0
-}
-
-function iuls(fw?: number) { return gtf(fw) >= 2200 }
-
-function gapw(side: 'left' | 'right', mode: string, pw: number) {
-  void mode
-
-  const e = gtf(pw)
-
-  /*
-   * 面板宽度连续化：
-   * layoutMode 只负责布局形态，不再参与面板宽度计算。
-   *
-   * 原逻辑：
-   * - large:  left 0.19 / right 0.21
-   * - medium: left 0.36 / right 0.40
-   * - small:  left 0.76 / right 0.80
-   *
-   * 这会导致 1280 和 860 附近突然变宽。
-   */
-  if (iuls(e)) {
-    return side === 'left'
-      ? cl(e * 0.22, 420, 640)
-      : cl(e * 0.25, 500, 760)
-  }
-
-  return side === 'left'
-    ? cl(pw * 0.24, 300, 360)
-    : cl(pw * 0.28, 320, 420)
-}
-
-function gprb(side: 'left' | 'right') {
-  const pw = pageRef.value?.clientWidth || window.innerWidth
-  const e = gtf(pw)
-  const u = iuls(e)
-
-  /*
-   * 拖拽边界也连续化：
-   * - 普通屏左侧最多 420px，右侧最多 480px
-   * - 超大屏保留更大的拖拽范围
-   */
-  const min = side === 'left' ? 280 : 300
-  const maxLimit = side === 'left'
-    ? (u ? 820 : 420)
-    : (u ? 900 : 480)
-
-  const ratio = u
-    ? 0.54
-    : side === 'left'
-      ? 0.42
-      : 0.46
-
-  return {
+function cl(
+  value: number,
+  min: number,
+  max: number
+) {
+  return Math.max(
     min,
-    max: Math.max(
-      min,
-      Math.min(
-        maxLimit,
-        e * ratio
-      )
-    )
-  }
+    Math.min(max, value)
+  )
 }
 
-function ulm() {
-  const pw = pageRef.value?.clientWidth || window.innerWidth
-  const n: 'large' | 'medium' | 'small' = pw >= 1280 ? 'large' : pw >= 860 ? 'medium' : 'small'
-  const c = plm !== n
-  layoutMode.value = n
-  if (c || !lpmr) leftPanelWidth.value = gapw('left', n, pw)
-  if (c || !rpmr) rightPanelWidth.value = gapw('right', n, pw)
-  plm = n
-}
-
-function startResize(side: 'left' | 'right', ev: PointerEvent) {
-  if ((side === 'left' && leftCollapsed.value) || (side === 'right' && rightCollapsed.value)) return
-  ev.stopPropagation()
-  if (side === 'left') lpmr = true; else rpmr = true
-  ipr = true
-  const h = ev.currentTarget as HTMLElement | null
-  if (h && typeof h.setPointerCapture === 'function') { try { h.setPointerCapture(ev.pointerId) } catch { } }
-  const sx = ev.clientX
-  const sw = side === 'left' ? leftPanelWidth.value : rightPanelWidth.value
-  const b = gprb(side)
-  const om = (me: PointerEvent) => { const d = me.clientX - sx; const w = cl(side === 'left' ? sw + d : sw - d, b.min, b.max); if (side === 'left') leftPanelWidth.value = w; else rightPanelWidth.value = w }
-  const f = () => {
-    document.removeEventListener('pointermove', om)
-    document.removeEventListener('pointerup', f)
-    document.removeEventListener('pointercancel', f)
-    document.body.classList.remove('geo-panel-resizing')
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    ipr = false
-    schedResize(0)
-  }
-  document.addEventListener('pointermove', om)
-  document.addEventListener('pointerup', f)
-  document.addEventListener('pointercancel', f)
-  document.body.classList.add('geo-panel-resizing')
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-}
-
-function toggleAllPanels() {
-  const co = !allPanelsCollapsed.value
-  if (hasLeftPanel) leftCollapsed.value = co
-  if (hasRightPanel) rightCollapsed.value = co
-  schedResize()
-}
 
 // ===== Web Audio =====
 let audioCtx: AudioContext | null = null
@@ -723,6 +675,21 @@ function drawErosionDeposit() {
 
 let canvasDpr = 1
 
+let canvasResizeObserver:
+  | ResizeObserver
+  | null = null
+
+let canvasResizeTimer:
+  | ReturnType<typeof setTimeout>
+  | null = null
+
+let canvasResizeFrame = 0
+let canvasResizeSettleFrame = 0
+
+let lastCanvasWidth = 0
+let lastCanvasHeight = 0
+let lastCanvasDpr = 0
+
 function renderFrame() {
   animFrameId = requestAnimationFrame(renderFrame)
   frameCount++
@@ -750,35 +717,183 @@ function renderFrame() {
   ctx.restore()
 }
 
+function isPanelLayoutResizing() {
+  return (
+    draggingSide.value !== null ||
+    viewportResizing.value
+  )
+}
+
 function resizeCanvas() {
-  const container = canvasContainerRef.value
-  const canvas = canvasRef.value
-  if (!container || !canvas) return
-  const containerW = container.clientWidth
-  const containerH = container.clientHeight
-  // Fill the entire center area
-  const w = Math.max(320, containerW)
-  const h = Math.max(240, containerH)
-  canvasDpr = Math.min(window.devicePixelRatio || 1, 2)
-  canvasWidth = Math.floor(w)
-  canvasHeight = Math.floor(h)
-  canvas.width = Math.floor(w * canvasDpr)
-  canvas.height = Math.floor(h * canvasDpr)
-  canvas.style.width = w + 'px'
-  canvas.style.height = h + 'px'
-  ctx = canvas.getContext('2d')
-  if (ctx) ctx.setTransform(canvasDpr, 0, 0, canvasDpr, 0, 0)
+  const container =
+    canvasContainerRef.value
+
+  const canvas =
+    canvasRef.value
+
+  if (!container || !canvas) {
+    return
+  }
+
+  /*
+   * 使用真实容器尺寸，不再强制 320×240。
+   * 平板或窄屏主场景不会因最小画布尺寸发生溢出。
+   */
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  )
+
+  /*
+   * canvas.width / canvas.height 每次赋值都会清空整张画布。
+   * 尺寸和 DPR 都未变化时绝不重复赋值。
+   */
+  if (
+    width === lastCanvasWidth &&
+    height === lastCanvasHeight &&
+    dpr === lastCanvasDpr
+  ) {
+    return
+  }
+
+  lastCanvasWidth = width
+  lastCanvasHeight = height
+  lastCanvasDpr = dpr
+
+  canvasDpr = dpr
+  canvasWidth = width
+  canvasHeight = height
+
+  canvas.width =
+    Math.max(
+      1,
+      Math.round(
+        width * canvasDpr
+      )
+    )
+
+  canvas.height =
+    Math.max(
+      1,
+      Math.round(
+        height * canvasDpr
+      )
+    )
+
+  canvas.style.width =
+    width + 'px'
+
+  canvas.style.height =
+    height + 'px'
+
+  ctx =
+    canvas.getContext('2d')
+
+  if (ctx) {
+    ctx.setTransform(
+      canvasDpr,
+      0,
+      0,
+      canvasDpr,
+      0,
+      0
+    )
+  }
+
   viewX = 0
   viewY = 0
+
   generateTerrain()
   generateVegetation()
 }
 
+function scheduleCanvasResize(
+  delay = 110
+) {
+  if (canvasResizeTimer) {
+    clearTimeout(
+      canvasResizeTimer
+    )
+  }
+
+  cancelAnimationFrame(
+    canvasResizeFrame
+  )
+
+  cancelAnimationFrame(
+    canvasResizeSettleFrame
+  )
+
+  /*
+   * 拖拽过程中先依靠 CSS 拉伸已有画布，
+   * 松手后再重建真实像素缓冲区。
+   */
+  if (isPanelLayoutResizing()) {
+    return
+  }
+
+  canvasResizeTimer =
+    setTimeout(() => {
+      canvasResizeTimer = null
+
+      canvasResizeFrame =
+        requestAnimationFrame(() => {
+          canvasResizeFrame = 0
+
+          canvasResizeSettleFrame =
+            requestAnimationFrame(() => {
+              canvasResizeSettleFrame = 0
+              resizeCanvas()
+            })
+        })
+    }, delay)
+}
+
 function initCanvas() {
-  const canvas = canvasRef.value
-  if (!canvas) return
+  const canvas =
+    canvasRef.value
+
+  const container =
+    canvasContainerRef.value
+
+  if (!canvas || !container) {
+    return
+  }
+
+  /*
+   * 动画开始前先同步真实容器尺寸，
+   * 避免首屏低分辨率画布被 CSS 拉伸。
+   */
   resizeCanvas()
   renderFrame()
+
+  canvasResizeObserver =
+    new ResizeObserver(() => {
+      scheduleCanvasResize(110)
+    })
+
+  canvasResizeObserver.observe(
+    container
+  )
+
+  /*
+   * 首屏 Grid 和面板布局完成后再最终校准一次。
+   */
+  scheduleCanvasResize(0)
 }
 
 function cycleSpeed() {
@@ -830,29 +945,70 @@ function resetAll() {
   activePreset.value = ''; resetSceneObjects(); updateRainAudio()
 }
 
-let resizeTimer: ReturnType<typeof setTimeout> | null = null
-function schedResize(delay = 140) {
-  if (resizeTimer) clearTimeout(resizeTimer)
-  resizeTimer = setTimeout(() => { resizeTimer = null; if (!ipr) resizeCanvas() }, delay)
-}
-
 onMounted(async () => {
-  ulm()
-  pageResizeObserver = new ResizeObserver(() => { ulm(); schedResize() })
-  if (pageRef.value) pageResizeObserver.observe(pageRef.value)
   await nextTick()
+
   initCanvas()
-  document.addEventListener('pointerdown', () => { if (soundEnabled.value && !audioCtx) initAudio() }, { once: true })
+
+  document.addEventListener(
+    'pointerdown',
+    () => {
+      if (
+        soundEnabled.value &&
+        !audioCtx
+      ) {
+        initAudio()
+      }
+    },
+    {
+      once: true,
+    }
+  )
 })
 
 onBeforeUnmount(() => {
-  pageResizeObserver?.disconnect()
-  pageResizeObserver = null
-  document.body.classList.remove('geo-panel-resizing')
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-  cancelAnimationFrame(animFrameId)
-  if (audioCtx) { try { gainNode?.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05) } catch { }; setTimeout(() => { try { audioCtx?.close() } catch { } }, 200) }
+  cancelAnimationFrame(
+    animFrameId
+  )
+
+  cancelAnimationFrame(
+    canvasResizeFrame
+  )
+
+  cancelAnimationFrame(
+    canvasResizeSettleFrame
+  )
+
+  if (canvasResizeTimer) {
+    clearTimeout(
+      canvasResizeTimer
+    )
+
+    canvasResizeTimer = null
+  }
+
+  canvasResizeObserver?.disconnect()
+  canvasResizeObserver = null
+
+  if (audioCtx) {
+    try {
+      gainNode?.gain.setTargetAtTime(
+        0,
+        audioCtx.currentTime,
+        0.05
+      )
+    } catch {
+      // 音频上下文可能已经关闭。
+    }
+
+    setTimeout(() => {
+      try {
+        audioCtx?.close()
+      } catch {
+        // 忽略重复关闭。
+      }
+    }, 200)
+  }
 })
 </script>
 
@@ -1080,10 +1236,8 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ===================== v1: 面板宽度连续化 =====================
-   对应 script 中 gapw / gprb。
-   - 修复 1280 断点面板突然变宽；
-   - 修复 860 断点面板突然变宽；
-   - layoutMode 只负责布局形态，不再决定面板宽度。
+/* ===================== v2：公共面板 Hook =====================
+   左右面板宽度、断点、平板触控拖拽与展开折叠，
+   统一由 useGeoPanelLayout 和 geo-page-template.css 管理。
 */
 </style>

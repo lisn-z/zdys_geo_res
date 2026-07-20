@@ -25,20 +25,8 @@
       </div>
     </header>
 
-    <main class="workspace" :class="{
-      'has-left': !panelCollapsed,
-      'has-right': !knowledgeCollapsed,
-    }" :style="{
-      '--left-panel-width':
-        panelCollapsed
-          ? '0px'
-          : leftPanelWidth + 'px',
-      '--right-panel-width':
-        knowledgeCollapsed
-          ? '0px'
-          : rightPanelWidth + 'px',
-    }">
-      <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: panelCollapsed }">
+    <main class="workspace" v-bind="workspaceAttrs">
+      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -185,10 +173,9 @@
 
         </div>
 
-        <div class="resize-handle resize-right" @pointerdown.stop.prevent="startResize('left', $event)"></div>
+        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
 
-        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
-          @click="panelCollapsed = true">
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
           ‹
         </button>
       </aside>
@@ -251,7 +238,7 @@
                 <span class="axis-info-item">A: <b style="color:#ef4444">{{ formatLon(pointA.lon) }}</b></span>
                 <span class="axis-info-item">B: <b style="color:#247cff">{{ formatLon(pointB.lon) }}</b></span>
                 <span class="axis-info-item">经度差: <b style="color:#fbbf24">{{ calcLonDiff(pointA.lon, pointB.lon)
-                }}°</b></span>
+                    }}°</b></span>
                 <span class="axis-info-item">时差: <b style="color:#2ec4b6">{{ formatTimeDiff(calcLonDiff(pointA.lon,
                   pointB.lon) / 15) }}</b></span>
                 <span class="axis-info-item">{{ pointA.lon > pointB.lon ? 'A东B西' : 'B东A西' }}</span>
@@ -262,7 +249,7 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: knowledgeCollapsed }">
+      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -478,20 +465,18 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-left" @pointerdown.stop.prevent="startResize('right', $event)"></div>
+        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
 
-        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
-          @click="knowledgeCollapsed = true">
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
           ›
         </button>
       </aside>
 
-      <button v-if="panelCollapsed" type="button" class="panel-entry-btn entry-left" @click="panelCollapsed = false">
+      <button v-if="panelCollapsed" type="button" class="panel-entry-btn entry-left" v-bind="leftEntryAttrs">
         ›
       </button>
 
-      <button v-if="knowledgeCollapsed" type="button" class="panel-entry-btn entry-right"
-        @click="knowledgeCollapsed = false">
+      <button v-if="knowledgeCollapsed" type="button" class="panel-entry-btn entry-right" v-bind="rightEntryAttrs">
         ‹
       </button>
     </main>
@@ -499,13 +484,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { ElSwitch, ElSlider } from 'element-plus'
 import 'element-plus/es/components/switch/style/css'
 import 'element-plus/es/components/slider/style/css'
 import '@/styles/geo-page-template.css'
+import {
+  useGeoPanelLayout,
+} from '@/hooks/useGeoPanelLayout'
 
 // ===================== 常量 =====================
 const EARTH_RADIUS = 2
@@ -590,460 +586,204 @@ const gridLabelDefs: { text: string; lat: number; lon: number; special?: boolean
 })()
 
 // ===================== 响应式状态 =====================
-const containerRef = ref<HTMLDivElement>()
-const rootRef = ref<HTMLElement>()
-const layoutMode = ref<'large' | 'medium' | 'small'>('large')
-const leftPanelWidth = ref(360)
-const rightPanelWidth = ref(420)
-const bottomAxisVisible = ref(true)
-const allPanelsCollapsed = computed(() =>
-  panelCollapsed.value &&
-  knowledgeCollapsed.value &&
-  !bottomAxisVisible.value
-)
+const containerRef =
+  ref<HTMLDivElement>()
+
+const bottomAxisVisible =
+  ref(true)
+
+let sceneResizeObserver:
+  | ResizeObserver
+  | null = null
+
+let sceneResizeTimer:
+  | ReturnType<typeof setTimeout>
+  | null = null
+
+let sceneResizeFrame = 0
+let sceneResizeSettleFrame = 0
+
+let lastSceneWidth = 0
+let lastSceneHeight = 0
+
+/*
+ * 左右面板的宽度、断点、拖拽、折叠和事件清理由公共 Hook 管理。
+ * 底部经度轴属于本课件业务，继续由当前组件管理。
+ */
+const {
+  rootRef,
+  layoutMode,
+
+  leftCollapsed:
+  panelCollapsed,
+
+  rightCollapsed:
+  knowledgeCollapsed,
+
+  allPanelsCollapsed:
+  allSidePanelsCollapsed,
+
+  draggingSide,
+  viewportResizing,
+
+  workspaceAttrs,
+  leftPanelAttrs,
+  rightPanelAttrs,
+
+  leftResizeAttrs,
+  rightResizeAttrs,
+
+  leftCollapseAttrs,
+  rightCollapseAttrs,
+
+  leftEntryAttrs,
+  rightEntryAttrs,
+
+  setAllCollapsed,
+} = useGeoPanelLayout({
+  left: {
+    enabled: true,
+  },
+
+  right: {
+    enabled: true,
+  },
+
+  onLayoutChange(state) {
+    if (state.resizing) {
+      return
+    }
+
+    scheduleSceneResize(90)
+  },
+
+  onResize(payload) {
+    if (
+      payload.phase === 'end' ||
+      payload.phase === 'reset'
+    ) {
+      scheduleSceneResize(0)
+    }
+  },
+})
+
+const allPanelsCollapsed =
+  computed(() => {
+    return (
+      allSidePanelsCollapsed.value &&
+      !bottomAxisVisible.value
+    )
+  })
 
 function toggleAllPanels() {
   const shouldExpand =
     allPanelsCollapsed.value
 
-  panelCollapsed.value =
+  setAllCollapsed(
     !shouldExpand
-  knowledgeCollapsed.value =
-    !shouldExpand
+  )
+
   bottomAxisVisible.value =
     shouldExpand
+
+  nextTick(() => {
+    scheduleSceneResize(0)
+  })
 }
 
-function clampPanelNumber(
-  value: number,
-  min: number,
-  max: number
-): number {
-  return Math.min(
-    max,
-    Math.max(
-      min,
-      value
-    )
+function isPanelLayoutResizing() {
+  return (
+    draggingSide.value !== null ||
+    viewportResizing.value
   )
 }
 
-let previousLayoutMode:
-  | 'large'
-  | 'medium'
-  | 'small'
-  | null = null
-
-let leftPanelManuallyResized = false
-let rightPanelManuallyResized = false
-
-function getEffectiveTemplateWidth(
-  fallbackWidth?: number
-): number {
-  const candidates: number[] = []
-
-  if (
-    typeof fallbackWidth === 'number' &&
-    Number.isFinite(fallbackWidth) &&
-    fallbackWidth > 0
-  ) {
-    candidates.push(fallbackWidth)
-  }
-
-  const pageWidth =
-    rootRef.value?.clientWidth
-
-  if (
-    typeof pageWidth === 'number' &&
-    Number.isFinite(pageWidth) &&
-    pageWidth > 0
-  ) {
-    candidates.push(pageWidth)
-  }
-
-  if (typeof window !== 'undefined') {
-    const values = [
-      window.innerWidth,
-      window.visualViewport?.width,
-      window.screen?.width,
-      window.screen?.availWidth,
-    ]
-
-    values.forEach((value) => {
-      if (
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value > 0
-      ) {
-        candidates.push(value)
-      }
-    })
-  }
-
-  if (!candidates.length) {
-    return 0
-  }
-
-  /*
-   * 用最小有效宽度判断超大屏。
-   * 普通 1920 屏即使因为浏览器缩放 / 投屏环境导致 CSS 宽度异常变大，
-   * 也不会误判为 2200+。
-   */
-  return Math.min(...candidates)
-}
-
-function isUltraLargeTemplateScreen(
-  fallbackWidth?: number
-): boolean {
-  return getEffectiveTemplateWidth(
-    fallbackWidth
-  ) >= 2200
-}
-
-function getAdaptivePanelWidth(
-  side: 'left' | 'right',
-  mode: 'large' | 'medium' | 'small',
-  pageWidth: number
-): number {
-  void mode
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  /*
-   * 面板宽度连续化：
-   * layoutMode 只负责布局形态，不再决定面板宽度。
-   *
-   * 原逻辑：
-   * - small:  left 0.76 / right 0.80
-   * - medium: left 0.36 / right 0.40
-   * - large:  left 0.19 / right 0.21
-   *
-   * 所以在 1280 和 860 附近会突然变宽。
-   */
-
-  if (
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-  ) {
-    return side === 'left'
-      ? clampPanelNumber(effectiveWidth * 0.22, 420, 640)
-      : clampPanelNumber(effectiveWidth * 0.25, 500, 760)
-  }
-
-  return side === 'left'
-    ? clampPanelNumber(pageWidth * 0.24, 300, 360)
-    : clampPanelNumber(pageWidth * 0.28, 320, 420)
-}
-
-function getPanelResizeBounds(
-  side: 'left' | 'right'
-) {
-  const pageWidth =
-    rootRef.value?.clientWidth ||
-    window.innerWidth
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  /*
-   * 拖拽边界连续化：
-   * 不再按 layoutMode.value === small / medium / large 分段。
-   */
-  const isUltraLargeScreen =
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-
-  const min =
-    side === 'left'
-      ? 280
-      : 300
-
-  const maxLimit =
-    side === 'left'
-      ? (
-        isUltraLargeScreen
-          ? 820
-          : 420
-      )
-      : (
-        isUltraLargeScreen
-          ? 900
-          : 480
-      )
-
-  const ratio =
-    isUltraLargeScreen
-      ? 0.54
-      : side === 'left'
-        ? 0.42
-        : 0.46
-
-  return {
-    min,
-    max:
-      Math.max(
-        min,
-        Math.min(
-          maxLimit,
-          effectiveWidth * ratio
-        )
-      ),
-  }
-}
-
-function syncLayoutMode() {
-  const width =
-    rootRef.value?.clientWidth ||
-    window.innerWidth
-
-  const nextMode =
-    width >= 1280
-      ? 'large'
-      : width >= 860
-        ? 'medium'
-        : 'small'
-
-  const modeChanged =
-    previousLayoutMode !== nextMode
-
-  layoutMode.value =
-    nextMode
-
-  /*
-   * 面板宽度说明：
-   * 本组件把 --left-panel-width / --right-panel-width 写在 workspace inline style 上。
-   * 公共 CSS 只能管视觉兜底，默认宽度、拖拽上限、拖拽后是否被重置，
-   * 必须在组件 JS 里同步处理。
-   */
-  if (
-    modeChanged ||
-    !leftPanelManuallyResized
-  ) {
-    leftPanelWidth.value =
-      Math.round(
-        getAdaptivePanelWidth(
-          'left',
-          nextMode,
-          width
-        )
-      )
-  }
-
-  if (
-    modeChanged ||
-    !rightPanelManuallyResized
-  ) {
-    rightPanelWidth.value =
-      Math.round(
-        getAdaptivePanelWidth(
-          'right',
-          nextMode,
-          width
-        )
-      )
-  }
-
-  previousLayoutMode =
-    nextMode
-}
-
-let panelResizeTarget:
-  | 'left'
-  | 'right'
-  | null = null
-
-let panelResizeState:
-  | {
-    startX: number
-    width: number
-  }
-  | null = null
-
-function startResize(
-  target: 'left' | 'right',
-  event: PointerEvent
-) {
-  if (
-    (target === 'left' && panelCollapsed.value) ||
-    (target === 'right' && knowledgeCollapsed.value)
-  ) {
-    return
-  }
-
-  event.stopPropagation()
-
-  panelResizeTarget =
-    target
-
-  panelResizeState =
-  {
-    startX:
-      event.clientX,
-    width:
-      target === 'left'
-        ? leftPanelWidth.value
-        : rightPanelWidth.value,
-  }
-
-  const handle =
-    event.currentTarget as HTMLElement | null
-
-  if (
-    handle &&
-    typeof handle.setPointerCapture === 'function'
-  ) {
-    try {
-      handle.setPointerCapture(
-        event.pointerId
-      )
-    } catch {
-      // 某些浏览器 / 触控屏可能不支持捕获，退回 document 监听。
-    }
-  }
-
-  document.body.classList.add(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor =
-    'col-resize'
-
-  document.body.style.userSelect =
-    'none'
-
-  document.addEventListener(
-    'pointermove',
-    onPanelResizeMove
-  )
-
-  document.addEventListener(
-    'pointerup',
-    stopPanelResize,
-    {
-      once:
-        true,
-    }
-  )
-
-  document.addEventListener(
-    'pointercancel',
-    stopPanelResize,
-    {
-      once:
-        true,
-    }
-  )
-}
-
-function resizeSceneOnly() {
+function resizeSceneNow() {
   if (
     !containerRef.value ||
     !camera ||
-    !renderer
+    !renderer ||
+    !scene
   ) {
     return
   }
 
-  const container =
-    containerRef.value
+  const width = Math.max(
+    1,
+    Math.round(
+      containerRef.value.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      containerRef.value.clientHeight
+    )
+  )
+
+  if (
+    width === lastSceneWidth &&
+    height === lastSceneHeight
+  ) {
+    return
+  }
+
+  lastSceneWidth = width
+  lastSceneHeight = height
 
   camera.aspect =
-    container.clientWidth /
-    Math.max(
-      1,
-      container.clientHeight
-    )
+    width / height
 
   camera.updateProjectionMatrix()
 
   renderer.setSize(
-    container.clientWidth,
-    container.clientHeight
+    width,
+    height,
+    false
+  )
+
+  controls?.update()
+
+  renderer.render(
+    scene,
+    camera
   )
 }
 
-function onPanelResizeMove(event: PointerEvent) {
-  if (
-    !panelResizeTarget ||
-    !panelResizeState
-  ) {
+function scheduleSceneResize(
+  delay = 110
+) {
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
+  }
+
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
+  if (isPanelLayoutResizing()) {
     return
   }
 
-  const bounds =
-    getPanelResizeBounds(
-      panelResizeTarget
-    )
+  sceneResizeTimer =
+    setTimeout(() => {
+      sceneResizeTimer = null
 
-  const delta =
-    event.clientX -
-    panelResizeState.startX
-
-  if (panelResizeTarget === 'left') {
-    leftPanelWidth.value =
-      clampPanelNumber(
-        panelResizeState.width + delta,
-        bounds.min,
-        bounds.max
-      )
-
-    leftPanelManuallyResized =
-      true
-  } else {
-    rightPanelWidth.value =
-      clampPanelNumber(
-        panelResizeState.width - delta,
-        bounds.min,
-        bounds.max
-      )
-
-    rightPanelManuallyResized =
-      true
-  }
-
-  resizeSceneOnly()
-}
-
-function stopPanelResize() {
-  panelResizeTarget =
-    null
-
-  panelResizeState =
-    null
-
-  document.body.classList.remove(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor =
-    ''
-
-  document.body.style.userSelect =
-    ''
-
-  document.removeEventListener(
-    'pointermove',
-    onPanelResizeMove
-  )
-
-  document.removeEventListener(
-    'pointerup',
-    stopPanelResize
-  )
-
-  document.removeEventListener(
-    'pointercancel',
-    stopPanelResize
-  )
-
-  resizeSceneOnly()
+      sceneResizeFrame =
+        requestAnimationFrame(() => {
+          sceneResizeSettleFrame =
+            requestAnimationFrame(() => {
+              resizeSceneNow()
+            })
+        })
+    }, delay)
 }
 
 
@@ -1053,8 +793,6 @@ const brightness = ref(1.2)
 const nightMapPower = ref(1.8)
 const nightLightPower = ref(1.65)
 const darkSideSurfacePower = ref(0.42)
-const panelCollapsed = ref(false)
-const knowledgeCollapsed = ref(false)
 const currentView = ref('equator')
 const selectedCity = ref<typeof cityData[0] | null>(null)
 const citySearch = ref('')
@@ -1886,17 +1624,79 @@ function createCityMarkers(): void {
 
 // ===================== 初始化 Three.js =====================
 function initThree() {
-  const container = containerRef.value!
+  const container =
+    containerRef.value
+
+  if (!container) {
+    return
+  }
+
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x000511)
+  scene.background =
+    new THREE.Color(0x000511)
 
-  camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 200)
-  camera.position.set(0, 2, 7)
+  camera =
+    new THREE.PerspectiveCamera(
+      50,
+      width / height,
+      0.1,
+      200
+    )
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.setSize(container.clientWidth, container.clientHeight)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-  container.appendChild(renderer.domElement)
+  camera.position.set(
+    0,
+    2,
+    7
+  )
+
+  renderer =
+    new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference:
+        'high-performance',
+    })
+
+  /*
+   * 先设置 DPR，再同步真实 drawing buffer 尺寸，
+   * 避免默认 300×150 画布被 CSS 拉伸。
+   */
+  renderer.setPixelRatio(
+    Math.min(
+      window.devicePixelRatio || 1,
+      2
+    )
+  )
+
+  renderer.setSize(
+    width,
+    height,
+    false
+  )
+
+  renderer.domElement.className =
+    'three-canvas earth-rotation-canvas'
+
+  lastSceneWidth = width
+  lastSceneHeight = height
+
+  container.appendChild(
+    renderer.domElement
+  )
 
   controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
@@ -2137,12 +1937,35 @@ function initThree() {
   raycaster = new THREE.Raycaster()
   mouse = new THREE.Vector2()
 
-  renderer.domElement.addEventListener('click', onCanvasClick)
-  window.addEventListener('resize', onResize)
+  renderer.domElement.addEventListener(
+    'click',
+    onCanvasClick
+  )
+
+  sceneResizeObserver =
+    new ResizeObserver(() => {
+      scheduleSceneResize(110)
+    })
+
+  sceneResizeObserver.observe(
+    container
+  )
 
   applyLayerVisibility()
   generateProblem()
+
+  /*
+   * 动画启动前先绘制一帧，避免首屏模糊或拉伸。
+   */
+  controls.update()
+
+  renderer.render(
+    scene,
+    camera
+  )
+
   animate()
+  scheduleSceneResize(0)
 }
 
 function updateEarthShaderUniforms() {
@@ -2270,32 +2093,7 @@ function onCanvasClick(event: MouseEvent) {
 }
 
 function onResize() {
-  syncLayoutMode()
-
-  if (
-    !containerRef.value ||
-    !camera ||
-    !renderer
-  ) {
-    return
-  }
-
-  const container =
-    containerRef.value
-
-  camera.aspect =
-    container.clientWidth /
-    Math.max(
-      1,
-      container.clientHeight
-    )
-
-  camera.updateProjectionMatrix()
-
-  renderer.setSize(
-    container.clientWidth,
-    container.clientHeight
-  )
+  scheduleSceneResize(110)
 }
 
 // ===================== 控制方法 =====================
@@ -2920,20 +2718,55 @@ watch(trainingPhase, () => generateProblem())
 watch([() => pointA.lon, () => pointB.lon], () => updateABMarkers())
 
 // ===================== 生命周期 =====================
-onMounted(() => {
-  syncLayoutMode()
+onMounted(async () => {
+  await nextTick()
   initThree()
 })
 
 onUnmounted(() => {
-  cancelAnimationFrame(animationId)
-  window.removeEventListener('resize', onResize)
-  window.removeEventListener('pointermove', onAxisPointerMove)
-  window.removeEventListener('pointerup', onAxisPointerUp)
-  window.removeEventListener('pointercancel', onAxisPointerUp)
-  document.removeEventListener('pointermove', onPanelResizeMove)
-  document.body.classList.remove('geo-panel-resizing')
-  renderer?.domElement.removeEventListener('click', onCanvasClick)
+  cancelAnimationFrame(
+    animationId
+  )
+
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
+
+    sceneResizeTimer = null
+  }
+
+  sceneResizeObserver?.disconnect()
+  sceneResizeObserver = null
+
+  window.removeEventListener(
+    'pointermove',
+    onAxisPointerMove
+  )
+
+  window.removeEventListener(
+    'pointerup',
+    onAxisPointerUp
+  )
+
+  window.removeEventListener(
+    'pointercancel',
+    onAxisPointerUp
+  )
+
+  renderer?.domElement.removeEventListener(
+    'click',
+    onCanvasClick
+  )
+
   controls?.dispose()
   renderer?.dispose()
   scene?.traverse(obj => {
@@ -5709,4 +5542,26 @@ body.geo-panel-resizing {
    - 修复 860 断点面板突然变宽；
    - layoutMode 只负责布局形态，不再决定面板宽度。
 */
+
+/* ===================== 公共面板 Hook 与防闪烁 ===================== */
+.earth-rotation-container .workspace.panel-resizing,
+.earth-rotation-container .workspace.layout-resizing,
+.earth-rotation-container .workspace.panel-resizing .side-panel,
+.earth-rotation-container .workspace.layout-resizing .side-panel,
+.earth-rotation-container .workspace.panel-resizing .center-stage,
+.earth-rotation-container .workspace.layout-resizing .center-stage {
+  transition: none !important;
+}
+
+.earth-rotation-container .rotation-scene-host {
+  overflow: hidden;
+}
+
+.earth-rotation-container .earth-rotation-canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100%;
+  min-height: 100%;
+}
 </style>

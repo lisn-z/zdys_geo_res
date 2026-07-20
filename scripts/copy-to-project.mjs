@@ -2,6 +2,7 @@
  * 将 output 目录下的生成文件复制到目标项目：
  *   - output/astro/*.astro          →  <target>/src/pages/geo/
  *   - output/styles/*.css           →  <target>/src/styles/
+ *   - output/hooks/*.ts             →  <target>/src/hooks/
  *   - output/geo/*  (所有子文件夹)   →  <target>/src/components/geo/
  */
 
@@ -38,7 +39,8 @@ const COPY_WHITELIST = [
   'earth-rotation',
   'moon-phase',
   'temperature-and-precipitation',
-  'soil-erosion'
+  'soil-erosion',
+  'general-atmospheric-circulation'
 ]
 
 const MAPPINGS = [
@@ -55,6 +57,13 @@ const MAPPINGS = [
     dest: join(TARGET_DIR, 'src', 'styles'),
     filter: (name) =>
       name.endsWith('.css'),
+  },
+  {
+    label: 'hooks 文件',
+    src: join(OUTPUT_DIR, 'hooks'),
+    dest: join(TARGET_DIR, 'src', 'hooks'),
+    filter: (name) =>
+      name.endsWith('.ts'),
   },
   {
     label: 'geo 组件',
@@ -143,8 +152,8 @@ function main() {
       cpSync(srcPath, destPath, { recursive: true })
       copyCount++
 
-      if (mapping.label === '样式文件') {
-        // 样式文件直接放在根级别
+      if (mapping.label === '样式文件' || mapping.label === 'hooks 文件') {
+        // 样式/hooks 文件直接放在根级别
         if (!report[label]) report[label] = []
         report[label].push({ input: srcPath, output: destPath })
       } else {
@@ -170,7 +179,7 @@ function main() {
 
   // 收集所有 key
   report.keys = Object.keys(report)
-    .filter(k => !['target', 'timestamp', 'keys', '样式文件', 'copyTime', 'copyDate'].includes(k))
+    .filter(k => !['target', 'timestamp', 'keys', '样式文件', 'hooks 文件', 'copyTime', 'copyDate'].includes(k))
     .map(k => ({ key: k, name: report[k].name || '' }))
 
   report.keysArray = report.keys.map(k => k.key)
