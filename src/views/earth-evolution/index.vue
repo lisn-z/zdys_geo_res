@@ -18,15 +18,6 @@
       <div class="toolbar-actions">
         <button
           type="button"
-          class="theme-btn toolbar-btn era-scale-btn"
-          :class="{ active: showEonLabels }"
-          @click="showEonLabels = !showEonLabels"
-        >
-          {{ showEonLabels ? '隐藏宙名' : '显示宙名' }}
-        </button>
-
-        <button
-          type="button"
           class="theme-btn toolbar-btn"
           @click="resetEvolution"
         >
@@ -136,77 +127,91 @@
             </div>
           </div>
 
-          <!-- 底部：横向时间轴 -->
-          <div class="timeline-rail">
-            <!-- 浮动宙名指示器：跟随当前年代所在宙移动 -->
+          <!-- 底部：详尽年代划分 -->
+          <div class="scroll-table-shell">
             <div
-              v-show="showEonLabels"
-              class="eon-indicator"
-              :class="'eon-' + currentEon.id"
-              :style="{
-                transform:
-                  'translate3d(' +
-                  eonIndicatorX +
-                  'px, 0, 0)',
-                width: eonIndicatorWidth + 'px',
-              }"
-            >
-              <span class="eon-indicator-name">
-                {{ currentEon.name }}
-              </span>
-              <span class="eon-indicator-range">
-                {{ currentEon.range }}
-              </span>
-            </div>
-
-            <div
-              ref="railViewportRef"
-              class="timeline-viewport"
+              ref="scrollViewportRef"
+              class="scroll-table-viewport"
             >
               <div
-                ref="railTrackRef"
-                class="timeline-track"
-                :style="{
-                  transform:
-                    'translate3d(' +
-                    -scrollOffset +
-                    'px, 0, 0)',
-                }"
+                class="scroll-table-track"
+                :style="{ width: scrollTableWidth + 'px' }"
               >
-                <button
-                  v-for="(era, index) in eras"
-                  :key="era.id"
-                  type="button"
-                  class="era-card"
-                  :class="{
-                    active: era.id === currentEraId,
-                    passed: index < currentIndex,
-                  }"
-                  :data-eon="era.eon"
-                  @click="onCardClick(index)"
-                >
-                  <div class="era-card-thumb">
-                    <EraScene
-                      :era="era"
-                      :hero="false"
-                    />
+                <div class="scroll-row scroll-thumb-row">
+                  <div
+                    v-for="(era, idx) in eras"
+                    :key="'thumb-' + era.id"
+                    class="scroll-cell scroll-cell-clickable"
+                    :class="{ 'scroll-active': idx === currentIndex }"
+                    :style="{ width: displayColumnWidths[idx] + 'px' }"
+                    @click.stop="selectEra(idx)"
+                  >
+                    <div class="scroll-thumb-img">
+                      <EraScene :era="era" :hero="false" />
+                    </div>
                   </div>
-                  <div class="era-card-text">
-                    <strong>{{ era.name }}</strong>
-                    <span>{{ era.ageLabel }}</span>
-                  </div>
-                </button>
-              </div>
+                </div>
 
-              <div
-                class="timeline-axis"
-                aria-hidden="true"
-              >
-                <div class="timeline-axis-line"></div>
-                <div
-                  class="timeline-axis-cursor"
-                  :style="{ left: cursorX + 'px' }"
-                ></div>
+                <div class="scroll-row scroll-eon-row">
+                  <div
+                    v-for="(cell, ci) in scrollEonCells"
+                    :key="'eon-' + ci"
+                    class="scroll-cell scroll-merged-cell"
+                    :class="{ 'scroll-active': cell.isActive }"
+                    :style="{ width: cell.width + 'px' }"
+                  >
+                    {{ cell.name }}
+                  </div>
+                </div>
+
+                <div class="scroll-row scroll-era-row">
+                  <div
+                    v-for="(cell, ci) in scrollEraCells"
+                    :key="'era-' + ci"
+                    class="scroll-cell scroll-merged-cell"
+                    :class="{ 'scroll-active': cell.isActive }"
+                    :style="{ width: cell.width + 'px' }"
+                  >
+                    {{ cell.name }}
+                  </div>
+                </div>
+
+                <div class="scroll-row scroll-period-row">
+                  <div
+                    v-for="(era, idx) in eras"
+                    :key="'period-' + era.id"
+                    class="scroll-cell scroll-cell-clickable"
+                    :class="{ 'scroll-active': idx === currentIndex }"
+                    :style="{ width: displayColumnWidths[idx] + 'px' }"
+                    @click.stop="selectEra(idx)"
+                  >
+                    {{ era.name }}
+                  </div>
+                </div>
+
+                <div class="scroll-row scroll-event-row">
+                  <div
+                    v-for="(cell, ci) in scrollEventCells"
+                    :key="'event-' + ci"
+                    class="scroll-cell"
+                    :class="{ 'scroll-active': cell.isActive }"
+                    :style="{ width: cell.width + 'px' }"
+                  >
+                    {{ cell.text }}
+                  </div>
+                </div>
+
+                <div class="scroll-row scroll-age-row">
+                  <div
+                    v-for="(cell, ci) in scrollAgeCells"
+                    :key="'age-' + ci"
+                    class="scroll-cell"
+                    :class="{ 'scroll-active': cell.isActive }"
+                    :style="{ width: cell.width + 'px' }"
+                  >
+                    {{ cell.text }}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -333,8 +338,6 @@ const rightPanelWidth = ref(420)
 
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
-
-const showEonLabels = ref(true)
 
 const currentEraId = ref<string>(eras[0]!.id)
 const isSwitching = ref(false)
@@ -483,6 +486,129 @@ const cursorX = computed(() => {
     ),
   )
 })
+
+/* ===== 详尽年代表 ===== */
+const COL_MIN_WIDTH = 36
+
+const tableColumnWidths = computed<number[]>(() => {
+  const spans = eras.map((_, idx) => {
+    if (idx < eras.length - 1) {
+      return eras[idx]!.ageMya - eras[idx + 1]!.ageMya
+    }
+    return eras[idx]!.ageMya
+  })
+  return spans.map((span) =>
+    Math.max(COL_MIN_WIDTH, Math.round(span * 0.18)),
+  )
+})
+
+const displayColumnWidths = computed<number[]>(() => {
+  const natural = tableColumnWidths.value
+  const total = natural.reduce((a, b) => a + b, 0)
+  if (!scrollViewportWidth.value || total <= 0) {
+    return natural
+  }
+  const scale = Math.max(1, scrollViewportWidth.value / total)
+  return natural.map((w) =>
+    Math.max(COL_MIN_WIDTH, Math.round(w * scale)),
+  )
+})
+
+const scrollTableWidth = computed(() =>
+  displayColumnWidths.value.reduce((a, b) => a + b, 0),
+)
+
+function sumWidth(start: number, end: number) {
+  const widths = displayColumnWidths.value
+  let sum = 0
+  for (let i = start; i <= end; i++) {
+    sum += widths[i]!
+  }
+  return sum
+}
+
+// 宙分段
+const scrollEonCells = computed<
+  { start: number; end: number; name: string; isActive: boolean; width: number }[]
+>(() => {
+  const cells: { start: number; end: number; name: string; isActive: boolean; width: number }[] = []
+  let start = 0
+  eras.forEach((era, idx) => {
+    if (idx === eras.length - 1 || eras[idx + 1]!.eon !== era.eon) {
+      const isActive = currentIndex.value >= start && currentIndex.value <= idx
+      cells.push({ start, end: idx, name: era.eonLabel, isActive, width: sumWidth(start, idx) })
+      start = idx + 1
+    }
+  })
+  return cells
+})
+
+// 代名映射
+const eraIdToName: Record<string, string> = {
+  hadean: '太古代',
+  archean: '太古代',
+  proterozoic: '元古代',
+  paleozoic: '古生代',
+  mesozoic: '中生代',
+  cenozoic: '新生代',
+}
+
+// 代分段
+const scrollEraCells = computed<
+  { start: number; end: number; name: string; isActive: boolean; width: number }[]
+>(() => {
+  const cells: { start: number; end: number; name: string; isActive: boolean; width: number }[] = []
+  let start = 0
+  eras.forEach((era, idx) => {
+    if (idx === eras.length - 1 || eras[idx + 1]!.era !== era.era) {
+      const isActive = currentIndex.value >= start && currentIndex.value <= idx
+      cells.push({ start, end: idx, name: eraIdToName[era.era] || era.eraLabel, isActive, width: sumWidth(start, idx) })
+      start = idx + 1
+    }
+  })
+  return cells
+})
+
+// 事件映射
+const eonEventLabels: Record<string, string> = {
+  hadean: '陆核形成',
+  archean: '地台形成',
+  proterozoic: '联合古陆形成',
+  phanerozoic: '联合古陆解体',
+}
+
+const scrollEventCells = computed(() =>
+  eras.map((era, idx) => {
+    const eonEvent = eonEventLabels[era.eon]
+    let event = eonEvent || ''
+    if (idx > 0 && eras[idx - 1]!.eon === era.eon) {
+      event = ''
+    }
+    return {
+      text: event,
+      width: displayColumnWidths.value[idx]!,
+      isActive: idx === currentIndex.value,
+    }
+  }),
+)
+
+const scrollAgeCells = computed(() =>
+  eras.map((era, idx) => {
+    const mya = era.ageMya
+    let display = ''
+    if (mya >= 1000) display = String(Math.round(mya))
+    else if (mya >= 10) display = mya % 1 === 0 ? String(mya) : mya.toFixed(1)
+    else display = mya.toFixed(1)
+    return {
+      text: display,
+      width: displayColumnWidths.value[idx]!,
+      isActive: idx === currentIndex.value,
+    }
+  }),
+)
+
+const scrollViewportRef = ref<HTMLElement | null>(null)
+const scrollViewportWidth = ref(0)
 
 function clamp(
   value: number,
@@ -708,6 +834,9 @@ let pageResizeObserver:
   | ResizeObserver
   | null = null
 let railResizeObserver:
+  | ResizeObserver
+  | null = null
+let scrollViewportResizeObserver:
   | ResizeObserver
   | null = null
 let timelineAnimationFrameId = 0
@@ -1175,6 +1304,23 @@ onMounted(() => {
     )
   }
 
+  scrollViewportResizeObserver = new ResizeObserver(
+    () => {
+      if (scrollViewportRef.value) {
+        scrollViewportWidth.value =
+          scrollViewportRef.value.clientWidth
+      }
+    },
+  )
+
+  if (scrollViewportRef.value) {
+    scrollViewportResizeObserver.observe(
+      scrollViewportRef.value,
+    )
+    scrollViewportWidth.value =
+      scrollViewportRef.value.clientWidth
+  }
+
   nextTick(() => {
     syncOffsetToProgress()
   })
@@ -1188,6 +1334,8 @@ onBeforeUnmount(() => {
   pageResizeObserver = null
   railResizeObserver?.disconnect()
   railResizeObserver = null
+  scrollViewportResizeObserver?.disconnect()
+  scrollViewportResizeObserver = null
 
   if (railViewportRef.value) {
     railViewportRef.value.removeEventListener(
@@ -2011,5 +2159,170 @@ onBeforeUnmount(() => {
   .era-intro-tag {
     justify-self: flex-start;
   }
+}
+
+/* ===== 详尽年代划分表（仅新增样式） ===== */
+.scroll-table-shell {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding:
+    clamp(10px, 1.4vh, 16px)
+    0
+    0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.scroll-table-viewport {
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto hidden;
+  padding: 0;
+  scroll-behavior: smooth;
+}
+
+.scroll-table-viewport::-webkit-scrollbar {
+  height: 10px;
+}
+
+.scroll-table-viewport::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  margin: 0 2px;
+}
+
+.scroll-table-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.scroll-table-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.scroll-table-viewport {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(255, 255, 255, 0.55) rgba(255, 255, 255, 0.12);
+}
+
+.scroll-table-track {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.scroll-row {
+  display: flex;
+  width: 100%;
+}
+
+.scroll-row + .scroll-row {
+  margin-top:
+    clamp(2px, 0.3vh, 4px);
+}
+
+.scroll-cell {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 2px;
+  font-size:
+    clamp(7px, 0.55vw, 10px);
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-align: center;
+  white-space: nowrap;
+  border-right: 1px solid rgba(222, 184, 135, 0.08);
+  box-sizing: border-box;
+  transition: color 0.25s ease, background 0.25s ease;
+  line-height: 1.2;
+}
+
+.scroll-cell:last-child {
+  border-right: none;
+}
+
+.scroll-cell-clickable {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.scroll-active {
+  color: var(--theme-primary) !important;
+  background: rgba(var(--theme-primary-rgb), 0.08) !important;
+}
+
+.scroll-thumb-img {
+  width: 100%;
+  height:
+    clamp(24px, 2.6vh, 36px);
+  overflow: hidden;
+  border-radius: 3px;
+  opacity: 0.78;
+  background: #0a0f1a;
+}
+
+.scroll-active .scroll-thumb-img {
+  opacity: 1;
+}
+
+.scroll-eon-row .scroll-cell {
+  font-size:
+    clamp(9px, 0.8vw, 13px);
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  padding: 3px 3px;
+  border-bottom: 2px solid transparent;
+}
+
+.scroll-eon-row .scroll-active {
+  border-bottom-color: var(--theme-primary);
+}
+
+.scroll-era-row .scroll-cell {
+  font-size:
+    clamp(8px, 0.7vw, 11px);
+  font-weight: 800;
+  color: var(--text-primary);
+  padding: 2px 3px;
+  border-bottom: 1px solid rgba(222, 184, 135, 0.12);
+}
+
+.scroll-period-row .scroll-cell {
+  padding: 3px 2px;
+  font-size:
+    clamp(7px, 0.6vw, 10px);
+  font-weight: 800;
+}
+
+.scroll-event-row .scroll-cell {
+  font-size:
+    clamp(6px, 0.5vw, 9px);
+  font-weight: 600;
+  color: var(--theme-secondary);
+  padding: 2px 2px;
+  letter-spacing: 0.1px;
+}
+
+.scroll-age-row .scroll-cell {
+  font-size:
+    clamp(6px, 0.5vw, 9px);
+  font-weight: 700;
+  color: var(--text-secondary);
+  opacity: 0.75;
+  padding: 2px 2px;
+}
+
+.scroll-merged-cell {
+  justify-content: center;
+  border-right: 1px solid rgba(222, 184, 135, 0.12);
 }
 </style>

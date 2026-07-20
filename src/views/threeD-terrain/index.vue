@@ -10,11 +10,15 @@
       <h1 class="page-title">等高线地形图 · 三维投影</h1>
 
       <div class="toolbar-actions">
+        <button type="button" class="theme-btn toolbar-btn" @click="startLearning">
+          地形判读
+        </button>
+
         <button type="button" class="theme-btn toolbar-btn" @click="setView('front')">
           前视图
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
+        <button type="button" class="theme-btn toolbar-btn" @click="toggleAllPanels">
           {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
         </button>
       </div>
@@ -346,7 +350,44 @@
         aria-label="展开右侧面板" @click="rightCollapsed = false">
         ‹
       </button>
+
     </main>
+
+    <!-- 地形判读学习模块 (独立于 workspace，避免交互冲突) -->
+    <div v-if="learningMode" class="quiz-overlay">
+      <div class="quiz-panel">
+        <div class="quiz-header">
+          <div class="quiz-title">📚 地形判读学习</div>
+          <div class="quiz-subtitle">请根据下方的 3D 地形和投影等高线判读属于哪种地形</div>
+        </div>
+        <div class="quiz-content">
+          <div class="quiz-options">
+            <button
+              v-for="opt in quizOptions"
+              :key="opt"
+              type="button"
+              class="quiz-option"
+              :class="getOptionClass(opt)"
+              :disabled="quizResult !== null"
+              @click="onQuizAnswer(opt)">
+              {{ opt }}
+            </button>
+          </div>
+          <div v-if="quizResult" class="quiz-feedback">
+            <span v-if="quizResult === 'correct'" class="feedback-correct">✓ 回答正确！</span>
+            <span v-else class="feedback-wrong">✗ 回答错误，正确答案是：<b>{{ currentQuizType }}</b></span>
+          </div>
+        </div>
+        <div class="quiz-actions">
+          <button type="button" class="quiz-btn quiz-btn-next" @click="nextQuiz" :disabled="!quizResult">
+            {{ quizResult ? '下一题 →' : '请先回答' }}
+          </button>
+          <button type="button" class="quiz-btn quiz-btn-end" @click="endLearning">
+            结束学习
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -392,6 +433,19 @@ const profileClicks = ref(0)
 const profileData = ref<{ dist: number; elev: number }[]>([])
 const terrainGenType = ref('all')
 const generatingTerrain = ref(false)
+
+// ============================================================
+// 地形判读学习模块
+// ============================================================
+const learningMode = ref(false)
+const currentQuizType = ref<string>('')
+const quizResult = ref<'correct' | 'wrong' | null>(null)
+const lastAnswer = ref<string | null>(null)
+const quizOptions = ['山峰', '盆地', '山谷', '山脊', '陡崖', '鞍部']
+const QUIZ_TYPES = ['peak', 'basin', 'valley', 'ridge', 'cliff', 'saddle']
+let savedTerrainGenType = ''  // 进入学习前保存原类型
+let savedHeightValue = 0
+let savedHeightsData: number[][] = []
 
 type LayoutMode =
   | 'large'
@@ -1931,6 +1985,8 @@ function addElevationLabels() {
 }
 
 function addFeatureLabels() {
+  // 学习模式下不显示地形标签（避免透漏答案）
+  if (learningMode.value) return
   // 根据当前地形生成类型，只显示对应标签
   const allFeatures = [
     { type: 'peak', text: '山顶', x: 0.78, z: 0.78, color: '#ff6b6b' },
@@ -2359,6 +2415,116 @@ function generateRandomTerrain() {
     buildLabels()
     generatingTerrain.value = false
   }, 50)
+}
+
+// ============================================================
+// 地形判读学习
+// ============================================================
+function startLearning() {
+  if (learningMode.value) return
+  // 保存当前状态
+  savedTerrainGenType = terrainGenType.value
+  savedHeightValue = maxHeightValue
+  savedHeightsData = heightsData.map(row => [...row])
+  // 自动收起左右面板（避免遮挡地形）
+  leftCollapsed.value = true
+  rightCollapsed.value = true
+  // 立即隐藏现有地形标签（避免泄露答案）
+  while (featureLabelGroup.children.length) {
+    const c = featureLabelGroup.children[0]
+    c.parent?.remove(c)
+  }
+  learningMode.value = true
+  quizResult.value = null
+  generateNextQuiz()
+}
+
+function endLearning() {
+  learningMode.value = false
+  quizResult.value = null
+  lastAnswer.value = null
+  // 恢复原状态，展开面板并切回前视图
+  leftCollapsed.value = false
+  rightCollapsed.value = false
+  terrainGenType.value = savedTerrainGenType
+  heightsData = savedHeightsData
+  maxHeightValue = savedHeightValue
+  if (savedHeightValue > 0) {
+    // 重新构建原地形
+    const positions = new Float32Array(GRID_SIZE * GRID_SIZE * 3)
+    const colors = new Float32Array(GRID_SIZE * GRID_SIZE * 3)
+    for (let j = 0; j < GRID_SIZE; j++) {
+      for (let i = 0; i < GRID_SIZE; i++) {
+        const idx = (j * GRID_SIZE + i) * 3
+        const x = (i / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
+        const z = (j / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
+        const realH = heightsData[j][i]
+        const displayH = getDisplayHeight(realH)
+        positions[idx] = x
+        positions[idx + 1] = displayH
+        positions[idx + 2] = z
+        const norm = (realH - BASE_ELEVATION) / (maxHeightValue - BASE_ELEVATION)
+        const col = getTerrainColor(Math.max(0, Math.min(1, norm)))
+        colors[idx] = col.r
+        colors[idx + 1] = col.g
+        colors[idx + 2] = col.b
+      }
+    }
+    const indices: number[] = []
+    for (let j = 0; j < GRID_SIZE - 1; j++) {
+      for (let i = 0; i < GRID_SIZE - 1; i++) {
+        const a = j * GRID_SIZE + i
+        const b = j * GRID_SIZE + i + 1
+        const c = (j + 1) * GRID_SIZE + i
+        const d = (j + 1) * GRID_SIZE + i + 1
+        indices.push(a, b, c)
+        indices.push(b, d, c)
+      }
+    }
+    terrainMesh.geometry.dispose()
+    const newGeo = new THREE.BufferGeometry()
+    newGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    newGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    newGeo.setIndex(indices)
+    newGeo.computeVertexNormals()
+    terrainMesh.geometry = newGeo
+    buildContoursAndProjection()
+    buildLabels()
+  }
+  setView('front')
+}
+
+function generateNextQuiz() {
+  // 随机选择 6 种地形之一
+  const typeIdx = Math.floor(Math.random() * QUIZ_TYPES.length)
+  const type = QUIZ_TYPES[typeIdx]
+  currentQuizType.value = quizOptions[typeIdx]
+  quizResult.value = null
+  lastAnswer.value = null
+  // 设置 terrainGenType 触发对应地形生成
+  terrainGenType.value = type
+  generateRandomTerrain()
+}
+
+function nextQuiz() {
+  generateNextQuiz()
+}
+
+function onQuizAnswer(answer: string) {
+  if (quizResult.value !== null) return
+  lastAnswer.value = answer
+  if (answer === currentQuizType.value) {
+    quizResult.value = 'correct'
+  } else {
+    quizResult.value = 'wrong'
+  }
+}
+
+function getOptionClass(opt: string) {
+  if (!quizResult.value) return ''
+  if (opt === currentQuizType.value) return 'option-correct'
+  if (opt === lastAnswer.value && opt !== currentQuizType.value) return 'option-wrong'
+  return ''
 }
 
 function toggleProfileMode() {
@@ -3818,4 +3984,146 @@ onUnmounted(() => {
    - 山脊线 / 山谷线同步抬升；
    - 不使用 depthTest:false，避免背面等高线穿透显示。
 */
+
+/* 地形判读学习模块覆盖层 — 顶部居中 */
+.quiz-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;     /* 顶部对齐，不挡地形 */
+  justify-content: center;
+  pointer-events: none;
+  padding-top: calc(70px * var(--ui-scale, 1));  /* 避开工具栏 */
+}
+
+.quiz-panel {
+  pointer-events: auto;
+  z-index: 201;
+  width: min(720px, 90vw);
+  background: rgba(8, 16, 30, 0.96);
+  border: 1px solid rgba(46, 196, 182, 0.4);
+  border-radius: calc(14px * var(--ui-scale, 1));
+  padding: calc(18px * var(--ui-scale, 1)) calc(22px * var(--ui-scale, 1));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  color: #e0f0ff;
+  font-family: 'Microsoft YaHei', sans-serif;
+}
+
+.quiz-header {
+  text-align: center;
+  margin-bottom: calc(14px * var(--ui-scale, 1));
+  padding-bottom: calc(10px * var(--ui-scale, 1));
+  border-bottom: 1px solid rgba(46, 196, 182, 0.25);
+}
+.quiz-title {
+  font-size: calc(18px * var(--ui-scale, 1));
+  font-weight: 700;
+  color: #2ec4b6;
+  margin-bottom: calc(4px * var(--ui-scale, 1));
+}
+.quiz-subtitle {
+  font-size: calc(13px * var(--ui-scale, 1));
+  color: #88aabb;
+}
+
+.quiz-options {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: calc(10px * var(--ui-scale, 1));
+  margin-bottom: calc(12px * var(--ui-scale, 1));
+}
+
+.quiz-option {
+  padding: calc(10px * var(--ui-scale, 1)) calc(8px * var(--ui-scale, 1));
+  font-size: calc(15px * var(--ui-scale, 1));
+  font-weight: 600;
+  font-family: 'Microsoft YaHei', sans-serif;
+  color: #b0c8e0;
+  background: rgba(46, 196, 182, 0.08);
+  border: 1px solid rgba(46, 196, 182, 0.3);
+  border-radius: calc(8px * var(--ui-scale, 1));
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+.quiz-option:hover:not(:disabled) {
+  background: rgba(46, 196, 182, 0.25);
+  border-color: #2ec4b6;
+  color: #fff;
+  transform: translateY(-2px);
+}
+.quiz-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.quiz-option.option-correct {
+  background: rgba(40, 200, 100, 0.35) !important;
+  border-color: #2ecc71 !important;
+  color: #fff !important;
+  box-shadow: 0 0 12px rgba(46, 204, 113, 0.4);
+}
+.quiz-option.option-wrong {
+  background: rgba(220, 60, 60, 0.35) !important;
+  border-color: #e74c3c !important;
+  color: #fff !important;
+  box-shadow: 0 0 12px rgba(231, 76, 60, 0.4);
+}
+
+.quiz-feedback {
+  text-align: center;
+  font-size: calc(15px * var(--ui-scale, 1));
+  font-weight: 600;
+  margin-bottom: calc(12px * var(--ui-scale, 1));
+  min-height: calc(22px * var(--ui-scale, 1));
+}
+.feedback-correct { color: #2ecc71; }
+.feedback-wrong { color: #e74c3c; }
+
+.quiz-actions {
+  display: flex;
+  gap: calc(12px * var(--ui-scale, 1));
+  justify-content: center;
+}
+
+.quiz-btn {
+  padding: calc(8px * var(--ui-scale, 1)) calc(20px * var(--ui-scale, 1));
+  font-size: calc(14px * var(--ui-scale, 1));
+  font-weight: 600;
+  font-family: 'Microsoft YaHei', sans-serif;
+  border-radius: calc(8px * var(--ui-scale, 1));
+  cursor: pointer;
+  border: 1px solid;
+  transition: all 0.2s ease;
+}
+.quiz-btn-next {
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.25), rgba(36, 124, 255, 0.25));
+  border-color: #2ec4b6;
+  color: #2ec4b6;
+}
+.quiz-btn-next:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.quiz-btn-next:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.45), rgba(36, 124, 255, 0.45));
+  box-shadow: 0 0 12px rgba(46, 196, 182, 0.4);
+}
+.quiz-btn-end {
+  background: rgba(231, 76, 60, 0.1);
+  border-color: rgba(231, 76, 60, 0.4);
+  color: #e74c3c;
+}
+.quiz-btn-end:hover {
+  background: rgba(231, 76, 60, 0.25);
+}
+
+@media (max-width: 768px) {
+  .quiz-options { grid-template-columns: repeat(3, 1fr); }
+  .quiz-panel { width: 95vw; padding: 14px 16px; }
+  .quiz-title { font-size: 16px; }
+  .quiz-subtitle { font-size: 12px; }
+  .quiz-option { font-size: 13px; padding: 8px 4px; }
+}
 </style>
