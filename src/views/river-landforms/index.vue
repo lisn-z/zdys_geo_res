@@ -76,8 +76,8 @@
 
             <div class="switch-row">
               <div class="control-copy">
-                <strong>水流动画</strong>
-                <span>河流表面产生流动效果</span>
+                <strong>河流动画</strong>
+                <span>蓝色河流产生流动波纹效果</span>
               </div>
 
               <el-switch v-model="showFlow" />
@@ -335,7 +335,7 @@
                 <div class="collapse-content">
                   <div class="delta-shapes-image">
                     <img
-                      src="/geo-resources-folder/images/delta-shapes.jpg"
+                      src="https://zdys.szjx.ai-study.net/geo-resources-folder/images/delta-shapes.jpg"
                       alt="不同形态的河口三角洲示意"
                       class="delta-shapes-img"
                       @error="onPhotoError"
@@ -659,7 +659,7 @@ import {
  * 真实实景图（来自项目 OSS 图床，存放在 geo/image 下）
  * =================================================================== */
 
-const SUN_TEXTURE_URL = '/geo-resources-folder/images/'
+const SUN_TEXTURE_URL = 'https://zdys.szjx.ai-study.net/geo-resources-folder/images/'
 
 const PHOTO_PLACEHOLDER =
   'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=520&h=320&fit=crop'
@@ -917,6 +917,7 @@ let labelTargets: Array<{
 
 let riverMesh: THREE.Mesh | null = null
 let riverMaterial: THREE.MeshStandardMaterial | null = null
+let oceanMaterial: THREE.ShaderMaterial | null = null
 let contourGroup: THREE.Group | null = null
 let contourGroupVisible = true
 let flowGroup: THREE.Group | null = null
@@ -1173,12 +1174,13 @@ function createTerrain() {
   return { group, mesh }
 }
 
-/* ---- 河流 ---- */
+/* ---- 河流（蓝色真实水面 + 流动波纹） ---- */
 function createRiver() {
   const samples = sampleRiverPath(400)
   const positions: number[] = []
   const indices: number[] = []
   const colors: number[] = []
+  const uvs: number[] = []
 
   for (let i = 0; i < samples.length; i++) {
     const p = samples[i]!
@@ -1209,10 +1211,15 @@ function createRiver() {
     positions.push(p.x + normal.x * w, y, p.y + normal.y * w)
     positions.push(p.x - normal.x * w, y, p.y - normal.y * w)
 
+    // UV 沿河流方向（用于流动纹理）
+    const u = t * 40
+    uvs.push(0, u, 1, u)
+
+    // 真实河水蓝（深蓝-浅蓝渐变）
     const colorMix = Math.min(1, t)
-    const r = 0.1 + colorMix * 0.06
-    const g = 0.4 + colorMix * 0.16
-    const b = 0.7 + colorMix * 0.18
+    const r = 0.12 + colorMix * 0.10
+    const g = 0.45 + colorMix * 0.20
+    const b = 0.75 + colorMix * 0.20
     colors.push(r, g, b, r, g, b)
 
     if (i < samples.length - 1) {
@@ -1231,51 +1238,168 @@ function createRiver() {
     'color',
     new THREE.Float32BufferAttribute(colors, 3)
   )
+  geometry.setAttribute(
+    'uv',
+    new THREE.Float32BufferAttribute(uvs, 2)
+  )
   geometry.setIndex(indices)
   geometry.computeVertexNormals()
 
-  riverMaterial = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.18,
-    metalness: 0.55,
+  // 使用自定义 shader 实现流动水面
+  const waterMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uFlowSpeed: { value: 0.18 },
+      uColorDeep: { value: new THREE.Color(0x0c3a6b) },
+      uColorShallow: { value: new THREE.Color(0x4a9fd5) },
+      uColorFoam: { value: new THREE.Color(0xeaf6ff) },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      uniform float uTime;
+
+      void main() {
+        vUv = uv;
+        vec3 pos = position;
+        // 河流表面轻微波动
+        float wave1 = sin(pos.x * 0.8 + uTime * 1.5) * 0.025;
+        float wave2 = cos(pos.z * 1.1 + uTime * 1.2) * 0.02;
+        pos.y += wave1 + wave2;
+        vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+        vWorldPos = worldPos.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform float uFlowSpeed;
+      uniform vec3 uColorDeep;
+      uniform vec3 uColorShallow;
+      uniform vec3 uColorFoam;
+      varying vec2 vUv;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+
+      void main() {
+        // 沿河流方向流动的 UV
+        vec2 uv = vUv;
+        float flow = uTime * uFlowSpeed;
+
+        // 主波纹 - 沿河流方向流动
+        float wave1 = sin(uv.y * 12.0 - flow * 3.0 + uv.x * 1.2) * 0.5 + 0.5;
+        // 横向小波纹
+        float wave2 = sin(uv.x * 6.0 - flow * 1.2) * 0.5 + 0.5;
+        // 噪声细节
+        float noise = hash(floor(uv * vec2(20.0, 80.0) - vec2(0.0, flow * 4.0)));
+        float noise2 = hash(floor(uv * vec2(35.0, 150.0) - vec2(0.0, flow * 5.0)));
+
+        // 混合深浅
+        float t = wave1 * 0.5 + wave2 * 0.3 + noise * 0.1 + noise2 * 0.1;
+        vec3 baseColor = mix(uColorDeep, uColorShallow, t);
+
+        // 高光 - 模拟阳光在水面反射
+        float highlight = pow(wave1, 6.0) * 0.6;
+        baseColor += vec3(highlight);
+
+        // 白色水纹 - 沿河流方向
+        float foamLine = smoothstep(0.85, 0.95, wave1 * (0.7 + noise2 * 0.5));
+        baseColor = mix(baseColor, uColorFoam, foamLine * 0.5);
+
+        // 边缘渐变 - 岸边更浅
+        float edgeFade = smoothstep(0.0, 0.15, vUv.x) * smoothstep(0.0, 0.15, 1.0 - vUv.x);
+        baseColor = mix(uColorShallow, baseColor, edgeFade);
+
+        gl_FragColor = vec4(baseColor, 0.95);
+      }
+    `,
     transparent: true,
-    opacity: 0.92,
+    side: THREE.DoubleSide,
   })
 
-  riverMesh = new THREE.Mesh(geometry, riverMaterial)
+  riverMaterial = waterMaterial as unknown as THREE.MeshStandardMaterial
+
+  riverMesh = new THREE.Mesh(geometry, waterMaterial)
   riverMesh.receiveShadow = true
 
   return riverMesh
 }
 
-/* ---- 海洋（带波浪） ---- */
+/* ---- 海洋（蓝色波浪 + 流动） ---- */
 function createOcean() {
   const geometry = new THREE.PlaneGeometry(40, 36, 80, 60)
   geometry.rotateX(-Math.PI / 2)
-  const positions = geometry.attributes.position!
-  for (let i = 0; i < positions.count; i++) {
-    const x = positions.getX(i)
-    const z = positions.getZ(i)
-    const wave =
-      Math.sin(x * 0.6) * 0.06 +
-      Math.cos(z * 0.5) * 0.05
-    positions.setY(i, wave)
-  }
-  geometry.computeVertexNormals()
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x247cff,
-    roughness: 0.12,
-    metalness: 0.75,
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uColorDeep: { value: new THREE.Color(0x08315a) },
+      uColorShallow: { value: new THREE.Color(0x3088c4) },
+      uColorFoam: { value: new THREE.Color(0xeaf6ff) },
+    },
+    vertexShader: /* glsl */ `
+      uniform float uTime;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+
+      void main() {
+        vUv = uv;
+        vec3 pos = position;
+        // 大海波浪 - 多频叠加
+        float wave1 = sin(pos.x * 0.4 + uTime * 0.8) * 0.12;
+        float wave2 = cos(pos.z * 0.5 + uTime * 0.6) * 0.10;
+        float wave3 = sin((pos.x + pos.z) * 0.3 + uTime * 1.0) * 0.08;
+        pos.y += wave1 + wave2 + wave3;
+        vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+        vWorldPos = worldPos.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform vec3 uColorDeep;
+      uniform vec3 uColorShallow;
+      uniform vec3 uColorFoam;
+      varying vec2 vUv;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+
+      void main() {
+        // 慢速流动的海洋表面
+        float flow = uTime * 0.05;
+        float wave1 = sin(vUv.x * 8.0 + vUv.y * 6.0 + flow * 2.0) * 0.5 + 0.5;
+        float wave2 = cos(vUv.x * 5.0 - vUv.y * 7.0 + flow * 1.5) * 0.5 + 0.5;
+        float noise = hash(floor(vUv * vec2(40.0, 40.0) + vec2(flow * 3.0, 0.0)));
+
+        float t = wave1 * 0.4 + wave2 * 0.3 + noise * 0.3;
+        vec3 baseColor = mix(uColorDeep, uColorShallow, t);
+
+        // 海面高光
+        float highlight = pow(wave1, 5.0) * 0.5;
+        baseColor += vec3(highlight * 0.7);
+
+        // 海面泡沫
+        float foam = smoothstep(0.85, 0.95, wave1 * (0.6 + noise * 0.4));
+        baseColor = mix(baseColor, uColorFoam, foam * 0.3);
+
+        gl_FragColor = vec4(baseColor, 0.92);
+      }
+    `,
     transparent: true,
-    opacity: 0.88,
+    side: THREE.DoubleSide,
   })
+
   const mesh = new THREE.Mesh(geometry, material)
   mesh.position.set(46, 0, 0)
   mesh.receiveShadow = true
+  oceanMaterial = material
   return mesh
 }
 
-/* ---- 流动粒子 ---- */
+/* ---- 流动波纹粒子（白色水纹沿河面流动） ---- */
 function createFlowParticles() {
   const group = new THREE.Group()
   const samples = sampleRiverPath(80)
@@ -1285,23 +1409,44 @@ function createFlowParticles() {
     speed: number
   }> = []
 
-  const geo = new THREE.SphereGeometry(0.07, 8, 6)
+  // 使用扁平的椭圆形 mesh 模拟蓝色河水波纹
+  const geo = new THREE.PlaneGeometry(0.22, 0.10)
   const mat = new THREE.MeshBasicMaterial({
-    color: 0xcaf6ff,
+    color: 0x3a8fd6,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.75,
+    side: THREE.DoubleSide,
+    depthWrite: false,
   })
 
-  for (let i = 0; i < 36; i++) {
+  for (let i = 0; i < 60; i++) {
     const m = new THREE.Mesh(geo, mat.clone())
     const p0 = samples[i % samples.length]!
-    const y = terrainHeightAt(p0.x, p0.y) + 0.05
-    m.position.set(p0.x, y, p0.y)
+    const t = i / 60
+    const w = riverWidthAt(t) * 0.7
+    // 横向偏移（在河面中央 ± 60%）
+    const lateral = (Math.random() - 0.5) * 1.2 * w
+    // 计算法线方向
+    const next = samples[Math.min((i + 1) % samples.length, samples.length - 1)]!
+    const prev = samples[Math.max((i - 1 + samples.length) % samples.length, 0)]!
+    const tx = next.x - prev.x
+    const tz = next.y - prev.y
+    const tlen = Math.sqrt(tx * tx + tz * tz) || 1
+    const nx = -tz / tlen
+    const nz = tx / tlen
+    m.position.set(
+      p0.x + nx * lateral,
+      terrainHeightAt(p0.x, p0.y) + 0.10,
+      p0.y + nz * lateral
+    )
+    // 让 mesh 沿河流方向旋转
+    const angle = Math.atan2(tz, tx)
+    m.rotation.set(-Math.PI / 2, 0, -angle)
     group.add(m)
     dots.push({
       mesh: m,
-      progress: i / 36,
-      speed: 0.04 + Math.random() * 0.04,
+      progress: i / 60,
+      speed: 0.06 + Math.random() * 0.06,
     })
   }
 
@@ -1496,9 +1641,9 @@ const _contourAz = [0, 0, 1, 1]
 function createSoilBlock() {
   const group = new THREE.Group()
 
-  const sizeX = 60
-  const sizeZ = 30
-  const depth = 4
+  const sizeX = 80
+  const sizeZ = 40
+  const depth = 10
   const topY = 0.001
 
   // 程序化生成土壤贴图（多色斑驳）
@@ -1571,10 +1716,10 @@ function createSoilBlock() {
   }
 
   const grassTex = makeSoilTexture(true)
-  grassTex.repeat.set(12, 6)
+  grassTex.repeat.set(16, 8)
 
   const soilTex = makeSoilTexture(false)
-  soilTex.repeat.set(4, 1)
+  soilTex.repeat.set(5, 1.5)
 
   // 底面
   const bottomGeo = new THREE.PlaneGeometry(sizeX, sizeZ)
@@ -2144,6 +2289,16 @@ function animateScene() {
       0.55 + Math.sin(time * 3) * 0.2
   })
 
+  // 河流 shader uTime 更新
+  if (riverMaterial && (riverMaterial as any).uniforms?.uTime) {
+    (riverMaterial as any).uniforms.uTime.value = time
+  }
+
+  // 海洋 shader uTime 更新
+  if (oceanMaterial && oceanMaterial.uniforms?.uTime) {
+    oceanMaterial.uniforms.uTime.value = time
+  }
+
   if (flowGroupVisible) {
     for (let i = 0; i < flowDots.length; i++) {
       const d = flowDots[i]!
@@ -2155,8 +2310,29 @@ function animateScene() {
         d.progress * (flowSamples.length - 1)
       )
       const p = flowSamples[idx]!
-      const y = terrainHeightAt(p.x, p.y) + 0.08
-      d.mesh.position.set(p.x, y, p.y)
+
+      // 计算切线方向以旋转 mesh
+      const next = flowSamples[Math.min(idx + 1, flowSamples.length - 1)]!
+      const prev = flowSamples[Math.max(idx - 1, 0)]!
+      const tx = next.x - prev.x
+      const tz = next.y - prev.y
+      const tlen = Math.sqrt(tx * tx + tz * tz) || 1
+
+      // 沿河流方向的位置 + 沿法线方向的小幅漂移
+      const nx = -tz / tlen
+      const nz = tx / tlen
+      const phase = (i * 0.3) % 1
+      const lateral = Math.sin(time * 0.8 + phase * 6) * 0.4
+
+      const y = terrainHeightAt(p.x, p.y) + 0.10
+      d.mesh.position.set(
+        p.x + nx * lateral,
+        y,
+        p.y + nz * lateral
+      )
+      // 让 mesh 沿河流方向旋转
+      const angle = Math.atan2(tz, tx)
+      d.mesh.rotation.set(-Math.PI / 2, 0, -angle)
     }
   }
 
