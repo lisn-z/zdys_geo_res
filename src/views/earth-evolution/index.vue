@@ -435,7 +435,7 @@ const scrollEonCells = computed<
 
 // 代名映射
 const eraIdToName: Record<string, string> = {
-  hadean: '太古代',
+  hadean: '冥古宙',
   archean: '太古代',
   proterozoic: '元古代',
   paleozoic: '古生代',
