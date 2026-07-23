@@ -150,6 +150,15 @@ export const routes = [
     component: () =>
       import('@/views/earth-evolution/index.vue'),
   },
+  {
+    path: '/frontal-system',
+    name: 'frontal-system',
+    meta: {
+      title: '锋面系统与气旋',
+    },
+    component: () =>
+      import('@/views/frontal-system/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
