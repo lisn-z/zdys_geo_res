@@ -28,6 +28,16 @@
             <span class="panel-badge">CONTROL</span>
           </div>
 
+          <!-- 城镇化对比 -->
+          <section class="geo-card control-section">
+            <h3 class="section-title">🏙 城镇化对比</h3>
+            <div class="urban-toggle">
+              <button class="theme-btn option-btn" :class="{ active: urbanMode === 'before' }" @click="setUrbanMode('before')">城镇化前</button>
+              <button class="theme-btn option-btn" :class="{ active: urbanMode === 'after' }" @click="setUrbanMode('after')">城镇化后</button>
+            </div>
+            <p class="urban-hint">{{ urbanMode === 'before' ? '🌿 植被茂盛，下渗充足，径流缓慢' : '🏢 建筑密布，下渗减少，地表径流增大' }}</p>
+          </section>
+
           <!-- 可视化图层 -->
           <section class="geo-card control-section">
             <h3 class="section-title">👁 可视化图层</h3>
@@ -51,20 +61,31 @@
             <div class="section-title-row compact-title-row"><span class="mini-control-label">速度</span><strong
                 class="control-value">{{ speed.toFixed(1) }}×</strong></div>
             <el-slider v-model="speed" :min="0.2" :max="3" :step="0.1" :show-tooltip="false" />
+<<<<<<< HEAD
+            <div class="switch-row"><div class="control-copy"><strong>标签显示</strong><span>环节名称</span></div><el-switch v-model="showLabels" /></div>
+            <div class="switch-row"><div class="control-copy"><strong>环境雾</strong><span>大气透视效果</span></div><el-switch v-model="enableFog" /></div>
+=======
             <div class="switch-row">
               <div class="control-copy"><strong>标签显示</strong><span>环节名称</span></div><el-switch v-model="showLabels" />
             </div>
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
           </section>
 
           <!-- 知识解读 -->
           <section class="geo-card knowledge-card">
             <h3 class="section-title">📚 知识解读</h3>
-            <div class="knowledge-content">
-              <h4>水圈</h4>
-              <p>水圈是地球上由各种水体构成的一个<strong>连续但不规则的圈层</strong>，是水循环发生的物质载体。</p>
-              <p>包括：<strong>大气中的水汽、地表水、地下水、生物水</strong>等。</p>
-              <p>水圈与大气圈、岩石圈、生物圈<strong>相互联系、相互渗透</strong>。</p>
-              <p>通过蒸发、降水、径流、下渗等过程维持全球水的<strong>动态平衡</strong>。</p>
+            <div class="knowledge-content" v-if="urbanMode === 'before'">
+              <h4>城镇化前 — 自然水循环</h4>
+              <p>植被茂盛，土壤透水性好。<strong>下渗充足</strong>，地下水补给丰富。</p>
+              <p>地表径流<strong>缓慢而稳定</strong>，河流流量均匀，不易发生洪涝。</p>
+              <p>蒸发和蒸腾作用活跃，<strong>水循环通畅</strong>，生态平衡良好。</p>
+            </div>
+            <div class="knowledge-content" v-else>
+              <h4>城镇化后 — 水循环受阻</h4>
+              <p>建筑和道路<strong>覆盖地表</strong>，不透水面积增大，下渗大幅减少。</p>
+              <p>地表径流<strong>急剧增大</strong>，汇流速度加快，易引发城市内涝。</p>
+              <p>地下水补给不足，水位下降。蒸发蒸腾减少，<strong>城市热岛效应</strong>加剧。</p>
+              <p>💡 <strong>海绵城市</strong>：通过透水铺装、雨水花园、绿色屋顶等措施恢复自然水循环。</p>
             </div>
           </section>
         </div>
@@ -120,7 +141,7 @@ const layerDefs = [
   { key: 'evaporation', label: '蒸发', desc: '海洋蒸发上升', color: '#67e8f9' },
   { key: 'precipitation', label: '降水', desc: '云层降水', color: '#3b82f6' },
   { key: 'runoff', label: '地表径流', desc: '地表水汇入海', color: '#2ec4b6' },
-  { key: 'groundwater', label: '地下径流', desc: '地下水流向海', color: '#a78bfa' },
+  { key: 'groundwater', label: '地下径流', desc: '地下水流向海', color: '#c4b5fd' },
   { key: 'transport', label: '水汽输送', desc: '海上→陆上空', color: '#7dd3fc' },
   { key: 'transpiration', label: '植物蒸腾', desc: '植被水汽上升', color: '#4ade80' },
   { key: 'infiltration', label: '下渗', desc: '地表水下渗', color: '#8b5cf6' },
@@ -128,7 +149,7 @@ const layerDefs = [
 
 const cycleTypeMap: Record<string, string[]> = {
   seaLand: ['evaporation', 'transport', 'precipitation', 'runoff', 'infiltration', 'groundwater', 'transpiration'],
-  sea: ['evaporation', 'precipitation'],
+  sea: ['evaporation', 'oceanPrecip'],
   land: ['transpiration', 'precipitation', 'runoff'],
 }
 
@@ -143,6 +164,14 @@ const speed = ref(1)
 const showLabels = ref(true)
 const cycleType = ref('seaLand')
 const isFullscreen = ref(false)
+<<<<<<< HEAD
+const urbanMode = ref<'before' | 'after'>('before')
+const enableFog = ref(true)
+const layers = reactive<Record<string, boolean>>({})
+layerDefs.forEach(l => { layers[l.key] = true })
+layers['oceanPrecip'] = true
+const allPanelsCollapsed = computed(() => leftCollapsed.value)
+=======
 
 const layers =
   reactive<Record<string, boolean>>({})
@@ -207,6 +236,7 @@ const {
     }
   },
 })
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 
 // ==================== 标签 ====================
 interface LabelInfo { text: string; cls: string; pos: THREE.Vector3; key: string }
@@ -218,6 +248,7 @@ const labelInfos: LabelInfo[] = [
   { text: '水汽输送', cls: 'lbl-trans', pos: new THREE.Vector3(3, 11, 0), key: 'transport' },
   { text: '地表径流', cls: 'lbl-runoff', pos: new THREE.Vector3(4, terrainH(4) - 0.5, 0), key: 'runoff' },
   { text: '地下径流', cls: 'lbl-gw', pos: new THREE.Vector3(4, -2, 0), key: 'groundwater' },
+  { text: '海洋降水', cls: 'lbl-prec', pos: new THREE.Vector3(11, 4, 2), key: 'oceanPrecip' },
   { text: '🌊 海洋', cls: 'lbl-ocean', pos: new THREE.Vector3(12, -0.3, -5), key: '' },
   { text: '☀ 太阳', cls: 'lbl-sun', pos: new THREE.Vector3(11, 15, 8), key: '' },
 ]
@@ -251,6 +282,10 @@ let lastSceneHeight = 0
 let lastSceneDpr = 0
 let cameraPosTarget = new THREE.Vector3(0, 8, 22)
 let cameraTargetTarget = new THREE.Vector3(0, 4, 0)
+const cloudMeshes: THREE.Group[] = []
+let treeGroupRef: THREE.Group | null = null
+let buildingGroupRef: THREE.Group | null = null
+let concreteRef: THREE.Mesh | null = null
 
 // ==================== 场景搭建 ====================
 
@@ -305,8 +340,13 @@ function buildScene() {
   )
 
   scene = new THREE.Scene()
+<<<<<<< HEAD
+  scene.background = new THREE.Color(0x1a3050)
+  scene.fog = new THREE.FogExp2(0x1a3050, 0.025)
+=======
   scene.background =
     new THREE.Color(0x0a1628)
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 
   scene.fog =
     new THREE.Fog(
@@ -371,8 +411,9 @@ function buildScene() {
   controls.update()
 
   // 光照
-  scene.add(new THREE.AmbientLight(0x6080a0, 1.2))
-  const sunL = new THREE.DirectionalLight(0xfff8e7, 2.8)
+  scene.add(new THREE.AmbientLight(0xa0b8d0, 2.8))
+  const hemi = new THREE.HemisphereLight(0x88bbff, 0x554433, 1.2); scene.add(hemi)
+  const sunL = new THREE.DirectionalLight(0xfff8e7, 4.5)
   sunL.position.set(10, 20, 12); scene.add(sunL)
 
   // === 海洋（右侧低洼平面）===
@@ -423,17 +464,35 @@ function buildScene() {
   )
   shore.position.set(2, -0.4, 0); shore.rotation.z = 0.3; scene.add(shore)
 
-  // === 地下层 ===
-  const ugGeo = new THREE.PlaneGeometry(40, 16, 1, 1)
-  const ug = new THREE.Mesh(ugGeo, new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 1, transparent: true, opacity: 0.85 }))
-  ug.rotation.x = -Math.PI / 2; ug.position.set(0, -2.5, 0); scene.add(ug)
+  // === 地下层（封闭3D箱体：土壤层 + 含水层 + 基岩层）===
+  const ugGroup = new THREE.Group()
+  // 土壤层（最上层，棕色）
+  const soilGeo = new THREE.BoxGeometry(22, 1.0, 14)
+  const soil = new THREE.Mesh(soilGeo, new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.95, transparent: true, opacity: 0.75 }))
+  soil.position.set(-1, -1.0, 0); ugGroup.add(soil)
+  // 含水层（中间层，深棕紫色，地下水所在）
+  const aquiferGeo = new THREE.BoxGeometry(22, 1.5, 14)
+  const aquifer = new THREE.Mesh(aquiferGeo, new THREE.MeshStandardMaterial({ color: 0x4a2a6a, roughness: 0.8, transparent: true, opacity: 0.6 }))
+  aquifer.position.set(-1, -2.25, 0); ugGroup.add(aquifer)
+  // 基岩层（最底层，灰色）
+  const rockGeo = new THREE.BoxGeometry(22, 0.8, 14)
+  const rock = new THREE.Mesh(rockGeo, new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.9 }))
+  rock.position.set(-1, -3.4, 0); ugGroup.add(rock)
+  // 前侧面剖面（半透明，可以看到内部水流）
+  const sideGeo = new THREE.PlaneGeometry(22, 3.3)
+  const sideMat = new THREE.MeshBasicMaterial({ color: 0x2a1a3a, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false })
+  const sideFront = new THREE.Mesh(sideGeo, sideMat)
+  sideFront.position.set(-1, -2.0, 7.01); ugGroup.add(sideFront)
+  const sideBack = new THREE.Mesh(sideGeo, sideMat.clone())
+  sideBack.position.set(-1, -2.0, -7.01); ugGroup.add(sideBack)
+  scene.add(ugGroup)
 
   // 地下层顶部沙土面
-  const sandGeo = new THREE.PlaneGeometry(40, 4, 1, 1)
+  const sandGeo = new THREE.PlaneGeometry(22, 4, 1, 1)
   const sand = new THREE.Mesh(sandGeo, new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.95 }))
-  sand.rotation.x = -Math.PI / 2; sand.position.set(-12, 0.05, 7); sand.rotation.z = -0.4; scene.add(sand)
+  sand.rotation.x = -Math.PI / 2; sand.position.set(-1, 0.02, 7); scene.add(sand)
   const sand2 = new THREE.Mesh(sandGeo.clone(), new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.95 }))
-  sand2.rotation.x = -Math.PI / 2; sand2.position.set(-12, 0.05, -7); sand2.rotation.z = -0.4; scene.add(sand2)
+  sand2.rotation.x = -Math.PI / 2; sand2.position.set(-1, 0.02, -7); scene.add(sand2)
 
   // === 河流 ===
   const riverCurve = new THREE.CatmullRomCurve3([
@@ -470,6 +529,53 @@ function buildScene() {
     treeGroup.add(tree)
   })
   scene.add(treeGroup)
+  treeGroupRef = treeGroup
+
+  // === 建筑（城镇化后显示）===
+  const buildingGroup = new THREE.Group()
+  buildingGroup.visible = false // 默认隐藏
+  const buildingPositions: [number, number, number, number][] = [
+    // [x, z, width, height]
+    [-5, -1.5, 1.0, 1.8], [-3.5, 0.5, 1.2, 2.5], [-2, -2, 0.8, 1.5],
+    [-5.5, 2, 1.0, 2.0], [-3, -3, 0.9, 1.6], [-1.5, 1, 1.1, 2.2],
+    [-6, 0, 0.8, 1.4], [-4, -3.5, 1.0, 1.9], [-2.5, 2.5, 0.9, 1.7],
+  ]
+  buildingPositions.forEach(([bx, bz, bw, bh]) => {
+    const by = terrainH(bx)
+    const bGroup = new THREE.Group()
+    // 主体
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(bw, bh, bw),
+      new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.6, metalness: 0.2 }),
+    )
+    body.position.y = bh / 2; bGroup.add(body)
+    // 屋顶
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(bw * 1.1, 0.1, bw * 1.1),
+      new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.5 }),
+    )
+    roof.position.y = bh + 0.05; bGroup.add(roof)
+    // 窗户（发光面）
+    const winMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 })
+    for (let wy = 0.3; wy < bh - 0.3; wy += 0.5) {
+      for (let wx = -bw * 0.3; wx <= bw * 0.3; wx += bw * 0.4) {
+        const win = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.2), winMat)
+        win.position.set(wx, wy, bw / 2 + 0.01); bGroup.add(win)
+      }
+    }
+    bGroup.position.set(bx, by, bz)
+    buildingGroup.add(bGroup)
+  })
+  scene.add(buildingGroup)
+  buildingGroupRef = buildingGroup
+
+  // 混凝土路面（城镇化后）
+  const concreteGeo = new THREE.PlaneGeometry(12, 10, 1, 1)
+  const concrete = new THREE.Mesh(concreteGeo, new THREE.MeshStandardMaterial({ color: 0x9ca3af, roughness: 0.9, transparent: true, opacity: 0.7 }))
+  concrete.rotation.x = -Math.PI / 2; concrete.position.set(-4, 0.03, 0)
+  concrete.visible = false
+  scene.add(concrete)
+  concreteRef = concrete
 
   // === 太阳 ===
   const sunM = new THREE.Mesh(new THREE.SphereGeometry(0.9, 32, 32), new THREE.MeshBasicMaterial({ color: 0xfbbf24 }))
@@ -484,12 +590,17 @@ function buildScene() {
   }
 
   // === 云层（真实云朵形状：底部扁平、上部蓬松）===
+  cloudMeshes.length = 0
   const cPos: [number, number, number][] = [
-    [-3, 9, -1], [-1, 9.5, 1.5], [4, 8.5, -2], [6, 9.5, 1], [8, 8, 3],
-    [10, 9, -3], [9, 10, 4], [12, 8.5, 0], [10, 8.5, 2.5],
+    // 陆地上空云
+    [-3, 9, -1], [-1, 9.5, 1.5], [2, 8.5, -2],
+    // 海洋上空云
+    [6, 9, 1], [8, 8.5, 3], [10, 9, -3], [9, 10, 4], [12, 8.5, 0], [10, 8.5, 2.5],
   ]
   cPos.forEach(([cx, cy, cz]) => {
-    scene!.add(createCloud(cx, cy, cz))
+    const cloud = createCloud(cx, cy, cz)
+    ;(cloud as any).__baseX = cx; (cloud as any).__baseY = cy; (cloud as any).__baseZ = cz
+    scene!.add(cloud); cloudMeshes.push(cloud)
   })
 
   // === 循环方向箭头 ===
@@ -554,19 +665,21 @@ function buildArrows() {
 
   // ① 蒸发：海洋表面 → 上升
   createVerticalArrow('evaporation', new THREE.Vector3(9, -0.4, 0), 0, 8, 0x67e8f9)
-  // ② 降水：云层 → 地表
+  // ② 降水：陆地上空云层 → 地表
   createVerticalArrow('precipitation', new THREE.Vector3(-3, 8, 0), 0, -(8 - terrainH(-3) - 0.3), 0x3b82f6, true)
+  // ②b 海洋降水：海洋上空云层 → 海面（海上内循环）
+  createVerticalArrow('oceanPrecip', new THREE.Vector3(11, 8, 2), 0, -7.5, 0x3b82f6, true)
   // ③ 植物蒸腾：植被 → 上升
   createVerticalArrow('transpiration', new THREE.Vector3(-7, terrainH(-7), 0), 0, 5, 0x4ade80)
-  // ④ 下渗：地表 → 地下
+  // ④ 下渗：地表 → 地下含水层
   createVerticalArrow('infiltration', new THREE.Vector3(-2, terrainH(-2), 0), 0, -3.5, 0x8b5cf6, true)
 
-  // ⑤ 水汽输送：海洋上空 → 陆地上空
+  // ⑤ 水汽输送：海洋上空 → 陆地上空（从右向左）
   createHorizontalArrow('transport', new THREE.Vector3(10, 10, 0), -14, 0, 0x7dd3fc)
-  // ⑥ 地表径流：陆地 → 海洋
+  // ⑥ 地表径流：陆地 → 海洋（从左向右）
   createHorizontalArrow('runoff', new THREE.Vector3(-4, terrainH(-4) - 0.2, 0), 14, -3.5, 0x2ec4b6)
-  // ⑦ 地下径流：地下 → 海洋
-  createHorizontalArrow('groundwater', new THREE.Vector3(-4, -2.2, 0), 14, 0, 0xa78bfa)
+  // ⑦ 地下径流：含水层 → 海洋（从左向右）
+  createHorizontalArrow('groundwater', new THREE.Vector3(-4, -2.2, 0), 14, 0, 0xc4b5fd)
 }
 
 function createVerticalArrow(key: string, pos: THREE.Vector3, dx: number, dy: number, color: number, down = false) {
@@ -605,10 +718,11 @@ function createHorizontalArrow(key: string, pos: THREE.Vector3, dx: number, dy: 
   tube.position.set((startX + endX) / 2, y, pos.z)
   tube.rotation.z = Math.PI / 2
   scene.add(tube)
-  // 箭头
+  // 箭头锥 — 朝向运动方向
   const cone = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.6, 12), new THREE.MeshBasicMaterial({ color }))
   cone.position.set(endX + (dx > 0 ? 0.3 : -0.3), y, pos.z)
-  if (dx < 0) cone.rotation.z = Math.PI
+  // 默认锥体朝 +Y；水平箭头需旋转到 ±X 方向
+  cone.rotation.z = dx > 0 ? -Math.PI / 2 : Math.PI / 2
   scene.add(cone)
   // 粒子流
   const grp = new THREE.Group()
@@ -630,7 +744,8 @@ function buildParticles() {
     transpiration: { color: 0x4ade80, count: 40, size: 0.35, lanes: 2, zSpread: 1.2 },
     runoff: { color: 0x2ec4b6, count: 60, size: 0.4, lanes: 4, zSpread: 1.0 },
     infiltration: { color: 0x8b5cf6, count: 40, size: 0.35, lanes: 2, zSpread: 1.0 },
-    groundwater: { color: 0xa78bfa, count: 80, size: 0.45, lanes: 5, zSpread: 2.5 },
+    groundwater: { color: 0xc4b5fd, count: 120, size: 0.6, lanes: 6, zSpread: 3.0 },
+    oceanPrecip: { color: 0x60a5fa, count: 40, size: 0.35, lanes: 3, zSpread: 1.5 },
   }
   Object.entries(config).forEach(([key, cfg]) => {
     const count = cfg.count
@@ -681,7 +796,8 @@ function particlePos(key: string, phase: number, lane: number, laneCount: number
     case 'transpiration': return new THREE.Vector3(-7 + Math.sin(t * 10) * 0.2, terrainH(-7) + t * 5, laneOffset + Math.cos(t * 8) * 0.2)
     case 'runoff': return new THREE.Vector3(-4 + t * 14, terrainH(-4 + t * 14) - 0.3 + Math.sin(t * 10) * 0.1, laneOffset + Math.cos(t * 6) * 0.2)
     case 'infiltration': return new THREE.Vector3(-2 + Math.sin(t * 8) * 0.15, terrainH(-2) - t * 3, laneOffset + Math.cos(t * 6) * 0.2)
-    case 'groundwater': return new THREE.Vector3(-4 + t * 14, -2.2 + Math.sin(t * 6 + lane) * 0.3, laneOffset + Math.cos(t * 8 + lane) * 0.4)
+    case 'groundwater': return new THREE.Vector3(-4 + t * 14, -2.2 + Math.sin(t * 6 + lane) * 0.5, laneOffset + Math.cos(t * 8 + lane) * 0.6)
+    case 'oceanPrecip': return new THREE.Vector3(11 + Math.sin(t * 10) * 0.3, 8 - t * 8.5, 2 + laneOffset + Math.cos(t * 8) * 0.2)
     default: return new THREE.Vector3()
   }
 }
@@ -698,7 +814,7 @@ function animate() {
   // 箭头粒子流动
   const activeKeys = cycleTypeMap[cycleType.value] || []
   Object.entries(arrowGroups).forEach(([key, grp]) => {
-    const show = !!layers[key] && activeKeys.includes(key)
+    const show = !!layers[key] && (activeKeys.includes(key) || key === 'oceanPrecip')
     grp.visible = show
     if (!show || !autoPlay.value) return
     grp.children.forEach((b, i) => {
@@ -720,6 +836,17 @@ function animate() {
       for (let i = 0; i < a.length; i += 3) a[i + 2] = -0.6 + Math.sin(a[i]! * 0.5 + timeAccum * 0.7) * 0.05
       om.geometry.attributes.position!.needsUpdate = true; om.geometry.computeVertexNormals()
     }
+  })
+
+  // 云朵飘动
+  cloudMeshes.forEach((cloud, i) => {
+    const base = (cloud as any).__baseX as number
+    const baseY = (cloud as any).__baseY as number
+    const baseZ = (cloud as any).__baseZ as number
+    // 缓慢横向飘动 + 上下浮动
+    cloud.position.x = base + Math.sin(timeAccum * 0.15 + i * 0.7) * 1.5
+    cloud.position.y = baseY + Math.sin(timeAccum * 0.2 + i * 0.5) * 0.3
+    cloud.position.z = baseZ + Math.cos(timeAccum * 0.12 + i * 0.6) * 0.4
   })
 
   controls?.update(); renderer.render(scene, camera); updateLabels()
@@ -900,7 +1027,25 @@ function scheduleSceneResize(
 }
 
 
+// 城镇化模式切换
+function setUrbanMode(mode: 'before' | 'after') {
+  urbanMode.value = mode
+  if (!sceneReady) return
+  if (treeGroupRef) treeGroupRef.visible = mode === 'before'
+  if (buildingGroupRef) buildingGroupRef.visible = mode === 'after'
+  if (concreteRef) concreteRef.visible = mode === 'after'
+  // 城镇化后：下渗减少、地表径流增强
+  if (mode === 'after') {
+    layers.infiltration = false
+    layers.runoff = true
+  } else {
+    layers.infiltration = true
+    layers.runoff = true
+  }
+}
+
 // ==================== 生命周期 ====================
+watch(enableFog, v => { if (scene) scene.fog = v ? new THREE.FogExp2(0x1a3050, 0.025) : null })
 onMounted(async () => {
   /*
    * 等 Hook 先写入当前断点的面板宽度，
@@ -911,6 +1056,16 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+<<<<<<< HEAD
+  sceneReady = false; cancelAnimationFrame(animationId)
+  pageRO?.disconnect(); pageRO = null; threeResizeObserver?.disconnect(); threeResizeObserver = null
+  if (sceneResizeTimer) { clearTimeout(sceneResizeTimer); sceneResizeTimer = null }
+  controls?.dispose(); controls = null
+  scene?.traverse(o => { if (o instanceof THREE.Mesh) { o.geometry?.dispose(); const m = o.material; if (Array.isArray(m)) m.forEach(x => x.dispose()); else m?.dispose() } })
+  renderer?.dispose(); if (renderer?.domElement.parentElement) renderer.domElement.parentElement.removeChild(renderer.domElement)
+  scene = null; camera = null; renderer = null
+  treeGroupRef = null; buildingGroupRef = null; concreteRef = null
+=======
   sceneReady = false
 
   cancelAnimationFrame(
@@ -973,10 +1128,34 @@ onBeforeUnmount(() => {
   scene = null
   camera = null
   renderer = null
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 })
 </script>
 
 <style scoped>
+<<<<<<< HEAD
+.page-subtitle { font-size: 13px; color: #64748b; font-weight: 400; margin-left: 10px; letter-spacing: 1px; }
+.labels-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 15; }
+.scene-label { position: absolute; transform: translate(-50%, -50%); font-weight: 700; white-space: nowrap; padding: 3px 10px; border-radius: 5px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); font-size: 14px; background: rgba(8,12,28,0.55); border: 1px solid rgba(46,196,182,0.25); color: #2ec4b6; }
+.scene-label.lbl-evap { color: #67e8f9; border-color: rgba(103,232,249,0.5); }
+.scene-label.lbl-trans { color: #7dd3fc; border-color: rgba(125,211,252,0.5); }
+.scene-label.lbl-prec { color: #93c5fd; border-color: rgba(147,197,253,0.5); }
+.scene-label.lbl-tran { color: #4ade80; border-color: rgba(74,222,128,0.5); }
+.scene-label.lbl-runoff { color: #2ec4b6; border-color: rgba(46,196,182,0.6); }
+.scene-label.lbl-inf { color: #c4b5fd; border-color: rgba(196,181,253,0.5); }
+.scene-label.lbl-gw { color: #c4b5fd; border-color: rgba(196,181,253,0.6); font-size: 15px; font-weight: 800; }
+.footer-tip { position: absolute; right: 16px; bottom: 16px; font-size: 11px; color: #64748b; padding: 4px 10px; background: rgba(8,12,28,0.6); border: 1px solid rgba(100,116,139,0.3); border-radius: 999px; pointer-events: none; }
+.layer-list { display: flex; flex-direction: column; gap: 2px; }
+.layer-row { padding: 6px 0; border-bottom: 1px solid rgba(100,116,139,0.1); }
+.layer-row:last-child { border-bottom: none; }
+.urban-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.urban-hint { font-size: 11px; color: #94a3b8; margin: 6px 0 0; line-height: 1.5; padding: 6px 8px; background: rgba(46,196,182,0.06); border-radius: 6px; border-left: 2px solid #2ec4b6; }
+.knowledge-card { margin-bottom: 14px; }
+.knowledge-content { font-size: 12px; color: #94a3b8; line-height: 1.7; }
+.knowledge-content h4 { margin: 0 0 6px; color: #2ec4b6; font-size: 14px; }
+.knowledge-content p { margin: 0 0 6px; }
+.knowledge-content :deep(strong) { color: #fbbf24; }
+=======
 .page-subtitle {
   font-size: 13px;
   color: #64748b;
@@ -1107,4 +1286,5 @@ onBeforeUnmount(() => {
   width: 100% !important;
   height: 100% !important;
 }
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 </style>
