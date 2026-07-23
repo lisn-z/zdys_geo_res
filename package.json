@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
     "build-only": "vite build",
     "generate-page": "node scripts/generate-page.mjs",
+    "generate-output": "node scripts/generate-output.mjs",
+    "copy-to-project": "node scripts/copy-to-project.mjs",
     "type-check": "vue-tsc --build"
   },
   "dependencies": {

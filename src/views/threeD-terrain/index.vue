@@ -10,30 +10,22 @@
       <h1 class="page-title">等高线地形图 · 三维投影</h1>
 
       <div class="toolbar-actions">
+        <button type="button" class="theme-btn toolbar-btn" @click="startLearning">
+          地形判读
+        </button>
+
         <button type="button" class="theme-btn toolbar-btn" @click="setView('front')">
           前视图
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
+        <button type="button" class="theme-btn toolbar-btn" @click="toggleAllPanels">
           {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
         </button>
       </div>
     </header>
 
-    <main class="workspace" :class="{
-      'has-left': hasLeftPanel,
-      'has-right': hasRightPanel,
-    }" :style="{
-      '--left-panel-width':
-        leftCollapsed
-          ? '0px'
-          : leftPanelWidth + 'px',
-      '--right-panel-width':
-        rightCollapsed
-          ? '0px'
-          : rightPanelWidth + 'px',
-    }">
-      <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
+    <main class="workspace" v-bind="workspaceAttrs">
+      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -199,12 +191,9 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-right" @pointerdown.stop.prevent="
-          startResize('left', $event)
-          "></div>
+        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
 
-        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
-          @click="leftCollapsed = true">
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
           ‹
         </button>
       </aside>
@@ -258,7 +247,7 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: rightCollapsed }">
+      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -327,32 +316,72 @@
           </el-collapse>
         </div>
 
-        <div class="resize-handle resize-left" @pointerdown.stop.prevent="
-          startResize('right', $event)
-          "></div>
+        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
 
-        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
-          @click="rightCollapsed = true">
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
           ›
         </button>
       </aside>
 
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left" aria-label="展开左侧面板"
-        @click="leftCollapsed = false">
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+        v-bind="leftEntryAttrs">
         ›
       </button>
 
       <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        aria-label="展开右侧面板" @click="rightCollapsed = false">
+        v-bind="rightEntryAttrs">
         ‹
       </button>
+
     </main>
+
+    <!-- 地形判读学习模块 (独立于 workspace，避免交互冲突) -->
+    <div v-if="learningMode" class="quiz-overlay">
+      <div class="quiz-panel">
+        <div class="quiz-header">
+          <div class="quiz-title">📚 地形判读学习</div>
+          <div class="quiz-subtitle">请根据下方的 3D 地形和投影等高线判读属于哪种地形</div>
+        </div>
+        <div class="quiz-content">
+          <div class="quiz-options">
+            <button v-for="opt in quizOptions" :key="opt" type="button" class="quiz-option" :class="getOptionClass(opt)"
+              :disabled="quizResult !== null" @click="onQuizAnswer(opt)">
+              {{ opt }}
+            </button>
+          </div>
+          <div v-if="quizResult" class="quiz-feedback">
+            <span v-if="quizResult === 'correct'" class="feedback-correct">✓ 回答正确！</span>
+            <span v-else class="feedback-wrong">✗ 回答错误，正确答案是：<b>{{ currentQuizType }}</b></span>
+          </div>
+        </div>
+        <div class="quiz-actions">
+          <button type="button" class="quiz-btn quiz-btn-next" @click="nextQuiz" :disabled="!quizResult">
+            {{ quizResult ? '下一题 →' : '请先回答' }}
+          </button>
+          <button type="button" class="quiz-btn quiz-btn-end" @click="endLearning">
+            结束学习
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import {
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'vue'
+
+/*
+ * 公共模板样式已内置悬浮面板、平板宽度与触控拖拽规则。
+ */
 import '@/styles/geo-page-template.css'
+import {
+  useGeoPanelLayout,
+} from '@/hooks/useGeoPanelLayout'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
@@ -375,7 +404,6 @@ const TERRAIN_SIZE = 3.0
 // ============================================================
 // 响应式状态
 // ============================================================
-const pageRef = ref<HTMLElement | null>(null)
 const threeContainerRef = ref<HTMLDivElement | null>(null)
 const profileCanvas = ref<HTMLCanvasElement | null>(null)
 const viewCube = ref<HTMLDivElement | null>(null)
@@ -393,496 +421,103 @@ const profileData = ref<{ dist: number; elev: number }[]>([])
 const terrainGenType = ref('all')
 const generatingTerrain = ref(false)
 
-type LayoutMode =
-  | 'large'
-  | 'medium'
-  | 'small'
+// ============================================================
+// 地形判读学习模块
+// ============================================================
+const learningMode = ref(false)
+const currentQuizType = ref<string>('')
+const quizResult = ref<'correct' | 'wrong' | null>(null)
+const lastAnswer = ref<string | null>(null)
+const quizOptions = ['山峰', '盆地', '山谷', '山脊', '陡崖', '鞍部']
+const QUIZ_TYPES = ['peak', 'basin', 'valley', 'ridge', 'cliff', 'saddle']
+let savedTerrainGenType = ''  // 进入学习前保存原类型
+let savedHeightValue = 0
+let savedHeightsData: number[][] = []
 
 const hasLeftPanel = true
 const hasRightPanel = true
 
-const layoutMode =
-  ref<LayoutMode>('large')
-
-
-/*
- * 面板宽度说明：
- * 公共模板 CSS 管视觉样式和大屏兜底；
- * 但本组件会在 workspace 上通过 inline style 写入
- * --left-panel-width / --right-panel-width。
- * 因此默认宽度、拖拽最大宽度、拖拽后是否被 ResizeObserver 重置，
- * 都必须在本组件 JS 中同步放开。
- */
-
-const leftPanelWidth = ref(420)
-const rightPanelWidth = ref(500)
-
-const leftCollapsed = ref(false)
-const rightCollapsed = ref(false)
-
-const allPanelsCollapsed =
-  computed(() =>
-    leftCollapsed.value &&
-    rightCollapsed.value
-  )
-
-
-let previousLayoutMode:
-  | LayoutMode
-  | null = null
-
-let leftPanelManuallyResized = false
-let rightPanelManuallyResized = false
-
-let pageResizeObserver:
+let sceneResizeObserver:
   | ResizeObserver
   | null = null
 
-let resizeTarget:
-  | 'left'
-  | 'right'
+let sceneResizeTimer:
+  | ReturnType<typeof setTimeout>
   | null = null
 
-let resizeStartX = 0
-let resizeStartWidth = 0
+let sceneResizeFrame = 0
+let sceneResizeSettleFrame = 0
 
-function getLayoutMode(width: number): LayoutMode {
-  if (width < 800) {
-    return 'small'
-  }
+let lastSceneWidth = 0
+let lastSceneHeight = 0
+let lastSceneDpr = 0
 
-  if (width < 1440) {
-    return 'medium'
-  }
+/*
+ * 左右悬浮面板统一由公共 Hook 管理：
+ * - large / medium / small 默认宽度；
+ * - 平板最小宽度与拖拽上限；
+ * - 展开、折叠和全部收起；
+ * - Pointer Capture 与触控拖拽；
+ * - 浏览器连续缩放状态。
+ */
+const {
+  rootRef: pageRef,
+  layoutMode,
 
-  return 'large'
-}
+  leftCollapsed,
+  rightCollapsed,
+  allPanelsCollapsed,
 
-function clampPanelNumber(
-  value: number,
-  min: number,
-  max: number
-): number {
-  return Math.min(
-    max,
-    Math.max(
-      min,
-      value
-    )
-  )
-}
+  draggingSide,
+  viewportResizing,
 
-function getEffectiveTemplateWidth(
-  fallbackWidth?: number
-): number {
-  const candidates: number[] = []
+  workspaceAttrs,
+  leftPanelAttrs,
+  rightPanelAttrs,
 
-  if (
-    typeof fallbackWidth === 'number' &&
-    Number.isFinite(fallbackWidth) &&
-    fallbackWidth > 0
-  ) {
-    candidates.push(fallbackWidth)
-  }
+  leftResizeAttrs,
+  rightResizeAttrs,
 
-  const pageWidth =
-    pageRef.value?.clientWidth
+  leftCollapseAttrs,
+  rightCollapseAttrs,
 
-  if (
-    typeof pageWidth === 'number' &&
-    Number.isFinite(pageWidth) &&
-    pageWidth > 0
-  ) {
-    candidates.push(pageWidth)
-  }
+  leftEntryAttrs,
+  rightEntryAttrs,
 
-  if (typeof window !== 'undefined') {
-    const values = [
-      window.innerWidth,
-      window.visualViewport?.width,
-      window.screen?.width,
-      window.screen?.availWidth,
-    ]
+  toggleAll:
+  toggleAllPanels,
+} = useGeoPanelLayout({
+  left: {
+    enabled: hasLeftPanel,
+    resizable: true,
+  },
 
-    values.forEach((value) => {
-      if (
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value > 0
-      ) {
-        candidates.push(value)
-      }
-    })
-  }
+  right: {
+    enabled: hasRightPanel,
+    resizable: true,
+  },
 
-  if (!candidates.length) {
-    return 0
-  }
-
-  /*
-   * 用最小有效宽度判断超大屏。
-   * 普通 1920 屏即使因为浏览器缩放 / 投屏环境导致 CSS 宽度异常变大，
-   * 也不会误判为 2200+。
-   */
-  return Math.min(...candidates)
-}
-
-function isUltraLargeTemplateScreen(
-  fallbackWidth?: number
-): boolean {
-  return getEffectiveTemplateWidth(
-    fallbackWidth
-  ) >= 2200
-}
-
-function getAdaptivePanelWidth(
-  side: 'left' | 'right',
-  mode: LayoutMode,
-  pageWidth: number
-): number {
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  if (mode === 'small') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.76, 260, 360)
-      : clampPanelNumber(pageWidth * 0.80, 280, 380)
-  }
-
-  if (mode === 'medium') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.36, 320, 480)
-      : clampPanelNumber(pageWidth * 0.40, 360, 540)
-  }
-
-  /*
-   * 2K / 4K / 教室超大屏增强：
-   * 普通 1920×1080 电脑不默认触发。
-   */
-  if (
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-  ) {
-    return side === 'left'
-      ? clampPanelNumber(effectiveWidth * 0.22, 420, 640)
-      : clampPanelNumber(effectiveWidth * 0.25, 500, 760)
-  }
-
-  return side === 'left'
-    ? clampPanelNumber(pageWidth * 0.19, 340, 520)
-    : clampPanelNumber(pageWidth * 0.21, 380, 580)
-}
-
-function getPanelResizeBounds(
-  side: 'left' | 'right'
-) {
-  const pageWidth =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  if (layoutMode.value === 'small') {
-    return {
-      min:
-        side === 'left'
-          ? 220
-          : 240,
-      max:
-        Math.max(
-          side === 'left'
-            ? 220
-            : 240,
-          Math.min(
-            side === 'left'
-              ? 420
-              : 440,
-            pageWidth * 0.86
-          )
-        ),
+  onLayoutChange(state) {
+    /*
+     * 面板拖拽和浏览器连续缩放期间，
+     * 不重建 WebGL / CSS2D drawing buffer。
+     */
+    if (state.resizing) {
+      return
     }
-  }
 
-  if (layoutMode.value === 'medium') {
-    return {
-      min:
-        side === 'left'
-          ? 280
-          : 300,
-      max:
-        Math.max(
-          side === 'left'
-            ? 280
-            : 300,
-          Math.min(
-            side === 'left'
-              ? 640
-              : 700,
-            pageWidth * 0.60
-          )
-        ),
+    scheduleSceneResize(90)
+  },
+
+  onResize(payload) {
+    if (
+      payload.phase === 'end' ||
+      payload.phase === 'reset'
+    ) {
+      scheduleSceneResize(0)
     }
-  }
-
-  /*
-   * 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
-   * 左侧最多 560px，右侧最多 620px。
-   *
-   * 超大屏：有效宽度 2200px 以上。
-   * 左侧最多 820px，右侧最多 900px。
-   */
-  const isUltraLargeScreen =
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-
-  return {
-    min:
-      side === 'left'
-        ? 300
-        : 340,
-    max:
-      Math.max(
-        side === 'left'
-          ? 300
-          : 340,
-        Math.min(
-          side === 'left'
-            ? (
-              isUltraLargeScreen
-                ? 820
-                : 560
-            )
-            : (
-              isUltraLargeScreen
-                ? 900
-                : 620
-            ),
-          effectiveWidth *
-          (
-            isUltraLargeScreen
-              ? 0.54
-              : 0.38
-          )
-        )
-      ),
-  }
-}
-
-function syncTemplateLayout() {
-  const width =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const nextMode =
-    getLayoutMode(width)
-
-  const modeChanged =
-    previousLayoutMode !== nextMode
-
-  layoutMode.value =
-    nextMode
-
-  /*
-   * 以前这里会在 large 下把左侧压到 360、右侧压到 390，
-   * medium 下又压到 292 / 308，导致默认宽度和公共模板不一致。
-   * 现在改成统一自适应：
-   * 1. 首次进入按屏幕宽度给默认值；
-   * 2. 用户拖拽后不再被 ResizeObserver 拉回小宽度；
-   * 3. 切换 large / medium / small 时重新给合理默认值。
-   */
-  if (
-    modeChanged ||
-    !leftPanelManuallyResized
-  ) {
-    leftPanelWidth.value =
-      Math.round(
-        getAdaptivePanelWidth(
-          'left',
-          nextMode,
-          width
-        )
-      )
-  }
-
-  if (
-    modeChanged ||
-    !rightPanelManuallyResized
-  ) {
-    rightPanelWidth.value =
-      Math.round(
-        getAdaptivePanelWidth(
-          'right',
-          nextMode,
-          width
-        )
-      )
-  }
-
-  previousLayoutMode =
-    nextMode
-}
-
-function toggleAllPanels() {
-  const shouldExpand =
-    allPanelsCollapsed.value
-
-  leftCollapsed.value =
-    !shouldExpand
-
-  rightCollapsed.value =
-    !shouldExpand
-}
-
-function startResize(
-  target: 'left' | 'right',
-  event: PointerEvent
-) {
-  if (
-    (target === 'left' && leftCollapsed.value) ||
-    (target === 'right' && rightCollapsed.value)
-  ) {
-    return
-  }
-
-  event.stopPropagation()
-
-  resizeTarget =
-    target
-
-  resizeStartX =
-    event.clientX
-
-  resizeStartWidth =
-    target === 'left'
-      ? leftPanelWidth.value
-      : rightPanelWidth.value
-
-  const handle =
-    event.currentTarget as HTMLElement | null
-
-  if (
-    handle &&
-    typeof handle.setPointerCapture === 'function'
-  ) {
-    try {
-      handle.setPointerCapture(
-        event.pointerId
-      )
-    } catch {
-      // 部分触控屏或老浏览器可能不支持 pointer capture，继续用 document 监听兜底。
-    }
-  }
-
-  document.body.classList.add(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor =
-    'col-resize'
-
-  document.body.style.userSelect =
-    'none'
-
-  document.addEventListener(
-    'pointermove',
-    handlePanelResize
-  )
-
-  document.addEventListener(
-    'pointerup',
-    stopPanelResize,
-    {
-      once:
-        true,
-    }
-  )
-
-  document.addEventListener(
-    'pointercancel',
-    stopPanelResize,
-    {
-      once:
-        true,
-    }
-  )
-}
-
-function handlePanelResize(event: PointerEvent) {
-  if (!resizeTarget) {
-    return
-  }
-
-  const bounds =
-    getPanelResizeBounds(
-      resizeTarget
-    )
-
-  const delta =
-    event.clientX - resizeStartX
-
-  if (resizeTarget === 'left') {
-    leftPanelWidth.value =
-      clampPanelNumber(
-        resizeStartWidth + delta,
-        bounds.min,
-        bounds.max
-      )
-
-    leftPanelManuallyResized =
-      true
-  } else {
-    rightPanelWidth.value =
-      clampPanelNumber(
-        resizeStartWidth - delta,
-        bounds.min,
-        bounds.max
-      )
-
-    rightPanelManuallyResized =
-      true
-  }
-
-  handleResize()
-}
-
-function stopPanelResize() {
-  resizeTarget =
-    null
-
-  document.body.classList.remove(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor =
-    ''
-
-  document.body.style.userSelect =
-    ''
-
-  document.removeEventListener(
-    'pointermove',
-    handlePanelResize
-  )
-
-  document.removeEventListener(
-    'pointerup',
-    stopPanelResize
-  )
-
-  document.removeEventListener(
-    'pointercancel',
-    stopPanelResize
-  )
-
-  handleResize()
-}
+  },
+})
 
 
 // ============================================================
@@ -1037,6 +672,174 @@ function getRealHeight(x: number, z: number): number {
 
 function getDisplayHeight(realHeight: number): number {
   return (realHeight - BASE_ELEVATION) * HEIGHT_SCALE
+}
+
+/*
+ * 等高线表面抬升：
+ * Marching Squares 算出的等高线点在平滑后，X/Z 会发生微小移动。
+ * 如果仍然使用固定的 level 高度，局部就会卡进山体。
+ * 这里重新按 X/Z 采样地形表面高度，再向上抬一点点。
+ */
+const CONTOUR_SURFACE_OFFSET = 0.024
+const FEATURE_LINE_SURFACE_OFFSET = 0.032
+
+function sampleTerrainHeightAtSceneXZ(
+  sceneX: number,
+  sceneZ: number
+): number {
+  const normalizedX =
+    Math.min(
+      1,
+      Math.max(
+        0,
+        sceneX / TERRAIN_SIZE + 0.5
+      )
+    )
+
+  const normalizedRow =
+    Math.min(
+      1,
+      Math.max(
+        0,
+        sceneZ / TERRAIN_SIZE + 0.5
+      )
+    )
+
+  const gx =
+    normalizedX * (GRID_SIZE - 1)
+
+  const gz =
+    normalizedRow * (GRID_SIZE - 1)
+
+  const x0 =
+    Math.max(
+      0,
+      Math.min(
+        GRID_SIZE - 1,
+        Math.floor(gx)
+      )
+    )
+
+  const z0 =
+    Math.max(
+      0,
+      Math.min(
+        GRID_SIZE - 1,
+        Math.floor(gz)
+      )
+    )
+
+  const x1 =
+    Math.min(
+      GRID_SIZE - 1,
+      x0 + 1
+    )
+
+  const z1 =
+    Math.min(
+      GRID_SIZE - 1,
+      z0 + 1
+    )
+
+  const tx =
+    gx - x0
+
+  const tz =
+    gz - z0
+
+  const h00 =
+    heightsData[z0]?.[x0] ?? BASE_ELEVATION
+
+  const h10 =
+    heightsData[z0]?.[x1] ?? h00
+
+  const h01 =
+    heightsData[z1]?.[x0] ?? h00
+
+  const h11 =
+    heightsData[z1]?.[x1] ?? h10
+
+  const h0 =
+    h00 * (1 - tx) + h10 * tx
+
+  const h1 =
+    h01 * (1 - tx) + h11 * tx
+
+  const realHeight =
+    h0 * (1 - tz) + h1 * tz
+
+  return getDisplayHeight(realHeight)
+}
+
+function liftContourToTerrainSurface(
+  points: Float32Array,
+  offset = CONTOUR_SURFACE_OFFSET
+): Float32Array {
+  const lifted =
+    new Float32Array(points.length)
+
+  for (let i = 0; i < points.length; i += 3) {
+    const x =
+      points[i] ?? 0
+
+    const z =
+      points[i + 2] ?? 0
+
+    lifted[i] =
+      x
+
+    lifted[i + 1] =
+      sampleTerrainHeightAtSceneXZ(
+        x,
+        z
+      ) + offset
+
+    lifted[i + 2] =
+      z
+  }
+
+  return lifted
+}
+
+function createSurfaceContourLine(
+  points: Float32Array,
+  color: number,
+  opacity = 0.9,
+  renderOrder = 10
+): THREE.Line {
+  const lineGeo =
+    new THREE.BufferGeometry()
+
+  lineGeo.setAttribute(
+    'position',
+    new THREE.BufferAttribute(
+      points,
+      3
+    )
+  )
+
+  const lineMat =
+    new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthTest: true,
+      depthWrite: false,
+    })
+
+  const line =
+    new THREE.Line(
+      lineGeo,
+      lineMat
+    )
+
+  line.renderOrder =
+    renderOrder
+
+  line.frustumCulled =
+    false
+
+  return line
 }
 
 // ============================================================
@@ -1331,33 +1134,111 @@ function traceValleyLine(segments: ContourSegment[]): Float32Array | null {
 // 场景初始化 — 更亮的灯光
 // ============================================================
 function initScene() {
-  if (!threeContainerRef.value) return
+  const container =
+    threeContainerRef.value
+
+  if (!container) {
+    return
+  }
+
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  )
 
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x101520)
+  scene.background =
+    new THREE.Color(0x101520)
 
-  const aspect = threeContainerRef.value.clientWidth / threeContainerRef.value.clientHeight
-  camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100)
+  camera =
+    new THREE.PerspectiveCamera(
+      40,
+      width / height,
+      0.1,
+      100
+    )
+
   // 默认前视图（正面对齐地形）
-  camera.position.set(0, 2.5, 7.0)
-  camera.lookAt(0, 0.8, 0)
+  camera.position.set(
+    0,
+    2.5,
+    7.0
+  )
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.setSize(threeContainerRef.value.clientWidth, threeContainerRef.value.clientHeight)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  camera.lookAt(
+    0,
+    0.8,
+    0
+  )
+
+  renderer =
+    new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference:
+        'high-performance',
+    })
+
+  /*
+   * 必须先设置 DPR，再同步真实尺寸。
+   * 避免默认 300×150 drawing buffer 被 CSS 拉伸。
+   */
+  renderer.setPixelRatio(dpr)
+
+  renderer.setSize(
+    width,
+    height,
+    false
+  )
+
+  renderer.domElement.className =
+    'three-canvas terrain-renderer-canvas'
+
+  lastSceneWidth = width
+  lastSceneHeight = height
+  lastSceneDpr = dpr
+
+  contourRes.set(
+    width,
+    height
+  )
+
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.4
-  threeContainerRef.value.appendChild(renderer.domElement)
+  container.appendChild(
+    renderer.domElement
+  )
 
-  labelRenderer = new CSS2DRenderer()
-  labelRenderer.setSize(threeContainerRef.value.clientWidth, threeContainerRef.value.clientHeight)
+  labelRenderer =
+    new CSS2DRenderer()
+
+  labelRenderer.setSize(
+    width,
+    height
+  )
   labelRenderer.domElement.style.position = 'absolute'
   labelRenderer.domElement.style.top = '0'
   labelRenderer.domElement.style.left = '0'
   labelRenderer.domElement.style.pointerEvents = 'none'
-  threeContainerRef.value.appendChild(labelRenderer.domElement)
+  container.appendChild(
+    labelRenderer.domElement
+  )
 
   controls = new OrbitControls(camera, renderer.domElement)
   controls.target.set(0, 0.8, 0)
@@ -1484,17 +1365,30 @@ function buildContoursAndProjection() {
 
   const SMOOTH_ITER = 2
 
-  // 1. 3D 地形表面等高线 — 使用 Line2 贴合地形（深紫色）
+  // 1. 3D 地形表面等高线 — 先平滑，再重新采样山体表面并抬升，避免卡进山体
   for (const level of levels) {
     const y = getDisplayHeight(level)
     const rawPolylines = connectContourPolylines(segments, level, y)
     for (const pts of rawPolylines) {
-      const smoothPts = chaikinSmooth(pts, SMOOTH_ITER)
-      // 用 LineBasicMaterial 创建普通等高线（无 polygonOffset 依赖，直接嵌入地形表面）
-      const lineGeo = new THREE.BufferGeometry()
-      lineGeo.setAttribute('position', new THREE.BufferAttribute(smoothPts, 3))
-      const lineMat = new THREE.LineBasicMaterial({ color: 0x5a0d9a, transparent: true, opacity: 0.85 })
-      const line = new THREE.Line(lineGeo, lineMat)
+      const smoothPts =
+        chaikinSmooth(
+          pts,
+          SMOOTH_ITER
+        )
+
+      const liftedPts =
+        liftContourToTerrainSurface(
+          smoothPts
+        )
+
+      const line =
+        createSurfaceContourLine(
+          liftedPts,
+          0x5a0d9a,
+          0.92,
+          10
+        )
+
       contourGroup3D.add(line)
     }
   }
@@ -1544,9 +1438,20 @@ function buildRidges(segments: ContourSegment[]) {
   // ---- 山脊线（红色） ----
   const ridgePts = traceRidgeLine(segments)
   if (ridgePts) {
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(ridgePts, 3))
-    ridgeGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xff2222 })))
+    const liftedRidgePts =
+      liftContourToTerrainSurface(
+        ridgePts,
+        FEATURE_LINE_SURFACE_OFFSET
+      )
+
+    ridgeGroup.add(
+      createSurfaceContourLine(
+        liftedRidgePts,
+        0xff2222,
+        0.95,
+        12
+      )
+    )
 
     const proj = new Float32Array(ridgePts.length)
     for (let k = 0; k < ridgePts.length; k += 3) { proj[k] = ridgePts[k]; proj[k + 1] = BASE_PLANE_Y + 0.006; proj[k + 2] = ridgePts[k + 2] }
@@ -1558,9 +1463,20 @@ function buildRidges(segments: ContourSegment[]) {
   // ---- 山谷线（蓝色） ----
   const valleyPts = traceValleyLine(segments)
   if (valleyPts) {
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(valleyPts, 3))
-    ridgeGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x2266ff })))
+    const liftedValleyPts =
+      liftContourToTerrainSurface(
+        valleyPts,
+        FEATURE_LINE_SURFACE_OFFSET
+      )
+
+    ridgeGroup.add(
+      createSurfaceContourLine(
+        liftedValleyPts,
+        0x2266ff,
+        0.95,
+        12
+      )
+    )
 
     const proj = new Float32Array(valleyPts.length)
     for (let k = 0; k < valleyPts.length; k += 3) { proj[k] = valleyPts[k]; proj[k + 1] = BASE_PLANE_Y + 0.006; proj[k + 2] = valleyPts[k + 2] }
@@ -1754,6 +1670,8 @@ function addElevationLabels() {
 }
 
 function addFeatureLabels() {
+  // 学习模式下不显示地形标签（避免透漏答案）
+  if (learningMode.value) return
   // 根据当前地形生成类型，只显示对应标签
   const allFeatures = [
     { type: 'peak', text: '山顶', x: 0.78, z: 0.78, color: '#ff6b6b' },
@@ -2184,6 +2102,116 @@ function generateRandomTerrain() {
   }, 50)
 }
 
+// ============================================================
+// 地形判读学习
+// ============================================================
+function startLearning() {
+  if (learningMode.value) return
+  // 保存当前状态
+  savedTerrainGenType = terrainGenType.value
+  savedHeightValue = maxHeightValue
+  savedHeightsData = heightsData.map(row => [...row])
+  // 自动收起左右面板（避免遮挡地形）
+  leftCollapsed.value = true
+  rightCollapsed.value = true
+  // 立即隐藏现有地形标签（避免泄露答案）
+  while (featureLabelGroup.children.length) {
+    const c = featureLabelGroup.children[0]
+    c.parent?.remove(c)
+  }
+  learningMode.value = true
+  quizResult.value = null
+  generateNextQuiz()
+}
+
+function endLearning() {
+  learningMode.value = false
+  quizResult.value = null
+  lastAnswer.value = null
+  // 恢复原状态，展开面板并切回前视图
+  leftCollapsed.value = false
+  rightCollapsed.value = false
+  terrainGenType.value = savedTerrainGenType
+  heightsData = savedHeightsData
+  maxHeightValue = savedHeightValue
+  if (savedHeightValue > 0) {
+    // 重新构建原地形
+    const positions = new Float32Array(GRID_SIZE * GRID_SIZE * 3)
+    const colors = new Float32Array(GRID_SIZE * GRID_SIZE * 3)
+    for (let j = 0; j < GRID_SIZE; j++) {
+      for (let i = 0; i < GRID_SIZE; i++) {
+        const idx = (j * GRID_SIZE + i) * 3
+        const x = (i / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
+        const z = (j / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
+        const realH = heightsData[j][i]
+        const displayH = getDisplayHeight(realH)
+        positions[idx] = x
+        positions[idx + 1] = displayH
+        positions[idx + 2] = z
+        const norm = (realH - BASE_ELEVATION) / (maxHeightValue - BASE_ELEVATION)
+        const col = getTerrainColor(Math.max(0, Math.min(1, norm)))
+        colors[idx] = col.r
+        colors[idx + 1] = col.g
+        colors[idx + 2] = col.b
+      }
+    }
+    const indices: number[] = []
+    for (let j = 0; j < GRID_SIZE - 1; j++) {
+      for (let i = 0; i < GRID_SIZE - 1; i++) {
+        const a = j * GRID_SIZE + i
+        const b = j * GRID_SIZE + i + 1
+        const c = (j + 1) * GRID_SIZE + i
+        const d = (j + 1) * GRID_SIZE + i + 1
+        indices.push(a, b, c)
+        indices.push(b, d, c)
+      }
+    }
+    terrainMesh.geometry.dispose()
+    const newGeo = new THREE.BufferGeometry()
+    newGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    newGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    newGeo.setIndex(indices)
+    newGeo.computeVertexNormals()
+    terrainMesh.geometry = newGeo
+    buildContoursAndProjection()
+    buildLabels()
+  }
+  setView('front')
+}
+
+function generateNextQuiz() {
+  // 随机选择 6 种地形之一
+  const typeIdx = Math.floor(Math.random() * QUIZ_TYPES.length)
+  const type = QUIZ_TYPES[typeIdx]
+  currentQuizType.value = quizOptions[typeIdx]
+  quizResult.value = null
+  lastAnswer.value = null
+  // 设置 terrainGenType 触发对应地形生成
+  terrainGenType.value = type
+  generateRandomTerrain()
+}
+
+function nextQuiz() {
+  generateNextQuiz()
+}
+
+function onQuizAnswer(answer: string) {
+  if (quizResult.value !== null) return
+  lastAnswer.value = answer
+  if (answer === currentQuizType.value) {
+    quizResult.value = 'correct'
+  } else {
+    quizResult.value = 'wrong'
+  }
+}
+
+function getOptionClass(opt: string) {
+  if (!quizResult.value) return ''
+  if (opt === currentQuizType.value) return 'option-correct'
+  if (opt === lastAnswer.value && opt !== currentQuizType.value) return 'option-wrong'
+  return ''
+}
+
 function toggleProfileMode() {
   profileMode.value = !profileMode.value
   if (!profileMode.value) {
@@ -2542,30 +2570,157 @@ function animate() {
   animationId = requestAnimationFrame(animate)
 }
 
-function handleResize() {
+function isPanelLayoutResizing() {
+  return (
+    draggingSide.value !== null ||
+    viewportResizing.value
+  )
+}
+
+function resizeSceneNow() {
+  const container =
+    threeContainerRef.value
+
   if (
-    !threeContainerRef.value ||
+    !container ||
     !camera ||
     !renderer ||
-    !labelRenderer
+    !labelRenderer ||
+    !scene
   ) {
     return
   }
 
-  const w = threeContainerRef.value.clientWidth
-  const h = threeContainerRef.value.clientHeight
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
 
-  camera.aspect = w / h
-  camera.updateProjectionMatrix()
-  renderer.setSize(w, h)
-  labelRenderer.setSize(w, h)
-  contourRes.set(w, h)
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  )
+
+  const sizeChanged =
+    width !== lastSceneWidth ||
+    height !== lastSceneHeight ||
+    dpr !== lastSceneDpr
+
+  /*
+   * setSize / setPixelRatio 会重新分配绘图缓冲区。
+   * 只有真实尺寸或 DPR 变化时才执行。
+   */
+  if (sizeChanged) {
+    lastSceneWidth = width
+    lastSceneHeight = height
+    lastSceneDpr = dpr
+
+    camera.aspect =
+      width / height
+
+    camera.updateProjectionMatrix()
+
+    renderer.setPixelRatio(dpr)
+
+    renderer.setSize(
+      width,
+      height,
+      false
+    )
+
+    labelRenderer.setSize(
+      width,
+      height
+    )
+
+    contourRes.set(
+      width,
+      height
+    )
+  }
+
+  /*
+   * 悬浮面板不一定改变主场景尺寸，
+   * 但 Cube 必须根据右面板真实位置重新停靠。
+   */
   applyResponsiveScale()
   updateViewCubeDockPosition()
+
+  controls?.update()
+
+  /*
+   * 缓冲区重建后立即补绘，避免短暂空白。
+   */
+  if (sizeChanged) {
+    renderer.render(
+      scene,
+      camera
+    )
+
+    labelRenderer.render(
+      scene,
+      camera
+    )
+  }
 }
 
-onMounted(() => {
-  syncTemplateLayout()
+function scheduleSceneResize(
+  delay = 110
+) {
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
+  }
+
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
+  /*
+   * 拖拽阶段让 canvas 先通过 CSS 跟随，
+   * 松手后 Hook 会再次触发最终校准。
+   */
+  if (isPanelLayoutResizing()) {
+    return
+  }
+
+  sceneResizeTimer =
+    setTimeout(() => {
+      sceneResizeTimer = null
+
+      sceneResizeFrame =
+        requestAnimationFrame(() => {
+          sceneResizeFrame = 0
+
+          sceneResizeSettleFrame =
+            requestAnimationFrame(() => {
+              sceneResizeSettleFrame = 0
+              resizeSceneNow()
+            })
+        })
+    }, delay)
+}
+
+onMounted(async () => {
+  /*
+   * 等 Hook 先写入平板默认面板宽度，
+   * 再按主场景真实尺寸初始化 Renderer。
+   */
+  await nextTick()
 
   initScene()
   setupLights()
@@ -2573,70 +2728,78 @@ onMounted(() => {
   buildContoursAndProjection()
   buildLabels()
 
-  if (threeContainerRef.value) {
-    contourRes.set(
-      threeContainerRef.value.clientWidth,
-      threeContainerRef.value.clientHeight
+  bindViewCube()
+  applyResponsiveScale()
+  updateViewCubeDockPosition()
+
+  /*
+   * 动画开始前先绘制一帧清晰画面。
+   */
+  controls.update()
+
+  renderer.render(
+    scene,
+    camera
+  )
+
+  labelRenderer.render(
+    scene,
+    camera
+  )
+
+  animate()
+
+  const container =
+    threeContainerRef.value
+
+  if (container) {
+    sceneResizeObserver =
+      new ResizeObserver(() => {
+        scheduleSceneResize(110)
+      })
+
+    sceneResizeObserver.observe(
+      container
     )
   }
 
-  bindViewCube()
-  applyResponsiveScale()
-  animate()
-
-  pageResizeObserver =
-    new ResizeObserver(() => {
-      syncTemplateLayout()
-      handleResize()
-    })
-
-  if (pageRef.value) {
-    pageResizeObserver.observe(pageRef.value)
-  }
-
-  window.addEventListener(
-    'resize',
-    handleResize
-  )
+  /*
+   * Grid、字体和悬浮面板完成首轮布局后再最终校准。
+   */
+  scheduleSceneResize(0)
 })
 
 onUnmounted(() => {
-  document.body.classList.remove(
-    'geo-panel-resizing'
+  cancelAnimationFrame(
+    animationId
   )
 
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-
-  document.removeEventListener(
-    'pointermove',
-    handlePanelResize
+  cancelAnimationFrame(
+    sceneResizeFrame
   )
 
-  document.removeEventListener(
-    'pointerup',
-    stopPanelResize
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
   )
 
-  document.removeEventListener(
-    'pointercancel',
-    stopPanelResize
-  )
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
 
-  cancelAnimationFrame(animationId)
+    sceneResizeTimer = null
+  }
 
-  window.removeEventListener(
-    'resize',
-    handleResize
-  )
+  sceneResizeObserver?.disconnect()
+  sceneResizeObserver = null
 
-  window.removeEventListener(
-    'pointermove',
-    handlePanelResize
-  )
+  if (contourDebounceTimer) {
+    clearTimeout(
+      contourDebounceTimer
+    )
 
-  pageResizeObserver?.disconnect()
-  pageResizeObserver = null
+    contourDebounceTimer = null
+  }
 
   controls?.dispose()
   renderer?.dispose()
@@ -3625,6 +3788,197 @@ onUnmounted(() => {
   .terrain-projection-template .panel-terrain-legend-card {
     padding:
       12px !important;
+  }
+}
+
+/* ===================== v19：公共面板 Hook =====================
+   - 左右悬浮面板宽度、断点和触控拖拽统一交给 Hook；
+   - 平板宽度直接使用公共 medium 配置；
+   - 拖拽期间不重建 WebGL / CSS2D buffer；
+   - Cube 继续读取右侧面板真实 DOM 位置进行停靠。
+*/
+
+/* ===================== v18: 等高线贴合山体表面 =====================
+   - 3D 等高线平滑后重新采样 terrain 高度；
+   - 等高线整体向上轻微抬升，避免卡进山体；
+   - 山脊线 / 山谷线同步抬升；
+   - 不使用 depthTest:false，避免背面等高线穿透显示。
+*/
+
+/* 地形判读学习模块覆盖层 — 顶部居中 */
+.quiz-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  /* 顶部对齐，不挡地形 */
+  justify-content: center;
+  pointer-events: none;
+  padding-top: calc(70px * var(--ui-scale, 1));
+  /* 避开工具栏 */
+}
+
+.quiz-panel {
+  pointer-events: auto;
+  z-index: 201;
+  width: min(720px, 90vw);
+  background: rgba(8, 16, 30, 0.96);
+  border: 1px solid rgba(46, 196, 182, 0.4);
+  border-radius: calc(14px * var(--ui-scale, 1));
+  padding: calc(18px * var(--ui-scale, 1)) calc(22px * var(--ui-scale, 1));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  color: #e0f0ff;
+  font-family: 'Microsoft YaHei', sans-serif;
+}
+
+.quiz-header {
+  text-align: center;
+  margin-bottom: calc(14px * var(--ui-scale, 1));
+  padding-bottom: calc(10px * var(--ui-scale, 1));
+  border-bottom: 1px solid rgba(46, 196, 182, 0.25);
+}
+
+.quiz-title {
+  font-size: calc(18px * var(--ui-scale, 1));
+  font-weight: 700;
+  color: #2ec4b6;
+  margin-bottom: calc(4px * var(--ui-scale, 1));
+}
+
+.quiz-subtitle {
+  font-size: calc(13px * var(--ui-scale, 1));
+  color: #88aabb;
+}
+
+.quiz-options {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: calc(10px * var(--ui-scale, 1));
+  margin-bottom: calc(12px * var(--ui-scale, 1));
+}
+
+.quiz-option {
+  padding: calc(10px * var(--ui-scale, 1)) calc(8px * var(--ui-scale, 1));
+  font-size: calc(15px * var(--ui-scale, 1));
+  font-weight: 600;
+  font-family: 'Microsoft YaHei', sans-serif;
+  color: #b0c8e0;
+  background: rgba(46, 196, 182, 0.08);
+  border: 1px solid rgba(46, 196, 182, 0.3);
+  border-radius: calc(8px * var(--ui-scale, 1));
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.quiz-option:hover:not(:disabled) {
+  background: rgba(46, 196, 182, 0.25);
+  border-color: #2ec4b6;
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.quiz-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.quiz-option.option-correct {
+  background: rgba(40, 200, 100, 0.35) !important;
+  border-color: #2ecc71 !important;
+  color: #fff !important;
+  box-shadow: 0 0 12px rgba(46, 204, 113, 0.4);
+}
+
+.quiz-option.option-wrong {
+  background: rgba(220, 60, 60, 0.35) !important;
+  border-color: #e74c3c !important;
+  color: #fff !important;
+  box-shadow: 0 0 12px rgba(231, 76, 60, 0.4);
+}
+
+.quiz-feedback {
+  text-align: center;
+  font-size: calc(15px * var(--ui-scale, 1));
+  font-weight: 600;
+  margin-bottom: calc(12px * var(--ui-scale, 1));
+  min-height: calc(22px * var(--ui-scale, 1));
+}
+
+.feedback-correct {
+  color: #2ecc71;
+}
+
+.feedback-wrong {
+  color: #e74c3c;
+}
+
+.quiz-actions {
+  display: flex;
+  gap: calc(12px * var(--ui-scale, 1));
+  justify-content: center;
+}
+
+.quiz-btn {
+  padding: calc(8px * var(--ui-scale, 1)) calc(20px * var(--ui-scale, 1));
+  font-size: calc(14px * var(--ui-scale, 1));
+  font-weight: 600;
+  font-family: 'Microsoft YaHei', sans-serif;
+  border-radius: calc(8px * var(--ui-scale, 1));
+  cursor: pointer;
+  border: 1px solid;
+  transition: all 0.2s ease;
+}
+
+.quiz-btn-next {
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.25), rgba(36, 124, 255, 0.25));
+  border-color: #2ec4b6;
+  color: #2ec4b6;
+}
+
+.quiz-btn-next:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.quiz-btn-next:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.45), rgba(36, 124, 255, 0.45));
+  box-shadow: 0 0 12px rgba(46, 196, 182, 0.4);
+}
+
+.quiz-btn-end {
+  background: rgba(231, 76, 60, 0.1);
+  border-color: rgba(231, 76, 60, 0.4);
+  color: #e74c3c;
+}
+
+.quiz-btn-end:hover {
+  background: rgba(231, 76, 60, 0.25);
+}
+
+@media (max-width: 768px) {
+  .quiz-options {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .quiz-panel {
+    width: 95vw;
+    padding: 14px 16px;
+  }
+
+  .quiz-title {
+    font-size: 16px;
+  }
+
+  .quiz-subtitle {
+    font-size: 12px;
+  }
+
+  .quiz-option {
+    font-size: 13px;
+    padding: 8px 4px;
   }
 }
 </style>

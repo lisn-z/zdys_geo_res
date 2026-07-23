@@ -26,6 +26,18 @@ import { fileURLToPath } from 'url'
 // - 新增 getEffectiveTemplateWidth / isUltraLargeTemplateScreen。
 // - 默认面板宽度和最大拖拽宽度都用有效宽度判断，避免浏览器缩放或投屏环境误判。
 
+// v18:
+// - 面板默认宽度改为连续算法，不再按 small / medium / large 分段跳变。
+// - 拖拽最大宽度同步改为连续算法，普通屏左侧最多 420px、右侧最多 480px。
+// - 只有 2200px 以上才放开超大屏宽度；layoutMode 只负责布局形态，不再决定面板宽度。
+// - 提示词同步修正：非 layout-floating 中小屏不要变悬浮抽屉，layout-floating 才走覆盖式抽屉。
+
+// v19:
+// - 左右面板的宽度、断点、展开折叠、拖拽与事件清理统一迁移到 @/hooks/useGeoPanelLayout。
+// - 页面模板不再生成 getAdaptivePanelWidth / getPanelResizeBounds / startResize 等重复逻辑。
+// - Three.js / ECharts / Leaflet 在连续拖拽或网页缩放期间不重建画布，稳定后再校准，避免闪烁。
+// - AI 提示词同步要求复用 Hook，禁止业务组件重新实现面板状态与拖拽逻辑。
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
@@ -34,6 +46,20 @@ const SHARED_STYLE_FILE = join(
   'src',
   'styles',
   'geo-page-template.css'
+)
+
+const PANEL_LAYOUT_HOOK_FILE = join(
+  root,
+  'src',
+  'hooks',
+  'useGeoPanelLayout.ts'
+)
+
+const PANEL_LAYOUT_CONFIG_FILE = join(
+  root,
+  'src',
+  'hooks',
+  'geo-panel-layout.config.ts'
 )
 
 const LOGO_URL =
@@ -333,7 +359,12 @@ function buildTemplateUsagePrompt({
   const floatingText =
     useFloating
       ? '当前页面启用了 layout-floating 悬浮毛玻璃布局：Header、左右面板和时间轴会悬浮在主场景上方，主场景铺满整个页面。不要再给面板、Header、时间轴重新写背景、透明度、毛玻璃和阴影。'
-      : '当前页面使用普通模板布局：Header 在顶部，面板和主场景按模板布局排列。不要额外改 workspace、side-panel、center-stage 的基础布局。'
+      : '当前页面使用普通模板布局：Header 在顶部，面板和主场景按模板布局排列。非 layout-floating 页面在中小屏也不要变成悬浮面板；不要给 root 额外添加 layout-floating。不要额外改 workspace、side-panel、center-stage 的基础布局。'
+
+  const responsivePanelText =
+    useFloating
+      ? '- 当前是 layout-floating：layout-medium / layout-small 下左右面板可以按公共 CSS 走覆盖式抽屉；底部 timeline-dock、图例、主场景浮层不要再用 100% - leftPanelWidth - rightPanelWidth 计算宽度。'
+      : '- 当前不是 layout-floating：layout-medium / layout-small 下左右面板不要改成 absolute 悬浮抽屉，应保持普通模板布局；不要给 root 手动补 layout-floating。'
 
   const areaLines = [
     '- top-toolbar：放 Logo、页面标题、全局按钮，例如“收起面板 / 展开面板”。不要放业务表单和大段说明。',
@@ -406,8 +437,11 @@ function buildTemplateUsagePrompt({
     three: [
       '【Three.js 主场景开发要求】',
       '- Three.js 只挂载到 scene-host / three-host 容器中。',
-      '- 相机、渲染器、OrbitControls、动画循环、ResizeObserver 放在 script 中。',
+      '- 相机、渲染器、OrbitControls、动画循环和场景销毁放在 script 中。',
       '- 不要用 fixed 定位 canvas；canvas 尺寸跟随容器。',
+      '- 面板拖拽或浏览器缩放期间，useGeoPanelLayout 的 state.resizing 为 true，此时不要调用 renderer.setSize()。',
+      '- 只在 onLayoutChange 的稳定状态或 onResize 的 end / reset 阶段执行最终尺寸校准。',
+      '- 场景自己的 ResizeObserver 也必须在 draggingSide 或 viewportResizing 为真时跳过；resize 必须防抖，并在尺寸没有实际变化时跳过 renderer.setSize()；setSize 后立即补绘一帧。',
       '- 左侧控制模型、光照、速度、图层、视角；右侧展示当前对象数据、教学说明和过程结果。',
       '- 不用到的几何体、材质、预设、控制状态、watch 和 dispose 逻辑可以删除。',
     ].join('\n'),
@@ -415,6 +449,8 @@ function buildTemplateUsagePrompt({
       '【ECharts 主场景开发要求】',
       '- ECharts 只挂载到 scene-host / chart-host 容器中。',
       '- 图表实例、option 构建、resize、dispose 放在 script 中。',
+      '- 面板拖拽或浏览器缩放期间不要连续 chart.resize()；稳定后再执行一次无动画 resize。',
+      '- 场景自己的 ResizeObserver 必须在 draggingSide 或 viewportResizing 为真时跳过；图表容器尺寸没有变化时跳过 resize，避免重复清空 Canvas。',
       '- 左侧控制图层、配色、缩放、标签、数据口径；右侧展示指标、图例、区域说明和结论。',
       '- 不用到的地图预设、颜色变量、visualMap、roam 状态可以删除。',
     ].join('\n'),
@@ -422,6 +458,7 @@ function buildTemplateUsagePrompt({
       '【Leaflet 主场景开发要求】',
       '- Leaflet 只挂载到 scene-host / leaflet-host 容器中。',
       '- 地图实例、瓦片层、图层组、标记、比例尺、invalidateSize、dispose 放在 script 中。',
+      '- 面板拖拽或浏览器缩放期间不要连续 invalidateSize()；场景自己的 ResizeObserver 必须在 draggingSide 或 viewportResizing 为真时跳过，稳定后再执行一次 animate:false、pan:false 的校准。',
       '- 左侧控制底图、图层、点线面显示、透明度、缩放视图；右侧展示点位信息、图例和地理解释。',
       '- 不用到的图层、标记、比例尺、区域预设和 watch 可以删除。',
     ].join('\n'),
@@ -429,6 +466,7 @@ function buildTemplateUsagePrompt({
       '【空主场景开发要求】',
       '- 当前主场景没有预设库，按业务自行接入 Three.js、ECharts、Leaflet、Canvas 或普通 HTML。',
       '- 接入新库时仍然使用 scene-host 作为主容器。',
+      '- 新场景需要尺寸刷新时，通过 useGeoPanelLayout 的 onLayoutChange / onResize 回调接入，不要监听整个页面后重复实现面板逻辑。',
       '- 不用到的示例状态、示例卡片、时间轴状态可以删除。',
     ].join('\n'),
   }
@@ -496,18 +534,20 @@ function buildTemplateUsagePrompt({
     '- 业务组件只补当前业务独有的布局、尺寸、定位、图形和动画样式。',
     '',
     '【布局与面板适配强制规范】',
-    '- root 根节点只放 geo-template-page、geo-page、theme-*、layout-floating 和 layout-* 类，不要在 root 上写 --left-panel-width / --right-panel-width。',
-    '- --left-panel-width / --right-panel-width 只能写在 <main class="workspace"> 的 :style 上，避免和公共 CSS 的大屏变量互相覆盖。',
-    '- left-panel / right-panel 必须保留 resize-handle、panel-collapse-btn、panel-entry-btn，不要删掉拖拽手柄。',
-    '- resize-handle 必须使用 @pointerdown.stop.prevent="startResize(\'left\', $event)" 或 right，防止拖拽事件冒泡到 Three.js / Leaflet / ECharts 场景。',
-    '- 不要在业务组件里重新写 Math.min(420)、Math.min(460)、Math.min(360) 这类固定拖拽上限。',
-    '- 默认宽度和拖拽上限统一由 getAdaptivePanelWidth、getPanelResizeBounds、startResize 管理。',
-    '- 拖拽后必须设置 leftPanelManuallyResized / rightPanelManuallyResized，ResizeObserver 不要把用户拖宽后的面板又重置回默认宽度。',
-    '- layout-medium / layout-small 下左右面板是覆盖式抽屉，底部 timeline-dock、图例、主场景浮层不要再用 100% - leftPanelWidth - rightPanelWidth 计算宽度。',
-    '- 普通 1920 × 1080 电脑按普通 large 布局处理，不要默认套希沃 / 超大屏字号和面板宽度。',
-    '- 普通 large 的最大拖拽宽度也要收敛：1440~2199 左侧最多约 560px，右侧最多约 620px；2200px 以上才允许 820px / 900px。',
-    '- 判断 2200px 超大屏时不能只看 pageRef.clientWidth，要同时参考 window.innerWidth、visualViewport.width、screen.width，避免普通 1920 在缩放环境下误判。',
-    '- 大屏 / 希沃适配优先走公共模板 CSS 和模板内统一面板逻辑，不要在业务组件里单独新建 seewoMode。',
+    '- 页面必须复用 @/hooks/useGeoPanelLayout，禁止在业务组件内重新实现面板宽度、断点、展开折叠、拖拽和事件清理。',
+    '- 面板默认宽度、最小值、最大值和超大屏规则只允许修改 @/hooks/geo-panel-layout.config.ts；不要在单个课件里写孤立数值。',
+    '- root 使用 Hook 返回的 rootRef；layoutMode 只用于根节点 layout-* class。',
+    '- <main class="workspace"> 必须使用 v-bind="workspaceAttrs"，不要手写 --left-panel-width / --right-panel-width，也不要重复写 has-left / has-right class。',
+    '- left-panel / right-panel 分别使用 v-bind="leftPanelAttrs" / v-bind="rightPanelAttrs"。',
+    '- 左右 resize-handle 分别使用 v-bind="leftResizeAttrs" / v-bind="rightResizeAttrs"，不要再写 @pointerdown 和 startResize。',
+    '- 左右收起按钮分别使用 v-bind="leftCollapseAttrs" / v-bind="rightCollapseAttrs"；展开入口分别使用 leftEntryAttrs / rightEntryAttrs。',
+    '- 顶部总开关使用 Hook 返回的 toggleAll，业务中可以别名为 toggleAllPanels。',
+    '- 不要在业务组件声明 leftPanelWidth、rightPanelWidth、leftPanelManuallyResized、rightPanelManuallyResized、pageResizeObserver、getAdaptivePanelWidth、getPanelResizeBounds、startResize。',
+    '- 业务确实需要感知布局变化时，只使用 onLayoutChange、onResize、onCollapseChange、onModeChange 回调；不需要就不传。',
+    '- 主场景尺寸刷新通过 onLayoutChange 接入；state.resizing 为 true 时跳过重型画布 resize，onResize 的 end / reset 阶段做最终校准。',
+    responsivePanelText,
+    '- 普通 1920 × 1080 与 2200px 以上超大屏的判定、面板宽度和拖拽上限全部由公共 Hook 配置处理，业务组件不要自行判断。',
+    '- 大屏 / 希沃适配优先走公共模板 CSS 和 Hook，不要在业务组件里单独新建 seewoMode。',
     '',
     '【可以删除的内容】',
     '- 当前业务没用到的左侧控制卡片可以删除。',
@@ -1034,7 +1074,7 @@ function buildLeftPanel(sceneKey, themeKey) {
       <aside
         id="left-panel"
         class="side-panel left-panel"
-        :class="{ collapsed: leftCollapsed }"
+        v-bind="leftPanelAttrs"
       >
         <div class="panel-scroll">
           <div class="panel-heading">
@@ -1051,16 +1091,13 @@ function buildLeftPanel(sceneKey, themeKey) {
 
         <div
           class="resize-handle resize-right"
-          @pointerdown.stop.prevent="
-            startResize('left', $event)
-          "
+          v-bind="leftResizeAttrs"
         ></div>
 
         <button
           type="button"
           class="panel-collapse-btn collapse-left"
-          aria-label="收起左侧面板"
-          @click="leftCollapsed = true"
+          v-bind="leftCollapseAttrs"
         >
           ‹
         </button>
@@ -1084,7 +1121,7 @@ function buildRightPanel(sceneKey) {
       <aside
         id="right-panel"
         class="side-panel right-panel"
-        :class="{ collapsed: rightCollapsed }"
+        v-bind="rightPanelAttrs"
       >
         <div class="panel-scroll">
           <div class="panel-heading">
@@ -1138,16 +1175,13 @@ function buildRightPanel(sceneKey) {
 
         <div
           class="resize-handle resize-left"
-          @pointerdown.stop.prevent="
-            startResize('right', $event)
-          "
+          v-bind="rightResizeAttrs"
         ></div>
 
         <button
           type="button"
           class="panel-collapse-btn collapse-right"
-          aria-label="收起右侧面板"
-          @click="rightCollapsed = true"
+          v-bind="rightCollapseAttrs"
         >
           ›
         </button>
@@ -1569,6 +1603,9 @@ let sceneResizeTimer:
   | ReturnType<typeof setTimeout>
   | null = null
 
+let sceneResizeFrame = 0
+let sceneResizeSettleFrame = 0
+
 let scene: THREE.Scene | null = null
 let camera:
   | THREE.PerspectiveCamera
@@ -1927,6 +1964,10 @@ function resizeThreeSceneNow() {
       )
     )
 
+  /*
+   * renderer.setSize 会重建 WebGL 绘图缓冲区。
+   * 尺寸没有变化时必须跳过，避免无意义清屏。
+   */
   if (
     width === lastSceneWidth &&
     height === lastSceneHeight
@@ -1945,25 +1986,54 @@ function resizeThreeSceneNow() {
     height,
     false
   )
+
+  /*
+   * setSize 后立即补绘一帧，避免等待动画循环时出现短暂空白。
+   */
+  if (scene) {
+    renderer.render(
+      scene,
+      camera
+    )
+  }
 }
 
 function scheduleSceneResize(
-  delay = 140
+  delay = 110
 ) {
   if (sceneResizeTimer) {
     clearTimeout(sceneResizeTimer)
   }
 
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
   sceneResizeTimer =
     setTimeout(() => {
       sceneResizeTimer = null
 
-      if (isPanelResizing) {
-        scheduleSceneResize(90)
+      if (
+        draggingSide.value ||
+        viewportResizing.value
+      ) {
         return
       }
 
-      resizeThreeSceneNow()
+      /*
+       * 双 RAF 等 CSS Grid 和面板尺寸稳定后再校准 WebGL。
+       */
+      sceneResizeFrame =
+        requestAnimationFrame(() => {
+          sceneResizeSettleFrame =
+            requestAnimationFrame(() => {
+              resizeThreeSceneNow()
+            })
+        })
     }, delay)
 }
 
@@ -2218,7 +2288,7 @@ function initScene() {
 
   threeResizeObserver =
     new ResizeObserver(() => {
-      scheduleSceneResize()
+      scheduleSceneResize(110)
     })
 
   threeResizeObserver.observe(
@@ -2355,6 +2425,14 @@ function disposeScene() {
     sceneResizeTimer = null
   }
 
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
   threeResizeObserver?.disconnect()
   threeResizeObserver = null
 
@@ -2459,6 +2537,11 @@ let chartResizeObserver:
 let sceneResizeTimer:
   | ReturnType<typeof setTimeout>
   | null = null
+
+let sceneResizeFrame = 0
+let sceneResizeSettleFrame = 0
+let lastSceneWidth = 0
+let lastSceneHeight = 0
 
 let mapData:
   Array<{
@@ -2565,7 +2648,40 @@ function updateEchartsMap() {
 }
 
 function resizeEchartsNow() {
-  chart?.resize({
+  const container =
+    chartContainerRef.value
+
+  if (!chart || !container) {
+    return
+  }
+
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
+  if (
+    width === lastSceneWidth &&
+    height === lastSceneHeight
+  ) {
+    return
+  }
+
+  lastSceneWidth = width
+  lastSceneHeight = height
+
+  chart.resize({
+    width,
+    height,
     animation: {
       duration: 0,
     },
@@ -2573,22 +2689,38 @@ function resizeEchartsNow() {
 }
 
 function scheduleSceneResize(
-  delay = 140
+  delay = 110
 ) {
   if (sceneResizeTimer) {
     clearTimeout(sceneResizeTimer)
   }
 
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
   sceneResizeTimer =
     setTimeout(() => {
       sceneResizeTimer = null
 
-      if (isPanelResizing) {
-        scheduleSceneResize(90)
+      if (
+        draggingSide.value ||
+        viewportResizing.value
+      ) {
         return
       }
 
-      resizeEchartsNow()
+      sceneResizeFrame =
+        requestAnimationFrame(() => {
+          sceneResizeSettleFrame =
+            requestAnimationFrame(() => {
+              resizeEchartsNow()
+            })
+        })
     }, delay)
 }
 
@@ -2695,7 +2827,7 @@ async function initScene() {
 
   chartResizeObserver =
     new ResizeObserver(() => {
-      scheduleSceneResize()
+      scheduleSceneResize(110)
     })
 
   chartResizeObserver.observe(
@@ -2784,6 +2916,14 @@ function disposeScene() {
     sceneResizeTimer = null
   }
 
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
   chartResizeObserver?.disconnect()
   chartResizeObserver = null
 
@@ -2822,6 +2962,11 @@ let sceneResizeTimer:
   | ReturnType<typeof setTimeout>
   | null = null
 
+let sceneResizeFrame = 0
+let sceneResizeSettleFrame = 0
+let lastSceneWidth = 0
+let lastSceneHeight = 0
+
 function getSelectedRegion() {
   return (
     regionOptions.find(
@@ -2857,29 +3002,76 @@ function updateMarkerStyle() {
 }
 
 function resizeLeafletNow() {
-  leafletMap?.invalidateSize({
+  const container =
+    leafletContainerRef.value
+
+  if (!leafletMap || !container) {
+    return
+  }
+
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
+  if (
+    width === lastSceneWidth &&
+    height === lastSceneHeight
+  ) {
+    return
+  }
+
+  lastSceneWidth = width
+  lastSceneHeight = height
+
+  leafletMap.invalidateSize({
     animate: false,
     pan: false,
   })
 }
 
 function scheduleSceneResize(
-  delay = 140
+  delay = 110
 ) {
   if (sceneResizeTimer) {
     clearTimeout(sceneResizeTimer)
   }
 
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
   sceneResizeTimer =
     setTimeout(() => {
       sceneResizeTimer = null
 
-      if (isPanelResizing) {
-        scheduleSceneResize(90)
+      if (
+        draggingSide.value ||
+        viewportResizing.value
+      ) {
         return
       }
 
-      resizeLeafletNow()
+      sceneResizeFrame =
+        requestAnimationFrame(() => {
+          sceneResizeSettleFrame =
+            requestAnimationFrame(() => {
+              resizeLeafletNow()
+            })
+        })
     }, delay)
 }
 
@@ -3038,7 +3230,7 @@ function initScene() {
 
   leafletResizeObserver =
     new ResizeObserver(() => {
-      scheduleSceneResize()
+      scheduleSceneResize(110)
     })
 
   leafletResizeObserver.observe(
@@ -3121,6 +3313,14 @@ function disposeScene() {
     sceneResizeTimer = null
   }
 
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
   leafletResizeObserver?.disconnect()
   leafletResizeObserver = null
 
@@ -3141,7 +3341,9 @@ function disposeScene() {
 
 function buildEmptyLogic() {
   return `
-function scheduleSceneResize() {
+function scheduleSceneResize(
+  _delay = 0
+) {
   // 空内容主区无需尺寸同步
 }
 
@@ -3387,20 +3589,7 @@ function buildVueTemplate({
 
     <main
       class="workspace"
-      :class="{
-        'has-left': hasLeftPanel,
-        'has-right': hasRightPanel,
-      }"
-      :style="{
-        '--left-panel-width':
-          leftCollapsed
-            ? '0px'
-            : leftPanelWidth + 'px',
-        '--right-panel-width':
-          rightCollapsed
-            ? '0px'
-            : rightPanelWidth + 'px',
-      }"
+      v-bind="workspaceAttrs"
     >
       ${leftPanel}
 
@@ -3494,8 +3683,7 @@ function buildVueTemplate({
         v-if="hasLeftPanel && leftCollapsed"
         type="button"
         class="panel-entry-btn entry-left"
-        aria-label="展开左侧面板"
-        @click="leftCollapsed = false"
+        v-bind="leftEntryAttrs"
       >
         ›
       </button>
@@ -3504,8 +3692,7 @@ function buildVueTemplate({
         v-if="hasRightPanel && rightCollapsed"
         type="button"
         class="panel-entry-btn entry-right"
-        aria-label="展开右侧面板"
-        @click="rightCollapsed = false"
+        v-bind="rightEntryAttrs"
       >
         ‹
       </button>
@@ -3529,15 +3716,11 @@ import {
 } from '@element-plus/icons-vue'
 
 import '@/styles/geo-page-template.css'
+
+import {
+  useGeoPanelLayout,
+} from '@/hooks/useGeoPanelLayout'
 ${sceneImports}
-
-type LayoutMode =
-  | 'large'
-  | 'medium'
-  | 'small'
-
-const pageRef =
-  ref<HTMLElement | null>(null)
 
 const aiTemplatePrompt =
   ${templatePromptScript}
@@ -3575,14 +3758,65 @@ async function copyTemplatePrompt() {
 const hasLeftPanel = ${hasLeft}
 const hasRightPanel = ${hasRight}
 
-const layoutMode =
-  ref<LayoutMode>('large')
+const {
+  rootRef: pageRef,
+  layoutMode,
 
-const leftPanelWidth = ref(420)
-const rightPanelWidth = ref(500)
+  leftCollapsed,
+  rightCollapsed,
+  allPanelsCollapsed,
 
-const leftCollapsed = ref(false)
-const rightCollapsed = ref(false)
+  draggingSide,
+  viewportResizing,
+
+  workspaceAttrs,
+  leftPanelAttrs,
+  rightPanelAttrs,
+
+  leftResizeAttrs,
+  rightResizeAttrs,
+
+  leftCollapseAttrs,
+  rightCollapseAttrs,
+
+  leftEntryAttrs,
+  rightEntryAttrs,
+
+  setAllCollapsed,
+  resetWidths,
+
+  toggleAll:
+    toggleAllPanels,
+} = useGeoPanelLayout({
+  left: {
+    enabled: hasLeftPanel,
+  },
+
+  right: {
+    enabled: hasRightPanel,
+  },
+
+  /*
+   * 连续拖拽或浏览器缩放期间不重建主场景画布，
+   * 稳定后再进行一次最终尺寸校准。
+   */
+  onLayoutChange(state) {
+    if (state.resizing) {
+      return
+    }
+
+    scheduleSceneResize(90)
+  },
+
+  onResize(payload) {
+    if (
+      payload.phase === 'end' ||
+      payload.phase === 'reset'
+    ) {
+      scheduleSceneResize(0)
+    }
+  },
+})
 
 const progress = ref(36)
 const playbackSpeed = ref(1)
@@ -3606,508 +3840,10 @@ ${sceneState}
 
 ${sceneDataCards}
 
-const allPanelsCollapsed =
-  computed(() => {
-    const states: boolean[] = []
-
-    if (hasLeftPanel) {
-      states.push(
-        leftCollapsed.value
-      )
-    }
-
-    if (hasRightPanel) {
-      states.push(
-        rightCollapsed.value
-      )
-    }
-
-    return (
-      states.length > 0 &&
-      states.every(Boolean)
-    )
-  })
-
-let pageResizeObserver:
-  | ResizeObserver
-  | null = null
-
-let previousLayoutMode:
-  | LayoutMode
-  | null = null
-
-let leftPanelManuallyResized = false
-let rightPanelManuallyResized = false
-let isPanelResizing = false
-
 let timelineAnimationFrameId = 0
 let timelineLastTime = 0
 
 ${sceneLogic}
-
-function clamp(
-  value: number,
-  min: number,
-  max: number
-) {
-  return Math.max(
-    min,
-    Math.min(max, value)
-  )
-}
-
-function getEffectiveTemplateWidth(
-  fallbackWidth?: number
-): number {
-  const candidates: number[] = []
-
-  if (
-    typeof fallbackWidth === 'number' &&
-    Number.isFinite(fallbackWidth) &&
-    fallbackWidth > 0
-  ) {
-    candidates.push(fallbackWidth)
-  }
-
-  const pageWidth =
-    pageRef.value?.clientWidth
-
-  if (
-    typeof pageWidth === 'number' &&
-    Number.isFinite(pageWidth) &&
-    pageWidth > 0
-  ) {
-    candidates.push(pageWidth)
-  }
-
-  if (typeof window !== 'undefined') {
-    const innerWidth =
-      window.innerWidth
-
-    const visualWidth =
-      window.visualViewport?.width
-
-    const screenWidth =
-      window.screen?.width
-
-    const availWidth =
-      window.screen?.availWidth
-
-    ;[
-      innerWidth,
-      visualWidth,
-      screenWidth,
-      availWidth,
-    ].forEach((value) => {
-      if (
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value > 0
-      ) {
-        candidates.push(value)
-      }
-    })
-  }
-
-  if (!candidates.length) {
-    return 0
-  }
-
-  /*
-   * 关键点：
-   * 用最小有效宽度，而不是只看 pageRef.clientWidth。
-   * 这样普通 1920 物理屏即使浏览器缩放后 CSS 宽度变大，
-   * 也不会被误判为 2200+ 超大屏。
-   */
-  return Math.min(...candidates)
-}
-
-function isUltraLargeTemplateScreen(
-  fallbackWidth?: number
-): boolean {
-  return getEffectiveTemplateWidth(
-    fallbackWidth
-  ) >= 2200
-}
-
-function getAdaptivePanelWidth(
-  side: 'left' | 'right',
-  mode: LayoutMode,
-  pageWidth: number
-) {
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  if (mode === 'small') {
-    return side === 'left'
-      ? clamp(
-        pageWidth * 0.76,
-        260,
-        360
-      )
-      : clamp(
-        pageWidth * 0.80,
-        280,
-        380
-      )
-  }
-
-  /*
-   * 中屏是覆盖式抽屉，不再挤压主场景。
-   * 因此可以比普通并排布局更宽，但不能挡住主场景太多。
-   */
-  if (mode === 'medium') {
-    return side === 'left'
-      ? clamp(
-        pageWidth * 0.36,
-        320,
-        480
-      )
-      : clamp(
-        pageWidth * 0.40,
-        360,
-        540
-      )
-  }
-
-  /*
-   * 2K / 4K / 教室超大屏增强：
-   * 普通 1920×1080 电脑不默认触发。
-   *
-   * 注意：
-   * 这里不能只看 pageRef.clientWidth。
-   * 浏览器缩放、外层容器、投屏环境都可能让 CSS 宽度被放大。
-   * 因此用 effectiveWidth 兜底，确保普通 1920 物理屏不会误入超大屏逻辑。
-   */
-  if (
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-  ) {
-    return side === 'left'
-      ? clamp(
-        effectiveWidth * 0.22,
-        420,
-        640
-      )
-      : clamp(
-        effectiveWidth * 0.25,
-        500,
-        760
-      )
-  }
-
-  return side === 'left'
-    ? clamp(
-      pageWidth * 0.19,
-      340,
-      520
-    )
-    : clamp(
-      pageWidth * 0.21,
-      380,
-      580
-    )
-}
-
-function updateLayoutMode() {
-  const pageWidth =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const nextMode: LayoutMode =
-    pageWidth >= 1280
-      ? 'large'
-      : pageWidth >= 860
-        ? 'medium'
-        : 'small'
-
-  const modeChanged =
-    previousLayoutMode !== nextMode
-
-  layoutMode.value = nextMode
-
-  /*
-   * 面板宽度由模板统一管理：
-   * - 初次进入按屏幕给默认宽度；
-   * - 用户拖拽后不再被 ResizeObserver 拉回默认值；
-   * - 只有 large / medium / small 布局切换时重新给合理默认。
-   */
-  if (
-    modeChanged ||
-    !leftPanelManuallyResized
-  ) {
-    leftPanelWidth.value =
-      getAdaptivePanelWidth(
-        'left',
-        nextMode,
-        pageWidth
-      )
-  }
-
-  if (
-    modeChanged ||
-    !rightPanelManuallyResized
-  ) {
-    rightPanelWidth.value =
-      getAdaptivePanelWidth(
-        'right',
-        nextMode,
-        pageWidth
-      )
-  }
-
-  previousLayoutMode =
-    nextMode
-}
-
-function getPanelResizeBounds(
-  side: 'left' | 'right'
-) {
-  const pageWidth =
-    pageRef.value?.clientWidth ||
-    window.innerWidth
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  if (layoutMode.value === 'small') {
-    return {
-      min:
-        side === 'left'
-          ? 220
-          : 240,
-      max: Math.max(
-        side === 'left'
-          ? 220
-          : 240,
-        Math.min(
-          side === 'left'
-            ? 420
-            : 440,
-          pageWidth * 0.86
-        )
-      ),
-    }
-  }
-
-  if (layoutMode.value === 'medium') {
-    return {
-      min:
-        side === 'left'
-          ? 280
-          : 300,
-      max: Math.max(
-        side === 'left'
-          ? 280
-          : 300,
-        Math.min(
-          side === 'left'
-            ? 640
-            : 700,
-          pageWidth * 0.60
-        )
-      ),
-    }
-  }
-
-  /*
-   * large 分两档：
-   * 1. 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
-   * 2. 超大屏：有效宽度 2200px 以上。
-   *
-   * 这里必须用 effectiveWidth，而不是只用 pageWidth。
-   * 否则普通 1920 电脑在浏览器缩放或投屏环境下，
-   * 可能被误判成 2200+，导致最大拖拽宽度失效。
-   */
-  const isUltraLargeScreen =
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-
-  return {
-    min:
-      side === 'left'
-        ? 300
-        : 340,
-    max: Math.max(
-      side === 'left'
-        ? 300
-        : 340,
-      Math.min(
-        side === 'left'
-          ? (
-            isUltraLargeScreen
-              ? 820
-              : 560
-          )
-          : (
-            isUltraLargeScreen
-              ? 900
-              : 620
-          ),
-        effectiveWidth *
-          (
-            isUltraLargeScreen
-              ? 0.54
-              : 0.38
-          )
-      )
-    ),
-  }
-}
-
-function startResize(
-  side: 'left' | 'right',
-  event: PointerEvent
-) {
-  if (
-    (
-      side === 'left' &&
-      leftCollapsed.value
-    ) ||
-    (
-      side === 'right' &&
-      rightCollapsed.value
-    )
-  ) {
-    return
-  }
-
-  event.stopPropagation()
-
-  if (side === 'left') {
-    leftPanelManuallyResized = true
-  } else {
-    rightPanelManuallyResized = true
-  }
-
-  isPanelResizing = true
-
-  const handle =
-    event.currentTarget as HTMLElement | null
-
-  if (
-    handle &&
-    typeof handle.setPointerCapture === 'function'
-  ) {
-    try {
-      handle.setPointerCapture(
-        event.pointerId
-      )
-    } catch {
-      // 部分触控环境可能不支持 pointer capture，继续使用 document 监听兜底。
-    }
-  }
-
-  const startX = event.clientX
-
-  const startWidth =
-    side === 'left'
-      ? leftPanelWidth.value
-      : rightPanelWidth.value
-
-  const bounds =
-    getPanelResizeBounds(side)
-
-  const onMove = (
-    moveEvent: PointerEvent
-  ) => {
-    const deltaX =
-      moveEvent.clientX - startX
-
-    const nextWidth =
-      side === 'left'
-        ? startWidth + deltaX
-        : startWidth - deltaX
-
-    const width = clamp(
-      nextWidth,
-      bounds.min,
-      bounds.max
-    )
-
-    if (side === 'left') {
-      leftPanelWidth.value = width
-    } else {
-      rightPanelWidth.value = width
-    }
-  }
-
-  const finishResize = () => {
-    document.removeEventListener(
-      'pointermove',
-      onMove
-    )
-
-    document.removeEventListener(
-      'pointerup',
-      finishResize
-    )
-
-    document.removeEventListener(
-      'pointercancel',
-      finishResize
-    )
-
-    document.body.classList.remove(
-      'geo-panel-resizing'
-    )
-
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-
-    isPanelResizing = false
-
-    scheduleSceneResize(0)
-  }
-
-  document.addEventListener(
-    'pointermove',
-    onMove
-  )
-
-  document.addEventListener(
-    'pointerup',
-    finishResize
-  )
-
-  document.addEventListener(
-    'pointercancel',
-    finishResize
-  )
-
-  document.body.classList.add(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor =
-    'col-resize'
-
-  document.body.style.userSelect =
-    'none'
-}
-
-function toggleAllPanels() {
-  const shouldCollapse =
-    !allPanelsCollapsed.value
-
-  if (hasLeftPanel) {
-    leftCollapsed.value =
-      shouldCollapse
-  }
-
-  if (hasRightPanel) {
-    rightCollapsed.value =
-      shouldCollapse
-  }
-
-  scheduleSceneResize()
-}
 
 function animateTimeline(
   time: number
@@ -4143,36 +3879,18 @@ function animateTimeline(
 }
 
 function resetControls() {
-  leftPanelManuallyResized = false
-  rightPanelManuallyResized = false
-
-  leftCollapsed.value = false
-  rightCollapsed.value = false
+  setAllCollapsed(false)
+  resetWidths()
 
   progress.value = 36
   playbackSpeed.value = 1
   isPlaying.value = false
 
   resetSceneControls()
-  updateLayoutMode()
-  scheduleSceneResize()
+  scheduleSceneResize(90)
 }
 
 onMounted(async () => {
-  updateLayoutMode()
-
-  pageResizeObserver =
-    new ResizeObserver(() => {
-      updateLayoutMode()
-      scheduleSceneResize()
-    })
-
-  if (pageRef.value) {
-    pageResizeObserver.observe(
-      pageRef.value
-    )
-  }
-
   await nextTick()
 
   initScene()
@@ -4184,16 +3902,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  pageResizeObserver?.disconnect()
-  pageResizeObserver = null
-
-  document.body.classList.remove(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-
   cancelAnimationFrame(
     timelineAnimationFrameId
   )
@@ -4329,6 +4037,36 @@ onBeforeUnmount(() => {
       13px
     );
 }
+
+/*
+ * Hook 在面板拖拽和浏览器缩放期间添加状态 class。
+ * 此时关闭布局 transition，避免尺寸追赶指针导致 ResizeObserver 连续触发。
+ */
+.${routeName}-container
+.workspace.panel-resizing,
+.${routeName}-container
+.workspace.layout-resizing,
+.${routeName}-container
+.workspace.panel-resizing
+.side-panel,
+.${routeName}-container
+.workspace.layout-resizing
+.side-panel,
+.${routeName}-container
+.workspace.panel-resizing
+.center-stage,
+.${routeName}-container
+.workspace.layout-resizing
+.center-stage {
+  transition: none !important;
+}
+
+.${routeName}-container
+.three-canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
 </style>
 
 `
@@ -4445,6 +4183,32 @@ async function main() {
     )
     console.error(
       '请先把公共样式放到 src/styles 目录，再运行页面生成器'
+    )
+    return
+  }
+
+  if (
+    layout.key !== 'blank' &&
+    !existsSync(PANEL_LAYOUT_HOOK_FILE)
+  ) {
+    console.error(
+      '❌ 未找到面板 Hook: src/hooks/useGeoPanelLayout.ts'
+    )
+    console.error(
+      '请先把公共面板 Hook 放到 src/hooks 目录，再运行页面生成器'
+    )
+    return
+  }
+
+  if (
+    layout.key !== 'blank' &&
+    !existsSync(PANEL_LAYOUT_CONFIG_FILE)
+  ) {
+    console.error(
+      '❌ 未找到面板配置: src/hooks/geo-panel-layout.config.ts'
+    )
+    console.error(
+      '请先把公共面板配置放到 src/hooks 目录，再运行页面生成器'
     )
     return
   }

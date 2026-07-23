@@ -40,7 +40,6 @@ export default defineConfig({
         target: 'https://zdys.szjx.ai-study.net/',
         changeOrigin: true,
       },
-
     },
   },
   base: './',

@@ -1,6 +1,13 @@
 /* =========================================================
    地理互动页面公共模板样式
    文件位置：src/styles/geo-page-template.css
+
+   本文件已内置：
+   - 普通三栏布局；
+   - 悬浮毛玻璃布局；
+   - useGeoPanelLayout 面板宽度变量；
+   - 平板触控拖拽与安全宽度；
+   - 拖拽期间主场景防误触规则。
    ========================================================= */
 
 .geo-template-page {
@@ -2509,10 +2516,11 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
 }
 
+/* 
 .geo-template-page.layout-floating .top-toolbar .theme-btn:hover {
   background:
     rgba(8, 20, 34, 0.18) !important;
-}
+} */
 
 /* 亮色主题：同样让 header 真正悬浮透明 */
 .geo-template-page.theme-light.layout-floating .top-toolbar {
@@ -4156,7 +4164,7 @@
       var(--seewo-panel-padding);
   }
 
-  .geo-template-page .side-panel {
+  .geo-template-page.layout-floating .side-panel {
     border-radius:
       var(--seewo-radius);
   }
@@ -4185,8 +4193,6 @@
     --header-side-reserve:
       clamp(300px, 14vw, 460px);
 
-    min-height:
-      clamp(72px, 4.2vw, 92px);
     padding:
       0 clamp(18px, 1vw, 32px);
   }
@@ -5054,10 +5060,7 @@
    ========================================================= */
 
 @media (min-width: 2200px) and (min-height: 1200px) and (min-aspect-ratio: 16 / 10) {
-  .geo-template-page .top-toolbar {
-    min-height:
-      clamp(72px, 4.2vw, 92px);
-  }
+  .geo-template-page .top-toolbar {}
 
   .geo-template-page .toolbar-actions {
     align-items:
@@ -5137,8 +5140,6 @@
   }
 
   .geo-template-page:not(.layout-floating).layout-large>.workspace>.side-panel {
-    margin-top:
-      var(--non-floating-large-panel-top-gap) !important;
     height:
       calc(100% - var(--non-floating-large-panel-top-gap)) !important;
     max-height:
@@ -5164,4 +5165,309 @@
     padding-top:
       clamp(20px, 1.2vw, 28px) !important;
   }
+}
+
+/* =========================================================
+   V26：非 layout-floating 中小屏不再使用覆盖式抽屉
+   =========================================================
+   背景：
+   - 原公共样式里 .layout-medium / .layout-small 会统一把 side-panel
+     改成 absolute 覆盖式抽屉。
+   - 这会导致普通模板，也就是没有 layout-floating 的页面，
+     在平板 / 小屏下也变成悬浮面板。
+   - 本补丁只影响非 layout-floating 页面。
+   - layout-floating 原有悬浮面板逻辑完全保留。
+   ========================================================= */
+
+/* 非悬浮模板：medium / small 恢复普通 grid 工作区 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace,
+.geo-template-page:not(.layout-floating).layout-small .workspace {
+  display:
+    grid !important;
+  width:
+    100% !important;
+  height:
+    100% !important;
+  min-width:
+    0 !important;
+  min-height:
+    0 !important;
+  overflow:
+    hidden !important;
+}
+
+/* 非悬浮模板：左 + 中 + 右 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace.has-left.has-right,
+.geo-template-page:not(.layout-floating).layout-small .workspace.has-left.has-right {
+  grid-template-columns:
+    var(--left-panel-width) minmax(0, 1fr) var(--right-panel-width) !important;
+}
+
+/* 非悬浮模板：左 + 中 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace.has-left:not(.has-right),
+.geo-template-page:not(.layout-floating).layout-small .workspace.has-left:not(.has-right) {
+  grid-template-columns:
+    var(--left-panel-width) minmax(0, 1fr) !important;
+}
+
+/* 非悬浮模板：中 + 右 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace.has-right:not(.has-left),
+.geo-template-page:not(.layout-floating).layout-small .workspace.has-right:not(.has-left) {
+  grid-template-columns:
+    minmax(0, 1fr) var(--right-panel-width) !important;
+}
+
+/* 非悬浮模板：只有主场景 */
+.geo-template-page:not(.layout-floating).layout-medium .workspace:not(.has-left):not(.has-right),
+.geo-template-page:not(.layout-floating).layout-small .workspace:not(.has-left):not(.has-right) {
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+}
+
+/* 非悬浮模板：中小屏主场景不再被抽屉逻辑改成覆盖层 */
+.geo-template-page:not(.layout-floating).layout-medium .center-stage,
+.geo-template-page:not(.layout-floating).layout-small .center-stage {
+  position:
+    relative !important;
+  width:
+    100% !important;
+  height:
+    100% !important;
+  min-width:
+    0 !important;
+  min-height:
+    0 !important;
+  overflow:
+    hidden !important;
+}
+
+/* 非悬浮模板：中小屏侧栏恢复普通 grid 子项 */
+.geo-template-page:not(.layout-floating).layout-medium .side-panel,
+.geo-template-page:not(.layout-floating).layout-small .side-panel {
+  position:
+    relative !important;
+  top:
+    auto !important;
+  right:
+    auto !important;
+  bottom:
+    auto !important;
+  left:
+    auto !important;
+  z-index:
+    30 !important;
+  display:
+    block !important;
+  width:
+    100% !important;
+  max-width:
+    none !important;
+  height:
+    100% !important;
+  min-width:
+    0 !important;
+  min-height:
+    0 !important;
+  transform:
+    none !important;
+}
+
+/* 非悬浮模板：左右面板宽度由 grid-template-columns 控制，不再自己 absolute 定宽 */
+.geo-template-page:not(.layout-floating).layout-medium .left-panel,
+.geo-template-page:not(.layout-floating).layout-small .left-panel,
+.geo-template-page:not(.layout-floating).layout-medium .right-panel,
+.geo-template-page:not(.layout-floating).layout-small .right-panel {
+  width:
+    100% !important;
+  max-width:
+    none !important;
+}
+
+/* 非悬浮模板：收起时不要滑出屏幕，宽度由 --left/right-panel-width = 0px 控制 */
+.geo-template-page:not(.layout-floating).layout-medium .left-panel.collapsed,
+.geo-template-page:not(.layout-floating).layout-small .left-panel.collapsed,
+.geo-template-page:not(.layout-floating).layout-medium .right-panel.collapsed,
+.geo-template-page:not(.layout-floating).layout-small .right-panel.collapsed {
+  transform:
+    none !important;
+}
+
+/* 非悬浮模板：展开状态也不要重新套覆盖式抽屉背景 */
+.geo-template-page:not(.layout-floating).layout-medium .side-panel:not(.collapsed),
+.geo-template-page:not(.layout-floating).layout-small .side-panel:not(.collapsed) {
+  background:
+    var(--panel-background) !important;
+  border-color:
+    var(--panel-border) !important;
+  backdrop-filter:
+    blur(18px) !important;
+  -webkit-backdrop-filter:
+    blur(18px) !important;
+  box-shadow:
+    var(--panel-shadow) !important;
+}
+
+/* 非悬浮模板：左侧面板保持普通左边框逻辑 */
+.geo-template-page:not(.layout-floating).layout-medium .left-panel,
+.geo-template-page:not(.layout-floating).layout-small .left-panel {
+  border-width:
+    0 1px 0 0 !important;
+}
+
+/* 非悬浮模板：右侧面板保持普通右边框逻辑 */
+.geo-template-page:not(.layout-floating).layout-medium .right-panel,
+.geo-template-page:not(.layout-floating).layout-small .right-panel {
+  border-width:
+    0 0 0 1px !important;
+}
+
+/* 非悬浮模板：entry 按钮仍然可用，但不再按覆盖抽屉错位 */
+.geo-template-page:not(.layout-floating).layout-medium .panel-entry-btn.entry-left,
+.geo-template-page:not(.layout-floating).layout-small .panel-entry-btn.entry-left {
+  left:
+    0 !important;
+}
+
+.geo-template-page:not(.layout-floating).layout-medium .panel-entry-btn.entry-right,
+.geo-template-page:not(.layout-floating).layout-small .panel-entry-btn.entry-right {
+  right:
+    0 !important;
+}
+
+/* 非悬浮模板：时间轴继续按普通模板底部居中，不受覆盖式抽屉影响 */
+.geo-template-page:not(.layout-floating).layout-medium .timeline-dock,
+.geo-template-page:not(.layout-floating).layout-small .timeline-dock {
+  left:
+    50% !important;
+  right:
+    auto !important;
+  transform:
+    translateX(-50%) !important;
+}
+
+/* 极窄屏兜底：
+   真正手机宽度下，如果左右面板同时存在，仍然容易挤压主场景。
+   这里不再把面板变悬浮，只是允许主页面横向结构维持，
+   业务页面可自行选择是否在 <860px 主动 collapsed。
+*/
+@media (max-width: 640px) {
+  .geo-template-page:not(.layout-floating).layout-small .workspace.has-left.has-right {
+    grid-template-columns:
+      var(--left-panel-width) minmax(320px, 1fr) var(--right-panel-width) !important;
+  }
+
+  .geo-template-page:not(.layout-floating).layout-small .workspace.has-left:not(.has-right) {
+    grid-template-columns:
+      var(--left-panel-width) minmax(320px, 1fr) !important;
+  }
+
+  .geo-template-page:not(.layout-floating).layout-small .workspace.has-right:not(.has-left) {
+    grid-template-columns:
+      minmax(320px, 1fr) var(--right-panel-width) !important;
+  }
+}
+
+/* =========================================================
+   公共面板 Hook：平板宽度与触控拖拽
+   ---------------------------------------------------------
+   1. --left-panel-width / --right-panel-width 由
+      useGeoPanelLayout 唯一控制；
+   2. CSS 只负责可视区安全上限，不覆盖 Hook 的真实宽度；
+   3. 平板触控手柄扩大命中区域；
+   4. 本段属于 geo-page-template.css 内置规则，
+      业务组件无需再引入额外补丁样式。
+   ========================================================= */
+
+.geo-template-page.layout-floating.layout-medium .left-panel {
+  width:
+    var(--left-panel-width) !important;
+
+  max-width:
+    min(72vw,
+      calc(100% - var(--floating-panel-offset, 12px) * 2)) !important;
+}
+
+.geo-template-page.layout-floating.layout-medium .right-panel {
+  width:
+    var(--right-panel-width) !important;
+
+  max-width:
+    min(72vw,
+      calc(100% - var(--floating-panel-offset, 12px) * 2)) !important;
+}
+
+.geo-template-page.layout-floating.layout-small .left-panel {
+  width:
+    var(--left-panel-width) !important;
+
+  max-width:
+    min(84vw,
+      calc(100% - 16px)) !important;
+}
+
+.geo-template-page.layout-floating.layout-small .right-panel {
+  width:
+    var(--right-panel-width) !important;
+
+  max-width:
+    min(84vw,
+      calc(100% - 16px)) !important;
+}
+
+/*
+ * 平板触控拖拽区域。
+ * 可视宽度仍然很窄，真实命中区域扩大到 24px。
+ */
+.geo-template-page.layout-floating .resize-handle {
+  z-index:
+    160 !important;
+
+  width:
+    24px !important;
+
+  touch-action:
+    none !important;
+
+  pointer-events:
+    auto !important;
+
+  user-select:
+    none !important;
+
+  -webkit-user-select:
+    none !important;
+}
+
+.geo-template-page.layout-floating .resize-right {
+  right:
+    -12px !important;
+}
+
+.geo-template-page.layout-floating .resize-left {
+  left:
+    -12px !important;
+}
+
+/*
+ * 收起状态仍禁止拖拽。
+ */
+.geo-template-page.layout-floating .side-panel.collapsed .resize-handle {
+  visibility:
+    hidden !important;
+
+  pointer-events:
+    none !important;
+}
+
+/*
+ * 防止场景或覆盖层抢走面板手柄的触摸事件。
+ */
+.geo-template-page.layout-floating .side-panel:not(.collapsed) {
+  overflow:
+    visible !important;
+}
+
+.geo-template-page.layout-floating .workspace.panel-resizing .center-stage {
+  pointer-events:
+    none;
 }

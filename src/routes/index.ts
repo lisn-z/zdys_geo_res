@@ -10,8 +10,8 @@ export const routes = [
     component: () => import('@/App.vue'),
   },
   {
-    path: '/apparent-motion-of-the-Sun',
-    name: 'apparent-motion-of-the-Sun',
+    path: '/apparent-motion-of-the-sun',
+    name: 'apparent-motion-of-the-sun',
     meta: {
       title: '太阳视运动',
     },
@@ -77,7 +77,7 @@ export const routes = [
     path: '/earth-rotation',
     name: 'earth-rotation',
     meta: {
-      title: '地球自转',
+      title: '地球自转与时区',
     },
     component: () => import('@/views/earth-rotation/index.vue'),
   },
@@ -93,7 +93,7 @@ export const routes = [
     path: '/soil-profile',
     name: 'soil-profile',
     meta: {
-      title: '土壤剖面',
+      title: '土壤剖析',
     },
     component: () => import('@/views/soil-profile/index.vue'),
   },
@@ -140,6 +140,24 @@ export const routes = [
     },
     component: () =>
       import('@/views/soil-erosion/index.vue'),
+  },
+  {
+    path: '/earth-evolution',
+    name: 'earth-evolution',
+    meta: {
+      title: '地球演化',
+    },
+    component: () =>
+      import('@/views/earth-evolution/index.vue'),
+  },
+  {
+    path: '/river-landforms',
+    name: 'river-landforms',
+    meta: {
+      title: '河流地貌',
+    },
+    component: () =>
+      import('@/views/river-landforms/index.vue'),
   },
 ]
 

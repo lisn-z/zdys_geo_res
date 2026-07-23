@@ -1,23 +1,30 @@
 <template>
-  <div ref="pageRef" class="water-recycle-container geo-template-page geo-page theme-dark layout-floating" :class="'layout-' + layoutMode">
+  <div ref="pageRef" class="water-recycle-container geo-template-page geo-page theme-dark layout-floating"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png" alt="logo" />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
-      <h1 class="page-title">水循环 <span class="page-subtitle">Water Cycle 3D Lab</span></h1>
+      <h1 class="page-title">水循环</h1>
       <div class="toolbar-actions">
         <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="resetView">重置视角</button>
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleFullscreen">{{ isFullscreen ? '退出全屏' : '全屏显示' }}</button>
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">{{ allPanelsCollapsed ? '展开面板' : '收起面板' }}</button>
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleFullscreen">{{ isFullscreen
+          ? '退出全屏' : '全屏显示' }}</button>
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">{{
+          allPanelsCollapsed ? '展开面板' : '收起面板' }}</button>
       </div>
     </header>
 
-    <main class="workspace" :class="{ 'has-left': hasLeftPanel }" :style="{ '--left-panel-width': leftCollapsed ? '0px' : leftPanelWidth + 'px' }">
+    <main class="workspace" v-bind="workspaceAttrs">
       <!-- 左面板 -->
-      <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: leftCollapsed }">
+      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
-            <div><h2>水循环控制</h2><p>知识点搜索与图层管理</p></div>
+            <div>
+              <h2>水循环控制</h2>
+              <p>知识点搜索与图层管理</p>
+            </div>
             <span class="panel-badge">CONTROL</span>
           </div>
 
@@ -48,11 +55,20 @@
           <!-- 动画 -->
           <section class="geo-card control-section">
             <h3 class="section-title">⚡ 演示</h3>
-            <div class="switch-row"><div class="control-copy"><strong>粒子动画</strong><span>水滴沿路径流动</span></div><el-switch v-model="autoPlay" /></div>
-            <div class="section-title-row compact-title-row"><span class="mini-control-label">速度</span><strong class="control-value">{{ speed.toFixed(1) }}×</strong></div>
+            <div class="switch-row">
+              <div class="control-copy"><strong>粒子动画</strong><span>水滴沿路径流动</span></div><el-switch v-model="autoPlay" />
+            </div>
+            <div class="section-title-row compact-title-row"><span class="mini-control-label">速度</span><strong
+                class="control-value">{{ speed.toFixed(1) }}×</strong></div>
             <el-slider v-model="speed" :min="0.2" :max="3" :step="0.1" :show-tooltip="false" />
+<<<<<<< HEAD
             <div class="switch-row"><div class="control-copy"><strong>标签显示</strong><span>环节名称</span></div><el-switch v-model="showLabels" /></div>
             <div class="switch-row"><div class="control-copy"><strong>环境雾</strong><span>大气透视效果</span></div><el-switch v-model="enableFog" /></div>
+=======
+            <div class="switch-row">
+              <div class="control-copy"><strong>标签显示</strong><span>环节名称</span></div><el-switch v-model="showLabels" />
+            </div>
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
           </section>
 
           <!-- 知识解读 -->
@@ -73,8 +89,11 @@
             </div>
           </section>
         </div>
-        <div class="resize-handle resize-right" @pointerdown.stop.prevent="startResize('left', $event)"></div>
-        <button type="button" class="panel-collapse-btn collapse-left" @click="leftCollapsed = true">‹</button>
+        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
+
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
+          ‹
+        </button>
       </aside>
 
       <!-- 中心舞台 -->
@@ -82,27 +101,42 @@
         <div class="stage-content">
           <div ref="threeHostRef" class="scene-host three-host"></div>
           <div class="labels-overlay">
-            <div v-for="(l, i) in screenLabels" :key="i" v-show="l.visible && showLabels" class="scene-label" :class="l.cls"
-              :style="{ left: l.x + 'px', top: l.y + 'px' }">{{ l.text }}</div>
+            <div v-for="(l, i) in screenLabels" :key="i" v-show="l.visible && showLabels" class="scene-label"
+              :class="l.cls" :style="{ left: l.x + 'px', top: l.y + 'px' }">{{ l.text }}</div>
           </div>
         </div>
         <div class="footer-tip">拖拽旋转 · 滚轮缩放 · 右键平移</div>
       </section>
 
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left" @click="leftCollapsed = false">›</button>
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+        v-bind="leftEntryAttrs">
+        ›
+      </button>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import {
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue'
+
+/*
+ * 公共模板样式已内置悬浮面板、平板宽度和触控拖拽。
+ */
 import '@/styles/geo-page-template.css'
+import {
+  useGeoPanelLayout,
+} from '@/hooks/useGeoPanelLayout'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 // ==================== 类型与数据 ====================
-type LayoutMode = 'large' | 'medium' | 'small'
-
 const layerDefs = [
   { key: 'evaporation', label: '蒸发', desc: '海洋蒸发上升', color: '#67e8f9' },
   { key: 'precipitation', label: '降水', desc: '云层降水', color: '#3b82f6' },
@@ -120,23 +154,89 @@ const cycleTypeMap: Record<string, string[]> = {
 }
 
 // ==================== 状态 ====================
-const pageRef = ref<HTMLElement | null>(null)
 const hasLeftPanel = true
-const layoutMode = ref<LayoutMode>('large')
-const leftPanelWidth = ref(380)
-const leftCollapsed = ref(false)
-const threeHostRef = ref<HTMLElement | null>(null)
+
+const threeHostRef =
+  ref<HTMLElement | null>(null)
+
 const autoPlay = ref(true)
 const speed = ref(1)
 const showLabels = ref(true)
 const cycleType = ref('seaLand')
 const isFullscreen = ref(false)
+<<<<<<< HEAD
 const urbanMode = ref<'before' | 'after'>('before')
 const enableFog = ref(true)
 const layers = reactive<Record<string, boolean>>({})
 layerDefs.forEach(l => { layers[l.key] = true })
 layers['oceanPrecip'] = true
 const allPanelsCollapsed = computed(() => leftCollapsed.value)
+=======
+
+const layers =
+  reactive<Record<string, boolean>>({})
+
+layerDefs.forEach((layer) => {
+  layers[layer.key] = true
+})
+
+/*
+ * 本页面只有一个左侧模板面板。
+ *
+ * 平板宽度直接使用公共 Hook 配置：
+ * - medium 默认 280px，最小 220px；
+ * - small 默认 250px，最小 200px。
+ */
+const {
+  rootRef: pageRef,
+  layoutMode,
+
+  leftCollapsed,
+  allPanelsCollapsed,
+
+  draggingSide,
+  viewportResizing,
+
+  workspaceAttrs,
+  leftPanelAttrs,
+  leftResizeAttrs,
+  leftCollapseAttrs,
+  leftEntryAttrs,
+
+  toggleAll:
+  toggleAllPanels,
+} = useGeoPanelLayout({
+  left: {
+    enabled: hasLeftPanel,
+    resizable: true,
+  },
+
+  right: {
+    enabled: false,
+  },
+
+  onLayoutChange(state) {
+    /*
+     * 面板拖拽和浏览器连续缩放期间，
+     * 不重建 WebGL drawing buffer。
+     */
+    if (state.resizing) {
+      return
+    }
+
+    scheduleSceneResize(90)
+  },
+
+  onResize(payload) {
+    if (
+      payload.phase === 'end' ||
+      payload.phase === 'reset'
+    ) {
+      scheduleSceneResize(0)
+    }
+  },
+})
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 
 // ==================== 标签 ====================
 interface LabelInfo { text: string; cls: string; pos: THREE.Vector3; key: string }
@@ -166,12 +266,20 @@ let sceneReady = false
 let animationId = 0
 let timeAccum = 0
 const clock = new THREE.Clock()
-let threeResizeObserver: ResizeObserver | null = null
-let sceneResizeTimer: ReturnType<typeof setTimeout> | null = null
-let lastSW = 0; let lastSH = 0
-let leftManual = false; let isResizing = false
-let pageRO: ResizeObserver | null = null
-let prevMode: LayoutMode | null = null
+let threeResizeObserver:
+  | ResizeObserver
+  | null = null
+
+let sceneResizeTimer:
+  | ReturnType<typeof setTimeout>
+  | null = null
+
+let sceneResizeFrame = 0
+let sceneResizeSettleFrame = 0
+
+let lastSceneWidth = 0
+let lastSceneHeight = 0
+let lastSceneDpr = 0
 let cameraPosTarget = new THREE.Vector3(0, 8, 22)
 let cameraTargetTarget = new THREE.Vector3(0, 4, 0)
 const cloudMeshes: THREE.Group[] = []
@@ -205,20 +313,95 @@ function createCloud(cx: number, cy: number, cz: number): THREE.Group {
 }
 
 function buildScene() {
-  const c = threeHostRef.value; if (!c) return
+  const container =
+    threeHostRef.value
+
+  if (!container) {
+    return
+  }
+
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  )
+
   scene = new THREE.Scene()
+<<<<<<< HEAD
   scene.background = new THREE.Color(0x1a3050)
   scene.fog = new THREE.FogExp2(0x1a3050, 0.025)
+=======
+  scene.background =
+    new THREE.Color(0x0a1628)
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 
-  camera = new THREE.PerspectiveCamera(38, 2, 0.5, 150)
-  camera.position.copy(cameraPosTarget)
-  camera.lookAt(cameraTargetTarget)
+  scene.fog =
+    new THREE.Fog(
+      0x0a1628,
+      28,
+      80
+    )
 
-  renderer = new THREE.WebGLRenderer({ antialias: true })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  camera =
+    new THREE.PerspectiveCamera(
+      38,
+      width / height,
+      0.5,
+      150
+    )
+
+  camera.position.copy(
+    cameraPosTarget
+  )
+
+  camera.lookAt(
+    cameraTargetTarget
+  )
+
+  renderer =
+    new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference:
+        'high-performance',
+    })
+
+  /*
+   * 必须先设置 DPR，再设置真实容器尺寸。
+   * 避免默认 300×150 画布被 CSS 拉伸。
+   */
+  renderer.setPixelRatio(dpr)
+
+  renderer.setSize(
+    width,
+    height,
+    false
+  )
+
   renderer.shadowMap.enabled = true
-  renderer.domElement.className = 'scene-canvas three-canvas'
-  c.appendChild(renderer.domElement)
+
+  renderer.domElement.className =
+    'scene-canvas three-canvas'
+
+  lastSceneWidth = width
+  lastSceneHeight = height
+  lastSceneDpr = dpr
+
+  container.appendChild(
+    renderer.domElement
+  )
 
   controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true; controls.dampingFactor = 0.08
@@ -434,9 +617,34 @@ function buildScene() {
     })
   }
 
-  resizeNow()
-  threeResizeObserver = new ResizeObserver(() => scheduleResize()); threeResizeObserver.observe(c)
-  sceneReady = true; animate()
+  /*
+   * 动画开始前先绘制清晰首帧。
+   */
+  controls.update()
+
+  renderer.render(
+    scene,
+    camera
+  )
+
+  updateLabels()
+
+  threeResizeObserver =
+    new ResizeObserver(() => {
+      scheduleSceneResize(110)
+    })
+
+  threeResizeObserver.observe(
+    container
+  )
+
+  sceneReady = true
+  animate()
+
+  /*
+   * Grid、字体和面板完成首轮布局后再校准一次。
+   */
+  scheduleSceneResize(0)
 }
 
 // ==================== 方向箭头 ====================
@@ -555,7 +763,7 @@ function buildParticles() {
     geo.setAttribute('lane', new THREE.BufferAttribute(lanes, 1))
     const mat = new THREE.PointsMaterial({ color: cfg.color, size: cfg.size, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true })
     const pts = new THREE.Points(geo, mat); scene!.add(pts); particleGroups[key] = pts
-    ;(pts as any).__cfg = cfg
+      ; (pts as any).__cfg = cfg
   })
 }
 
@@ -684,54 +892,140 @@ function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
   const el = document.querySelector('.water-recycle-container') as HTMLElement
   if (isFullscreen.value) { el?.requestFullscreen?.() } else { document.exitFullscreen?.() }
-  setTimeout(scheduleResize, 100)
+  setTimeout(
+    () => {
+      scheduleSceneResize(0)
+    },
+    100
+  )
 }
 
 // ==================== Resize ====================
-function resizeNow() {
-  const c = threeHostRef.value; if (!c || !camera || !renderer) return
-  const w = Math.max(1, Math.round(c.clientWidth)); const h = Math.max(1, Math.round(c.clientHeight))
-  if (w === lastSW && h === lastSH) return; lastSW = w; lastSH = h
-  camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false)
-}
-function scheduleResize(d = 140) {
-  if (sceneResizeTimer) clearTimeout(sceneResizeTimer)
-  sceneResizeTimer = setTimeout(() => { sceneResizeTimer = null; if (isResizing) { scheduleResize(90); return }; resizeNow() }, d)
+function isPanelLayoutResizing() {
+  return (
+    draggingSide.value !== null ||
+    viewportResizing.value
+  )
 }
 
-// ==================== 布局 ====================
-function clampV(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)) }
-function effW(fb?: number): number {
-  const c: number[] = []; if (typeof fb === 'number' && fb > 0) c.push(fb)
-  const pw = pageRef.value?.clientWidth; if (typeof pw === 'number' && pw > 0) c.push(pw)
-  if (window) { [window.innerWidth, window.visualViewport?.width, window.screen?.width].forEach(v => { if (typeof v === 'number' && v > 0) c.push(v) }) }
-  return c.length ? Math.min(...c) : 0
+function resizeSceneNow() {
+  const container =
+    threeHostRef.value
+
+  if (
+    !container ||
+    !camera ||
+    !renderer ||
+    !scene
+  ) {
+    return
+  }
+
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  )
+
+  const sizeChanged =
+    width !== lastSceneWidth ||
+    height !== lastSceneHeight ||
+    dpr !== lastSceneDpr
+
+  /*
+   * setSize 和 setPixelRatio 都会重建绘图缓冲区。
+   * 尺寸与 DPR 未变化时不重复执行。
+   */
+  if (!sizeChanged) {
+    updateLabels()
+    return
+  }
+
+  lastSceneWidth = width
+  lastSceneHeight = height
+  lastSceneDpr = dpr
+
+  camera.aspect =
+    width / height
+
+  camera.updateProjectionMatrix()
+
+  renderer.setPixelRatio(dpr)
+
+  renderer.setSize(
+    width,
+    height,
+    false
+  )
+
+  controls?.update()
+
+  /*
+   * 缓冲区重建后立即补绘，避免短暂空白。
+   */
+  renderer.render(
+    scene,
+    camera
+  )
+
+  updateLabels()
 }
-function isUL(fb?: number) { return effW(fb) >= 2200 }
-function panelW(side: 'left' | 'right', mode: LayoutMode, pw: number) {
-  if (mode === 'small') return clampV(pw * 0.76, 260, 360)
-  if (mode === 'medium') return clampV(pw * 0.36, 320, 480)
-  return isUL(effW(pw)) ? clampV(effW(pw) * 0.22, 420, 640) : clampV(pw * 0.19, 340, 520)
+
+function scheduleSceneResize(
+  delay = 110
+) {
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
+  }
+
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
+  /*
+   * 拖拽阶段先由 CSS 拉伸已有 canvas。
+   * 松手后 Hook 会再次触发真实像素校准。
+   */
+  if (isPanelLayoutResizing()) {
+    return
+  }
+
+  sceneResizeTimer =
+    setTimeout(() => {
+      sceneResizeTimer = null
+
+      sceneResizeFrame =
+        requestAnimationFrame(() => {
+          sceneResizeFrame = 0
+
+          sceneResizeSettleFrame =
+            requestAnimationFrame(() => {
+              sceneResizeSettleFrame = 0
+              resizeSceneNow()
+            })
+        })
+    }, delay)
 }
-function updateLayout() {
-  const pw = pageRef.value?.clientWidth || window.innerWidth
-  const n: LayoutMode = pw >= 1280 ? 'large' : pw >= 860 ? 'medium' : 'small'
-  const ch = prevMode !== n; layoutMode.value = n
-  if (ch || !leftManual) leftPanelWidth.value = panelW('left', n, pw)
-  prevMode = n
-}
-function boundsM() {
-  const pw = pageRef.value?.clientWidth || window.innerWidth; const ew = effW(pw); const ul = isUL(ew)
-  return { min: 280, max: Math.max(280, Math.min(ul ? 820 : 560, pw * (ul ? 0.54 : 0.38))) }
-}
-function startResize(side: 'left' | 'right', ev: PointerEvent) {
-  if (leftCollapsed.value) return; ev.stopPropagation(); leftManual = true; isResizing = true
-  const sx = ev.clientX; const sw = leftPanelWidth.value; const b = boundsM()
-  const mv = (e: PointerEvent) => { leftPanelWidth.value = clampV(side === 'left' ? sw + e.clientX - sx : sw - e.clientX + sx, b.min, b.max) }
-  const fn = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', fn); document.body.style.cursor = ''; isResizing = false; scheduleResize(0) }
-  document.addEventListener('pointermove', mv); document.addEventListener('pointerup', fn); document.body.style.cursor = 'col-resize'
-}
-function toggleAllPanels() { leftCollapsed.value = !leftCollapsed.value; scheduleResize() }
+
 
 // 城镇化模式切换
 function setUrbanMode(mode: 'before' | 'after') {
@@ -753,13 +1047,16 @@ function setUrbanMode(mode: 'before' | 'after') {
 // ==================== 生命周期 ====================
 watch(enableFog, v => { if (scene) scene.fog = v ? new THREE.FogExp2(0x1a3050, 0.025) : null })
 onMounted(async () => {
-  updateLayout()
-  pageRO = new ResizeObserver(() => { updateLayout(); scheduleResize() })
-  if (pageRef.value) pageRO.observe(pageRef.value)
-  await nextTick(); buildScene()
+  /*
+   * 等 Hook 先写入当前断点的面板宽度，
+   * 再初始化 Three.js。
+   */
+  await nextTick()
+  buildScene()
 })
 
 onBeforeUnmount(() => {
+<<<<<<< HEAD
   sceneReady = false; cancelAnimationFrame(animationId)
   pageRO?.disconnect(); pageRO = null; threeResizeObserver?.disconnect(); threeResizeObserver = null
   if (sceneResizeTimer) { clearTimeout(sceneResizeTimer); sceneResizeTimer = null }
@@ -768,10 +1065,75 @@ onBeforeUnmount(() => {
   renderer?.dispose(); if (renderer?.domElement.parentElement) renderer.domElement.parentElement.removeChild(renderer.domElement)
   scene = null; camera = null; renderer = null
   treeGroupRef = null; buildingGroupRef = null; concreteRef = null
+=======
+  sceneReady = false
+
+  cancelAnimationFrame(
+    animationId
+  )
+
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
+  threeResizeObserver?.disconnect()
+  threeResizeObserver = null
+
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
+
+    sceneResizeTimer = null
+  }
+
+  controls?.dispose()
+  controls = null
+
+  scene?.traverse((object) => {
+    if (
+      object instanceof THREE.Mesh ||
+      object instanceof THREE.Points
+    ) {
+      object.geometry?.dispose()
+
+      const material =
+        object.material
+
+      if (Array.isArray(material)) {
+        material.forEach(
+          (item) => item.dispose()
+        )
+      } else {
+        material?.dispose()
+      }
+    }
+  })
+
+  renderer?.dispose()
+
+  if (
+    renderer?.domElement.parentElement
+  ) {
+    renderer.domElement.parentElement
+      .removeChild(
+        renderer.domElement
+      )
+  }
+
+  scene = null
+  camera = null
+  renderer = null
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 })
 </script>
 
 <style scoped>
+<<<<<<< HEAD
 .page-subtitle { font-size: 13px; color: #64748b; font-weight: 400; margin-left: 10px; letter-spacing: 1px; }
 .labels-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 15; }
 .scene-label { position: absolute; transform: translate(-50%, -50%); font-weight: 700; white-space: nowrap; padding: 3px 10px; border-radius: 5px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); font-size: 14px; background: rgba(8,12,28,0.55); border: 1px solid rgba(46,196,182,0.25); color: #2ec4b6; }
@@ -793,4 +1155,136 @@ onBeforeUnmount(() => {
 .knowledge-content h4 { margin: 0 0 6px; color: #2ec4b6; font-size: 14px; }
 .knowledge-content p { margin: 0 0 6px; }
 .knowledge-content :deep(strong) { color: #fbbf24; }
+=======
+.page-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 400;
+  margin-left: 10px;
+  letter-spacing: 1px;
+}
+
+.labels-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.scene-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border-radius: 5px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  font-size: 14px;
+  background: rgba(8, 12, 28, 0.55);
+  border: 1px solid rgba(46, 196, 182, 0.25);
+  color: #2ec4b6;
+}
+
+.scene-label.lbl-evap {
+  color: #67e8f9;
+  border-color: rgba(103, 232, 249, 0.5);
+}
+
+.scene-label.lbl-trans {
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.5);
+}
+
+.scene-label.lbl-prec {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.5);
+}
+
+.scene-label.lbl-tran {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.scene-label.lbl-runoff {
+  color: #2ec4b6;
+  border-color: rgba(46, 196, 182, 0.6);
+}
+
+.scene-label.lbl-inf {
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.5);
+}
+
+.scene-label.lbl-gw {
+  color: #a78bfa;
+  border-color: rgba(167, 139, 250, 0.5);
+}
+
+.footer-tip {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  font-size: 11px;
+  color: #64748b;
+  padding: 4px 10px;
+  background: rgba(8, 12, 28, 0.6);
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layer-row {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(100, 116, 139, 0.1);
+}
+
+.layer-row:last-child {
+  border-bottom: none;
+}
+
+.knowledge-card {
+  margin-bottom: 14px;
+}
+
+.knowledge-content {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.7;
+}
+
+.knowledge-content h4 {
+  margin: 0 0 6px;
+  color: #2ec4b6;
+  font-size: 14px;
+}
+
+.knowledge-content p {
+  margin: 0 0 6px;
+}
+
+.knowledge-content :deep(strong) {
+  color: #fbbf24;
+}
+
+/* ===================== v2：公共面板 Hook =====================
+   左侧悬浮面板宽度、断点、触控拖拽与展开折叠，
+   统一由 useGeoPanelLayout 和 geo-page-template.css 管理。
+*/
+
+.water-recycle-container .three-host {
+  overflow: hidden;
+}
+
+.water-recycle-container .three-canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+>>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 </style>

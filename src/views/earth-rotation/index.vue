@@ -8,7 +8,7 @@
           alt="logo" />
       </div>
 
-      <h1 class="page-title">地球自转专项训练器</h1>
+      <h1 class="page-title">地球自转与时区</h1>
 
       <div class="toolbar-actions">
         <div class="tab-group header-mode-tabs">
@@ -25,20 +25,8 @@
       </div>
     </header>
 
-    <main class="workspace" :class="{
-      'has-left': !panelCollapsed,
-      'has-right': !knowledgeCollapsed,
-    }" :style="{
-      '--left-panel-width':
-        panelCollapsed
-          ? '0px'
-          : leftPanelWidth + 'px',
-      '--right-panel-width':
-        knowledgeCollapsed
-          ? '0px'
-          : rightPanelWidth + 'px',
-    }">
-      <aside id="left-panel" class="side-panel left-panel" :class="{ collapsed: panelCollapsed }">
+    <main class="workspace" v-bind="workspaceAttrs">
+      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -47,6 +35,30 @@
             </div>
             <span class="panel-badge">CTRL</span>
           </div>
+          <section class="geo-card control-section rotation-time-dock">
+            <div class="ctrl-title">⏱ 自转演示</div>
+            <div class="time-dock-main">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <button class="timeline-icon-btn" :class="{ active: isPlaying }" :aria-label="isPlaying ? '暂停' : '播放'"
+                  @click="isPlaying = !isPlaying">
+                  <svg v-if="isPlaying" class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 5h4v14H7z"></path>
+                    <path d="M13 5h4v14h-4z"></path>
+                  </svg>
+                  <svg v-else class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5v14l11-7z"></path>
+                  </svg>
+                </button>
+                <span class="time-dock-title">地球自转演示时间轴</span>
+              </div>
+              <div style="padding:0 4px;">
+                <el-slider v-model="rotSpeed" :min="0.1" :max="10" :step="0.1" size="small" :show-tooltip="false" />
+              </div>
+              <div class="time-dock-meta single" style="margin-top:4px;">
+                <span>速度 {{ rotSpeed.toFixed(1) }}×</span>
+              </div>
+            </div>
+          </section>
           <section class="geo-card control-section brightness-control-section">
             <div class="ctrl-title">💡 亮度</div>
 
@@ -157,12 +169,13 @@
               </button>
             </div>
           </section>
+
+
         </div>
 
-        <div class="resize-handle resize-right" @pointerdown.stop.prevent="startResize('left', $event)"></div>
+        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
 
-        <button type="button" class="panel-collapse-btn collapse-left" aria-label="收起左侧面板"
-          @click="panelCollapsed = true">
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
           ‹
         </button>
       </aside>
@@ -194,7 +207,7 @@
 
           </div>
 
-          <div v-show="bottomDockVisible" class="bottom-dock-stack">
+          <div v-show="bottomAxisVisible" class="bottom-dock-stack">
             <!-- 底部经度轴 -->
             <section v-show="trainingMode === 'learn'" class="longitude-axis ab-axis-dock">
               <div class="axis-label">🌍 经度轴 · 拖动 A / B 标记</div>
@@ -208,13 +221,15 @@
                 </div>
                 <!-- A 点 -->
                 <div class="axis-point point-a" :class="{ disabled: trainingMode === 'test' }"
-                  :style="{ left: getAxisPercent(pointA.lon) + '%' }" @mousedown="onAxisMouseDown('A')">
+                  :style="{ left: getAxisPercent(pointA.lon) + '%' }"
+                  @pointerdown.stop.prevent="onAxisPointerDown('A', $event)">
                   <span class="point-badge a">A</span>
                   <span class="point-lon">{{ formatLon(pointA.lon) }}</span>
                 </div>
                 <!-- B 点 -->
                 <div class="axis-point point-b" :class="{ disabled: trainingMode === 'test' }"
-                  :style="{ left: getAxisPercent(pointB.lon) + '%' }" @mousedown="onAxisMouseDown('B')">
+                  :style="{ left: getAxisPercent(pointB.lon) + '%' }"
+                  @pointerdown.stop.prevent="onAxisPointerDown('B', $event)">
                   <span class="point-badge b">B</span>
                   <span class="point-lon">{{ formatLon(pointB.lon) }}</span>
                 </div>
@@ -230,32 +245,11 @@
               </div>
             </section>
 
-            <section class="rotation-time-dock">
-              <button class="timeline-icon-btn" :class="{ active: isPlaying }" :aria-label="isPlaying ? '暂停' : '播放'"
-                @click="isPlaying = !isPlaying">
-                <svg v-if="isPlaying" class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 5h4v14H7z"></path>
-                  <path d="M13 5h4v14h-4z"></path>
-                </svg>
-
-                <svg v-else class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 5v14l11-7z"></path>
-                </svg>
-              </button>
-
-              <div class="time-dock-main">
-                <div class="time-dock-title">地球自转演示时间轴</div>
-                <el-slider v-model="rotSpeed" :min="0.1" :max="10" :step="0.1" size="small" :show-tooltip="false" />
-                <div class="time-dock-meta single">
-                  <span>速度 {{ rotSpeed.toFixed(1) }}×</span>
-                </div>
-              </div>
-            </section>
           </div>
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" :class="{ collapsed: knowledgeCollapsed }">
+      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -471,20 +465,18 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-left" @pointerdown.stop.prevent="startResize('right', $event)"></div>
+        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
 
-        <button type="button" class="panel-collapse-btn collapse-right" aria-label="收起右侧面板"
-          @click="knowledgeCollapsed = true">
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
           ›
         </button>
       </aside>
 
-      <button v-if="panelCollapsed" type="button" class="panel-entry-btn entry-left" @click="panelCollapsed = false">
+      <button v-if="panelCollapsed" type="button" class="panel-entry-btn entry-left" v-bind="leftEntryAttrs">
         ›
       </button>
 
-      <button v-if="knowledgeCollapsed" type="button" class="panel-entry-btn entry-right"
-        @click="knowledgeCollapsed = false">
+      <button v-if="knowledgeCollapsed" type="button" class="panel-entry-btn entry-right" v-bind="rightEntryAttrs">
         ‹
       </button>
     </main>
@@ -492,13 +484,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { ElSwitch, ElSlider } from 'element-plus'
 import 'element-plus/es/components/switch/style/css'
 import 'element-plus/es/components/slider/style/css'
 import '@/styles/geo-page-template.css'
+import {
+  useGeoPanelLayout,
+} from '@/hooks/useGeoPanelLayout'
 
 // ===================== 常量 =====================
 const EARTH_RADIUS = 2
@@ -583,503 +586,204 @@ const gridLabelDefs: { text: string; lat: number; lon: number; special?: boolean
 })()
 
 // ===================== 响应式状态 =====================
-const containerRef = ref<HTMLDivElement>()
-const rootRef = ref<HTMLElement>()
-const layoutMode = ref<'large' | 'medium' | 'small'>('large')
-const leftPanelWidth = ref(420)
-const rightPanelWidth = ref(500)
-const bottomDockVisible = ref(true)
+const containerRef =
+  ref<HTMLDivElement>()
 
-const allPanelsCollapsed = computed(() =>
-  panelCollapsed.value &&
-  knowledgeCollapsed.value &&
-  !bottomDockVisible.value
-)
+const bottomAxisVisible =
+  ref(true)
+
+let sceneResizeObserver:
+  | ResizeObserver
+  | null = null
+
+let sceneResizeTimer:
+  | ReturnType<typeof setTimeout>
+  | null = null
+
+let sceneResizeFrame = 0
+let sceneResizeSettleFrame = 0
+
+let lastSceneWidth = 0
+let lastSceneHeight = 0
+
+/*
+ * 左右面板的宽度、断点、拖拽、折叠和事件清理由公共 Hook 管理。
+ * 底部经度轴属于本课件业务，继续由当前组件管理。
+ */
+const {
+  rootRef,
+  layoutMode,
+
+  leftCollapsed:
+  panelCollapsed,
+
+  rightCollapsed:
+  knowledgeCollapsed,
+
+  allPanelsCollapsed:
+  allSidePanelsCollapsed,
+
+  draggingSide,
+  viewportResizing,
+
+  workspaceAttrs,
+  leftPanelAttrs,
+  rightPanelAttrs,
+
+  leftResizeAttrs,
+  rightResizeAttrs,
+
+  leftCollapseAttrs,
+  rightCollapseAttrs,
+
+  leftEntryAttrs,
+  rightEntryAttrs,
+
+  setAllCollapsed,
+} = useGeoPanelLayout({
+  left: {
+    enabled: true,
+  },
+
+  right: {
+    enabled: true,
+  },
+
+  onLayoutChange(state) {
+    if (state.resizing) {
+      return
+    }
+
+    scheduleSceneResize(90)
+  },
+
+  onResize(payload) {
+    if (
+      payload.phase === 'end' ||
+      payload.phase === 'reset'
+    ) {
+      scheduleSceneResize(0)
+    }
+  },
+})
+
+const allPanelsCollapsed =
+  computed(() => {
+    return (
+      allSidePanelsCollapsed.value &&
+      !bottomAxisVisible.value
+    )
+  })
 
 function toggleAllPanels() {
   const shouldExpand =
     allPanelsCollapsed.value
 
-  panelCollapsed.value =
+  setAllCollapsed(
     !shouldExpand
-  knowledgeCollapsed.value =
-    !shouldExpand
-  bottomDockVisible.value =
+  )
+
+  bottomAxisVisible.value =
     shouldExpand
+
+  nextTick(() => {
+    scheduleSceneResize(0)
+  })
 }
 
-function clampPanelNumber(
-  value: number,
-  min: number,
-  max: number
-): number {
-  return Math.min(
-    max,
-    Math.max(
-      min,
-      value
-    )
+function isPanelLayoutResizing() {
+  return (
+    draggingSide.value !== null ||
+    viewportResizing.value
   )
 }
 
-let previousLayoutMode:
-  | 'large'
-  | 'medium'
-  | 'small'
-  | null = null
-
-let leftPanelManuallyResized = false
-let rightPanelManuallyResized = false
-
-function getEffectiveTemplateWidth(
-  fallbackWidth?: number
-): number {
-  const candidates: number[] = []
-
-  if (
-    typeof fallbackWidth === 'number' &&
-    Number.isFinite(fallbackWidth) &&
-    fallbackWidth > 0
-  ) {
-    candidates.push(fallbackWidth)
-  }
-
-  const pageWidth =
-    rootRef.value?.clientWidth
-
-  if (
-    typeof pageWidth === 'number' &&
-    Number.isFinite(pageWidth) &&
-    pageWidth > 0
-  ) {
-    candidates.push(pageWidth)
-  }
-
-  if (typeof window !== 'undefined') {
-    const values = [
-      window.innerWidth,
-      window.visualViewport?.width,
-      window.screen?.width,
-      window.screen?.availWidth,
-    ]
-
-    values.forEach((value) => {
-      if (
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value > 0
-      ) {
-        candidates.push(value)
-      }
-    })
-  }
-
-  if (!candidates.length) {
-    return 0
-  }
-
-  /*
-   * 用最小有效宽度判断超大屏。
-   * 普通 1920 屏即使因为浏览器缩放 / 投屏环境导致 CSS 宽度异常变大，
-   * 也不会误判为 2200+。
-   */
-  return Math.min(...candidates)
-}
-
-function isUltraLargeTemplateScreen(
-  fallbackWidth?: number
-): boolean {
-  return getEffectiveTemplateWidth(
-    fallbackWidth
-  ) >= 2200
-}
-
-function getAdaptivePanelWidth(
-  side: 'left' | 'right',
-  mode: 'large' | 'medium' | 'small',
-  pageWidth: number
-): number {
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  if (mode === 'small') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.76, 260, 360)
-      : clampPanelNumber(pageWidth * 0.80, 280, 380)
-  }
-
-  if (mode === 'medium') {
-    return side === 'left'
-      ? clampPanelNumber(pageWidth * 0.36, 320, 480)
-      : clampPanelNumber(pageWidth * 0.40, 360, 540)
-  }
-
-  /*
-   * 2K / 4K / 教室超大屏增强：
-   * 普通 1920×1080 电脑不默认触发。
-   */
-  if (
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-  ) {
-    return side === 'left'
-      ? clampPanelNumber(effectiveWidth * 0.22, 420, 640)
-      : clampPanelNumber(effectiveWidth * 0.25, 500, 760)
-  }
-
-  return side === 'left'
-    ? clampPanelNumber(pageWidth * 0.19, 340, 520)
-    : clampPanelNumber(pageWidth * 0.21, 380, 580)
-}
-
-function getPanelResizeBounds(
-  side: 'left' | 'right'
-) {
-  const pageWidth =
-    rootRef.value?.clientWidth ||
-    window.innerWidth
-
-  const effectiveWidth =
-    getEffectiveTemplateWidth(
-      pageWidth
-    )
-
-  if (layoutMode.value === 'small') {
-    return {
-      min:
-        side === 'left'
-          ? 220
-          : 240,
-      max:
-        Math.max(
-          side === 'left'
-            ? 220
-            : 240,
-          Math.min(
-            side === 'left'
-              ? 420
-              : 440,
-            pageWidth * 0.86
-          )
-        ),
-    }
-  }
-
-  if (layoutMode.value === 'medium') {
-    return {
-      min:
-        side === 'left'
-          ? 280
-          : 300,
-      max:
-        Math.max(
-          side === 'left'
-            ? 280
-            : 300,
-          Math.min(
-            side === 'left'
-              ? 640
-              : 700,
-            pageWidth * 0.60
-          )
-        ),
-    }
-  }
-
-  /*
-   * 普通 large：1440 ~ 2199，包含普通 1920×1080 电脑。
-   * 左侧最多 560px，右侧最多 620px。
-   *
-   * 超大屏：有效宽度 2200px 以上。
-   * 左侧最多 820px，右侧最多 900px。
-   */
-  const isUltraLargeScreen =
-    isUltraLargeTemplateScreen(
-      effectiveWidth
-    )
-
-  return {
-    min:
-      side === 'left'
-        ? 300
-        : 340,
-    max:
-      Math.max(
-        side === 'left'
-          ? 300
-          : 340,
-        Math.min(
-          side === 'left'
-            ? (
-              isUltraLargeScreen
-                ? 820
-                : 560
-            )
-            : (
-              isUltraLargeScreen
-                ? 900
-                : 620
-            ),
-          effectiveWidth *
-          (
-            isUltraLargeScreen
-              ? 0.54
-              : 0.38
-          )
-        )
-      ),
-  }
-}
-
-function syncLayoutMode() {
-  const width =
-    rootRef.value?.clientWidth ||
-    window.innerWidth
-
-  const nextMode =
-    width >= 1280
-      ? 'large'
-      : width >= 860
-        ? 'medium'
-        : 'small'
-
-  const modeChanged =
-    previousLayoutMode !== nextMode
-
-  layoutMode.value =
-    nextMode
-
-  /*
-   * 面板宽度说明：
-   * 本组件把 --left-panel-width / --right-panel-width 写在 workspace inline style 上。
-   * 公共 CSS 只能管视觉兜底，默认宽度、拖拽上限、拖拽后是否被重置，
-   * 必须在组件 JS 里同步处理。
-   */
-  if (
-    modeChanged ||
-    !leftPanelManuallyResized
-  ) {
-    leftPanelWidth.value =
-      Math.round(
-        getAdaptivePanelWidth(
-          'left',
-          nextMode,
-          width
-        )
-      )
-  }
-
-  if (
-    modeChanged ||
-    !rightPanelManuallyResized
-  ) {
-    rightPanelWidth.value =
-      Math.round(
-        getAdaptivePanelWidth(
-          'right',
-          nextMode,
-          width
-        )
-      )
-  }
-
-  previousLayoutMode =
-    nextMode
-}
-
-let panelResizeTarget:
-  | 'left'
-  | 'right'
-  | null = null
-
-let panelResizeState:
-  | {
-    startX: number
-    width: number
-  }
-  | null = null
-
-function startResize(
-  target: 'left' | 'right',
-  event: PointerEvent
-) {
-  if (
-    (target === 'left' && panelCollapsed.value) ||
-    (target === 'right' && knowledgeCollapsed.value)
-  ) {
-    return
-  }
-
-  event.stopPropagation()
-
-  panelResizeTarget =
-    target
-
-  panelResizeState =
-  {
-    startX:
-      event.clientX,
-    width:
-      target === 'left'
-        ? leftPanelWidth.value
-        : rightPanelWidth.value,
-  }
-
-  const handle =
-    event.currentTarget as HTMLElement | null
-
-  if (
-    handle &&
-    typeof handle.setPointerCapture === 'function'
-  ) {
-    try {
-      handle.setPointerCapture(
-        event.pointerId
-      )
-    } catch {
-      // 某些浏览器 / 触控屏可能不支持捕获，退回 document 监听。
-    }
-  }
-
-  document.body.classList.add(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor =
-    'col-resize'
-
-  document.body.style.userSelect =
-    'none'
-
-  document.addEventListener(
-    'pointermove',
-    onPanelResizeMove
-  )
-
-  document.addEventListener(
-    'pointerup',
-    stopPanelResize,
-    {
-      once:
-        true,
-    }
-  )
-
-  document.addEventListener(
-    'pointercancel',
-    stopPanelResize,
-    {
-      once:
-        true,
-    }
-  )
-}
-
-function resizeSceneOnly() {
+function resizeSceneNow() {
   if (
     !containerRef.value ||
     !camera ||
-    !renderer
+    !renderer ||
+    !scene
   ) {
     return
   }
 
-  const container =
-    containerRef.value
+  const width = Math.max(
+    1,
+    Math.round(
+      containerRef.value.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      containerRef.value.clientHeight
+    )
+  )
+
+  if (
+    width === lastSceneWidth &&
+    height === lastSceneHeight
+  ) {
+    return
+  }
+
+  lastSceneWidth = width
+  lastSceneHeight = height
 
   camera.aspect =
-    container.clientWidth /
-    Math.max(
-      1,
-      container.clientHeight
-    )
+    width / height
 
   camera.updateProjectionMatrix()
 
   renderer.setSize(
-    container.clientWidth,
-    container.clientHeight
+    width,
+    height,
+    false
+  )
+
+  controls?.update()
+
+  renderer.render(
+    scene,
+    camera
   )
 }
 
-function onPanelResizeMove(event: PointerEvent) {
-  if (
-    !panelResizeTarget ||
-    !panelResizeState
-  ) {
+function scheduleSceneResize(
+  delay = 110
+) {
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
+  }
+
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
+  if (isPanelLayoutResizing()) {
     return
   }
 
-  const bounds =
-    getPanelResizeBounds(
-      panelResizeTarget
-    )
+  sceneResizeTimer =
+    setTimeout(() => {
+      sceneResizeTimer = null
 
-  const delta =
-    event.clientX -
-    panelResizeState.startX
-
-  if (panelResizeTarget === 'left') {
-    leftPanelWidth.value =
-      clampPanelNumber(
-        panelResizeState.width + delta,
-        bounds.min,
-        bounds.max
-      )
-
-    leftPanelManuallyResized =
-      true
-  } else {
-    rightPanelWidth.value =
-      clampPanelNumber(
-        panelResizeState.width - delta,
-        bounds.min,
-        bounds.max
-      )
-
-    rightPanelManuallyResized =
-      true
-  }
-
-  resizeSceneOnly()
-}
-
-function stopPanelResize() {
-  panelResizeTarget =
-    null
-
-  panelResizeState =
-    null
-
-  document.body.classList.remove(
-    'geo-panel-resizing'
-  )
-
-  document.body.style.cursor =
-    ''
-
-  document.body.style.userSelect =
-    ''
-
-  document.removeEventListener(
-    'pointermove',
-    onPanelResizeMove
-  )
-
-  document.removeEventListener(
-    'pointerup',
-    stopPanelResize
-  )
-
-  document.removeEventListener(
-    'pointercancel',
-    stopPanelResize
-  )
-
-  resizeSceneOnly()
+      sceneResizeFrame =
+        requestAnimationFrame(() => {
+          sceneResizeSettleFrame =
+            requestAnimationFrame(() => {
+              resizeSceneNow()
+            })
+        })
+    }, delay)
 }
 
 
@@ -1089,8 +793,6 @@ const brightness = ref(1.2)
 const nightMapPower = ref(1.8)
 const nightLightPower = ref(1.65)
 const darkSideSurfacePower = ref(0.42)
-const panelCollapsed = ref(false)
-const knowledgeCollapsed = ref(false)
 const currentView = ref('equator')
 const selectedCity = ref<typeof cityData[0] | null>(null)
 const citySearch = ref('')
@@ -1922,17 +1624,79 @@ function createCityMarkers(): void {
 
 // ===================== 初始化 Three.js =====================
 function initThree() {
-  const container = containerRef.value!
+  const container =
+    containerRef.value
+
+  if (!container) {
+    return
+  }
+
+  const width = Math.max(
+    1,
+    Math.round(
+      container.clientWidth
+    )
+  )
+
+  const height = Math.max(
+    1,
+    Math.round(
+      container.clientHeight
+    )
+  )
+
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x000511)
+  scene.background =
+    new THREE.Color(0x000511)
 
-  camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 200)
-  camera.position.set(0, 2, 7)
+  camera =
+    new THREE.PerspectiveCamera(
+      50,
+      width / height,
+      0.1,
+      200
+    )
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.setSize(container.clientWidth, container.clientHeight)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-  container.appendChild(renderer.domElement)
+  camera.position.set(
+    0,
+    2,
+    7
+  )
+
+  renderer =
+    new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference:
+        'high-performance',
+    })
+
+  /*
+   * 先设置 DPR，再同步真实 drawing buffer 尺寸，
+   * 避免默认 300×150 画布被 CSS 拉伸。
+   */
+  renderer.setPixelRatio(
+    Math.min(
+      window.devicePixelRatio || 1,
+      2
+    )
+  )
+
+  renderer.setSize(
+    width,
+    height,
+    false
+  )
+
+  renderer.domElement.className =
+    'three-canvas earth-rotation-canvas'
+
+  lastSceneWidth = width
+  lastSceneHeight = height
+
+  container.appendChild(
+    renderer.domElement
+  )
 
   controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
@@ -2173,14 +1937,35 @@ function initThree() {
   raycaster = new THREE.Raycaster()
   mouse = new THREE.Vector2()
 
-  renderer.domElement.addEventListener('click', onCanvasClick)
-  window.addEventListener('resize', onResize)
-  window.addEventListener('mousemove', onAxisMouseMove)
-  window.addEventListener('mouseup', onAxisMouseUp)
+  renderer.domElement.addEventListener(
+    'click',
+    onCanvasClick
+  )
+
+  sceneResizeObserver =
+    new ResizeObserver(() => {
+      scheduleSceneResize(110)
+    })
+
+  sceneResizeObserver.observe(
+    container
+  )
 
   applyLayerVisibility()
   generateProblem()
+
+  /*
+   * 动画启动前先绘制一帧，避免首屏模糊或拉伸。
+   */
+  controls.update()
+
+  renderer.render(
+    scene,
+    camera
+  )
+
   animate()
+  scheduleSceneResize(0)
 }
 
 function updateEarthShaderUniforms() {
@@ -2308,32 +2093,7 @@ function onCanvasClick(event: MouseEvent) {
 }
 
 function onResize() {
-  syncLayoutMode()
-
-  if (
-    !containerRef.value ||
-    !camera ||
-    !renderer
-  ) {
-    return
-  }
-
-  const container =
-    containerRef.value
-
-  camera.aspect =
-    container.clientWidth /
-    Math.max(
-      1,
-      container.clientHeight
-    )
-
-  camera.updateProjectionMatrix()
-
-  renderer.setSize(
-    container.clientWidth,
-    container.clientHeight
-  )
+  scheduleSceneResize(110)
 }
 
 // ===================== 控制方法 =====================
@@ -2888,12 +2648,19 @@ function onLegendDragEnd() {
   legendDragging = false
 }
 
-function onAxisMouseDown(point: 'A' | 'B') {
+function onAxisPointerDown(point: 'A' | 'B', event: PointerEvent) {
   if (trainingMode.value === 'test') return
   axisDragging.value = point
+  const handle = event.currentTarget as HTMLElement | null
+  if (handle && typeof handle.setPointerCapture === 'function') {
+    try { handle.setPointerCapture(event.pointerId) } catch { /* ignore */ }
+  }
+  window.addEventListener('pointermove', onAxisPointerMove)
+  window.addEventListener('pointerup', onAxisPointerUp, { once: true })
+  window.addEventListener('pointercancel', onAxisPointerUp, { once: true })
 }
 
-function onAxisMouseMove(event: MouseEvent) {
+function onAxisPointerMove(event: PointerEvent) {
   if (!axisDragging.value) return
   const axis = document.querySelector('.longitude-axis-bar') as HTMLElement
   if (!axis) return
@@ -2905,8 +2672,11 @@ function onAxisMouseMove(event: MouseEvent) {
   updateABMarkers()
 }
 
-function onAxisMouseUp() {
+function onAxisPointerUp() {
   axisDragging.value = null
+  window.removeEventListener('pointermove', onAxisPointerMove)
+  window.removeEventListener('pointerup', onAxisPointerUp)
+  window.removeEventListener('pointercancel', onAxisPointerUp)
 }
 
 function getAxisPercent(lon: number): number {
@@ -2948,19 +2718,55 @@ watch(trainingPhase, () => generateProblem())
 watch([() => pointA.lon, () => pointB.lon], () => updateABMarkers())
 
 // ===================== 生命周期 =====================
-onMounted(() => {
-  syncLayoutMode()
+onMounted(async () => {
+  await nextTick()
   initThree()
 })
 
 onUnmounted(() => {
-  cancelAnimationFrame(animationId)
-  window.removeEventListener('resize', onResize)
-  document.removeEventListener('pointermove', onPanelResizeMove)
-  document.body.classList.remove('geo-panel-resizing')
-  window.removeEventListener('mousemove', onAxisMouseMove)
-  window.removeEventListener('mouseup', onAxisMouseUp)
-  renderer?.domElement.removeEventListener('click', onCanvasClick)
+  cancelAnimationFrame(
+    animationId
+  )
+
+  cancelAnimationFrame(
+    sceneResizeFrame
+  )
+
+  cancelAnimationFrame(
+    sceneResizeSettleFrame
+  )
+
+  if (sceneResizeTimer) {
+    clearTimeout(
+      sceneResizeTimer
+    )
+
+    sceneResizeTimer = null
+  }
+
+  sceneResizeObserver?.disconnect()
+  sceneResizeObserver = null
+
+  window.removeEventListener(
+    'pointermove',
+    onAxisPointerMove
+  )
+
+  window.removeEventListener(
+    'pointerup',
+    onAxisPointerUp
+  )
+
+  window.removeEventListener(
+    'pointercancel',
+    onAxisPointerUp
+  )
+
+  renderer?.domElement.removeEventListener(
+    'click',
+    onCanvasClick
+  )
+
   controls?.dispose()
   renderer?.dispose()
   scene?.traverse(obj => {
@@ -3123,6 +2929,8 @@ body {
   background: linear-gradient(135deg, rgba(46, 196, 182, 0.2), rgba(36, 124, 255, 0.2));
 }
 
+
+
 .control-panel .collapse-btn {
   right: -15px;
 }
@@ -3202,6 +3010,8 @@ body {
 .ctrl-btn.primary:hover {
   background: linear-gradient(135deg, #3dd4c4, #3b8cff);
 }
+
+
 
 .ctrl-btn.active {
   background: linear-gradient(135deg, rgba(46, 196, 182, 0.25), rgba(36, 124, 255, 0.25));
@@ -3536,6 +3346,8 @@ body {
   color: #ef4444;
 }
 
+
+
 .slide-up-enter-active,
 .slide-up-leave-active {
   transition: all 0.3s ease;
@@ -3709,6 +3521,8 @@ body {
   color: #ef4444;
 }
 
+
+
 .preview-body {
   padding: 12px 16px;
 }
@@ -3832,10 +3646,7 @@ body {
   white-space: nowrap;
 }
 
-.tab-btn:hover {
-  border-color: #2ec4b6;
-  color: #cbd5e1;
-}
+
 
 .tab-btn.active {
   background: linear-gradient(135deg, #2ec4b6, #247cff);
@@ -4128,6 +3939,7 @@ body {
   top: 50%;
   transform: translate(-50%, -50%);
   cursor: grab;
+  touch-action: none;
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -4316,8 +4128,7 @@ body {
     none;
 }
 
-.ab-axis-dock,
-.rotation-time-dock {
+.ab-axis-dock {
   pointer-events:
     auto;
   position:
@@ -4352,28 +4163,6 @@ body {
 .longitude-axis-bar {
   width:
     100%;
-}
-
-.rotation-time-dock {
-  display:
-    grid;
-  grid-template-columns:
-    auto minmax(0,
-      1fr);
-  align-items:
-    center;
-  gap:
-    12px;
-  padding:
-    10px 14px;
-  border:
-    1px solid rgba(46, 196, 182, 0.22);
-  border-radius:
-    16px;
-  background:
-    rgba(8, 14, 30, 0.72);
-  backdrop-filter:
-    blur(12px);
 }
 
 .timeline-icon-btn {
@@ -4559,13 +4348,6 @@ body {
 .ab-axis-dock {
   width:
     75% !important;
-  justify-self:
-    center;
-}
-
-.rotation-time-dock {
-  width:
-    50% !important;
   justify-self:
     center;
 }
@@ -4804,9 +4586,7 @@ body {
 }
 
 @media (max-width: 960px) {
-
-  .ab-axis-dock,
-  .rotation-time-dock {
+  .ab-axis-dock {
     width:
       100% !important;
   }
@@ -4976,15 +4756,20 @@ body {
 }
 
 .theme-btn.option-btn.answer-action:hover {
-  transform:
-    translateY(-1px);
   border-color:
-    rgba(46, 196, 182, 0.96);
+    rgba(46, 196, 182, 0.78);
   background:
     linear-gradient(135deg,
-      rgba(46, 196, 182, 0.46),
-      rgba(36, 124, 255, 0.32));
+      rgba(46, 196, 182, 0.34),
+      rgba(36, 124, 255, 0.24));
+  color:
+    #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(46, 196, 182, 0.16),
+    0 8px 22px rgba(46, 196, 182, 0.14);
 }
+
+
 
 @media (max-width: 960px) {
   .bottom-dock-stack {
@@ -5198,8 +4983,7 @@ body.geo-panel-resizing {
     none !important;
   transform:
     none !important;
-  display:
-    flex !important;
+  display: flex;
   flex-direction:
     column !important;
   align-items:
@@ -5216,8 +5000,7 @@ body.geo-panel-resizing {
     none;
 }
 
-.earth-rotation-template .rotation-stage-content .ab-axis-dock,
-.earth-rotation-template .rotation-stage-content .rotation-time-dock {
+.earth-rotation-template .rotation-stage-content .ab-axis-dock {
   pointer-events:
     auto;
   justify-self:
@@ -5236,15 +5019,7 @@ body.geo-panel-resizing {
     720px !important;
 }
 
-.earth-rotation-template .rotation-stage-content .rotation-time-dock {
-  width:
-    min(520px, 100%) !important;
-  max-width:
-    520px !important;
-}
-
-.earth-rotation-template .rotation-stage-content .longitude-axis-bar,
-.earth-rotation-template .rotation-stage-content .time-dock-main {
+.earth-rotation-template .rotation-stage-content .longitude-axis-bar {
   min-width:
     0 !important;
 }
@@ -5276,13 +5051,6 @@ body.geo-panel-resizing {
       1120px !important;
   }
 
-  .earth-rotation-template .rotation-stage-content .rotation-time-dock {
-    width:
-      min(760px, 100%) !important;
-    max-width:
-      760px !important;
-  }
-
   .earth-rotation-template .rotation-stage-content .scene-legend-card {
     bottom:
       clamp(260px, 25vh, 320px) !important;
@@ -5300,7 +5068,7 @@ body.geo-panel-resizing {
 
   .earth-rotation-template .rotation-stage-content .ab-axis-dock {
     width:
-      min(640px, 100%) !important;
+      min(540px, 100%) !important;
     max-width:
       640px !important;
   }
@@ -5330,8 +5098,7 @@ body.geo-panel-resizing {
       10px !important;
   }
 
-  .earth-rotation-template .rotation-stage-content .ab-axis-dock,
-  .earth-rotation-template .rotation-stage-content .rotation-time-dock {
+  .earth-rotation-template .rotation-stage-content .ab-axis-dock {
     width:
       100% !important;
     max-width:
@@ -5579,7 +5346,7 @@ body.geo-panel-resizing {
 }
 
 /* 960 以下：改成 A/B 两列，时差信息单独一行，避免中间列硬挤 */
-@media (max-width: 960px) {
+@media (max-width: 1366px) {
   .earth-rotation-template .right-panel .ab-compare-panel.right-info-card {
     padding:
       10px !important;
@@ -5767,5 +5534,34 @@ body.geo-panel-resizing {
     justify-self:
       end;
   }
+}
+
+/* ===================== v22: 面板宽度连续化 =====================
+   对应 script 中 getAdaptivePanelWidth / getPanelResizeBounds。
+   - 修复 1280 断点面板突然变宽；
+   - 修复 860 断点面板突然变宽；
+   - layoutMode 只负责布局形态，不再决定面板宽度。
+*/
+
+/* ===================== 公共面板 Hook 与防闪烁 ===================== */
+.earth-rotation-container .workspace.panel-resizing,
+.earth-rotation-container .workspace.layout-resizing,
+.earth-rotation-container .workspace.panel-resizing .side-panel,
+.earth-rotation-container .workspace.layout-resizing .side-panel,
+.earth-rotation-container .workspace.panel-resizing .center-stage,
+.earth-rotation-container .workspace.layout-resizing .center-stage {
+  transition: none !important;
+}
+
+.earth-rotation-container .rotation-scene-host {
+  overflow: hidden;
+}
+
+.earth-rotation-container .earth-rotation-canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100%;
+  min-height: 100%;
 }
 </style>
