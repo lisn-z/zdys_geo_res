@@ -5139,14 +5139,14 @@
       clamp(18px, 1.25vh, 26px);
   }
 
-  .geo-template-page:not(.layout-floating).layout-large>.workspace>.side-panel {
+  /*   .geo-template-page:not(.layout-floating).layout-large>.workspace>.side-panel {
     height:
       calc(100% - var(--non-floating-large-panel-top-gap)) !important;
     max-height:
       calc(100% - var(--non-floating-large-panel-top-gap)) !important;
     box-sizing:
       border-box;
-  }
+  } */
 
   .geo-template-page:not(.layout-floating).layout-large>.workspace>.side-panel>.panel-scroll {
     padding-top:

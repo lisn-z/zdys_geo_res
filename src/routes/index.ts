@@ -159,6 +159,15 @@ export const routes = [
     component: () =>
       import('@/views/frontal-system/index.vue'),
   },
+  {
+    path: '/river-landforms',
+    name: 'river-landforms',
+    meta: {
+      title: '河流地貌',
+    },
+    component: () =>
+      import('@/views/river-landforms/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
