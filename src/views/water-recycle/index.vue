@@ -32,8 +32,10 @@
           <section class="geo-card control-section">
             <h3 class="section-title">🏙 城镇化对比</h3>
             <div class="urban-toggle">
-              <button class="theme-btn option-btn" :class="{ active: urbanMode === 'before' }" @click="setUrbanMode('before')">城镇化前</button>
-              <button class="theme-btn option-btn" :class="{ active: urbanMode === 'after' }" @click="setUrbanMode('after')">城镇化后</button>
+              <button class="theme-btn option-btn" :class="{ active: urbanMode === 'before' }"
+                @click="setUrbanMode('before')">城镇化前</button>
+              <button class="theme-btn option-btn" :class="{ active: urbanMode === 'after' }"
+                @click="setUrbanMode('after')">城镇化后</button>
             </div>
             <p class="urban-hint">{{ urbanMode === 'before' ? '🌿 植被茂盛，下渗充足，径流缓慢' : '🏢 建筑密布，下渗减少，地表径流增大' }}</p>
           </section>
@@ -61,14 +63,15 @@
             <div class="section-title-row compact-title-row"><span class="mini-control-label">速度</span><strong
                 class="control-value">{{ speed.toFixed(1) }}×</strong></div>
             <el-slider v-model="speed" :min="0.2" :max="3" :step="0.1" :show-tooltip="false" />
-<<<<<<< HEAD
-            <div class="switch-row"><div class="control-copy"><strong>标签显示</strong><span>环节名称</span></div><el-switch v-model="showLabels" /></div>
-            <div class="switch-row"><div class="control-copy"><strong>环境雾</strong><span>大气透视效果</span></div><el-switch v-model="enableFog" /></div>
-=======
             <div class="switch-row">
               <div class="control-copy"><strong>标签显示</strong><span>环节名称</span></div><el-switch v-model="showLabels" />
             </div>
->>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
+            <div class="switch-row">
+              <div class="control-copy"><strong>环境雾</strong><span>大气透视效果</span></div><el-switch v-model="enableFog" />
+            </div>
+            <div class="switch-row">
+              <div class="control-copy"><strong>标签显示</strong><span>环节名称</span></div><el-switch v-model="showLabels" />
+            </div>
           </section>
 
           <!-- 知识解读 -->
@@ -164,17 +167,10 @@ const speed = ref(1)
 const showLabels = ref(true)
 const cycleType = ref('seaLand')
 const isFullscreen = ref(false)
-<<<<<<< HEAD
 const urbanMode = ref<'before' | 'after'>('before')
 const enableFog = ref(true)
 const layers = reactive<Record<string, boolean>>({})
-layerDefs.forEach(l => { layers[l.key] = true })
 layers['oceanPrecip'] = true
-const allPanelsCollapsed = computed(() => leftCollapsed.value)
-=======
-
-const layers =
-  reactive<Record<string, boolean>>({})
 
 layerDefs.forEach((layer) => {
   layers[layer.key] = true
@@ -236,7 +232,6 @@ const {
     }
   },
 })
->>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 
 // ==================== 标签 ====================
 interface LabelInfo { text: string; cls: string; pos: THREE.Vector3; key: string }
@@ -340,13 +335,10 @@ function buildScene() {
   )
 
   scene = new THREE.Scene()
-<<<<<<< HEAD
   scene.background = new THREE.Color(0x1a3050)
   scene.fog = new THREE.FogExp2(0x1a3050, 0.025)
-=======
   scene.background =
     new THREE.Color(0x0a1628)
->>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 
   scene.fog =
     new THREE.Fog(
@@ -599,7 +591,7 @@ function buildScene() {
   ]
   cPos.forEach(([cx, cy, cz]) => {
     const cloud = createCloud(cx, cy, cz)
-    ;(cloud as any).__baseX = cx; (cloud as any).__baseY = cy; (cloud as any).__baseZ = cz
+      ; (cloud as any).__baseX = cx; (cloud as any).__baseY = cy; (cloud as any).__baseZ = cz
     scene!.add(cloud); cloudMeshes.push(cloud)
   })
 
@@ -1056,7 +1048,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-<<<<<<< HEAD
   sceneReady = false; cancelAnimationFrame(animationId)
   pageRO?.disconnect(); pageRO = null; threeResizeObserver?.disconnect(); threeResizeObserver = null
   if (sceneResizeTimer) { clearTimeout(sceneResizeTimer); sceneResizeTimer = null }
@@ -1065,7 +1056,6 @@ onBeforeUnmount(() => {
   renderer?.dispose(); if (renderer?.domElement.parentElement) renderer.domElement.parentElement.removeChild(renderer.domElement)
   scene = null; camera = null; renderer = null
   treeGroupRef = null; buildingGroupRef = null; concreteRef = null
-=======
   sceneReady = false
 
   cancelAnimationFrame(
@@ -1128,34 +1118,145 @@ onBeforeUnmount(() => {
   scene = null
   camera = null
   renderer = null
->>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 })
 </script>
 
 <style scoped>
-<<<<<<< HEAD
-.page-subtitle { font-size: 13px; color: #64748b; font-weight: 400; margin-left: 10px; letter-spacing: 1px; }
-.labels-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 15; }
-.scene-label { position: absolute; transform: translate(-50%, -50%); font-weight: 700; white-space: nowrap; padding: 3px 10px; border-radius: 5px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); font-size: 14px; background: rgba(8,12,28,0.55); border: 1px solid rgba(46,196,182,0.25); color: #2ec4b6; }
-.scene-label.lbl-evap { color: #67e8f9; border-color: rgba(103,232,249,0.5); }
-.scene-label.lbl-trans { color: #7dd3fc; border-color: rgba(125,211,252,0.5); }
-.scene-label.lbl-prec { color: #93c5fd; border-color: rgba(147,197,253,0.5); }
-.scene-label.lbl-tran { color: #4ade80; border-color: rgba(74,222,128,0.5); }
-.scene-label.lbl-runoff { color: #2ec4b6; border-color: rgba(46,196,182,0.6); }
-.scene-label.lbl-inf { color: #c4b5fd; border-color: rgba(196,181,253,0.5); }
-.scene-label.lbl-gw { color: #c4b5fd; border-color: rgba(196,181,253,0.6); font-size: 15px; font-weight: 800; }
-.footer-tip { position: absolute; right: 16px; bottom: 16px; font-size: 11px; color: #64748b; padding: 4px 10px; background: rgba(8,12,28,0.6); border: 1px solid rgba(100,116,139,0.3); border-radius: 999px; pointer-events: none; }
-.layer-list { display: flex; flex-direction: column; gap: 2px; }
-.layer-row { padding: 6px 0; border-bottom: 1px solid rgba(100,116,139,0.1); }
-.layer-row:last-child { border-bottom: none; }
-.urban-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.urban-hint { font-size: 11px; color: #94a3b8; margin: 6px 0 0; line-height: 1.5; padding: 6px 8px; background: rgba(46,196,182,0.06); border-radius: 6px; border-left: 2px solid #2ec4b6; }
-.knowledge-card { margin-bottom: 14px; }
-.knowledge-content { font-size: 12px; color: #94a3b8; line-height: 1.7; }
-.knowledge-content h4 { margin: 0 0 6px; color: #2ec4b6; font-size: 14px; }
-.knowledge-content p { margin: 0 0 6px; }
-.knowledge-content :deep(strong) { color: #fbbf24; }
-=======
+.page-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 400;
+  margin-left: 10px;
+  letter-spacing: 1px;
+}
+
+.labels-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.scene-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border-radius: 5px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  font-size: 14px;
+  background: rgba(8, 12, 28, 0.55);
+  border: 1px solid rgba(46, 196, 182, 0.25);
+  color: #2ec4b6;
+}
+
+.scene-label.lbl-evap {
+  color: #67e8f9;
+  border-color: rgba(103, 232, 249, 0.5);
+}
+
+.scene-label.lbl-trans {
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.5);
+}
+
+.scene-label.lbl-prec {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.5);
+}
+
+.scene-label.lbl-tran {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.scene-label.lbl-runoff {
+  color: #2ec4b6;
+  border-color: rgba(46, 196, 182, 0.6);
+}
+
+.scene-label.lbl-inf {
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.5);
+}
+
+.scene-label.lbl-gw {
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.6);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.footer-tip {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  font-size: 11px;
+  color: #64748b;
+  padding: 4px 10px;
+  background: rgba(8, 12, 28, 0.6);
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layer-row {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(100, 116, 139, 0.1);
+}
+
+.layer-row:last-child {
+  border-bottom: none;
+}
+
+.urban-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.urban-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 6px 0 0;
+  line-height: 1.5;
+  padding: 6px 8px;
+  background: rgba(46, 196, 182, 0.06);
+  border-radius: 6px;
+  border-left: 2px solid #2ec4b6;
+}
+
+.knowledge-card {
+  margin-bottom: 14px;
+}
+
+.knowledge-content {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.7;
+}
+
+.knowledge-content h4 {
+  margin: 0 0 6px;
+  color: #2ec4b6;
+  font-size: 14px;
+}
+
+.knowledge-content p {
+  margin: 0 0 6px;
+}
+
+.knowledge-content :deep(strong) {
+  color: #fbbf24;
+}
+
 .page-subtitle {
   font-size: 13px;
   color: #64748b;
@@ -1286,5 +1387,4 @@ onBeforeUnmount(() => {
   width: 100% !important;
   height: 100% !important;
 }
->>>>>>> cc2a785ce80e753ab1416d64dac43187f9571106
 </style>
