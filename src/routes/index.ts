@@ -151,6 +151,15 @@ export const routes = [
       import('@/views/earth-evolution/index.vue'),
   },
   {
+    path: '/frontal-system',
+    name: 'frontal-system',
+    meta: {
+      title: '锋面系统与气旋',
+    },
+    component: () =>
+      import('@/views/frontal-system/index.vue'),
+  },
+  {
     path: '/river-landforms',
     name: 'river-landforms',
     meta: {
@@ -158,6 +167,15 @@ export const routes = [
     },
     component: () =>
       import('@/views/river-landforms/index.vue'),
+  },
+  {
+    path: '/find-terrain',
+    name: 'find-terrain',
+    meta: {
+      title: '找地形',
+    },
+    component: () =>
+      import('@/views/find-terrain/index.vue'),
   },
 ]
 

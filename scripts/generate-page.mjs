@@ -3173,7 +3173,6 @@ function initScene() {
       maxZoom: 8,
       zoomControl: true,
       attributionControl: false,
-      preferCanvas: true,
       zoomAnimation: false,
       fadeAnimation: false,
       markerZoomAnimation: false,
