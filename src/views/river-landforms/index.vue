@@ -65,14 +65,6 @@
               <el-switch v-model="showLabels" />
             </div>
 
-            <div class="switch-row">
-              <div class="control-copy">
-                <strong>等高线</strong>
-                <span>在地面叠加等高线辅助观察</span>
-              </div>
-
-              <el-switch v-model="showContours" />
-            </div>
 
             <div class="switch-row">
               <div class="control-copy">
@@ -162,12 +154,6 @@
             </div>
           </div>
 
-
-
-          <div class="stage-hint">
-            <span class="hint-icon">🖱</span>
-            拖拽旋转 · 滚轮缩放 · 点击红色圆点查看地貌成因
-          </div>
         </div>
       </section>
 
@@ -575,7 +561,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
 
 /* ===================================================================
- * RiverLandforms_v2：冰川、三角洲、冲积扇 3D 修正 + 河谷图片资源化
+ * RiverLandforms_v21：缩小牛轭湖并调整至距主曲流约 1 个模型单位
  * 资源与业务数据
  * =================================================================== */
 
@@ -851,7 +837,6 @@ void pageRef
  * =================================================================== */
 
 const showLabels = ref(true)
-const showContours = ref(false)
 const showFlow = ref(true)
 const terrainScale = ref(1)
 const autoRotate = ref(false)
@@ -900,7 +885,6 @@ let camera: THREE.PerspectiveCamera | null = null
 let renderer: THREE.WebGLRenderer | null = null
 let orbitControls: OrbitControls | null = null
 let sceneGroup: THREE.Group | null = null
-let contourGroup: THREE.Group | null = null
 let flowGroup: THREE.Group | null = null
 let flowInstances: THREE.InstancedMesh | null = null
 let flowStates: FlowState[] = []
@@ -952,6 +936,8 @@ const Z_MAX = 15
 const BASE_BOTTOM = -8.5
 const SEA_LEVEL = 0.12
 const SHORE_X = 29
+const MAIN_RIVER_COLOR = 0x429bd2
+const MAIN_RIVER_UNDERLAY_COLOR = 0x237fbd
 
 interface RiverControlPoint {
   x: number
@@ -1046,12 +1032,13 @@ function riverCenterZ(x: number) {
 }
 
 function longitudinalProfile(x: number) {
-  if (x < -30) return 8.7
-  if (x < -22) return lerp(8.7, 5.6, (x + 30) / 8)
-  if (x < -14) return lerp(5.6, 4.0, (x + 22) / 8)
-  if (x < -12.4) return lerp(4.0, 2.0, (x + 14) / 1.6)
-  if (x < -5) return lerp(2.0, 0.95, (x + 12.4) / 7.4)
-  if (x < 24) return lerp(0.95, 0.38, (x + 5) / 29)
+  // v10：整体抬升左侧山地—峡谷—瀑布河段，使瀑布底部和冲积扇之间保持明显的高到低过渡。
+  if (x < -30) return 10.2
+  if (x < -22) return lerp(10.2, 6.9, (x + 30) / 8)
+  if (x < -14) return lerp(6.9, 5.1, (x + 22) / 8)
+  if (x < -12.4) return lerp(5.1, 3.25, (x + 14) / 1.6)
+  if (x < -5) return lerp(3.25, 1.18, (x + 12.4) / 7.4)
+  if (x < 24) return lerp(1.18, 0.38, (x + 5) / 29)
   if (x < SHORE_X) return lerp(0.38, 0.18, (x - 24) / 5)
   if (x < 32) return lerp(0.18, -1.25, (x - SHORE_X) / 3)
   return -1.25 - Math.sin((x - 32) * 0.32) * 0.08
@@ -1110,16 +1097,25 @@ function terrainHeightAt(x: number, z: number) {
   let height = longitudinalProfile(x)
 
   const broadNoise = (fbmNoise2D(x * 0.12, z * 0.12, 4) - 0.5) * 0.16
-  const mountainNoise = (fbmNoise2D(x * 0.22, z * 0.18, 5) - 0.5) * 0.9
+  const mountainNoise = (fbmNoise2D(x * 0.22, z * 0.18, 5) - 0.5) * 1.25
   const canyonNoise = (fbmNoise2D(x * 0.38, z * 0.34, 3) - 0.5) * 0.22
 
   if (x < -16) {
-    height += gaussian2D(x, z, -30.8, -5.3, 5.0, 4.6, 5.0)
-    height += gaussian2D(x, z, -29.2, 5.0, 5.4, 4.8, 5.6)
-    height += gaussian2D(x, z, -26.0, 0.4, 6.2, 5.2, 3.7)
-    height += gaussian2D(x, z, -23.3, -6.2, 6.4, 3.8, 1.8)
-    height += gaussian2D(x, z, -23.0, 6.4, 6.2, 3.6, 1.9)
-    height += mountainNoise
+    // v9：提高源头山地，并叠加脊状噪声，使山峰更高、更尖锐。
+    const ridgeNoiseSource = fbmNoise2D(x * 0.31 + 7.2, z * 0.28 - 3.6, 5)
+    const ridgeNoise = Math.pow(
+      clamp01(1 - Math.abs(ridgeNoiseSource * 2 - 1)),
+      2.25
+    )
+    const mountainEnvelope = 1 - smoothstep(-21.0, -15.8, x)
+
+    height += gaussian2D(x, z, -31.1, -5.2, 4.6, 4.2, 7.8)
+    height += gaussian2D(x, z, -29.4, 5.0, 4.8, 4.4, 8.6)
+    height += gaussian2D(x, z, -26.2, 0.2, 5.5, 4.7, 5.8)
+    height += gaussian2D(x, z, -23.6, -6.0, 5.8, 3.5, 2.8)
+    height += gaussian2D(x, z, -23.3, 6.2, 5.7, 3.4, 3.0)
+    height += mountainNoise * 1.15
+    height += ridgeNoise * mountainEnvelope * 2.15
   }
 
   const centerZ = riverCenterZ(x)
@@ -1140,6 +1136,14 @@ function terrainHeightAt(x: number, z: number) {
     valleyDepth = 0.25 * Math.exp(-Math.pow(distance / 2.9, 2))
   }
 
+  // 瀑布下游至冲积扇扇顶不再挖出深槽，只保留轻微河床压低。
+  if (x > -12.75 && x < -7.75) {
+    const corridorBlend =
+      smoothstep(-12.75, -12.1, x) *
+      (1 - smoothstep(-8.45, -7.75, x))
+    valleyDepth *= lerp(1, 0.075, corridorBlend)
+  }
+
   height -= valleyDepth
 
   if (x < -14.2) {
@@ -1148,9 +1152,24 @@ function terrainHeightAt(x: number, z: number) {
     height += canyonNoise * wallFactor
   }
 
-  if (x > -13.4 && x < -11.9) {
-    const waterfallBlend = smoothstep(-13.4, -12.8, x) * (1 - smoothstep(-12.15, -11.9, x))
-    height -= waterfallBlend * 1.05 * Math.exp(-Math.pow(distance / 0.85, 2))
+  if (x > -13.45 && x < -12.05) {
+    const waterfallBlend =
+      smoothstep(-13.45, -12.86, x) *
+      (1 - smoothstep(-12.34, -12.05, x))
+    height -=
+      waterfallBlend *
+      1.18 *
+      Math.exp(-Math.pow(distance / 0.82, 2))
+  }
+
+  // v10：瀑布出口到冲积扇扇顶之间保留浅河床，而不再出现钻入地下的深槽。
+  if (x > -12.95 && x < -7.85) {
+    const corridorBlend =
+      smoothstep(-12.95, -12.25, x) *
+      (1 - smoothstep(-8.55, -7.85, x))
+    const outletTarget = longitudinalProfile(x) - 0.10
+    const outletShape = Math.exp(-Math.pow(distance / 1.08, 2))
+    height = lerp(height, outletTarget, corridorBlend * outletShape * 0.92)
   }
 
   if (x > 1 && x < 26 && Math.abs(z) < 8.8) {
@@ -1174,14 +1193,40 @@ function terrainHeightAt(x: number, z: number) {
     }
   }
 
-  if (x > 23.5 && x < 31.8) {
-    const deltaFactor = smoothstep(23.5, 26.2, x) * (1 - smoothstep(30.2, 31.8, x))
-    const lobeA = gaussian2D(x, z, 28.2, -4.2, 2.6, 2.4, 0.24)
-    const lobeB = gaussian2D(x, z, 28.8, 0.4, 3.0, 2.7, 0.26)
-    const lobeC = gaussian2D(x, z, 28.1, 4.8, 2.4, 2.6, 0.23)
-    const islandsNoise = (fbmNoise2D(x * 0.34, z * 0.34, 3) - 0.5) * 0.09
-    const deltaBase = Math.max(height, SEA_LEVEL + deltaFactor * 0.08)
-    height = Math.max(deltaBase, SEA_LEVEL + 0.025 + (lobeA + lobeB + lobeC) * deltaFactor + islandsNoise)
+  // v9：河口岸线不再沿 SHORE_X 笔直展开，而是先形成不规则潮沟与浅水湾。
+  // 具体三角洲陆地由 createDeltaLand 的多个离散沉积斑块覆盖在其上。
+  if (x > 23.7 && x < 32.2) {
+    const irregularEdgeX =
+      26.15 +
+      Math.sin(z * 0.52 + 0.4) * 0.78 +
+      Math.sin(z * 1.21 - 0.8) * 0.32 +
+      gaussian2D(x, z, 27.4, -5.1, 4.2, 2.1, 0.58) +
+      gaussian2D(x, z, 27.7, 4.8, 4.0, 2.2, 0.52)
+    const shorelineBlend = smoothstep(
+      irregularEdgeX - 0.45,
+      irregularEdgeX + 0.90,
+      x
+    )
+    const tidalVariation =
+      (fbmNoise2D(x * 0.46 + 2.1, z * 0.50 - 1.2, 4) - 0.5) * 0.08
+    const shallowWaterFloor = SEA_LEVEL - 0.14 + tidalVariation
+    height = lerp(height, shallowWaterFloor, shorelineBlend)
+  }
+
+  // v16：对瀑布下游—冲积扇—平原河段做最终连续河床整形。
+  // 河床中心采用单调下降的纵剖面，向两岸平滑衰减，消除局部地面抬升造成的断层、断流。
+  if (x > -12.95 && x < 25.65) {
+    const corridorStart = smoothstep(-12.95, -12.35, x)
+    const corridorEnd = 1 - smoothstep(25.05, 25.65, x)
+    const localHalfWidth = riverHalfWidthAtX(x)
+    const smoothingWidth = localHalfWidth * 1.85 + 0.46
+    const centerWeight = Math.exp(-Math.pow(distance / smoothingWidth, 2))
+    const bedTarget = longitudinalProfile(x) - 0.10
+    height = lerp(
+      height,
+      bedTarget,
+      corridorStart * corridorEnd * centerWeight * 0.94
+    )
   }
 
   const microRelief =
@@ -1189,7 +1234,7 @@ function terrainHeightAt(x: number, z: number) {
     Math.sin(z * 0.74 - x * 0.12) * 0.022 +
     broadNoise
 
-  if (x < SHORE_X) height += microRelief
+  if (x < SHORE_X && x < 23.7) height += microRelief
 
   return Math.max(BASE_BOTTOM + 0.5, height)
 }
@@ -1203,6 +1248,20 @@ function riverHalfWidthAtX(x: number) {
 }
 
 function riverSurfaceY(x: number, z: number) {
+  // v16：瀑布水潭到冲积扇扇顶采用缓降曲线；扇顶之后使用独立于微地形噪声的
+  // 单调纵剖面，避免河面跟随局部地形起伏而出现横向断层或接缝。
+  if (x >= -13.02 && x <= -7.72) {
+    const t = smoothstep(-13.02, -7.72, x)
+    const smoothProfile = lerp(
+      longitudinalProfile(-13.02),
+      longitudinalProfile(-7.72),
+      t
+    )
+    return smoothProfile + 0.14
+  }
+  if (x > -7.72 && x <= 25.65) {
+    return longitudinalProfile(x) + 0.14
+  }
   return terrainHeightAt(x, z) + 0.12
 }
 
@@ -1374,14 +1433,14 @@ function terrainColorAt(x: number, z: number, h: number) {
   const color = new THREE.Color()
 
   if (x >= SHORE_X) {
-    color.setRGB(0.73, 0.70, 0.58)
+    color.setRGB(0.69, 0.67, 0.55)
     return color
   }
 
-  if (h > 9.2) color.setRGB(0.95, 0.96, 0.95)
-  else if (h > 7.3) color.setRGB(0.76, 0.79, 0.77)
-  else if (h > 4.9) color.setRGB(0.62, 0.68, 0.58)
-  else if (x < -12) color.setRGB(0.62, 0.72, 0.56)
+  if (h > 11.2) color.setRGB(0.96, 0.98, 0.99)
+  else if (h > 8.4) color.setRGB(0.70, 0.73, 0.72)
+  else if (h > 5.4) color.setRGB(0.43, 0.49, 0.45)
+  else if (x < -12) color.setRGB(0.54, 0.66, 0.48)
   else if (x < 2) color.setRGB(0.67, 0.77, 0.57)
   else color.setRGB(0.72, 0.81, 0.60)
 
@@ -1391,17 +1450,66 @@ function terrainColorAt(x: number, z: number, h: number) {
     color.lerp(new THREE.Color(0x8eb86b), 0.26)
   }
   if (x > 23.5 && x < 31.5) {
-    color.lerp(new THREE.Color(0x9bb36a), 0.3)
+    color.lerp(new THREE.Color(0x91ac67), 0.24)
   }
 
   return color
 }
 
+function createTerrainMaterial() {
+  const material = new THREE.MeshStandardMaterial({
+    map: createTerrainDetailTexture(),
+    vertexColors: true,
+    roughness: 0.98,
+    metalness: 0,
+  })
+
+  // 在保留标准光照、阴影和纹理的基础上，使用着色器按海拔对上游山体渐变着色。
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying float vTerrainHeight;
+         varying float vTerrainX;`
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         vTerrainHeight = position.y;
+         vTerrainX = position.x;`
+      )
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying float vTerrainHeight;
+         varying float vTerrainX;`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+         float mountainMask = 1.0 - smoothstep(-18.0, -14.5, vTerrainX);
+         float rockBlend = smoothstep(5.2, 9.2, vTerrainHeight) * mountainMask;
+         float snowBlend = smoothstep(9.0, 12.0, vTerrainHeight) * mountainMask;
+         vec3 lowerRock = vec3(0.34, 0.38, 0.36);
+         vec3 upperRock = vec3(0.67, 0.70, 0.70);
+         vec3 rockColor = mix(lowerRock, upperRock, smoothstep(5.0, 10.0, vTerrainHeight));
+         vec3 snowColor = vec3(0.96, 0.985, 1.0);
+         diffuseColor.rgb = mix(diffuseColor.rgb, rockColor, rockBlend * 0.78);
+         diffuseColor.rgb = mix(diffuseColor.rgb, snowColor, snowBlend * 0.96);`
+      )
+  }
+  material.customProgramCacheKey = () => 'river-terrain-gradient-v16'
+  return material
+}
+
 function createTerrainTop() {
   const sizeX = X_MAX - X_MIN
   const sizeZ = Z_MAX - Z_MIN
-  const segX = 260
-  const segZ = 100
+  const segX = 280
+  const segZ = 112
   const geometry = new THREE.PlaneGeometry(sizeX, sizeZ, segX, segZ)
   geometry.rotateX(-Math.PI / 2)
 
@@ -1425,14 +1533,7 @@ function createTerrainTop() {
   )
   geometry.computeVertexNormals()
 
-  const material = new THREE.MeshStandardMaterial({
-    map: createTerrainDetailTexture(),
-    vertexColors: true,
-    roughness: 0.98,
-    metalness: 0.0,
-  })
-
-  const mesh = new THREE.Mesh(geometry, material)
+  const mesh = new THREE.Mesh(geometry, createTerrainMaterial())
   mesh.receiveShadow = true
   return mesh
 }
@@ -1631,28 +1732,40 @@ function createRibbonGeometry(
   const indices: number[] = []
   let accumulatedDistance = 0
 
+  const safeDirection = (from: THREE.Vector3, to: THREE.Vector3) => {
+    const direction = new THREE.Vector2(to.x - from.x, to.z - from.z)
+    if (direction.lengthSq() < 1e-8) direction.set(1, 0)
+    return direction.normalize()
+  }
+
   for (let i = 0; i < points.length; i++) {
     const point = points[i]!
     const previous = points[Math.max(0, i - 1)]!
     const next = points[Math.min(points.length - 1, i + 1)]!
-    const tangent = new THREE.Vector2(
-      next.x - previous.x,
-      next.z - previous.z
-    ).normalize()
-    const normal = new THREE.Vector2(-tangent.y, tangent.x)
+    const previousDirection = safeDirection(previous, point)
+    const nextDirection = safeDirection(point, next)
+
+    let tangent = nextDirection.clone()
+    if (i > 0 && i < points.length - 1) {
+      tangent = previousDirection.clone().add(nextDirection)
+      if (tangent.lengthSq() < 1e-8) tangent.copy(nextDirection)
+      tangent.normalize()
+    } else if (i === points.length - 1) {
+      tangent = previousDirection.clone()
+    }
+
+    const normal = new THREE.Vector2(-tangent.y, tangent.x).normalize()
     const t = i / Math.max(1, points.length - 1)
-    const halfWidth = halfWidthAt(i, t)
+    const halfWidth = Math.max(0.006, halfWidthAt(i, t))
+
+    const leftX = point.x + normal.x * halfWidth
+    const leftZ = point.z + normal.y * halfWidth
+    const rightX = point.x - normal.x * halfWidth
+    const rightZ = point.z - normal.y * halfWidth
 
     if (i > 0) accumulatedDistance += point.distanceTo(points[i - 1]!)
 
-    positions.push(
-      point.x + normal.x * halfWidth,
-      point.y,
-      point.z + normal.y * halfWidth,
-      point.x - normal.x * halfWidth,
-      point.y,
-      point.z - normal.y * halfWidth
-    )
+    positions.push(leftX, point.y, leftZ, rightX, point.y, rightZ)
     uvs.push(0, accumulatedDistance * 0.18, 1, accumulatedDistance * 0.18)
 
     if (i < points.length - 1) {
@@ -1672,102 +1785,100 @@ function createRibbonGeometry(
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
   geometry.setIndex(indices)
   geometry.computeVertexNormals()
+  geometry.computeBoundingBox()
+  geometry.computeBoundingSphere()
   return geometry
 }
 
 function createGlacier() {
   const group = new THREE.Group()
 
-  // 山峰已经由 terrainHeightAt 直接塑造。冰川只作为贴合山体表面的冰雪层，
-  // 不再额外生成一座独立山峰，因此山体、雪峰与冰川是连续的一整座山。
+  // v12：将冰川起点进一步下移到山坡内部，避免山顶再次出现薄片状“白纸边”。
   const glacierCurve = new THREE.CatmullRomCurve3(
     [
-      new THREE.Vector3(-29.35, 0, 4.58),
-      new THREE.Vector3(-29.05, 0, 4.15),
-      new THREE.Vector3(-28.62, 0, 3.70),
-      new THREE.Vector3(-28.10, 0, 3.15),
-      new THREE.Vector3(-27.50, 0, 2.58),
-      new THREE.Vector3(-26.84, 0, 2.02),
-      new THREE.Vector3(-26.08, 0, 1.48),
-      new THREE.Vector3(-25.28, 0, 0.98),
-      new THREE.Vector3(-24.48, 0, 0.56),
-      new THREE.Vector3(-23.72, 0, 0.22),
-      new THREE.Vector3(-23.08, 0, -0.02),
+      new THREE.Vector3(-28.10, 0, 3.18),
+      new THREE.Vector3(-27.78, 0, 2.92),
+      new THREE.Vector3(-27.36, 0, 2.58),
+      new THREE.Vector3(-26.88, 0, 2.16),
+      new THREE.Vector3(-26.32, 0, 1.74),
+      new THREE.Vector3(-25.68, 0, 1.30),
+      new THREE.Vector3(-24.96, 0, 0.88),
+      new THREE.Vector3(-24.24, 0, 0.52),
+      new THREE.Vector3(-23.56, 0, 0.20),
+      new THREE.Vector3(-23.00, 0, -0.02),
     ],
     false,
     'centripetal',
     0.42
   )
 
-  const centerPoints = glacierCurve.getPoints(110).map((point) =>
+  const centerPoints = glacierCurve.getPoints(84).map((point) =>
     new THREE.Vector3(
       point.x,
-      terrainHeightAt(point.x, point.z) + 0.075,
+      terrainHeightAt(point.x, point.z) + 0.03,
       point.z
     )
   )
 
   const geometry = createRibbonGeometry(centerPoints, (_index, t) => {
-    // 积累区宽、冰舌逐渐收窄，边缘始终贴合山坡。
-    const headWidth = lerp(1.78, 1.22, smoothstep(0, 0.30, t))
-    return lerp(headWidth, 0.50, smoothstep(0.30, 1, t))
+    if (t < 0.14) return lerp(0.001, 0.26, smoothstep(0, 0.14, t))
+    if (t < 0.34) return lerp(0.26, 0.84, smoothstep(0.14, 0.34, t))
+    if (t < 0.54) return lerp(0.84, 0.74, smoothstep(0.34, 0.54, t))
+    return lerp(0.74, 0.34, smoothstep(0.54, 1, t))
   })
 
   const material = new THREE.MeshPhysicalMaterial({
-    color: 0xdff4fb,
-    emissive: 0x183b4c,
-    emissiveIntensity: 0.05,
-    roughness: 0.42,
+    color: 0xd8edf5,
+    emissive: 0x173b52,
+    emissiveIntensity: 0.055,
+    roughness: 0.40,
     metalness: 0,
-    clearcoat: 0.26,
-    clearcoatRoughness: 0.34,
+    clearcoat: 0.32,
+    clearcoatRoughness: 0.30,
     transparent: false,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     polygonOffset: true,
     polygonOffsetFactor: -3,
     polygonOffsetUnits: -3,
   })
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying float vGlacierHeight;`
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         vGlacierHeight = position.y;`
+      )
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying float vGlacierHeight;`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+         float iceWhite = smoothstep(9.0, 12.9, vGlacierHeight);
+         diffuseColor.rgb = mix(vec3(0.68, 0.84, 0.92), vec3(0.985, 0.995, 1.0), iceWhite);`
+      )
+  }
+  material.customProgramCacheKey = () => 'glacier-gradient-v12'
   const glacier = new THREE.Mesh(geometry, material)
   glacier.castShadow = true
   glacier.receiveShadow = true
   glacier.renderOrder = 5
   group.add(glacier)
 
-  // 山顶积雪区同样直接铺在原始山体表面，和冰川头部自然连接。
-  const snowMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf4f6f3,
-    roughness: 0.88,
-    metalness: 0,
-    side: THREE.DoubleSide,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
-  })
-  const snowCapPoints = [
-    { x: -31.05, z: 3.75 },
-    { x: -30.55, z: 5.15 },
-    { x: -29.55, z: 5.82 },
-    { x: -28.45, z: 5.35 },
-    { x: -27.82, z: 4.30 },
-    { x: -28.18, z: 3.40 },
-    { x: -29.12, z: 3.10 },
-    { x: -30.18, z: 3.20 },
-  ]
-  group.add(
-    createPolygonSurface(
-      snowCapPoints,
-      snowMaterial,
-      0.055,
-      terrainHeightAt
-    )
-  )
-
   const crevasseMaterial = new THREE.LineBasicMaterial({
     color: 0x82c5e3,
     transparent: true,
-    opacity: 0.70,
+    opacity: 0.56,
   })
-  for (let index = 16; index < centerPoints.length - 10; index += 13) {
+  for (let index = 26; index < centerPoints.length - 10; index += 18) {
     const point = centerPoints[index]!
     const previous = centerPoints[index - 1]!
     const next = centerPoints[index + 1]!
@@ -1777,7 +1888,7 @@ function createGlacier() {
     ).normalize()
     const normal = new THREE.Vector2(-tangent.y, tangent.x)
     const t = index / (centerPoints.length - 1)
-    const width = lerp(1.30, 0.48, t) * 0.62
+    const width = lerp(0.68, 0.30, t) * 0.52
     const leftX = point.x - normal.x * width
     const leftZ = point.z - normal.y * width
     const rightX = point.x + normal.x * width
@@ -1785,12 +1896,12 @@ function createGlacier() {
     const lineGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(
         leftX,
-        terrainHeightAt(leftX, leftZ) + 0.105,
+        terrainHeightAt(leftX, leftZ) + 0.06,
         leftZ
       ),
       new THREE.Vector3(
         rightX,
-        terrainHeightAt(rightX, rightZ) + 0.105,
+        terrainHeightAt(rightX, rightZ) + 0.06,
         rightZ
       ),
     ])
@@ -1832,20 +1943,59 @@ function createCanyonCliffs() {
 
 function createWaterfall() {
   const group = new THREE.Group()
-  const x = -13.0
+  const x = -12.92
   const z = riverCenterZ(x)
-  const topY = riverSurfaceY(-13.35, riverCenterZ(-13.35)) + 0.18
-  const bottomY = riverSurfaceY(-12.55, riverCenterZ(-12.55)) + 0.03
-  const height = Math.max(1.35, topY - bottomY)
+
+  // v16：瀑布落水区保持为外露浅水潭，水潭、承托方块和下游河面使用同一主河流颜色。
+  const crestY = riverSurfaceY(-13.16, riverCenterZ(-13.16)) + 0.20
+  const footY = Math.max(
+    riverSurfaceY(-12.26, riverCenterZ(-12.26)) + 0.10,
+    crestY - 1.08
+  )
+  const height = Math.max(0.88, crestY - footY)
 
   const cliffRock = new THREE.Mesh(
-    new THREE.BoxGeometry(0.65, 0.42, 2.15),
+    new THREE.BoxGeometry(0.82, 0.56, 2.24),
     new THREE.MeshStandardMaterial({ color: 0x736656, roughness: 0.95 })
   )
-  cliffRock.position.set(x - 0.26, topY - 0.12, z)
+  cliffRock.position.set(x - 0.34, crestY - 0.18, z)
   cliffRock.castShadow = true
   cliffRock.receiveShadow = true
   group.add(cliffRock)
+
+  const poolFillMaterial = new THREE.MeshStandardMaterial({
+    color: MAIN_RIVER_COLOR,
+    emissive: 0x0a3f61,
+    emissiveIntensity: 0.08,
+    roughness: 0.34,
+    metalness: 0,
+  })
+  const hiddenFill = new THREE.Mesh(
+    new THREE.BoxGeometry(1.58, 0.66, 2.40),
+    poolFillMaterial
+  )
+  hiddenFill.position.set(x + 0.72, footY - 0.29, z)
+  hiddenFill.castShadow = false
+  hiddenFill.receiveShadow = false
+  hiddenFill.renderOrder = 8
+  group.add(hiddenFill)
+
+  const poolPatchPoints = [
+    { x: -12.62, z: z - 1.08 },
+    { x: -11.64, z: z - 1.20 },
+    { x: -10.86, z: z - 0.50 },
+    { x: -10.80, z: z + 0.36 },
+    { x: -11.62, z: z + 1.18 },
+    { x: -12.60, z: z + 1.06 },
+  ]
+  const poolPatch = createPolygonSurface(
+    poolPatchPoints,
+    poolFillMaterial,
+    0.028,
+    (px, pz) => Math.max(terrainHeightAt(px, pz), footY - 0.025)
+  )
+  poolPatch.renderOrder = 9
+  group.add(poolPatch)
 
   const waterfallMaterial = new THREE.MeshStandardMaterial({
     map: createWaterfallTexture(),
@@ -1860,37 +2010,79 @@ function createWaterfall() {
     depthWrite: false,
   })
 
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(2.1, height, 10, 36), waterfallMaterial)
-  plane.position.set(x, (topY + bottomY) / 2, z)
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.92, height, 10, 28),
+    waterfallMaterial
+  )
+  plane.position.set(x, (crestY + footY) / 2, z)
   plane.rotation.y = Math.PI / 2
+  plane.renderOrder = 14
   group.add(plane)
 
   const secondPlane = plane.clone()
-  secondPlane.position.x += 0.08
-  secondPlane.position.z += 0.05
-  secondPlane.rotation.y = Math.PI / 2 + 0.08
+  secondPlane.position.x += 0.05
+  secondPlane.position.z += 0.03
+  secondPlane.rotation.y = Math.PI / 2 + 0.05
   secondPlane.material = waterfallMaterial.clone()
+  secondPlane.renderOrder = 15
   group.add(secondPlane)
 
   const pool = new THREE.Mesh(
-    new THREE.CircleGeometry(1.05, 28),
-    new THREE.MeshBasicMaterial({ color: 0xeafcff, transparent: true, opacity: 0.55, depthWrite: false })
+    new THREE.CircleGeometry(0.92, 36),
+    new THREE.MeshBasicMaterial({
+      color: MAIN_RIVER_COLOR,
+      transparent: false,
+      depthWrite: true,
+    })
   )
   pool.rotation.x = -Math.PI / 2
-  pool.position.set(x + 0.45, bottomY + 0.02, z)
-  pool.scale.set(1.4, 0.85, 1)
+  pool.position.set(x + 0.48, footY + 0.045, z)
+  pool.scale.set(1.32, 0.88, 1)
+  pool.renderOrder = 12
   group.add(pool)
 
+  // 大范围薄雾底层：先形成连续白色水汽，再叠加多层泡沫球，避免雾团稀疏、过薄。
+  const mistBase = new THREE.Mesh(
+    new THREE.CircleGeometry(1.0, 40),
+    new THREE.MeshBasicMaterial({
+      color: 0xf5feff,
+      transparent: true,
+      opacity: 0.46,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  )
+  mistBase.rotation.x = -Math.PI / 2
+  mistBase.position.set(x + 0.34, footY + 0.075, z)
+  mistBase.scale.set(1.28, 0.92, 1)
+  mistBase.renderOrder = 16
+  group.add(mistBase)
+
   const foamMaterial = new THREE.MeshBasicMaterial({
-    color: 0xf1fdff,
+    color: 0xf6feff,
     transparent: true,
-    opacity: 0.76,
+    opacity: 0.82,
     depthWrite: false,
   })
+  const foamGeometry = new THREE.SphereGeometry(1, 10, 8)
   const random = mulberry32(9201)
-  for (let i = 0; i < 36; i++) {
-    const foam = new THREE.Mesh(new THREE.SphereGeometry(0.07 + random() * 0.13, 8, 6), foamMaterial)
-    foam.position.set(x + 0.35 + (random() - 0.5) * 0.95, bottomY + random() * 0.28, z + (random() - 0.5) * 1.9)
+
+  for (let i = 0; i < 78; i++) {
+    const foam = new THREE.Mesh(foamGeometry, foamMaterial)
+    const radius = 0.075 + random() * 0.145
+    const layer = random()
+    foam.scale.set(
+      radius * (1.15 + random() * 0.70),
+      radius * (0.55 + random() * 0.55),
+      radius * (0.95 + random() * 0.65)
+    )
+    foam.position.set(
+      x + 0.34 + (random() - 0.5) * (1.10 + layer * 0.55),
+      footY + 0.075 + random() * 0.28 + layer * 0.08,
+      z + (random() - 0.5) * (1.65 + layer * 0.55)
+    )
+    foam.rotation.set(random() * 0.4, random() * Math.PI, random() * 0.4)
+    foam.renderOrder = 17
     group.add(foam)
   }
 
@@ -1959,96 +2151,8 @@ function createAlluvialFan() {
   ]
   group.add(createPolygonSurface(points, material, 0.040))
 
-  const waterfallBottomX = -12.62
-  const waterfallBottomZ = riverCenterZ(waterfallBottomX)
-  const fanApexX = -8.10
-  const fanApexZ = riverCenterZ(fanApexX)
-
-  // 从瀑布底部水潭一直延伸到冲积扇扇顶，宽度与主河道一致并彼此重叠。
-  const connectorCurve = new THREE.CatmullRomCurve3(
-    [
-      new THREE.Vector3(waterfallBottomX, 0, waterfallBottomZ),
-      new THREE.Vector3(-11.55, 0, riverCenterZ(-11.55)),
-      new THREE.Vector3(-10.35, 0, riverCenterZ(-10.35)),
-      new THREE.Vector3(-9.15, 0, riverCenterZ(-9.15)),
-      new THREE.Vector3(fanApexX, 0, fanApexZ),
-    ],
-    false,
-    'centripetal',
-    0.45
-  )
-  const connectorPoints = connectorCurve.getPoints(90).map((point) =>
-    new THREE.Vector3(
-      point.x,
-      terrainHeightAt(point.x, point.z) + 0.145,
-      point.z
-    )
-  )
-  group.add(
-    createOpaqueRiverSurface(
-      connectorPoints,
-      (index) => riverHalfWidthAtX(connectorPoints[index]!.x) * 1.04,
-      0x3d98d2,
-      0.020
-    )
-  )
-
-  // 冲积扇内部水道从同一扇顶自然分流，所有水道保持蓝色实体表面。
-  const branchDefs: Array<Array<[number, number]>> = [
-    [
-      [fanApexX, fanApexZ],
-      [-6.75, -1.20],
-      [-4.65, -2.35],
-      [-2.20, -3.75],
-      [0.30, -4.35],
-    ],
-    [
-      [fanApexX, fanApexZ],
-      [-6.60, -0.95],
-      [-4.45, -1.65],
-      [-1.70, -2.65],
-      [1.05, -2.95],
-    ],
-    [
-      [fanApexX, fanApexZ],
-      [-6.45, -0.72],
-      [-4.20, -0.85],
-      [-1.45, -1.25],
-      [1.30, -1.45],
-    ],
-    [
-      [fanApexX, fanApexZ],
-      [-6.55, -0.55],
-      [-4.35, -0.48],
-      [-1.80, -0.55],
-      [0.75, -0.72],
-    ],
-  ]
-
-  branchDefs.forEach((definition, branchIndex) => {
-    const curve = new THREE.CatmullRomCurve3(
-      definition.map(([x, z]) => new THREE.Vector3(x, 0, z)),
-      false,
-      'centripetal',
-      0.44
-    )
-    const channelPoints = curve.getPoints(72).map((point) =>
-      new THREE.Vector3(
-        point.x,
-        terrainHeightAt(point.x, point.z) + 0.145,
-        point.z
-      )
-    )
-    group.add(
-      createOpaqueRiverSurface(
-        channelPoints,
-        (_index, t) =>
-          lerp(0.30 - branchIndex * 0.025, 0.075, smoothstep(0, 1, t)),
-        0x3d98d2,
-        0.018
-      )
-    )
-  })
+  // v16：瀑布水潭至冲积扇、平原和河口由 createRiverSystem 生成同一条连续河带，
+  // 不再在冲积扇内部单独叠加连接河段，从根源上消除两段河面的高度差和横向接缝。
 
   const stoneGeometry = new THREE.BufferGeometry()
   const stonePositions: number[] = []
@@ -2140,134 +2244,228 @@ function createFloodplainAndFields() {
 }
 
 function deltaSurfaceHeightAt(x: number, z: number) {
-  const t = clamp01((x - 23.4) / 8.6)
-  const lobe =
-    gaussian2D(x, z, 28.2, -4.3, 2.5, 2.2, 0.15) +
-    gaussian2D(x, z, 28.9, 0.6, 3.0, 2.8, 0.18) +
-    gaussian2D(x, z, 27.9, 4.8, 2.4, 2.5, 0.15)
-  return (
-    lerp(0.33, SEA_LEVEL + 0.025, t) +
-    lobe +
-    Math.sin(z * 0.9 + x * 0.7) * 0.012
-  )
+  const t = clamp01((x - 23.2) / 9.6)
+  const localRelief =
+    (fbmNoise2D(x * 0.42 + 4.0, z * 0.46 - 2.0, 4) - 0.5) * 0.045
+  return lerp(0.34, SEA_LEVEL + 0.055, t) + localRelief
+}
+
+function createDeltaLagoonWater() {
+  // v13：将三角洲前缘浅水区裁剪为中部不规则水面，去掉最左侧岛屿左侧与最右侧岛屿右侧的浅水面。
+  const shape = new THREE.Shape()
+  const points = [
+    { x: 25.55, z: -6.65 },
+    { x: 27.15, z: -7.10 },
+    { x: 29.05, z: -6.85 },
+    { x: 30.85, z: -5.90 },
+    { x: 31.65, z: -4.20 },
+    { x: 31.70, z: -1.45 },
+    { x: 31.55, z: 1.25 },
+    { x: 31.05, z: 3.90 },
+    { x: 29.95, z: 5.85 },
+    { x: 28.25, z: 6.45 },
+    { x: 26.75, z: 5.95 },
+    { x: 25.80, z: 4.25 },
+    { x: 25.20, z: 1.10 },
+    { x: 25.10, z: -2.25 },
+    { x: 25.25, z: -4.95 },
+  ]
+  shape.moveTo(points[0]!.x, points[0]!.z)
+  for (let i = 1; i < points.length; i++) {
+    shape.lineTo(points[i]!.x, points[i]!.z)
+  }
+  shape.closePath()
+
+  const geometry = new THREE.ShapeGeometry(shape, 16)
+  geometry.rotateX(-Math.PI / 2)
+  const positions = geometry.attributes.position as THREE.BufferAttribute
+  for (let i = 0; i < positions.count; i++) {
+    positions.setY(i, SEA_LEVEL + 0.022)
+  }
+  geometry.computeVertexNormals()
+
+  const material = new THREE.MeshPhysicalMaterial({
+    color: 0x4fa6d3,
+    emissive: 0x082c45,
+    emissiveIntensity: 0.08,
+    roughness: 0.30,
+    metalness: 0,
+    clearcoat: 0.38,
+    clearcoatRoughness: 0.26,
+    transparent: false,
+    side: THREE.DoubleSide,
+  })
+  const water = new THREE.Mesh(geometry, material)
+  water.receiveShadow = false
+  water.renderOrder = 2
+  return water
 }
 
 function createDeltaLand() {
   const group = new THREE.Group()
 
   const sandMaterial = new THREE.MeshStandardMaterial({
-    color: 0xd3bd82,
+    color: 0xd4bd7c,
     roughness: 1,
     metalness: 0,
     side: THREE.DoubleSide,
   })
   const deltaMaterial = new THREE.MeshStandardMaterial({
-    color: 0x89ad60,
+    color: 0x8eae61,
     roughness: 0.98,
     metalness: 0,
-    transparent: false,
     side: THREE.DoubleSide,
   })
   const islandMaterial = new THREE.MeshStandardMaterial({
-    color: 0x99b967,
+    color: 0xa1bb6b,
     roughness: 0.97,
     metalness: 0,
     side: THREE.DoubleSide,
   })
 
-  // 主体在河口处分叉，并由多个不规则舌状沉积体向海洋推进。
-  const deltaBody = [
-    { x: 23.30, z: -3.20 },
-    { x: 24.20, z: -5.20 },
-    { x: 25.55, z: -6.85 },
-    { x: 27.15, z: -7.45 },
-    { x: 28.55, z: -6.70 },
-    { x: 29.15, z: -4.65 },
-    { x: 28.90, z: -2.75 },
-    { x: 29.45, z: -0.70 },
-    { x: 29.25, z: 1.35 },
-    { x: 28.95, z: 3.35 },
-    { x: 28.25, z: 5.45 },
-    { x: 26.85, z: 6.95 },
-    { x: 25.20, z: 5.80 },
-    { x: 24.05, z: 3.80 },
-    { x: 23.30, z: 2.55 },
+  const insetPolygon = (
+    points: Array<{ x: number; z: number }>,
+    factor = 0.86
+  ) => {
+    const center = points.reduce(
+      (result, point) => ({
+        x: result.x + point.x / points.length,
+        z: result.z + point.z / points.length,
+      }),
+      { x: 0, z: 0 }
+    )
+    return points.map((point) => ({
+      x: center.x + (point.x - center.x) * factor,
+      z: center.z + (point.z - center.z) * factor,
+    }))
+  }
+
+  // 多个相互分离、边缘不规则的沉积斑块，让河口陆地被汊河切割而不是整齐直线。
+  const landPatchDefs: Array<Array<{ x: number; z: number }>> = [
+    [
+      { x: 23.05, z: -5.05 },
+      { x: 24.40, z: -5.75 },
+      { x: 26.15, z: -5.20 },
+      { x: 26.75, z: -4.05 },
+      { x: 26.15, z: -2.65 },
+      { x: 24.45, z: -1.85 },
+      { x: 23.15, z: -2.45 },
+    ],
+    [
+      { x: 23.00, z: -1.70 },
+      { x: 24.45, z: -2.05 },
+      { x: 25.95, z: -1.45 },
+      { x: 26.65, z: -0.25 },
+      { x: 25.85, z: 0.85 },
+      { x: 24.25, z: 1.10 },
+      { x: 23.10, z: 0.55 },
+    ],
+    [
+      { x: 23.10, z: 1.15 },
+      { x: 24.35, z: 0.95 },
+      { x: 25.75, z: 1.55 },
+      { x: 26.55, z: 2.85 },
+      { x: 25.85, z: 4.20 },
+      { x: 24.25, z: 4.85 },
+      { x: 23.15, z: 3.65 },
+    ],
+    [
+      { x: 25.05, z: -7.35 },
+      { x: 27.25, z: -7.65 },
+      { x: 29.15, z: -7.05 },
+      { x: 31.75, z: -6.05 },
+      { x: 32.45, z: -5.10 },
+      { x: 30.35, z: -4.55 },
+      { x: 28.15, z: -4.85 },
+      { x: 26.10, z: -5.65 },
+    ],
+    [
+      { x: 25.70, z: -4.15 },
+      { x: 27.55, z: -4.45 },
+      { x: 29.60, z: -3.70 },
+      { x: 32.65, z: -2.65 },
+      { x: 33.05, z: -1.65 },
+      { x: 30.65, z: -1.05 },
+      { x: 28.45, z: -1.45 },
+      { x: 26.35, z: -2.35 },
+    ],
+    [
+      { x: 26.00, z: -0.85 },
+      { x: 27.80, z: -1.05 },
+      { x: 29.70, z: -0.45 },
+      { x: 32.95, z: 0.20 },
+      { x: 33.20, z: 1.05 },
+      { x: 30.80, z: 1.55 },
+      { x: 28.70, z: 1.10 },
+      { x: 26.55, z: 0.35 },
+    ],
+    [
+      { x: 25.55, z: 1.55 },
+      { x: 27.45, z: 1.35 },
+      { x: 29.35, z: 1.95 },
+      { x: 32.35, z: 2.60 },
+      { x: 32.60, z: 3.45 },
+      { x: 30.15, z: 4.05 },
+      { x: 28.00, z: 3.70 },
+      { x: 26.15, z: 2.85 },
+    ],
+    [
+      { x: 24.95, z: 4.10 },
+      { x: 26.70, z: 3.80 },
+      { x: 28.55, z: 4.35 },
+      { x: 31.65, z: 5.25 },
+      { x: 31.95, z: 6.15 },
+      { x: 29.65, z: 6.75 },
+      { x: 27.20, z: 6.50 },
+      { x: 25.40, z: 5.70 },
+    ],
   ]
 
-  const lobeDefs: Array<Array<{ x: number; z: number }>> = [
-    [
-      { x: 26.55, z: -6.70 },
-      { x: 28.65, z: -6.95 },
-      { x: 30.50, z: -6.40 },
-      { x: 32.05, z: -5.55 },
-      { x: 30.65, z: -4.70 },
-      { x: 28.45, z: -4.75 },
-      { x: 26.70, z: -5.35 },
-    ],
-    [
-      { x: 26.75, z: -2.65 },
-      { x: 28.70, z: -2.85 },
-      { x: 30.65, z: -2.40 },
-      { x: 32.35, z: -1.35 },
-      { x: 30.70, z: -0.65 },
-      { x: 28.70, z: -0.72 },
-      { x: 26.85, z: -1.25 },
-    ],
-    [
-      { x: 26.85, z: 0.20 },
-      { x: 28.70, z: 0.05 },
-      { x: 30.75, z: 0.55 },
-      { x: 32.25, z: 1.45 },
-      { x: 30.60, z: 2.05 },
-      { x: 28.50, z: 1.85 },
-      { x: 26.75, z: 1.20 },
-    ],
-    [
-      { x: 26.20, z: 3.10 },
-      { x: 28.10, z: 3.35 },
-      { x: 29.90, z: 4.15 },
-      { x: 31.35, z: 5.10 },
-      { x: 29.65, z: 5.70 },
-      { x: 27.65, z: 5.25 },
-      { x: 26.05, z: 4.35 },
-    ],
-  ]
-
-  // 沙质前缘先铺底，再叠加绿色沉积体，形成教材图中的自然岸缘。
-  group.add(createPolygonSurface(deltaBody, sandMaterial, 0.010, deltaSurfaceHeightAt))
-  group.add(createPolygonSurface(deltaBody, deltaMaterial, 0.032, deltaSurfaceHeightAt))
-  lobeDefs.forEach((lobe) => {
-    group.add(createPolygonSurface(lobe, sandMaterial, 0.014, deltaSurfaceHeightAt))
-    group.add(createPolygonSurface(lobe, deltaMaterial, 0.040, deltaSurfaceHeightAt))
+  landPatchDefs.forEach((patch) => {
+    group.add(
+      createPolygonSurface(patch, sandMaterial, 0.012, deltaSurfaceHeightAt)
+    )
+    group.add(
+      createPolygonSurface(
+        insetPolygon(patch),
+        deltaMaterial,
+        0.046,
+        deltaSurfaceHeightAt
+      )
+    )
   })
 
-  // 河口前缘散布狭长沙洲和岛屿，而不是规则圆点。
+  // 前缘继续散布大小、方向不同的沙洲与岛屿，强化被河口水流冲散的形态。
   const islandDefs = [
-    [29.95, -5.55, 1.62, 0.34, 0.14],
-    [31.70, -4.55, 1.15, 0.27, -0.18],
-    [30.25, -1.62, 1.72, 0.36, 0.06],
-    [32.15, -0.15, 1.02, 0.25, -0.12],
-    [30.20, 1.72, 1.42, 0.31, 0.20],
-    [31.75, 3.32, 1.04, 0.24, 0.10],
-    [30.25, 4.92, 1.30, 0.28, -0.08],
-    [33.25, 2.05, 0.62, 0.18, 0.24],
+    [28.75, -6.35, 1.25, 0.30, 0.12],
+    [30.25, -5.55, 0.92, 0.22, -0.20],
+    [31.75, -4.50, 0.72, 0.18, 0.18],
+    [29.25, -2.85, 1.05, 0.25, -0.05],
+    [31.10, -2.05, 0.74, 0.18, 0.22],
+    [29.55, 0.05, 1.12, 0.26, 0.10],
+    [31.55, 0.72, 0.80, 0.19, -0.16],
+    [29.35, 2.55, 1.02, 0.24, 0.18],
+    [31.20, 3.15, 0.72, 0.17, -0.10],
+    [28.85, 5.20, 1.06, 0.24, -0.08],
+    [30.65, 5.85, 0.76, 0.18, 0.20],
+    [33.15, 1.95, 0.56, 0.14, 0.26],
   ]
 
   islandDefs.forEach(([x, z, sx, sz, rotation]) => {
-    const sandGeometry = new THREE.CircleGeometry(1, 42)
+    const sandGeometry = new THREE.CircleGeometry(1, 36)
     sandGeometry.rotateX(-Math.PI / 2)
     const sandbar = new THREE.Mesh(sandGeometry, sandMaterial)
-    sandbar.position.set(x!, SEA_LEVEL + 0.038, z!)
-    sandbar.scale.set(sx! * 1.16, 1, sz! * 1.22)
+    sandbar.position.set(x!, SEA_LEVEL + 0.042, z!)
+    sandbar.scale.set(sx! * 1.18, 1, sz! * 1.24)
     sandbar.rotation.y = rotation!
     sandbar.receiveShadow = true
     sandbar.renderOrder = 5
     group.add(sandbar)
 
-    const islandGeometry = new THREE.CircleGeometry(1, 42)
+    const islandGeometry = new THREE.CircleGeometry(1, 36)
     islandGeometry.rotateX(-Math.PI / 2)
     const island = new THREE.Mesh(islandGeometry, islandMaterial)
-    island.position.set(x!, SEA_LEVEL + 0.066, z!)
+    island.position.set(x!, SEA_LEVEL + 0.074, z!)
     island.scale.set(sx!, 1, sz!)
     island.rotation.y = rotation!
     island.receiveShadow = true
@@ -2335,7 +2533,7 @@ function createWaterObject(
   }
 
   water.renderOrder = 3
-  water.receiveShadow = true
+  water.receiveShadow = false
   waterEntries.push({ water, speed: options.speed ?? 0.55 })
   return water
 }
@@ -2373,21 +2571,17 @@ function createWaterColorUnderlay(
     (point) => new THREE.Vector3(point.x, point.y - 0.035, point.z)
   )
   const geometry = createRibbonGeometry(underlayPoints, halfWidthAt)
-  const material = new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshBasicMaterial({
     color,
-    emissive: 0x092b42,
-    emissiveIntensity: 0.1,
-    roughness: 0.3,
-    metalness: 0,
     transparent: false,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     depthWrite: true,
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
   })
   const mesh = new THREE.Mesh(geometry, material)
-  mesh.receiveShadow = true
+  mesh.receiveShadow = false
   mesh.renderOrder = 6
   return mesh
 }
@@ -2395,54 +2589,50 @@ function createWaterColorUnderlay(
 function createOpaqueRiverSurface(
   points: THREE.Vector3[],
   halfWidthAt: (index: number, t: number) => number,
-  color = 0x429bd2,
-  yLift = 0.035
+  color = MAIN_RIVER_COLOR,
+  yLift = 0.035,
+  withSheen = false
 ) {
   const group = new THREE.Group()
   const surfacePoints = points.map(
     (point) => new THREE.Vector3(point.x, point.y + yLift, point.z)
   )
   const geometry = createRibbonGeometry(surfacePoints, halfWidthAt)
-  const material = new THREE.MeshPhysicalMaterial({
+  const material = new THREE.MeshBasicMaterial({
     color,
-    emissive: 0x082b40,
-    emissiveIntensity: 0.08,
-    roughness: 0.30,
-    metalness: 0,
-    clearcoat: 0.40,
-    clearcoatRoughness: 0.25,
     transparent: false,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     depthWrite: true,
     polygonOffset: true,
     polygonOffsetFactor: -5,
     polygonOffsetUnits: -5,
   })
   const surface = new THREE.Mesh(geometry, material)
-  surface.receiveShadow = true
+  surface.receiveShadow = false
   surface.renderOrder = 12
   group.add(surface)
 
-  // 细窄高光带模拟水面光泽，同时保持主体蓝色不被绿色地表影响。
-  const sheenPoints = surfacePoints.map(
-    (point) => new THREE.Vector3(point.x, point.y + 0.012, point.z)
-  )
-  const sheenGeometry = createRibbonGeometry(
-    sheenPoints,
-    (index, t) => halfWidthAt(index, t) * 0.26
-  )
-  const sheen = new THREE.Mesh(
-    sheenGeometry,
-    new THREE.MeshBasicMaterial({
-      color: 0xd5f3ff,
-      transparent: true,
-      opacity: 0.20,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    })
-  )
-  sheen.renderOrder = 13
-  group.add(sheen)
+  if (withSheen) {
+    const sheenPoints = surfacePoints.map(
+      (point) => new THREE.Vector3(point.x, point.y + 0.012, point.z)
+    )
+    const sheenGeometry = createRibbonGeometry(
+      sheenPoints,
+      (index, t) => halfWidthAt(index, t) * 0.22
+    )
+    const sheen = new THREE.Mesh(
+      sheenGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xd5f3ff,
+        transparent: true,
+        opacity: 0.18,
+        side: THREE.FrontSide,
+        depthWrite: false,
+      })
+    )
+    sheen.renderOrder = 13
+    group.add(sheen)
+  }
 
   return group
 }
@@ -2451,20 +2641,21 @@ function createRiverSystem(_waterNormals: THREE.Texture) {
   const group = new THREE.Group()
   const samples = sampleMainRiver()
 
-  // 两段在瀑布位置充分重叠，瀑布平面负责垂直跌落，河面负责上下游连续。
-  const upperPoints = pointsToWaterPath(samples, -31.5, -12.88)
-  const lowerPoints = pointsToWaterPath(samples, -13.18, 25.55)
+  // v16：上游河面止于瀑布顶部；下游河面从瀑布水潭直接连续延伸至河口。
+  // 整个下游只使用一套采样点和同一纵剖面，避免冲积扇附近出现断层、断流和色差接缝。
+  const upperPoints = pointsToWaterPath(samples, -31.5, -13.04)
+  const lowerPoints = pointsToWaterPath(samples, -12.66, 25.55)
 
   const createRiverSegment = (points: THREE.Vector3[]) => {
     const widthAt = (index: number) =>
       riverHalfWidthAtX(points[index]!.x) * 1.02
 
-    group.add(createWaterColorUnderlay(points, widthAt, 0x237fbd))
+    group.add(createWaterColorUnderlay(points, widthAt, MAIN_RIVER_UNDERLAY_COLOR))
     group.add(
       createOpaqueRiverSurface(
         points,
         widthAt,
-        0x429bd2,
+        MAIN_RIVER_COLOR,
         0.030
       )
     )
@@ -2472,23 +2663,6 @@ function createRiverSystem(_waterNormals: THREE.Texture) {
 
   createRiverSegment(upperPoints)
   createRiverSegment(lowerPoints)
-
-  const riverBedMaterial = new THREE.MeshStandardMaterial({
-    color: 0x69755d,
-    roughness: 1,
-    side: THREE.DoubleSide,
-  })
-  ;[upperPoints, lowerPoints].forEach((points) => {
-    const bedPoints = points.map(
-      (point) => new THREE.Vector3(point.x, point.y - 0.15, point.z)
-    )
-    const bedGeometry = createRibbonGeometry(bedPoints, (index) =>
-      riverHalfWidthAtX(points[index]!.x) * 1.18
-    )
-    const bed = new THREE.Mesh(bedGeometry, riverBedMaterial)
-    bed.receiveShadow = true
-    group.add(bed)
-  })
 
   flowPathSamples = lowerPoints.map((point, index) => {
     const previous = lowerPoints[Math.max(0, index - 1)]!
@@ -2510,41 +2684,52 @@ function createRiverSystem(_waterNormals: THREE.Texture) {
   return group
 }
 
-function createOxbowLake(waterNormals: THREE.Texture) {
+function createOxbowLake(_waterNormals: THREE.Texture) {
+  // v21：缩小牛轭湖的长度、弧度和宽度，并整体靠近曲流外侧。
+  // 湖体最近边缘与主河流最近边缘约保留 1 个模型单位的陆地间隔，仍保持完全断开。
   const controls = [
-    new THREE.Vector3(14.0, 0, 2.6),
-    new THREE.Vector3(15.6, 0, 4.9),
-    new THREE.Vector3(18.6, 0, 5.5),
-    new THREE.Vector3(20.7, 0, 3.7),
-    new THREE.Vector3(19.8, 0, 1.7),
-    new THREE.Vector3(16.8, 0, 1.2),
-    new THREE.Vector3(14.5, 0, 2.1),
+    new THREE.Vector3(11.60, 0, 5.12),
+    new THREE.Vector3(11.92, 0, 5.66),
+    new THREE.Vector3(12.78, 0, 6.06),
+    new THREE.Vector3(13.82, 0, 6.18),
+    new THREE.Vector3(14.78, 0, 5.88),
+    new THREE.Vector3(15.38, 0, 5.32),
   ]
-  const curve = new THREE.CatmullRomCurve3(controls, true, 'centripetal', 0.55)
-  const points = curve.getPoints(180).map((point) => new THREE.Vector3(point.x, terrainHeightAt(point.x, point.z) + 0.11, point.z))
-  const geometry = createRibbonGeometry(points, (_index, t) => lerp(0.42, 0.68, Math.sin(t * Math.PI)))
-  const averageY = points.reduce((sum, point) => sum + point.y, 0) / Math.max(1, points.length)
-  const water = createWaterObject(geometry, waterNormals, {
-    waterColor: 0x2c8fc3,
-    distortionScale: 1.1,
-    alpha: 0.9,
-    speed: 0.28,
-    ribbonBaseY: averageY,
-  })
+  const curve = new THREE.CatmullRomCurve3(
+    controls,
+    false,
+    'centripetal',
+    0.46
+  )
+  const points = curve.getPoints(120).map(
+    (point) =>
+      new THREE.Vector3(
+        point.x,
+        terrainHeightAt(point.x, point.z) + 0.145,
+        point.z
+      )
+  )
+  const widthAt = (_index: number, t: number) => {
+    const taper = Math.pow(Math.max(0, Math.sin(t * Math.PI)), 0.78)
+    return 0.018 + taper * 0.32
+  }
 
   const group = new THREE.Group()
-  group.add(water)
-
-  const plugMaterial = new THREE.MeshStandardMaterial({ color: 0xa99462, roughness: 0.98 })
-  ;[
-    new THREE.Vector3(14.35, terrainHeightAt(14.35, 2.38) + 0.08, 2.38),
-    new THREE.Vector3(14.85, terrainHeightAt(14.85, 1.95) + 0.08, 1.95),
-  ].forEach((point) => {
-    const plug = new THREE.Mesh(new THREE.SphereGeometry(0.72, 18, 10), plugMaterial)
-    plug.scale.set(1.35, 0.16, 0.8)
-    plug.position.copy(point)
-    group.add(plug)
-  })
+  group.add(
+    createWaterColorUnderlay(
+      points,
+      widthAt,
+      MAIN_RIVER_UNDERLAY_COLOR
+    )
+  )
+  group.add(
+    createOpaqueRiverSurface(
+      points,
+      widthAt,
+      MAIN_RIVER_COLOR,
+      0.030
+    )
+  )
 
   return group
 }
@@ -2558,68 +2743,151 @@ function createDeltaChannels(_waterNormals: THREE.Texture) {
   }> = [
     {
       controls: [
-        [23.95, 0.02],
-        [24.95, -0.62],
-        [26.05, -1.72],
-        [27.35, -3.15],
-        [28.90, -4.55],
-        [30.55, -5.42],
-        [32.45, -5.80],
-      ],
-      widthStart: 0.80,
-      widthEnd: 0.075,
-    },
-    {
-      controls: [
-        [24.00, 0.03],
-        [25.15, -0.18],
-        [26.35, -0.78],
-        [27.70, -1.55],
-        [29.20, -1.95],
-        [30.85, -1.75],
-        [32.65, -1.28],
+        [23.85, 0.02],
+        [24.70, -0.55],
+        [25.55, -1.65],
+        [26.55, -3.15],
+        [28.05, -4.65],
+        [30.15, -5.70],
+        [32.70, -6.20],
       ],
       widthStart: 0.78,
-      widthEnd: 0.070,
+      widthEnd: 0.08,
     },
     {
       controls: [
-        [24.00, 0.04],
-        [25.20, 0.18],
-        [26.45, 0.38],
-        [27.85, 0.26],
-        [29.35, 0.42],
-        [31.00, 0.30],
-        [32.85, 0.38],
+        [23.90, 0.02],
+        [24.85, -0.18],
+        [25.85, -0.75],
+        [27.05, -1.85],
+        [28.80, -2.65],
+        [30.75, -2.70],
+        [33.00, -2.10],
       ],
-      widthStart: 0.76,
+      widthStart: 0.72,
+      widthEnd: 0.07,
+    },
+    {
+      controls: [
+        [23.90, 0.03],
+        [24.95, 0.08],
+        [26.10, 0.12],
+        [27.20, -0.05],
+        [28.55, 0.35],
+        [30.30, 0.25],
+        [33.15, 0.70],
+      ],
+      widthStart: 0.70,
       widthEnd: 0.065,
     },
     {
       controls: [
-        [23.98, 0.05],
-        [25.05, 0.62],
-        [26.15, 1.55],
-        [27.40, 2.35],
-        [28.85, 2.72],
-        [30.45, 2.50],
-        [32.35, 2.08],
+        [23.88, 0.05],
+        [24.80, 0.55],
+        [25.75, 1.45],
+        [26.90, 2.45],
+        [28.45, 3.10],
+        [30.40, 3.15],
+        [32.75, 2.75],
       ],
-      widthStart: 0.70,
-      widthEnd: 0.060,
+      widthStart: 0.66,
+      widthEnd: 0.06,
     },
     {
       controls: [
-        [23.90, 0.08],
-        [24.75, 1.28],
-        [25.65, 2.62],
-        [26.75, 3.85],
-        [28.15, 4.70],
-        [29.70, 5.02],
-        [31.45, 4.82],
+        [23.82, 0.08],
+        [24.55, 1.20],
+        [25.25, 2.55],
+        [26.35, 4.00],
+        [27.95, 5.15],
+        [29.90, 5.70],
+        [32.20, 5.80],
       ],
-      widthStart: 0.64,
+      widthStart: 0.60,
       widthEnd: 0.055,
+    },
+    // 次级分汊：从主汊中段再次分流，形成细密、杂乱的河网。
+    {
+      controls: [
+        [25.70, -1.45],
+        [26.70, -2.30],
+        [27.65, -3.55],
+        [29.05, -4.10],
+        [30.80, -4.05],
+        [32.25, -3.55],
+      ],
+      widthStart: 0.28,
+      widthEnd: 0.045,
+    },
+    {
+      controls: [
+        [26.45, -3.05],
+        [27.10, -4.20],
+        [28.10, -5.35],
+        [29.55, -6.05],
+        [31.35, -6.75],
+      ],
+      widthStart: 0.24,
+      widthEnd: 0.038,
+    },
+    {
+      controls: [
+        [26.15, -0.70],
+        [27.10, -1.10],
+        [28.05, -0.95],
+        [29.20, -1.35],
+        [30.70, -1.10],
+        [32.35, -0.55],
+      ],
+      widthStart: 0.25,
+      widthEnd: 0.040,
+    },
+    {
+      controls: [
+        [26.10, 0.15],
+        [27.00, 0.80],
+        [28.20, 1.30],
+        [29.55, 1.15],
+        [31.15, 1.70],
+        [32.65, 1.55],
+      ],
+      widthStart: 0.24,
+      widthEnd: 0.040,
+    },
+    {
+      controls: [
+        [25.85, 1.55],
+        [26.80, 1.85],
+        [27.65, 2.55],
+        [28.75, 2.25],
+        [30.05, 2.55],
+        [31.70, 2.05],
+      ],
+      widthStart: 0.22,
+      widthEnd: 0.036,
+    },
+    {
+      controls: [
+        [26.30, 3.90],
+        [27.10, 4.45],
+        [28.20, 4.60],
+        [29.35, 4.20],
+        [30.70, 4.65],
+        [31.95, 4.35],
+      ],
+      widthStart: 0.21,
+      widthEnd: 0.034,
+    },
+    {
+      controls: [
+        [27.15, -1.85],
+        [28.00, -2.25],
+        [28.75, -1.95],
+        [29.55, -2.20],
+        [30.40, -1.80],
+      ],
+      widthStart: 0.16,
+      widthEnd: 0.028,
     },
   ]
 
@@ -2628,16 +2896,12 @@ function createDeltaChannels(_waterNormals: THREE.Texture) {
       branch.controls.map(([x, z]) => new THREE.Vector3(x, 0, z)),
       false,
       'centripetal',
-      0.46
+      0.42
     )
-    const points = curve.getPoints(220).map((point) => {
-      const shorelineBlend = smoothstep(
-        SHORE_X - 0.75,
-        SHORE_X + 1.50,
-        point.x
-      )
-      const landY = deltaSurfaceHeightAt(point.x, point.z) + 0.090
-      const oceanY = SEA_LEVEL + 0.075
+    const points = curve.getPoints(150).map((point) => {
+      const shorelineBlend = smoothstep(28.1, 31.8, point.x)
+      const landY = deltaSurfaceHeightAt(point.x, point.z) + 0.095
+      const oceanY = SEA_LEVEL + 0.070
       return new THREE.Vector3(
         point.x,
         lerp(landY, oceanY, shorelineBlend),
@@ -2647,17 +2911,23 @@ function createDeltaChannels(_waterNormals: THREE.Texture) {
 
     const widthAt = (_index: number, t: number) => {
       const baseWidth = lerp(branch.widthStart, branch.widthEnd, t)
-      const mouthTaper = 1 - smoothstep(0.86, 1, t) * 0.70
-      return baseWidth * mouthTaper
+      return baseWidth * (1 - smoothstep(0.92, 1, t) * 0.45)
     }
 
-    group.add(createWaterColorUnderlay(points, widthAt, 0x2d8fc8))
+    group.add(
+      createWaterColorUnderlay(
+        points,
+        widthAt,
+        MAIN_RIVER_UNDERLAY_COLOR
+      )
+    )
     group.add(
       createOpaqueRiverSurface(
         points,
         widthAt,
-        0x55a9d8,
-        0.026
+        MAIN_RIVER_COLOR,
+        0.028,
+        false
       )
     )
   })
@@ -2683,22 +2953,6 @@ function createOcean(waterNormals: THREE.Texture) {
   return water
 }
 
-function createShoreFoam() {
-  const points: THREE.Vector3[] = []
-  for (let i = 0; i <= 80; i++) {
-    const z = lerp(Z_MIN, Z_MAX, i / 80)
-    const x = SHORE_X + Math.sin(z * 0.45) * 0.35
-    points.push(new THREE.Vector3(x, SEA_LEVEL + 0.035, z))
-  }
-  const geometry = new THREE.BufferGeometry().setFromPoints(points)
-  const material = new THREE.LineBasicMaterial({
-    color: 0xe8fbff,
-    transparent: true,
-    opacity: 0.72,
-  })
-  return new THREE.Line(geometry, material)
-}
-
 /* ===================================================================
  * 树木与流动纹理实例
  * =================================================================== */
@@ -2716,7 +2970,7 @@ function createInstancedTrees() {
     const z = lerp(Z_MIN + 1.6, Z_MAX - 1.6, random())
     const centerZ = riverCenterZ(x)
     if (Math.abs(z - centerZ) < riverHalfWidthAtX(x) + 1.1) continue
-    if (x > 12 && z > 1.4 && z < 7.4) continue
+    if (x > 9.4 && x < 18.6 && z > 4.05 && z < 8.25) continue
     if (x > 23.2 && Math.abs(z) < 8.6) continue
     const y = terrainHeightAt(x, z)
     if (y < 0.22 || y > 4.7) continue
@@ -2855,101 +3109,6 @@ function updateFlowInstances(delta: number) {
 }
 
 /* ===================================================================
- * 等高线
- * =================================================================== */
-
-const contourCornerX = [0, 1, 1, 0]
-const contourCornerZ = [0, 0, 1, 1]
-
-function createContourLines() {
-  const group = new THREE.Group()
-  const segX = 150
-  const segZ = 62
-  const heightMap: number[][] = []
-
-  for (let row = 0; row <= segZ; row++) {
-    const values: number[] = []
-    for (let column = 0; column <= segX; column++) {
-      const x = lerp(X_MIN, X_MAX, column / segX)
-      const z = lerp(Z_MIN, Z_MAX, row / segZ)
-      values.push(terrainHeightAt(x, z))
-    }
-    heightMap.push(values)
-  }
-
-  const levels = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10]
-
-  levels.forEach((level) => {
-    const points: THREE.Vector3[] = []
-    for (let row = 0; row < segZ; row++) {
-      for (let column = 0; column < segX; column++) {
-        const x0 = lerp(X_MIN, X_MAX, column / segX)
-        const z0 = lerp(Z_MIN, Z_MAX, row / segZ)
-        const dx = (X_MAX - X_MIN) / segX
-        const dz = (Z_MAX - Z_MIN) / segZ
-        const intersections: THREE.Vector3[] = []
-
-        const edges: Array<[number, number]> = [
-          [0, 1],
-          [1, 2],
-          [2, 3],
-          [3, 0],
-        ]
-
-        edges.forEach(([a, b]) => {
-          const ha =
-            heightMap[row + contourCornerZ[a]!]![
-              column + contourCornerX[a]!
-            ]!
-          const hb =
-            heightMap[row + contourCornerZ[b]!]![
-              column + contourCornerX[b]!
-            ]!
-
-          if ((ha < level && hb >= level) || (ha >= level && hb < level)) {
-            const t = (level - ha) / Math.max(0.000001, hb - ha)
-            const ax = x0 + contourCornerX[a]! * dx
-            const az = z0 + contourCornerZ[a]! * dz
-            const bx = x0 + contourCornerX[b]! * dx
-            const bz = z0 + contourCornerZ[b]! * dz
-            intersections.push(
-              new THREE.Vector3(
-                lerp(ax, bx, t),
-                level + 0.035,
-                lerp(az, bz, t)
-              )
-            )
-          }
-        })
-
-        if (intersections.length === 2) {
-          points.push(intersections[0]!, intersections[1]!)
-        } else if (intersections.length === 4) {
-          points.push(
-            intersections[0]!,
-            intersections[1]!,
-            intersections[2]!,
-            intersections[3]!
-          )
-        }
-      }
-    }
-
-    if (points.length) {
-      const geometry = new THREE.BufferGeometry().setFromPoints(points)
-      const material = new THREE.LineBasicMaterial({
-        color: level >= 7 ? 0xffffff : 0x2ec4b6,
-        transparent: true,
-        opacity: level >= 7 ? 0.46 : 0.28,
-      })
-      group.add(new THREE.LineSegments(geometry, material))
-    }
-  })
-
-  return group
-}
-
-/* ===================================================================
  * 热点与标签
  * =================================================================== */
 
@@ -3042,9 +3201,9 @@ function featurePosition(id: string) {
       riverCenterZ(11.8)
     ),
     'meander-oxbow': new THREE.Vector3(
-      17.4,
-      terrainHeightAt(17.4, 5.25) + 0.68,
-      5.25
+      13.55,
+      terrainHeightAt(13.55, 6.12) + 0.68,
+      6.12
     ),
     'alluvial-plain': new THREE.Vector3(
       21.2,
@@ -3138,20 +3297,17 @@ function buildModel() {
 
   sceneGroup.add(createAlluvialFan())
   sceneGroup.add(createFloodplainAndFields())
+  sceneGroup.add(createDeltaLagoonWater())
   sceneGroup.add(createDeltaLand())
 
   sceneGroup.add(createRiverSystem(waterNormals))
   sceneGroup.add(createOxbowLake(waterNormals))
   sceneGroup.add(createDeltaChannels(waterNormals))
   sceneGroup.add(createOcean(waterNormals))
-  sceneGroup.add(createShoreFoam())
 
   sceneGroup.add(createInstancedTrees())
   sceneGroup.add(createFlowInstances())
 
-  contourGroup = createContourLines()
-  contourGroup.visible = showContours.value
-  sceneGroup.add(contourGroup)
 
   setupLabelsAndHotspots()
 }
@@ -3185,6 +3341,7 @@ function initScene() {
   orbitControls = new OrbitControls(camera, renderer.domElement)
   orbitControls.enableDamping = true
   orbitControls.dampingFactor = 0.07
+  // v18：恢复上传源代码原有的 OrbitControls 限制；不额外禁止平移，也不追加最低高度校正。
   orbitControls.minDistance = 8
   orbitControls.maxDistance = 95
   orbitControls.maxPolarAngle = Math.PI * 0.495
@@ -3341,9 +3498,6 @@ watch(terrainScale, (value) => {
   updateScreenLabels()
 })
 
-watch(showContours, (value) => {
-  if (contourGroup) contourGroup.visible = value
-})
 
 watch(showFlow, (value) => {
   if (flowGroup) flowGroup.visible = value
@@ -3506,7 +3660,6 @@ function disposeScene() {
   flowPathSamples = []
   flowInstances = null
   flowGroup = null
-  contourGroup = null
 
   renderer?.dispose()
   renderer?.forceContextLoss()
@@ -3631,28 +3784,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 14px rgba(255, 82, 82, 0.55);
 }
 
-.stage-hint {
-  position: absolute;
-  right: clamp(10px, 1vw, 18px);
-  bottom: clamp(10px, 1vw, 16px);
-  z-index: 8;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  color: var(--text-secondary);
-  font-size: clamp(10px, 0.85vw, 12px);
-  background: rgba(8, 20, 34, 0.55);
-  border: 1px solid var(--inactive-border);
-  border-radius: 999px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  pointer-events: none;
-}
-
-.hint-icon {
-  font-size: 12px;
-}
 
 /* 牛轭湖形成过程相关样式已移除（弹层已被拆分到右侧详情） */
 
