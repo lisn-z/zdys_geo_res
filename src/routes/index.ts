@@ -168,6 +168,15 @@ export const routes = [
     component: () =>
       import('@/views/river-landforms/index.vue'),
   },
+  {
+    path: '/find-terrain',
+    name: 'find-terrain',
+    meta: {
+      title: '找地形',
+    },
+    component: () =>
+      import('@/views/find-terrain/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
