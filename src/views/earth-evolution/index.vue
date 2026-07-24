@@ -198,6 +198,16 @@ import {
 } from './eras'
 import EraScene from './EraScene.vue'
 
+/* ===================================================================
+ * EarthEvolution_v6
+ * - 主舞台始终按 1:2 自适应分栏，不再使用固定左栏宽度；
+ * - 年代大图使用 contain 完整缩放，窄屏不裁切；
+ * - 年代划分保留桌面设计宽度，空间不足时显示横向滚动条；
+ * - 针对电脑、平板与希沃白板补充宽高响应式适配；
+ * - 左侧介绍面板与下方年代表共用同一套主题色滚动条；
+ * - 自动播放切换年代时，年代表主动居中跟随当前年代。
+ * =================================================================== */
+
 const railViewportRef =
   ref<HTMLElement | null>(null)
 
@@ -378,7 +388,10 @@ const cursorX = computed(() => {
 })
 
 /* ===== 详尽年代表 ===== */
-const COL_MIN_WIDTH = 36
+const COL_MIN_WIDTH = 42
+// 年代表按课堂大屏的完整布局保留一个可读基准宽度。
+// 当可用宽度不足时不再继续压缩，而由下方横向滚动条承载。
+const TABLE_DESIGN_WIDTH = 1680
 
 const tableColumnWidths = computed<number[]>(() => {
   const spans = eras.map((_, idx) => {
@@ -395,13 +408,30 @@ const tableColumnWidths = computed<number[]>(() => {
 const displayColumnWidths = computed<number[]>(() => {
   const natural = tableColumnWidths.value
   const total = natural.reduce((a, b) => a + b, 0)
-  if (!scrollViewportWidth.value || total <= 0) {
+  if (total <= 0) {
     return natural
   }
-  const scale = Math.max(1, scrollViewportWidth.value / total)
-  return natural.map((w) =>
-    Math.max(COL_MIN_WIDTH, Math.round(w * scale)),
+
+  // 宽屏：铺满整个年代划分区域；窄屏：至少保留设计宽度，出现横向滚动条。
+  const targetWidth = Math.max(
+    TABLE_DESIGN_WIDTH,
+    scrollViewportWidth.value || 0,
   )
+  const scale = Math.max(1, targetWidth / total)
+  const widths = natural.map((w) =>
+    Math.max(COL_MIN_WIDTH, Math.floor(w * scale)),
+  )
+
+  // 把取整余量补到最后一列，避免宽屏仅因数像素误差出现无意义滚动条。
+  const scaledTotal = widths.reduce((sum, width) => sum + width, 0)
+  const exactTarget = Math.max(total, Math.round(targetWidth))
+  const remainder = Math.max(0, exactTarget - scaledTotal)
+  if (widths.length > 0) {
+    widths[widths.length - 1] =
+      widths[widths.length - 1]! + remainder
+  }
+
+  return widths
 })
 
 const scrollTableWidth = computed(() =>
@@ -500,6 +530,76 @@ const scrollAgeCells = computed(() =>
 const scrollViewportRef = ref<HTMLElement | null>(null)
 const scrollViewportWidth = ref(0)
 
+function getEraColumnLeft(index: number) {
+  return displayColumnWidths.value
+    .slice(0, Math.max(0, index))
+    .reduce((sum, width) => sum + width, 0)
+}
+
+function scrollActiveEraIntoView(
+  index: number,
+  behavior: ScrollBehavior = 'smooth',
+  align: 'nearest' | 'center' = 'nearest',
+) {
+  const viewport = scrollViewportRef.value
+  const width = displayColumnWidths.value[index]
+  if (!viewport || !width) {
+    return
+  }
+
+  const left = getEraColumnLeft(index)
+  const right = left + width
+  const maxScrollLeft = Math.max(
+    0,
+    viewport.scrollWidth - viewport.clientWidth,
+  )
+
+  /*
+   * 自动播放时把当前年代保持在视口中部附近。
+   * 这样从古老年代一路播放到新生代时，底部年代表会持续向右跟随，
+   * 不会只更新高亮却停留在原来的滚动位置。
+   */
+  if (align === 'center') {
+    const targetLeft = clamp(
+      left + width / 2 - viewport.clientWidth / 2,
+      0,
+      maxScrollLeft,
+    )
+
+    if (Math.abs(viewport.scrollLeft - targetLeft) > 1) {
+      viewport.scrollTo({
+        left: targetLeft,
+        behavior,
+      })
+    }
+    return
+  }
+
+  const safePadding = Math.min(
+    48,
+    viewport.clientWidth * 0.08,
+  )
+  const visibleLeft = viewport.scrollLeft + safePadding
+  const visibleRight =
+    viewport.scrollLeft + viewport.clientWidth - safePadding
+
+  if (left < visibleLeft) {
+    viewport.scrollTo({
+      left: clamp(left - safePadding, 0, maxScrollLeft),
+      behavior,
+    })
+  } else if (right > visibleRight) {
+    viewport.scrollTo({
+      left: clamp(
+        right - viewport.clientWidth + safePadding,
+        0,
+        maxScrollLeft,
+      ),
+      behavior,
+    })
+  }
+}
+
 function clamp(
   value: number,
   min: number,
@@ -524,6 +624,10 @@ function selectEra(index: number) {
   progress.value = targetProgress
   currentEraId.value = era.id
   isSwitching.value = true
+
+  nextTick(() => {
+    scrollActiveEraIntoView(index)
+  })
 
   window.setTimeout(() => {
     isSwitching.value = false
@@ -801,11 +905,33 @@ watch(progress, (value, previous) => {
     isProgramScrolling.value = true
     currentEraId.value = era.id
     isSwitching.value = true
+    nextTick(() => {
+      scrollActiveEraIntoView(
+        index,
+        isPlaying.value ? 'smooth' : 'auto',
+        isPlaying.value ? 'center' : 'nearest',
+      )
+    })
     window.setTimeout(() => {
       isSwitching.value = false
       isProgramScrolling.value = false
     }, 380)
   }
+})
+
+
+watch(isPlaying, (playing) => {
+  if (!playing) {
+    return
+  }
+
+  nextTick(() => {
+    scrollActiveEraIntoView(
+      currentIndex.value,
+      'smooth',
+      'center',
+    )
+  })
 })
 
 onMounted(() => {
@@ -865,6 +991,9 @@ onMounted(() => {
       if (scrollViewportRef.value) {
         scrollViewportWidth.value =
           scrollViewportRef.value.clientWidth
+        requestAnimationFrame(() => {
+          scrollActiveEraIntoView(currentIndex.value, 'auto')
+        })
       }
     },
   )
@@ -935,7 +1064,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* ===================== v2：公共布局 Hook =====================
+/* ===================== v6：公共布局 Hook =====================
    - 当前页面无左右模板侧栏；
    - rootRef、响应式断点和 workspace attrs 由 Hook 统一管理；
    - 删除无效的面板宽度、拖拽和页面 ResizeObserver；
@@ -982,14 +1111,23 @@ onBeforeUnmount(() => {
 /* ===== 中部：左侧介绍 + 右侧放大图 ===== */
 .era-main-stage {
   display: grid;
+  /* 左侧介绍 : 右侧大图始终保持 1 : 2，两个区域都随容器等比变化。 */
   grid-template-columns:
     minmax(0, 1fr) minmax(0, 2fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   gap:
-    clamp(10px, 1.2vw, 18px);
+    clamp(8px, 1.15vw, 18px);
   min-width: 0;
   min-height: 0;
+  width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.era-main-stage > * {
+  min-width: 0;
+  min-height: 0;
 }
 
 /* ===== 左侧介绍卡 ===== */
@@ -1225,6 +1363,11 @@ onBeforeUnmount(() => {
 
 .era-showcase-frame {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
   width: 100%;
   height: 100%;
   border-radius:
@@ -1605,9 +1748,15 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-/* ===== 响应式 ===== */
-.layout-medium .era-main-stage {
-  gap: clamp(8px, 1vw, 12px);
+/* ===== 响应式：电脑、平板与希沃白板 ===== */
+.layout-medium .era-main-stage,
+.layout-small .era-main-stage {
+  /* 即使进入中小屏断点，也不改成固定宽度或上下堆叠。 */
+  grid-template-columns:
+    minmax(0, 1fr) minmax(0, 2fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: clamp(7px, 1vw, 12px);
+  overflow: hidden;
 }
 
 .layout-medium .era-card {
@@ -1620,45 +1769,38 @@ onBeforeUnmount(() => {
       calc(100% - 24px));
 }
 
-.layout-medium .era-intro-head {
+.layout-medium .era-intro-head,
+.layout-small .era-intro-head {
   flex-direction: column;
   align-items: flex-start;
 }
 
 .layout-medium .era-showcase-frame,
 .layout-small .era-showcase-frame {
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .layout-small .evolution-content {
-  padding-bottom:
-    clamp(110px, 16vh, 150px);
+  padding:
+    clamp(8px, 1.1vw, 12px)
+    clamp(8px, 1.2vw, 14px)
+    clamp(108px, 15vh, 142px);
   gap:
-    clamp(8px, 1.1vh, 12px);
-}
-
-.layout-small .era-main-stage {
-  grid-template-columns: 1fr;
-  grid-template-rows:
-    minmax(0, auto) minmax(0, 1fr);
-  gap:
-    clamp(8px, 1.1vh, 12px);
-  overflow: auto;
+    clamp(7px, 1vh, 11px);
 }
 
 .layout-small .era-intro-shell {
-  height: auto;
-  max-height: 42vh;
-  overflow: auto;
+  height: 100%;
+  max-height: none;
+  overflow: hidden;
+}
+
+.layout-small .era-intro-card {
+  padding: clamp(7px, 1vw, 10px);
 }
 
 .layout-small .era-card {
   flex: 0 0 138px;
-}
-
-.layout-small .era-intro-head {
-  flex-direction: column;
-  align-items: flex-start;
 }
 
 .layout-small .evolution-dock {
@@ -1674,9 +1816,62 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   .era-intro-tag {
-    justify-self: flex-start;
+    align-self: flex-start;
+    padding: 4px 8px;
+  }
+
+  .era-nav-btn {
+    width: clamp(34px, 5vw, 42px);
+    height: clamp(34px, 5vw, 42px);
+  }
+
+  .era-nav-prev {
+    left: 8px;
+  }
+
+  .era-nav-next {
+    right: 8px;
+  }
+}
+
+/* 课堂电脑常见的 1366×768、希沃白板分屏等低高度场景。 */
+@media (max-height: 800px) {
+  .evolution-content {
+    gap: 8px;
+    padding-top: 8px;
+    padding-bottom: 68px;
+  }
+
+  .era-intro-card {
+    gap: 5px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .era-intro-desc {
+    line-height: 1.45;
+  }
+
+  .scroll-table-shell {
+    padding-top: 6px;
+  }
+
+  .scroll-thumb-img {
+    height: clamp(20px, 2.4vh, 28px);
+  }
+}
+
+/* 高分辨率希沃白板与 2K/4K 大屏：限制内容极端拉伸，同时保持 1:2。 */
+@media (min-width: 2200px) {
+  .evolution-content {
+    padding-left: clamp(22px, 1.5vw, 42px);
+    padding-right: clamp(22px, 1.5vw, 42px);
+  }
+
+  .era-main-stage {
+    gap: clamp(18px, 1vw, 28px);
   }
 }
 
@@ -1684,58 +1879,85 @@ onBeforeUnmount(() => {
 .scroll-table-shell {
   position: relative;
   z-index: 2;
-  width: 100%;
-  padding:
-    clamp(10px, 1.4vh, 16px) 0 0;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
+  width: 100%;
+  padding:
+    clamp(8px, 1.2vh, 14px) 0 0;
+  overflow: hidden;
 }
 
 .scroll-table-viewport {
   position: relative;
-  width: 100%;
   flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
-  overflow: auto hidden;
-  padding: 0;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 0 4px;
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+ * 左侧年代介绍与下方年代表共用同一套滚动条。
+ * 颜色沿用页面主题色，电脑、平板和希沃白板上的 Chromium 内核保持一致。
+ */
+.era-intro-card,
+.scroll-table-viewport {
+  scrollbar-width: thin;
+  scrollbar-color:
+    rgba(46, 196, 182, 0.82)
+    rgba(116, 234, 229, 0.12);
+}
+
+.era-intro-card::-webkit-scrollbar {
+  width: 8px;
 }
 
 .scroll-table-viewport::-webkit-scrollbar {
-  height: 10px;
+  height: 8px;
 }
 
+.era-intro-card::-webkit-scrollbar-track,
 .scroll-table-viewport::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 5px;
-  margin: 0 2px;
+  background: rgba(116, 234, 229, 0.12);
+  border-radius: 999px;
+  margin: 2px;
 }
 
+.era-intro-card::-webkit-scrollbar-thumb,
 .scroll-table-viewport::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.55);
-  border-radius: 5px;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  min-height: 34px;
+  background: rgba(46, 196, 182, 0.82);
+  border: 2px solid rgba(5, 22, 38, 0.72);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(116, 234, 229, 0.22);
 }
 
+.era-intro-card::-webkit-scrollbar-thumb:hover,
 .scroll-table-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.7);
-}
-
-.scroll-table-viewport {
-  scrollbar-width: auto;
-  scrollbar-color: rgba(255, 255, 255, 0.55) rgba(255, 255, 255, 0.12);
+  background: rgba(52, 217, 207, 0.96);
 }
 
 .scroll-table-track {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  min-width: 100%;
+  max-width: none;
 }
 
 .scroll-row {
   display: flex;
+  flex: 0 0 auto;
   width: 100%;
+  min-width: 100%;
 }
 
 .scroll-row+.scroll-row {
@@ -1841,5 +2063,20 @@ onBeforeUnmount(() => {
 .scroll-merged-cell {
   justify-content: center;
   border-right: 1px solid rgba(222, 184, 135, 0.12);
+}
+
+/* 放在年代表基础样式之后，确保低高度设备的压缩规则不会被覆盖。 */
+@media (max-height: 800px) {
+  .scroll-table-shell {
+    padding-top: 6px;
+  }
+
+  .scroll-thumb-img {
+    height: clamp(20px, 2.4vh, 28px);
+  }
+
+  .layout-small .evolution-content {
+    padding-bottom: 72px;
+  }
 }
 </style>
