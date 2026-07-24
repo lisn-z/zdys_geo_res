@@ -1,12 +1,15 @@
 <template>
-  <div ref="pageRef" class="find-terrain-container geo-template-page geo-page theme-dark" :class="'layout-' + layoutMode">
+  <div ref="pageRef" class="find-terrain-container geo-template-page geo-page theme-dark"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png" alt="logo" />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
       <h1 class="page-title">找地形 <span class="page-subtitle">中国主要地形区判读</span></h1>
       <div class="toolbar-actions">
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">{{ allPanelsCollapsed ? '展开面板' : '收起面板' }}</button>
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">{{
+          allPanelsCollapsed ? '展开面板' : '收起面板' }}</button>
       </div>
     </header>
 
@@ -21,7 +24,10 @@
       <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
-            <div><h2>地形要素</h2><p>山脉 · 盆地 · 河流</p></div>
+            <div>
+              <h2>地形要素</h2>
+              <p>山脉 · 盆地 · 河流</p>
+            </div>
             <span class="panel-badge">FIND</span>
           </div>
 
@@ -38,7 +44,8 @@
           <section class="geo-card control-section">
             <h3 class="section-title">🔍 类型筛选</h3>
             <div class="filter-buttons">
-              <button v-for="f in filterTypes" :key="f.key" class="theme-btn option-btn" :class="{ active: activeFilter === f.key }" @click="activeFilter = f.key">{{ f.label }}</button>
+              <button v-for="f in filterTypes" :key="f.key" class="theme-btn option-btn"
+                :class="{ active: activeFilter === f.key }" @click="activeFilter = f.key">{{ f.label }}</button>
             </div>
           </section>
 
@@ -46,9 +53,12 @@
           <section class="geo-card control-section">
             <h3 class="section-title">📊 查找进度</h3>
             <div class="find-progress">
-              <div class="progress-item"><span class="progress-icon">🏔</span><strong>{{ foundCount.mountains }}</strong><span>/ {{ totalCount.mountains }} 山脉</span></div>
-              <div class="progress-item"><span class="progress-icon">🏺</span><strong>{{ foundCount.basins }}</strong><span>/ {{ totalCount.basins }} 盆地</span></div>
-              <div class="progress-item"><span class="progress-icon">🌊</span><strong>{{ foundCount.rivers }}</strong><span>/ {{ totalCount.rivers }} 河流</span></div>
+              <div class="progress-item"><span class="progress-icon">🏔</span><strong>{{ foundCount.mountains
+              }}</strong><span>/ {{ totalCount.mountains }} 山脉</span></div>
+              <div class="progress-item"><span class="progress-icon">🏺</span><strong>{{ foundCount.basins
+              }}</strong><span>/ {{ totalCount.basins }} 盆地</span></div>
+              <div class="progress-item"><span class="progress-icon">🌊</span><strong>{{ foundCount.rivers
+              }}</strong><span>/ {{ totalCount.rivers }} 河流</span></div>
             </div>
           </section>
 
@@ -56,9 +66,11 @@
           <section class="geo-card control-section" v-if="activeFilter === 'all' || activeFilter === 'mountains'">
             <h3 class="section-title">🏔 主要山脉</h3>
             <div class="terrain-list">
-              <div v-for="m in mountains" :key="m.name" class="terrain-item" :class="{ found: m.found, selected: selectedFeature?.name === m.name }" @click="selectFeature(m)">
+              <div v-for="m in mountains" :key="m.name" class="terrain-item"
+                :class="{ found: m.found, selected: selectedFeature?.name === m.name }" @click="selectFeature(m)">
                 <span class="terrain-icon" style="color:#ef4444">🏔</span>
-                <div class="terrain-info"><span class="terrain-name">{{ m.name }}</span><span class="terrain-desc">{{ m.desc }}</span></div>
+                <div class="terrain-info"><span class="terrain-name">{{ m.name }}</span><span class="terrain-desc">{{
+                  m.desc }}</span></div>
                 <span class="terrain-check" v-if="m.found">✓</span>
                 <span class="terrain-arrow" v-else-if="selectedFeature?.name === m.name">→</span>
               </div>
@@ -68,9 +80,11 @@
           <section class="geo-card control-section" v-if="activeFilter === 'all' || activeFilter === 'basins'">
             <h3 class="section-title">🏺 四大盆地</h3>
             <div class="terrain-list">
-              <div v-for="b in basins" :key="b.name" class="terrain-item" :class="{ found: b.found, selected: selectedFeature?.name === b.name }" @click="selectFeature(b)">
+              <div v-for="b in basins" :key="b.name" class="terrain-item"
+                :class="{ found: b.found, selected: selectedFeature?.name === b.name }" @click="selectFeature(b)">
                 <span class="terrain-icon" style="color:#fbbf24">🏺</span>
-                <div class="terrain-info"><span class="terrain-name">{{ b.name }}</span><span class="terrain-desc">{{ b.desc }}</span></div>
+                <div class="terrain-info"><span class="terrain-name">{{ b.name }}</span><span class="terrain-desc">{{
+                  b.desc }}</span></div>
                 <span class="terrain-check" v-if="b.found">✓</span>
                 <span class="terrain-arrow" v-else-if="selectedFeature?.name === b.name">→</span>
               </div>
@@ -80,9 +94,11 @@
           <section class="geo-card control-section" v-if="activeFilter === 'all' || activeFilter === 'rivers'">
             <h3 class="section-title">🌊 主要河流</h3>
             <div class="terrain-list">
-              <div v-for="r in rivers" :key="r.name" class="terrain-item" :class="{ found: r.found, selected: selectedFeature?.name === r.name }" @click="selectFeature(r)">
+              <div v-for="r in rivers" :key="r.name" class="terrain-item"
+                :class="{ found: r.found, selected: selectedFeature?.name === r.name }" @click="selectFeature(r)">
                 <span class="terrain-icon" style="color:#3b82f6">🌊</span>
-                <div class="terrain-info"><span class="terrain-name">{{ r.name }}</span><span class="terrain-desc">{{ r.desc }}</span></div>
+                <div class="terrain-info"><span class="terrain-name">{{ r.name }}</span><span class="terrain-desc">{{
+                  r.desc }}</span></div>
                 <span class="terrain-check" v-if="r.found">✓</span>
                 <span class="terrain-arrow" v-else-if="selectedFeature?.name === r.name">→</span>
               </div>
@@ -93,8 +109,10 @@
         <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">›</button>
       </aside>
 
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left" v-bind="leftEntryAttrs">›</button>
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right" v-bind="rightEntryAttrs">‹</button>
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+        v-bind="leftEntryAttrs">›</button>
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+        v-bind="rightEntryAttrs">‹</button>
     </main>
   </div>
 </template>
@@ -133,29 +151,29 @@ interface TerrainFeature {
 }
 
 const mountains = reactive<TerrainFeature[]>([
-  { name: '天山山脉', lat: 42.5, lon: 85, desc: '新疆中部，南疆北疆分界', type: 'mountain', found: false, area: [[44,78],[44,90],[41,90],[41,78]] },
-  { name: '阴山山脉', lat: 41, lon: 107, desc: '内蒙古中部东西走向', type: 'mountain', found: false, area: [[42,104],[42,112],[40,112],[40,104]] },
-  { name: '昆仑山脉', lat: 36.5, lon: 82, desc: '新疆与西藏交界', type: 'mountain', found: false, area: [[38,76],[38,92],[35,92],[35,76]] },
-  { name: '秦岭', lat: 34, lon: 108, desc: '中国南北分界线', type: 'mountain', found: false, area: [[34.5,104],[34.5,114],[33,114],[33,104]] },
-  { name: '南岭', lat: 25, lon: 113, desc: '湖南、江西与广东交界', type: 'mountain', found: false, area: [[26,108],[26,118],[24,118],[24,108]] },
-  { name: '大兴安岭', lat: 50.5, lon: 123, desc: '内蒙古东北部', type: 'mountain', found: false, area: [[53,120],[53,127],[48,127],[48,120]] },
-  { name: '太行山脉', lat: 37.5, lon: 113.5, desc: '山西与河北交界', type: 'mountain', found: false, area: [[39,112],[39,115],[36,115],[36,112]] },
-  { name: '巫山', lat: 31, lon: 110, desc: '重庆与湖北交界', type: 'mountain', found: false, area: [[32,109],[32,111],[30,111],[30,109]] },
-  { name: '雪峰山', lat: 27.5, lon: 110, desc: '湖南西部', type: 'mountain', found: false, area: [[29,109],[29,111],[26,111],[26,109]] },
-  { name: '长白山脉', lat: 42, lon: 128, desc: '吉林东部中朝边境', type: 'mountain', found: false, area: [[43,127],[43,130],[41,130],[41,127]] },
-  { name: '武夷山脉', lat: 27.5, lon: 118, desc: '福建与江西交界', type: 'mountain', found: false, area: [[29,117],[29,119],[26,119],[26,117]] },
-  { name: '台湾山脉', lat: 23.5, lon: 121, desc: '台湾岛东部', type: 'mountain', found: false, area: [[25.5,120],[25.5,122],[23,122],[23,120]] },
-  { name: '横断山脉', lat: 30, lon: 100, desc: '川滇藏交界南北走向', type: 'mountain', found: false, area: [[32,97],[32,103],[28,103],[28,97]] },
-  { name: '阿尔泰山脉', lat: 47.5, lon: 88, desc: '新疆北部中俄边境', type: 'mountain', found: false, area: [[49,86],[49,92],[46,92],[46,86]] },
-  { name: '祁连山脉', lat: 38.5, lon: 99, desc: '甘肃与青海交界', type: 'mountain', found: false, area: [[39,94],[39,104],[37,104],[37,94]] },
-  { name: '贺兰山', lat: 38.5, lon: 106, desc: '宁夏西北部', type: 'mountain', found: false, area: [[40,105],[40,107],[38,107],[38,105]] },
+  { name: '天山山脉', lat: 42.5, lon: 85, desc: '新疆中部，南疆北疆分界', type: 'mountain', found: false, area: [[44, 78], [44, 90], [41, 90], [41, 78]] },
+  { name: '阴山山脉', lat: 41, lon: 107, desc: '内蒙古中部东西走向', type: 'mountain', found: false, area: [[42, 104], [42, 112], [40, 112], [40, 104]] },
+  { name: '昆仑山脉', lat: 36.5, lon: 82, desc: '新疆与西藏交界', type: 'mountain', found: false, area: [[38, 76], [38, 92], [35, 92], [35, 76]] },
+  { name: '秦岭', lat: 34, lon: 108, desc: '中国南北分界线', type: 'mountain', found: false, area: [[34.5, 104], [34.5, 114], [33, 114], [33, 104]] },
+  { name: '南岭', lat: 25, lon: 113, desc: '湖南、江西与广东交界', type: 'mountain', found: false, area: [[26, 108], [26, 118], [24, 118], [24, 108]] },
+  { name: '大兴安岭', lat: 50.5, lon: 123, desc: '内蒙古东北部', type: 'mountain', found: false, area: [[53, 120], [53, 127], [48, 127], [48, 120]] },
+  { name: '太行山脉', lat: 37.5, lon: 113.5, desc: '山西与河北交界', type: 'mountain', found: false, area: [[39, 112], [39, 115], [36, 115], [36, 112]] },
+  { name: '巫山', lat: 31, lon: 110, desc: '重庆与湖北交界', type: 'mountain', found: false, area: [[32, 109], [32, 111], [30, 111], [30, 109]] },
+  { name: '雪峰山', lat: 27.5, lon: 110, desc: '湖南西部', type: 'mountain', found: false, area: [[29, 109], [29, 111], [26, 111], [26, 109]] },
+  { name: '长白山脉', lat: 42, lon: 128, desc: '吉林东部中朝边境', type: 'mountain', found: false, area: [[43, 127], [43, 130], [41, 130], [41, 127]] },
+  { name: '武夷山脉', lat: 27.5, lon: 118, desc: '福建与江西交界', type: 'mountain', found: false, area: [[29, 117], [29, 119], [26, 119], [26, 117]] },
+  { name: '台湾山脉', lat: 23.5, lon: 121, desc: '台湾岛东部', type: 'mountain', found: false, area: [[25.5, 120], [25.5, 122], [23, 122], [23, 120]] },
+  { name: '横断山脉', lat: 30, lon: 100, desc: '川滇藏交界南北走向', type: 'mountain', found: false, area: [[32, 97], [32, 103], [28, 103], [28, 97]] },
+  { name: '阿尔泰山脉', lat: 47.5, lon: 88, desc: '新疆北部中俄边境', type: 'mountain', found: false, area: [[49, 86], [49, 92], [46, 92], [46, 86]] },
+  { name: '祁连山脉', lat: 38.5, lon: 99, desc: '甘肃与青海交界', type: 'mountain', found: false, area: [[39, 94], [39, 104], [37, 104], [37, 94]] },
+  { name: '贺兰山', lat: 38.5, lon: 106, desc: '宁夏西北部', type: 'mountain', found: false, area: [[40, 105], [40, 107], [38, 107], [38, 105]] },
 ])
 
 const basins = reactive<TerrainFeature[]>([
-  { name: '塔里木盆地', lat: 40, lon: 85, desc: '中国最大盆地，位于新疆南部', type: 'basin', found: false, area: [[42,76],[42,90],[37,90],[37,76]] },
-  { name: '准噶尔盆地', lat: 46, lon: 87, desc: '新疆北部，中国第二大盆地', type: 'basin', found: false, area: [[48,82],[48,92],[44,92],[44,82]] },
-  { name: '柴达木盆地', lat: 37, lon: 95, desc: '青海省西北部，"聚宝盆"', type: 'basin', found: false, area: [[39,90],[39,99],[36,99],[36,90]] },
-  { name: '四川盆地', lat: 30, lon: 105, desc: '四川省东部，"天府之国"', type: 'basin', found: false, area: [[32,102],[32,110],[28,110],[28,102]] },
+  { name: '塔里木盆地', lat: 40, lon: 85, desc: '中国最大盆地，位于新疆南部', type: 'basin', found: false, area: [[42, 76], [42, 90], [37, 90], [37, 76]] },
+  { name: '准噶尔盆地', lat: 46, lon: 87, desc: '新疆北部，中国第二大盆地', type: 'basin', found: false, area: [[48, 82], [48, 92], [44, 92], [44, 82]] },
+  { name: '柴达木盆地', lat: 37, lon: 95, desc: '青海省西北部，"聚宝盆"', type: 'basin', found: false, area: [[39, 90], [39, 99], [36, 99], [36, 90]] },
+  { name: '四川盆地', lat: 30, lon: 105, desc: '四川省东部，"天府之国"', type: 'basin', found: false, area: [[32, 102], [32, 110], [28, 110], [28, 102]] },
 ])
 
 const rivers = reactive<TerrainFeature[]>([
@@ -181,7 +199,8 @@ const showAllMode = ref(false)
 // 河流 GeoJSON 坐标存储（用于距离判断）
 const riverGeoJSONCoords: Record<string, [number, number][]> = {}
 // 隐藏的标记（找到后显示）
-const hiddenMarkers: Record<string, L.Marker | L.Polyline> = {}
+type HiddenTerrainLayer = L.Marker | L.Polyline | L.GeoJSON
+const hiddenMarkers: Record<string, HiddenTerrainLayer> = {}
 
 const totalCount = { mountains: mountains.length, basins: basins.length, rivers: rivers.length }
 const foundCount = computed(() => ({
@@ -209,6 +228,7 @@ let tileLayer: L.TileLayer | null = null
 let chinaOutlineLayer: L.GeoJSON | L.Polygon | null = null
 let featureMarkers: L.Marker[] = []
 let riverLayers: L.Polyline[] = []
+let riverGeoJSONLayers: L.GeoJSON[] = []
 let highlightMarker: L.CircleMarker | null = null
 let hintLayer: L.Circle | L.Polygon | null = null
 const contourLayers: (L.Polygon | L.Polyline)[] = []
@@ -293,6 +313,13 @@ async function initScene() {
     zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false,
   })
 
+  // 河流使用独立高层级 Pane，避免被底图或中国轮廓线遮挡
+  if (!leafletMap.getPane('river-pane')) {
+    const riverPane = leafletMap.createPane('river-pane')
+    riverPane.style.zIndex = '650'
+    riverPane.style.pointerEvents = 'auto'
+  }
+
   tileLayer = L.tileLayer(ARCGIS_TILE_URL, { minZoom: 0, maxZoom: 8, maxNativeZoom: 8, opacity: 1, noWrap: true })
   tileLayer.addTo(leafletMap)
 
@@ -354,59 +381,260 @@ function addTerrainMarkers() {
 }
 
 // ==================== 河流 GeoJSON 加载 ====================
+/**
+ * 从任意 GeoJSON 几何结构中提取河流坐标。
+ * GeoJSON 坐标顺序为 [经度, 纬度]，这里转换为 Leaflet 使用的 [纬度, 经度]。
+ */
+function collectRiverCoords(geometry: any, result: [number, number][]) {
+  if (!geometry) return
+
+  const pushCoord = (coord: any) => {
+    if (
+      Array.isArray(coord) &&
+      coord.length >= 2 &&
+      Number.isFinite(Number(coord[0])) &&
+      Number.isFinite(Number(coord[1]))
+    ) {
+      result.push([Number(coord[1]), Number(coord[0])])
+    }
+  }
+
+  if (geometry.type === 'LineString') {
+    geometry.coordinates?.forEach(pushCoord)
+    return
+  }
+
+  if (geometry.type === 'MultiLineString') {
+    geometry.coordinates?.forEach((line: any[]) => {
+      line?.forEach(pushCoord)
+    })
+    return
+  }
+
+  if (geometry.type === 'GeometryCollection') {
+    geometry.geometries?.forEach((item: any) => {
+      collectRiverCoords(item, result)
+    })
+  }
+}
+
+function extractAllRiverCoords(data: any): [number, number][] {
+  const result: [number, number][] = []
+  if (!data) return result
+
+  if (data.type === 'FeatureCollection') {
+    data.features?.forEach((feature: any) => {
+      collectRiverCoords(feature?.geometry, result)
+    })
+    return result
+  }
+
+  if (data.type === 'Feature') {
+    collectRiverCoords(data.geometry, result)
+    return result
+  }
+
+  collectRiverCoords(data, result)
+  return result
+}
+
+/**
+ * 统一调整 Marker、Polyline、GeoJSON 图层透明度。
+ */
+function setTerrainLayerOpacity(layer: HiddenTerrainLayer, opacity: number) {
+  if (layer instanceof L.Marker) {
+    layer.setOpacity(opacity)
+    return
+  }
+
+  if (layer instanceof L.GeoJSON) {
+    layer.setStyle({
+      opacity,
+      fillOpacity: 0,
+    })
+    return
+  }
+
+  if (layer instanceof L.Polyline) {
+    layer.setStyle({ opacity })
+  }
+}
+
 async function loadRivers() {
   if (!leafletMap) return
-  // 长江、黄河从 GeoJSON 加载
+
+  // 长江、黄河直接交给 L.geoJSON 渲染完整 FeatureCollection，
+  // 不再只读取 data.features[0]。
   const geojsonRivers = [
-    { name: '长江', url: '/geo-resources-folder/geojson/中国矢量数据/长江.geojson', color: '#3b82f6' },
-    { name: '黄河', url: '/geo-resources-folder/geojson/中国矢量数据/黄河.geojson', color: '#eab308' },
+    {
+      name: '长江',
+      url: '/geo-resources-folder/geojson/中国矢量数据/长江.geojson',
+      color: '#3b82f6',
+    },
+    {
+      name: '黄河',
+      url: '/geo-resources-folder/geojson/中国矢量数据/黄河.geojson',
+      color: '#eab308',
+    },
   ]
-  for (const gr of geojsonRivers) {
+
+  for (const config of geojsonRivers) {
     try {
-      const res = await fetch(gr.url)
-      if (!res.ok) throw new Error(`${gr.name} GeoJSON 不存在`)
-      const data = await res.json()
-      const feature = data.features?.[0]
-      if (feature?.geometry?.coordinates) {
-        // GeoJSON 坐标为 [lon, lat]，转换为 [lat, lon]
-        const coords: [number, number][] = feature.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number])
-        riverGeoJSONCoords[gr.name] = coords
-        // 更新 rivers 数据中的 path
-        const river = rivers.find(r => r.name === gr.name)
-        if (river) river.path = coords
-        // 创建折线（初始隐藏）
-        const line = L.polyline(coords, { color: gr.color, weight: 3, opacity: 0, dashArray: '8 4' })
-        line.bindPopup(`<b style="color:${gr.color}">${gr.name}</b><br><span style="font-size:12px;color:#666">${river?.desc || ''}</span>`)
-        line.on('click', () => { if (river) river.found = true })
-        line.addTo(leafletMap!)
-        hiddenMarkers[gr.name] = line
+      const res = await fetch(config.url)
+      if (!res.ok) {
+        throw new Error(`${config.name} GeoJSON 请求失败：${res.status}`)
       }
-    } catch {
-      // 后备：使用简化路径
-      const river = rivers.find(r => r.name === gr.name)
-      if (river && (river.path?.length ?? 0) > 0) {
-        const line = L.polyline(river.path!, { color: gr.color, weight: 3, opacity: 0, dashArray: '8 4' })
-        line.addTo(leafletMap!)
-        hiddenMarkers[gr.name] = line
+
+      const data = await res.json()
+      const river = rivers.find(item => item.name === config.name)
+
+      console.log(`${config.name} GeoJSON 顶层类型：`, data?.type)
+      console.log(`${config.name} Feature 数量：`, data?.features?.length ?? 0)
+
+      const geoJSONLayer = L.geoJSON(data, {
+        pane: 'river-pane',
+
+        // 河流文件只渲染线类型，避免文件中的点或面被误画出来
+        filter(feature) {
+          const type = feature?.geometry?.type
+          return type === 'LineString' || type === 'MultiLineString' || type === 'GeometryCollection'
+        },
+
+        style() {
+          return {
+            color: config.color,
+            weight: 4,
+            opacity: 0.95,
+            fill: false,
+            lineCap: 'round',
+            lineJoin: 'round',
+          }
+        },
+
+        onEachFeature(_feature, layer) {
+          layer.bindPopup(
+            `<b style="color:${config.color}">${config.name}</b><br>` +
+            `<span style="font-size:12px;color:#666">${river?.desc || ''}</span>`
+          )
+
+          layer.on('click', () => {
+            if (river) river.found = true
+          })
+        },
+      })
+
+      const childLayerCount = geoJSONLayer.getLayers().length
+      const bounds = geoJSONLayer.getBounds()
+
+      console.log(`${config.name} 生成线图层数量：`, childLayerCount)
+      console.log(
+        `${config.name} 图层范围：`,
+        bounds.isValid() ? bounds.toBBoxString() : '无效范围'
+      )
+
+      if (childLayerCount === 0 || !bounds.isValid()) {
+        throw new Error(`${config.name} 没有生成有效的线图层`)
+      }
+
+      geoJSONLayer.addTo(leafletMap)
+      geoJSONLayer.bringToFront()
+      riverGeoJSONLayers.push(geoJSONLayer)
+      hiddenMarkers[config.name] = geoJSONLayer
+
+      // 提取全部 Feature、LineString、MultiLineString 中的坐标，供查找判断使用
+      const coords = extractAllRiverCoords(data)
+      console.log(`${config.name} 提取坐标数量：`, coords.length, '首点：', coords[0])
+
+      if (coords.length > 0) {
+        riverGeoJSONCoords[config.name] = coords
+        if (river) river.path = coords
+      }
+
+      // 河流名称标签。保持原逻辑：长江、黄河加载成功后直接显示。
+      const labelCenter = river
+        ? L.latLng(river.lat, river.lon)
+        : bounds.getCenter()
+
+      const label = L.marker(labelCenter, {
+        pane: 'river-pane',
+        icon: L.divIcon({
+          html: `<div style="font-size:12px;color:${config.color};font-weight:700;text-shadow:0 0 3px #fff,0 1px 2px rgba(0,0,0,0.8);white-space:nowrap;">${config.name}</div>`,
+          className: 'river-label-icon',
+          iconSize: [60, 20],
+          iconAnchor: [30, 10],
+        }),
+      })
+
+      label.on('click', () => {
+        if (river) river.found = true
+      })
+      label.addTo(leafletMap)
+      hiddenMarkers[config.name + '_label'] = label
+    } catch (error) {
+      console.warn(`${config.name} GeoJSON 加载失败：`, error)
+
+      // 后备逻辑：只有 rivers 中存在简化路径时才绘制
+      const river = rivers.find(item => item.name === config.name)
+      if (river && (river.path?.length ?? 0) > 0 && leafletMap) {
+        const line = L.polyline(river.path!, {
+          pane: 'river-pane',
+          color: config.color,
+          weight: 4,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+        })
+        line.bindPopup(
+          `<b style="color:${config.color}">${config.name}</b><br>` +
+          `<span style="font-size:12px;color:#666">${river.desc}</span>`
+        )
+        line.on('click', () => { river.found = true })
+        line.addTo(leafletMap)
+        riverLayers.push(line)
+        hiddenMarkers[config.name] = line
       }
     }
   }
-  // 其余河流用简化路径
-  rivers.forEach(r => {
-    if ((r.path?.length ?? 0) > 0 && !hiddenMarkers[r.name] && leafletMap) {
-      const line = L.polyline(r.path!, { color: '#3b82f6', weight: 3, opacity: 0, dashArray: '8 4' })
-      line.bindPopup(`<b style="color:#3b82f6">${r.name}</b><br><span style="font-size:12px;color:#666">${r.desc}</span>`)
-      line.on('click', () => { r.found = true })
-      line.addTo(leafletMap!)
-      hiddenMarkers[r.name] = line
-    }
-    // 河流名称标记（初始隐藏）
-    if (leafletMap && (r.path?.length ?? 0) === 0) return // 等待 GeoJSON
-    const marker = L.marker([r.lat, r.lon], { icon: L.divIcon({ html: `<div style="font-size:11px;color:#3b82f6;font-weight:700;text-shadow:0 0 3px #fff,0 1px 2px rgba(0,0,0,0.8);white-space:nowrap;">${r.name}</div>`, className: 'river-label-icon', iconSize: [60, 16], iconAnchor: [30, 8] }) })
-    marker.on('click', () => { r.found = true })
-    marker.addTo(leafletMap!)
+
+  // 其余河流继续使用代码中的简化路径，默认隐藏
+  rivers.forEach(river => {
+    if (river.name === '长江' || river.name === '黄河') return
+    if (!leafletMap || (river.path?.length ?? 0) === 0) return
+
+    const line = L.polyline(river.path!, {
+      pane: 'river-pane',
+      color: '#3b82f6',
+      weight: 3,
+      opacity: 0,
+      dashArray: '8 4',
+      lineCap: 'round',
+      lineJoin: 'round',
+    })
+
+    line.bindPopup(
+      `<b style="color:#3b82f6">${river.name}</b><br>` +
+      `<span style="font-size:12px;color:#666">${river.desc}</span>`
+    )
+    line.on('click', () => { river.found = true })
+    line.addTo(leafletMap)
+
+    riverLayers.push(line)
+    hiddenMarkers[river.name] = line
+
+    const marker = L.marker([river.lat, river.lon], {
+      pane: 'river-pane',
+      icon: L.divIcon({
+        html: `<div style="font-size:11px;color:#3b82f6;font-weight:700;text-shadow:0 0 3px #fff,0 1px 2px rgba(0,0,0,0.8);white-space:nowrap;">${river.name}</div>`,
+        className: 'river-label-icon',
+        iconSize: [60, 16],
+        iconAnchor: [30, 8],
+      }),
+    })
+
+    marker.on('click', () => { river.found = true })
+    marker.addTo(leafletMap)
     marker.setOpacity(0)
-    hiddenMarkers[r.name + '_label'] = marker
+    hiddenMarkers[river.name + '_label'] = marker
   })
 }
 
@@ -490,10 +718,8 @@ function showAreaContour(f: TerrainFeature) {
 
 function showFeatureMarker(f: TerrainFeature) {
   const marker = hiddenMarkers[f.name]
-  if (marker) {
-    if (marker instanceof L.Marker) marker.setOpacity(1)
-    else if (marker instanceof L.Polyline) marker.setStyle({ opacity: 0.8 })
-  }
+  if (marker) setTerrainLayerOpacity(marker, 0.9)
+
   const label = hiddenMarkers[f.name + '_label']
   if (label instanceof L.Marker) label.setOpacity(1)
 }
@@ -510,10 +736,7 @@ function toggleShowAll(on: boolean) {
     const label = hiddenMarkers[f.name + '_label']
     if (on) {
       // 显示全部
-      if (marker) {
-        if (marker instanceof L.Marker) marker.setOpacity(1)
-        else if (marker instanceof L.Polyline) marker.setStyle({ opacity: 0.8 })
-      }
+      if (marker) setTerrainLayerOpacity(marker, 0.9)
       if (label instanceof L.Marker) label.setOpacity(1)
       // 显示区域轮廓
       if ((f.area?.length ?? 0) > 0) {
@@ -525,10 +748,7 @@ function toggleShowAll(on: boolean) {
     } else {
       // 隐藏未找到的
       if (!f.found) {
-        if (marker) {
-          if (marker instanceof L.Marker) marker.setOpacity(0)
-          else if (marker instanceof L.Polyline) marker.setStyle({ opacity: 0 })
-        }
+        if (marker) setTerrainLayerOpacity(marker, 0)
         if (label instanceof L.Marker) label.setOpacity(0)
       }
     }
@@ -567,6 +787,7 @@ onBeforeUnmount(() => {
   leafletResizeObserver?.disconnect(); leafletResizeObserver = null
   featureMarkers.forEach(m => m.remove()); featureMarkers = []
   riverLayers.forEach(l => l.remove()); riverLayers = []
+  riverGeoJSONLayers.forEach(l => l.remove()); riverGeoJSONLayers = []
   if (highlightMarker) { highlightMarker.remove(); highlightMarker = null }
   chinaOutlineLayer?.remove(); chinaOutlineLayer = null
   leafletMap?.remove(); leafletMap = null; tileLayer = null
@@ -574,37 +795,171 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.page-subtitle { font-size: 13px; color: #64748b; font-weight: 400; margin-left: 10px; letter-spacing: 1px; }
-.map-hint { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10; font-size: 12px; color: #94a3b8; background: rgba(10,22,40,0.8); padding: 4px 14px; border-radius: 999px; border: 1px solid rgba(46,196,182,0.25); pointer-events: none; }
+.page-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 400;
+  margin-left: 10px;
+  letter-spacing: 1px;
+}
 
-.filter-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; }
-.filter-buttons .option-btn { font-size: 11px; padding: 5px 4px; }
+.map-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  font-size: 12px;
+  color: #94a3b8;
+  background: rgba(10, 22, 40, 0.8);
+  padding: 4px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(46, 196, 182, 0.25);
+  pointer-events: none;
+}
 
-.find-progress { display: flex; flex-direction: column; gap: 6px; }
-.progress-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #94a3b8; }
-.progress-item .progress-icon { font-size: 18px; }
-.progress-item strong { color: #2ec4b6; font-size: 16px; min-width: 24px; text-align: right; }
+.filter-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 4px;
+}
 
-.terrain-list { display: flex; flex-direction: column; gap: 4px; }
-.terrain-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(8,12,28,0.5); border: 1px solid transparent; cursor: pointer; transition: all 0.2s; }
-.terrain-item:hover { background: rgba(46,196,182,0.1); border-color: rgba(46,196,182,0.3); }
-.terrain-item.found { background: rgba(46,196,182,0.15); border-color: rgba(46,196,182,0.4); }
-.terrain-item.selected { background: rgba(251,191,36,0.15); border-color: rgba(251,191,36,0.5); box-shadow: 0 0 8px rgba(251,191,36,0.2); }
-.terrain-arrow { color: #fbbf24; font-size: 16px; font-weight: 700; flex-shrink: 0; animation: bounce-right 0.6s infinite alternate; }
-@keyframes bounce-right { from { transform: translateX(0); } to { transform: translateX(3px); } }
-.map-hint.finding { color: #fbbf24; border-color: rgba(251,191,36,0.4); background: rgba(40,30,10,0.85); }
-.terrain-icon { font-size: 18px; flex-shrink: 0; font-weight: 700; }
-.terrain-info { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.terrain-name { font-size: 13px; color: #cbd5e1; font-weight: 600; }
-.terrain-desc { font-size: 10px; color: #64748b; }
-.terrain-check { color: #2ec4b6; font-size: 16px; font-weight: 700; flex-shrink: 0; }
+.filter-buttons .option-btn {
+  font-size: 11px;
+  padding: 5px 4px;
+}
 
-.find-terrain-container .three-canvas { display: block; width: 100% !important; height: 100% !important; }
-.find-terrain-container .leaflet-host { width: 100%; height: 100%; }
+.find-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progress-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.progress-item .progress-icon {
+  font-size: 18px;
+}
+
+.progress-item strong {
+  color: #2ec4b6;
+  font-size: 16px;
+  min-width: 24px;
+  text-align: right;
+}
+
+.terrain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.terrain-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(8, 12, 28, 0.5);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.terrain-item:hover {
+  background: rgba(46, 196, 182, 0.1);
+  border-color: rgba(46, 196, 182, 0.3);
+}
+
+.terrain-item.found {
+  background: rgba(46, 196, 182, 0.15);
+  border-color: rgba(46, 196, 182, 0.4);
+}
+
+.terrain-item.selected {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.5);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.2);
+}
+
+.terrain-arrow {
+  color: #fbbf24;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+  animation: bounce-right 0.6s infinite alternate;
+}
+
+@keyframes bounce-right {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(3px);
+  }
+}
+
+.map-hint.finding {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(40, 30, 10, 0.85);
+}
+
+.terrain-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.terrain-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.terrain-name {
+  font-size: 13px;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.terrain-desc {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.terrain-check {
+  color: #2ec4b6;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.find-terrain-container .three-canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.find-terrain-container .leaflet-host {
+  width: 100%;
+  height: 100%;
+}
+
 .find-terrain-container .workspace.panel-resizing,
 .find-terrain-container .workspace.layout-resizing,
 .find-terrain-container .workspace.panel-resizing .side-panel,
 .find-terrain-container .workspace.layout-resizing .side-panel,
 .find-terrain-container .workspace.panel-resizing .center-stage,
-.find-terrain-container .workspace.layout-resizing .center-stage { transition: none !important; }
+.find-terrain-container .workspace.layout-resizing .center-stage {
+  transition: none !important;
+}
 </style>
