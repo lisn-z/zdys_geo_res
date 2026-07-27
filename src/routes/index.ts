@@ -177,6 +177,15 @@ export const routes = [
     component: () =>
       import('@/views/find-terrain/index.vue'),
   },
+  {
+    path: '/atmosphere-vertical-layers',
+    name: 'atmosphere-vertical-layers',
+    meta: {
+      title: '大气垂直分层',
+    },
+    component: () =>
+      import('@/views/atmosphere-vertical-layers/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
