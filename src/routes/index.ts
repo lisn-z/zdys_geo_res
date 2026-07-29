@@ -186,6 +186,15 @@ export const routes = [
     component: () =>
       import('@/views/atmosphere-vertical-layers/index.vue'),
   },
+  {
+    path: '/layers-inside-the-earth',
+    name: 'layers-inside-the-earth',
+    meta: {
+      title: '地球内部圈层',
+    },
+    component: () =>
+      import('@/views/layers-inside-the-earth/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
