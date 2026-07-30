@@ -160,18 +160,6 @@
               :show-tooltip="false"
             />
 
-            <div class="section-title-row compact-title-row">
-              <span class="mini-control-label">动画速度</span>
-              <strong class="control-value">{{ animationSpeed.toFixed(1) }}×</strong>
-            </div>
-
-            <el-slider
-              v-model="animationSpeed"
-              :min="0"
-              :max="2.5"
-              :step="0.1"
-              :show-tooltip="false"
-            />
           </section>
 
           <section class="geo-card control-section">
@@ -623,6 +611,7 @@ const TROPOSPHERE_DIAGRAM_IMAGE =
 type LayerKey =
   | 'troposphere'
   | 'stratosphere'
+  | 'mesosphere'
   | 'thermosphere'
   | 'exosphere'
   | 'ozone'
@@ -676,7 +665,7 @@ const layerOptions: LayerInfo[] = [
       '云、雨、雪、雾、雷暴等天气现象集中发生。',
       '厚度随纬度和季节变化，中纬度约 10—12 km。',
     ],
-    color: '#8fd3ff',
+    color: '#6ec8e8',
     diagram: TROPOSPHERE_DIAGRAM_IMAGE,
     diagramAlt: '对流层大气运动特点示意图',
   },
@@ -701,9 +690,32 @@ const layerOptions: LayerInfo[] = [
       '水汽、尘埃少，云雨现象少，能见度高。',
       '大型客机常在平流层下部或对流层顶附近飞行。',
     ],
-    color: '#3b82f6',
+    color: '#d5a768',
     diagram: STRATOSPHERE_DIAGRAM_IMAGE,
     diagramAlt: '平流层大气运动特点示意图',
+  },
+  {
+    key: 'mesosphere',
+    shortName: '中间层',
+    name: '中间层',
+    altitude: '50—85 km',
+    minAltitude: 50,
+    maxAltitude: 85,
+    temperatureTrend: '随高度降低',
+    temperatureNote: '中间层顶附近可降至约 -90 ℃',
+    motion: '垂直运动较弱',
+    motionNote: '空气稀薄，向上逐渐过渡到热层',
+    phenomenon: '流星燃烧',
+    humanRelation: '多数流星体在此附近因摩擦与压缩加热而发光',
+    description:
+      '中间层位于平流层之上，顶部约 80—85 千米。该层气温总体随高度增加而降低，是大气温度最低的区域之一，多数流星在这里发光并烧蚀。',
+    features: [
+      '气温随高度增加而降低。',
+      '空气已十分稀薄，水汽和杂质极少。',
+      '多数流星在该高度范围内燃烧。',
+      '上部与热层相接，温度变化方向发生转折。',
+    ],
+    color: '#375b9c',
   },
   {
     key: 'thermosphere',
@@ -726,7 +738,7 @@ const layerOptions: LayerInfo[] = [
       '高纬地区可出现绚丽极光。',
       '部分低轨航天器在热层中运行。',
     ],
-    color: '#5247c9',
+    color: '#5654ad',
   },
   {
     key: 'exosphere',
@@ -749,7 +761,7 @@ const layerOptions: LayerInfo[] = [
       '大气逐渐过渡到星际空间。',
       '多种人造卫星在更高轨道运行。',
     ],
-    color: '#111827',
+    color: '#14264c',
   },
   {
     key: 'ozone',
@@ -772,7 +784,7 @@ const layerOptions: LayerInfo[] = [
       '是平流层上部气温升高的重要原因。',
       '对维持地球生命环境具有重要保护作用。',
     ],
-    color: '#ff9f43',
+    color: '#ffad45',
     diagram: OZONE_DIAGRAM_IMAGE,
     diagramAlt: '臭氧层削弱紫外线示意图',
   },
@@ -786,14 +798,14 @@ const layerOptions: LayerInfo[] = [
     temperatureTrend: '受太阳活动影响',
     temperatureNote: '昼夜、季节和太阳活动变化明显',
     motion: '带电粒子丰富',
-    motionNote: '跨越中间层、热层并延伸至更高处',
+    motionNote: '跨越中间层、热层并延伸至散逸层下部',
     phenomenon: '反射无线电波',
     humanRelation: '远距离通信、导航和空间天气的重要环境',
     description:
-      '电离层是大气中气体分子被太阳辐射电离、含有大量自由电子和离子的区域。它不是单独的温度分层，而是一个与电磁性质有关的重叠层。',
+      '电离层是大气中气体分子被太阳辐射电离、含有大量自由电子和离子的区域。它不是单独的温度分层，而是一个横跨中间层、热层并延伸到散逸层下部的重叠区域。',
     features: [
       '大约从 60 km 延伸到 1000 km 左右。',
-      '电子密度随昼夜和太阳活动明显变化。',
+      '横跨中间层、热层和散逸层下部。',
       '可反射或折射部分无线电波。',
       '太阳爆发可能引起通信和导航扰动。',
     ],
@@ -811,11 +823,11 @@ const viewOptions = [
 ]
 
 const majorLegendItems = [
-  { key: 'troposphere', label: '对流层 0—12 km', color: '#8fd3ff' },
-  { key: 'stratosphere', label: '平流层 12—50 km', color: '#3b82f6' },
-  { key: 'mesosphere', label: '中间层 50—85 km', color: '#334155' },
-  { key: 'thermosphere', label: '热层 85—500 km', color: '#5247c9' },
-  { key: 'exosphere', label: '散逸层 500 km 以上', color: '#111827' },
+  { key: 'troposphere', label: '对流层 0—12 km', color: '#6ec8e8' },
+  { key: 'stratosphere', label: '平流层 12—50 km', color: '#d5a768' },
+  { key: 'mesosphere', label: '中间层 50—85 km', color: '#375b9c' },
+  { key: 'thermosphere', label: '热层 85—500 km', color: '#5654ad' },
+  { key: 'exosphere', label: '散逸层 500 km 以上', color: '#14264c' },
 ]
 
 const pressureExamples = [
@@ -846,8 +858,8 @@ const showPhenomena = ref(true)
 const showWeather = ref(true)
 const showVehicles = ref(true)
 const particleDensity = ref(80)
-const atmosphereOpacity = ref(0.46)
-const animationSpeed = ref(1)
+const atmosphereOpacity = ref(0.58)
+const SCENE_ANIMATION_SPEED = 1
 
 const currentLayer = ref<LayerKey>('troposphere')
 const currentView = ref<ViewKey>('overview')
@@ -900,7 +912,9 @@ const disposableTextures = new Set<THREE.Texture>()
 
 const clickableMeshes: THREE.Mesh[] = []
 const layerMeshes = new Map<LayerKey, THREE.Mesh>()
-const majorLayerMaterials = new Map<string, THREE.MeshPhysicalMaterial>()
+const majorLayerMaterials = new Map<LayerKey, THREE.MeshPhysicalMaterial>()
+const rangeHighlightMeshes = new Map<LayerKey, THREE.Mesh>()
+const rangeBracketGroups = new Map<LayerKey, THREE.Group>()
 const labels: CSS2DObject[] = []
 const labelGroups = new Map<string, CSS2DObject[]>()
 
@@ -915,7 +929,9 @@ let phenomenaGroup: THREE.Group | null = null
 let particleGroup: THREE.Group | null = null
 let starField: THREE.Points | null = null
 let cloudGroup: THREE.Group | null = null
-let auroraMesh: THREE.Mesh | null = null
+let auroraGroup: THREE.Group | null = null
+const auroraMaterials: THREE.MeshBasicMaterial[] = []
+const auroraTextures: THREE.Texture[] = []
 let satelliteGroup: THREE.Group | null = null
 let shuttleGroup: THREE.Group | null = null
 let planeGroup: THREE.Group | null = null
@@ -1063,8 +1079,9 @@ function createRoundedRectTexture(
     context.fillStyle = gradient
     context.fillRect(0, 0, 512, 512)
 
-    const radial = context.createRadialGradient(256, 180, 20, 256, 180, 330)
-    radial.addColorStop(0, `${glowColor}aa`)
+    const radial = context.createRadialGradient(256, 185, 18, 256, 185, 350)
+    radial.addColorStop(0, `${glowColor}72`)
+    radial.addColorStop(0.55, `${glowColor}28`)
     radial.addColorStop(1, `${glowColor}00`)
     context.fillStyle = radial
     context.fillRect(0, 0, 512, 512)
@@ -1072,7 +1089,7 @@ function createRoundedRectTexture(
 }
 
 function createAtmosphereLayer(
-  key: string,
+  key: LayerKey,
   bottomAltitude: number,
   topAltitude: number,
   colorTop: string,
@@ -1085,28 +1102,40 @@ function createAtmosphereLayer(
 
   const bottomY = altitudeToY(bottomAltitude)
   const topY = altitudeToY(topAltitude)
-  const height = Math.max(0.2, topY - bottomY)
+  const height = Math.max(0.02, topY - bottomY)
 
   const texture = createRoundedRectTexture(colorTop, colorBottom, colorTop)
   texture.wrapS = THREE.ClampToEdgeWrapping
   texture.wrapT = THREE.ClampToEdgeWrapping
 
+  /*
+   * 五个温度分层使用同一宽度和深度，并让上下表面精确贴合。
+   * 不再给每个分层单独绘制外框，避免透明面叠加后出现“空隙”。
+   */
   const geometry = registerGeometry(new THREE.BoxGeometry(10.8, height, 5.8))
+  const baseOpacity = THREE.MathUtils.clamp(
+    atmosphereOpacity.value * opacityMultiplier + 0.16,
+    0.42,
+    0.84,
+  )
   const material = registerMaterial(
     new THREE.MeshPhysicalMaterial({
       map: texture,
       color: 0xffffff,
       transparent: true,
-      opacity: atmosphereOpacity.value * opacityMultiplier,
-      roughness: 0.58,
+      opacity: baseOpacity,
+      roughness: 0.72,
       metalness: 0,
-      transmission: 0.04,
+      transmission: 0,
       depthWrite: false,
       side: THREE.DoubleSide,
       emissive: new THREE.Color(colorBottom),
-      emissiveIntensity: 0.08,
+      emissiveIntensity: 0.12,
+      clearcoat: 0.08,
+      clearcoatRoughness: 0.75,
     }),
   )
+  material.userData.baseOpacityMultiplier = opacityMultiplier
 
   const mesh = new THREE.Mesh(geometry, material)
   mesh.position.y = bottomY + height / 2
@@ -1115,34 +1144,80 @@ function createAtmosphereLayer(
 
   atmosphereGroup.add(mesh)
   majorLayerMaterials.set(key, material)
-
-  const wireMaterial = registerMaterial(
-    new THREE.LineBasicMaterial({
-      color: colorTop,
-      transparent: true,
-      opacity: 0.34,
-    }),
-  )
-
-  const edges = new THREE.LineSegments(
-    registerGeometry(new THREE.EdgesGeometry(geometry)),
-    wireMaterial,
-  )
-  edges.position.copy(mesh.position)
-  edges.renderOrder = 2
-  atmosphereGroup.add(edges)
+  layerMeshes.set(key, mesh)
+  clickableMeshes.push(mesh)
 
   return mesh
 }
 
-function createOverlayLayer(
-  key: LayerKey,
+function createLayerBoundary(altitude: number) {
+  if (!atmosphereGroup) {
+    return
+  }
+
+  const y = altitudeToY(altitude)
+  const points = [
+    new THREE.Vector3(-5.4, y, 2.91),
+    new THREE.Vector3(5.4, y, 2.91),
+    new THREE.Vector3(5.4, y, -2.91),
+    new THREE.Vector3(-5.4, y, -2.91),
+  ]
+
+  const geometry = registerGeometry(
+    new THREE.BufferGeometry().setFromPoints([
+      points[0],
+      points[1],
+      points[1],
+      points[2],
+      points[2],
+      points[3],
+      points[3],
+      points[0],
+    ]),
+  )
+  const material = registerMaterial(
+    new THREE.LineBasicMaterial({
+      color: '#a9d8f5',
+      transparent: true,
+      opacity: 0.46,
+    }),
+  )
+  const line = new THREE.LineSegments(geometry, material)
+  line.renderOrder = 5
+  atmosphereGroup.add(line)
+}
+
+function createModelFrame() {
+  if (!atmosphereGroup) {
+    return
+  }
+
+  const totalHeight = altitudeToY(3000)
+  const frameGeometry = registerGeometry(
+    new THREE.EdgesGeometry(
+      registerGeometry(new THREE.BoxGeometry(10.8, totalHeight, 5.8)),
+    ),
+  )
+  const frameMaterial = registerMaterial(
+    new THREE.LineBasicMaterial({
+      color: '#aee4ff',
+      transparent: true,
+      opacity: 0.58,
+    }),
+  )
+  const frame = new THREE.LineSegments(frameGeometry, frameMaterial)
+  frame.position.y = totalHeight / 2
+  frame.renderOrder = 6
+  atmosphereGroup.add(frame)
+
+  ;[12, 50, 85, 500].forEach(createLayerBoundary)
+}
+
+function createRangeHighlight(
+  key: 'ozone' | 'ionosphere',
   bottomAltitude: number,
   topAltitude: number,
   color: string,
-  width: number,
-  depth: number,
-  xOffset = 0,
 ) {
   if (!atmosphereGroup) {
     return null
@@ -1150,34 +1225,114 @@ function createOverlayLayer(
 
   const bottomY = altitudeToY(bottomAltitude)
   const topY = altitudeToY(topAltitude)
-  const height = Math.max(0.3, topY - bottomY)
+  const height = Math.max(0.02, topY - bottomY)
 
-  const geometry = registerGeometry(new THREE.BoxGeometry(width, height, depth))
+  const geometry = registerGeometry(new THREE.BoxGeometry(10.86, height, 5.86))
   const material = registerMaterial(
-    new THREE.MeshPhysicalMaterial({
+    new THREE.MeshBasicMaterial({
       color,
       transparent: true,
-      opacity: Math.min(0.55, atmosphereOpacity.value + 0.04),
-      roughness: 0.3,
-      metalness: 0,
-      transmission: 0.08,
+      opacity: 0,
       depthWrite: false,
-      side: THREE.DoubleSide,
-      emissive: new THREE.Color(color),
-      emissiveIntensity: 0.26,
+      depthTest: true,
+      /*
+       * 只绘制范围体的背面，让高亮色留在自然现象和飞行器之后。
+       * 这样选中臭氧层或电离层时仍能看清流星、极光、飞机等对象。
+       */
+      side: THREE.BackSide,
+      blending: THREE.NormalBlending,
     }),
   )
 
   const mesh = new THREE.Mesh(geometry, material)
-  mesh.position.set(xOffset, bottomY + height / 2, 0)
-  mesh.renderOrder = 4
+  mesh.position.y = bottomY + height / 2
+  mesh.renderOrder = 0
   mesh.userData.layerKey = key
 
   atmosphereGroup.add(mesh)
+  rangeHighlightMeshes.set(key, mesh)
   layerMeshes.set(key, mesh)
-  clickableMeshes.push(mesh)
 
   return mesh
+}
+
+function createRangeBracket(
+  key: 'ozone' | 'ionosphere',
+  labelText: string,
+  bottomAltitude: number,
+  topAltitude: number,
+  color: string,
+  x: number,
+) {
+  if (!atmosphereGroup) {
+    return
+  }
+
+  const group = new THREE.Group()
+  const bottomY = altitudeToY(bottomAltitude)
+  const topY = altitudeToY(topAltitude)
+  const centerY = (bottomY + topY) / 2
+  const z = 3.18
+  const labelGap = Math.min(0.9, Math.max(0.48, (topY - bottomY) * 0.12))
+
+  const lineMaterial = registerMaterial(
+    new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.92,
+    }),
+  )
+
+  const upperLine = new THREE.Line(
+    registerGeometry(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(x, centerY + labelGap, z),
+        new THREE.Vector3(x, topY - 0.18, z),
+      ]),
+    ),
+    lineMaterial,
+  )
+  const lowerLine = new THREE.Line(
+    registerGeometry(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(x, bottomY + 0.18, z),
+        new THREE.Vector3(x, centerY - labelGap, z),
+      ]),
+    ),
+    lineMaterial,
+  )
+  group.add(upperLine, lowerLine)
+
+  const arrowMaterial = registerMaterial(
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.96,
+      depthWrite: false,
+    }),
+  )
+  const arrowGeometry = registerGeometry(new THREE.ConeGeometry(0.13, 0.34, 12))
+
+  const bottomArrow = new THREE.Mesh(arrowGeometry, arrowMaterial)
+  bottomArrow.position.set(x, bottomY + 0.14, z)
+  bottomArrow.renderOrder = 7
+
+  const topArrow = new THREE.Mesh(arrowGeometry, arrowMaterial)
+  topArrow.position.set(x, topY - 0.14, z)
+  topArrow.rotation.z = Math.PI
+  topArrow.renderOrder = 7
+
+  group.add(bottomArrow, topArrow)
+  group.userData.layerKey = key
+  atmosphereGroup.add(group)
+  rangeBracketGroups.set(key, group)
+
+  addLabel(labelText, new THREE.Vector3(x, centerY, z + 0.03), {
+    className: `overlap-label ${key}-label`,
+    group: `range-label-${key}`,
+    accent: color,
+    parent: atmosphereGroup,
+  })
 }
 
 function createLayerModel() {
@@ -1185,109 +1340,82 @@ function createLayerModel() {
   atmosphereGroup.position.set(0, 0, 0)
   scene?.add(atmosphereGroup)
 
-  const troposphereMesh = createAtmosphereLayer(
+  createAtmosphereLayer(
     'troposphere',
     0,
     12,
-    '#d7f4ff',
-    '#4da7e8',
+    '#a8e7f4',
+    '#55add3',
     1,
   )
-
-  const stratosphereMesh = createAtmosphereLayer(
+  createAtmosphereLayer(
     'stratosphere',
     12,
     50,
-    '#5f8ce8',
-    '#3154a5',
-    0.96,
+    '#e6c491',
+    '#b77c48',
+    0.98,
   )
-
   createAtmosphereLayer(
     'mesosphere',
     50,
     85,
-    '#314573',
-    '#111a3f',
-    0.92,
+    '#557ab5',
+    '#274471',
+    0.94,
   )
-
-  const thermosphereMesh = createAtmosphereLayer(
+  createAtmosphereLayer(
     'thermosphere',
     85,
     500,
-    '#271c70',
-    '#07112f',
-    0.86,
+    '#6d69c4',
+    '#2f316f',
+    0.9,
   )
-
-  const exosphereMesh = createAtmosphereLayer(
+  createAtmosphereLayer(
     'exosphere',
     500,
     3000,
-    '#071023',
-    '#01030b',
-    0.72,
+    '#233b6a',
+    '#071226',
+    0.8,
   )
 
-  if (troposphereMesh) {
-    layerMeshes.set('troposphere', troposphereMesh)
-    clickableMeshes.push(troposphereMesh)
-  }
+  createModelFrame()
 
-  if (stratosphereMesh) {
-    layerMeshes.set('stratosphere', stratosphereMesh)
-    clickableMeshes.push(stratosphereMesh)
-  }
+  /*
+   * 臭氧层和电离层属于“重叠范围”，不再用整块颜色覆盖基础分层。
+   * 默认只显示双向箭头和文字；点击右侧对应按钮时，范围体积才发光高亮。
+   */
+  createRangeHighlight('ozone', 15, 35, '#ffad45')
+  createRangeHighlight('ionosphere', 60, 1000, '#4ee8ff')
+  createRangeBracket('ozone', '臭氧层', 15, 35, '#ffad45', 4.25)
+  createRangeBracket('ionosphere', '电离层', 60, 1000, '#4ee8ff', 4.82)
 
-  if (thermosphereMesh) {
-    layerMeshes.set('thermosphere', thermosphereMesh)
-    clickableMeshes.push(thermosphereMesh)
-  }
+  const layerLabelSpecs: Array<{
+    key: Exclude<LayerKey, 'ozone' | 'ionosphere'>
+    text: string
+    altitude: number
+    accent: string
+  }> = [
+    { key: 'exosphere', text: '散逸层', altitude: 1500, accent: '#dbeafe' },
+    { key: 'thermosphere', text: '热层', altitude: 220, accent: '#c4b5fd' },
+    { key: 'mesosphere', text: '中间层', altitude: 67, accent: '#b9d5ff' },
+    { key: 'stratosphere', text: '平流层', altitude: 30, accent: '#ffe0ac' },
+    { key: 'troposphere', text: '对流层', altitude: 6, accent: '#d9f8ff' },
+  ]
 
-  if (exosphereMesh) {
-    layerMeshes.set('exosphere', exosphereMesh)
-    clickableMeshes.push(exosphereMesh)
-  }
-
-  createOverlayLayer('ozone', 15, 35, '#ff9f43', 10.95, 6.02, -0.02)
-  createOverlayLayer('ionosphere', 60, 1000, '#4ee8ff', 11.15, 6.16, 0.04)
-
-  addLabel(
-    '散逸层',
-    new THREE.Vector3(-4.3, altitudeToY(1600), 3.18),
-    { className: 'layer-name-label', group: 'labels', accent: '#dbeafe' },
-  )
-  addLabel(
-    '热层',
-    new THREE.Vector3(-4.3, altitudeToY(220), 3.18),
-    { className: 'layer-name-label', group: 'labels', accent: '#a78bfa' },
-  )
-  addLabel(
-    '中间层',
-    new THREE.Vector3(-4.3, altitudeToY(66), 3.18),
-    { className: 'layer-name-label', group: 'labels', accent: '#93c5fd' },
-  )
-  addLabel(
-    '平流层',
-    new THREE.Vector3(-4.3, altitudeToY(30), 3.18),
-    { className: 'layer-name-label', group: 'labels', accent: '#60a5fa' },
-  )
-  addLabel(
-    '对流层',
-    new THREE.Vector3(-4.3, altitudeToY(6), 3.18),
-    { className: 'layer-name-label', group: 'labels', accent: '#8fd3ff' },
-  )
-  addLabel(
-    '臭氧层',
-    new THREE.Vector3(3.4, altitudeToY(24), 3.34),
-    { className: 'overlap-label ozone-label', group: 'labels', accent: '#ffb661' },
-  )
-  addLabel(
-    '电离层',
-    new THREE.Vector3(3.4, altitudeToY(180), 3.34),
-    { className: 'overlap-label ionosphere-label', group: 'labels', accent: '#67e8f9' },
-  )
+  layerLabelSpecs.forEach((item) => {
+    addLabel(
+      item.text,
+      new THREE.Vector3(-4.28, altitudeToY(item.altitude), 3.18),
+      {
+        className: 'layer-name-label',
+        group: `layer-label-${item.key}`,
+        accent: item.accent,
+      },
+    )
+  })
 }
 
 function createMountainGeometry() {
@@ -1825,7 +1953,7 @@ function createVehicles() {
   scene?.add(vehicleGroup)
 
   planeGroup = createAirplane()
-  planeGroup.position.set(-0.7, altitudeToY(10.8), 0.65)
+  planeGroup.position.set(-0.7, altitudeToY(18), 0.65)
   vehicleGroup.add(planeGroup)
 
   balloonGroup = createBalloon()
@@ -1868,35 +1996,91 @@ function createVehicles() {
 
 function createMeteor(index: number) {
   const meteor = new THREE.Group()
+  const length = 1.05 + Math.random() * 0.72
+  const width = 0.14 + (index % 3) * 0.025
+
+  const trailTexture = createCanvasTexture(512, 96, (context) => {
+    context.clearRect(0, 0, 512, 96)
+
+    const gradient = context.createLinearGradient(0, 0, 512, 0)
+    gradient.addColorStop(0, 'rgba(190,225,255,0)')
+    gradient.addColorStop(0.28, 'rgba(200,232,255,0.08)')
+    gradient.addColorStop(0.72, 'rgba(255,238,184,0.46)')
+    gradient.addColorStop(1, 'rgba(255,255,255,0.98)')
+
+    context.strokeStyle = gradient
+    context.lineWidth = 22
+    context.lineCap = 'round'
+    context.beginPath()
+    context.moveTo(12, 48)
+    context.lineTo(504, 48)
+    context.stroke()
+
+    const glow = context.createLinearGradient(0, 0, 512, 0)
+    glow.addColorStop(0, 'rgba(255,255,255,0)')
+    glow.addColorStop(0.82, 'rgba(255,245,198,0.1)')
+    glow.addColorStop(1, 'rgba(255,255,255,0.72)')
+    context.strokeStyle = glow
+    context.lineWidth = 44
+    context.beginPath()
+    context.moveTo(80, 48)
+    context.lineTo(500, 48)
+    context.stroke()
+  })
+
+  const trailMaterial = registerMaterial(
+    new THREE.MeshBasicMaterial({
+      map: trailTexture,
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  )
+  const trail = new THREE.Mesh(
+    registerGeometry(new THREE.PlaneGeometry(length, width)),
+    trailMaterial,
+  )
+  trail.position.set(-length * 0.48, length * 0.27, 0)
+  trail.rotation.z = -0.5
+
+  const glowTexture = createCanvasTexture(128, 128, (context) => {
+    const radial = context.createRadialGradient(64, 64, 1, 64, 64, 62)
+    radial.addColorStop(0, 'rgba(255,255,255,1)')
+    radial.addColorStop(0.18, 'rgba(255,245,194,0.94)')
+    radial.addColorStop(0.48, 'rgba(139,205,255,0.42)')
+    radial.addColorStop(1, 'rgba(139,205,255,0)')
+    context.fillStyle = radial
+    context.fillRect(0, 0, 128, 128)
+  })
+
+  const glowMaterial = registerMaterial(
+    new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: '#ffffff',
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  )
+  const glow = new THREE.Sprite(glowMaterial)
+  glow.scale.set(0.38, 0.38, 1)
 
   const coreMaterial = registerMaterial(
-    new THREE.MeshBasicMaterial({ color: '#ffffff' }),
+    new THREE.MeshBasicMaterial({ color: '#fffdf0' }),
   )
   const core = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(0.055 + (index % 3) * 0.012, 10, 8)),
+    registerGeometry(new THREE.SphereGeometry(0.052 + (index % 3) * 0.01, 12, 9)),
     coreMaterial,
   )
 
-  const trailGeometry = registerGeometry(
-    new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(-0.8 - Math.random() * 0.7, 0.55 + Math.random() * 0.5, 0),
-    ]),
-  )
-  const trailMaterial = registerMaterial(
-    new THREE.LineBasicMaterial({
-      color: index % 2 === 0 ? '#fff6c7' : '#cde9ff',
-      transparent: true,
-      opacity: 0.74,
-    }),
-  )
-  const trail = new THREE.Line(trailGeometry, trailMaterial)
-
-  meteor.add(core, trail)
-  meteor.userData.speed = 0.65 + Math.random() * 0.72
-  meteor.userData.startX = -3.5 + Math.random() * 7
-  meteor.userData.startY = altitudeToY(70) + Math.random() * 2.2
-  meteor.userData.startZ = -1.8 + Math.random() * 3.6
+  meteor.add(trail, glow, core)
+  meteor.userData.speed = 0.72 + Math.random() * 0.78
+  meteor.userData.startX = -4.8 + Math.random() * 6.5
+  meteor.userData.startY = altitudeToY(78) + Math.random() * 1.5
+  meteor.userData.startZ = -1.65 + Math.random() * 3.3
   meteor.position.set(
     meteor.userData.startX,
     meteor.userData.startY,
@@ -1907,68 +2091,120 @@ function createMeteor(index: number) {
 }
 
 function createAurora() {
-  const widthSegments = 80
-  const heightSegments = 14
-  const geometry = registerGeometry(new THREE.PlaneGeometry(6.6, 2.4, widthSegments, heightSegments))
-  const positions = geometry.attributes.position
+  const group = new THREE.Group()
+  const ribbonCount = 5
 
-  for (let index = 0; index < positions.count; index += 1) {
-    const x = positions.getX(index)
-    const y = positions.getY(index)
-    positions.setZ(index, Math.sin(x * 1.25 + y * 0.8) * 0.28)
+  for (let ribbonIndex = 0; ribbonIndex < ribbonCount; ribbonIndex += 1) {
+    const width = 7.2
+    const height = 0.92 + ribbonIndex * 0.14
+    const widthSegments = 100
+    const heightSegments = 16
+    const geometry = registerGeometry(
+      new THREE.PlaneGeometry(width, height, widthSegments, heightSegments),
+    )
+    const positions = geometry.attributes.position
+    const phase = ribbonIndex * 0.82
+
+    for (let vertexIndex = 0; vertexIndex < positions.count; vertexIndex += 1) {
+      const x = positions.getX(vertexIndex)
+      const y = positions.getY(vertexIndex)
+      const normalizedY = y / height + 0.5
+      const curtain =
+        Math.sin(x * 1.05 + phase) * 0.26 +
+        Math.sin(x * 2.35 - phase * 0.55) * 0.09
+      const lowerWave = Math.sin(x * 0.72 + phase) * 0.13
+      positions.setZ(vertexIndex, curtain * (0.35 + normalizedY * 0.65))
+      positions.setY(vertexIndex, y + lowerWave * (1 - normalizedY))
+    }
+    geometry.computeVertexNormals()
+
+    const texture = createCanvasTexture(1024, 256, (context) => {
+      context.clearRect(0, 0, 1024, 256)
+
+      /*
+       * 极光改为更亮的绿色光幕。
+       * 仍保持上下透明和轻薄叠加，避免遮挡后方的飞行器、流星与分层颜色。
+       */
+      const vertical = context.createLinearGradient(0, 0, 0, 256)
+      vertical.addColorStop(0, 'rgba(116,255,138,0)')
+      vertical.addColorStop(0.12, 'rgba(108,255,132,0.22)')
+      vertical.addColorStop(0.4, 'rgba(74,255,108,0.94)')
+      vertical.addColorStop(0.68, 'rgba(120,255,146,0.64)')
+      vertical.addColorStop(1, 'rgba(130,255,154,0)')
+      context.fillStyle = vertical
+      context.fillRect(0, 0, 1024, 256)
+
+      for (let band = 0; band < 14; band += 1) {
+        const bandX = band * 82 + ribbonIndex * 16
+        const bandGradient = context.createLinearGradient(
+          bandX - 34,
+          0,
+          bandX + 46,
+          0,
+        )
+        bandGradient.addColorStop(0, 'rgba(210,255,218,0)')
+        bandGradient.addColorStop(0.5, 'rgba(192,255,202,0.38)')
+        bandGradient.addColorStop(1, 'rgba(210,255,218,0)')
+        context.fillStyle = bandGradient
+        context.fillRect(bandX - 34, 0, 80, 256)
+      }
+    })
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.ClampToEdgeWrapping
+    auroraTextures.push(texture)
+
+    const material = registerMaterial(
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        color: '#93ff8b',
+        transparent: true,
+        opacity: 0.52 + ribbonIndex * 0.08,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    )
+    auroraMaterials.push(material)
+
+    const ribbon = new THREE.Mesh(geometry, material)
+    ribbon.position.set(
+      -0.55 + ribbonIndex * 0.08,
+      (ribbonIndex - 2) * 0.18,
+      -1.45 + ribbonIndex * 0.34,
+    )
+    ribbon.rotation.set(-0.04, -0.08 + ribbonIndex * 0.04, -0.015)
+    ribbon.userData.baseY = ribbon.position.y
+    ribbon.userData.phase = phase
+    group.add(ribbon)
   }
 
-  geometry.computeVertexNormals()
-
-  const texture = createCanvasTexture(512, 256, (context) => {
-    const gradient = context.createLinearGradient(0, 0, 0, 256)
-    gradient.addColorStop(0, 'rgba(30,255,210,0)')
-    gradient.addColorStop(0.22, 'rgba(70,255,212,0.82)')
-    gradient.addColorStop(0.58, 'rgba(74,138,255,0.58)')
-    gradient.addColorStop(1, 'rgba(46,80,255,0)')
-    context.fillStyle = gradient
-    context.fillRect(0, 0, 512, 256)
-  })
-
-  const material = registerMaterial(
-    new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      opacity: 0.82,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    }),
-  )
-
-  const aurora = new THREE.Mesh(geometry, material)
-  aurora.position.set(-0.6, altitudeToY(180), -1.55)
-  aurora.rotation.set(-0.08, 0.18, -0.03)
-  return aurora
+  group.position.set(-0.25, altitudeToY(245), 0)
+  group.rotation.y = 0.04
+  return group
 }
 
 function createPhenomena() {
   phenomenaGroup = new THREE.Group()
   scene?.add(phenomenaGroup)
 
-  for (let index = 0; index < 16; index += 1) {
+  for (let index = 0; index < 18; index += 1) {
     const meteor = createMeteor(index)
     meteors.push(meteor)
     phenomenaGroup.add(meteor)
   }
 
-  auroraMesh = createAurora()
-  phenomenaGroup.add(auroraMesh)
+  auroraGroup = createAurora()
+  phenomenaGroup.add(auroraGroup)
 
-  addLabel('流星', new THREE.Vector3(2.4, altitudeToY(66), 2.9), {
+  addLabel('流星', new THREE.Vector3(2.25, altitudeToY(69), 2.95), {
     className: 'object-label',
     group: 'phenomena',
     accent: '#fff2c3',
   })
-  addLabel('极光', new THREE.Vector3(-1.7, altitudeToY(190), 2.95), {
+  addLabel('极光', new THREE.Vector3(-1.7, altitudeToY(250), 2.98), {
     className: 'object-label aurora-label',
     group: 'phenomena',
-    accent: '#69f8d0',
+    accent: '#b9ffce',
   })
 }
 
@@ -2158,11 +2394,17 @@ function createAxes() {
   })
 
   /*
-   * 教材右侧的密度轴与气压轴并列，并沿立方体右侧边缘略向外倾斜。
-   * 密度值采用 g·cm⁻³，刻度高度与典型标准大气高度对应。
+   * 密度轴移到模型最后方，并保持世界坐标中的竖直方向。
+   * x、z 坐标固定，避免原先上下端点不同导致的倾斜。
    */
-  const densityAxisBottom = new THREE.Vector3(6.78, 0, 2.62)
-  const densityAxisTop = new THREE.Vector3(7.58, altitudeToY(3000), 1.18)
+  const densityAxisX = 6.82
+  const densityAxisZ = -3.36
+  const densityAxisBottom = new THREE.Vector3(densityAxisX, 0, densityAxisZ)
+  const densityAxisTop = new THREE.Vector3(
+    densityAxisX,
+    altitudeToY(3000),
+    densityAxisZ,
+  )
   const densityAxisLine = new THREE.Line(
     registerGeometry(
       new THREE.BufferGeometry().setFromPoints([
@@ -2175,13 +2417,11 @@ function createAxes() {
   densityAxisGroup.add(densityAxisLine)
 
   const densityPointAtAltitude = (altitude: number) => {
-    const ratio = THREE.MathUtils.clamp(
-      altitudeToY(altitude) / altitudeToY(3000),
-      0,
-      1,
+    return new THREE.Vector3(
+      densityAxisX,
+      altitudeToY(altitude),
+      densityAxisZ,
     )
-
-    return densityAxisBottom.clone().lerp(densityAxisTop, ratio)
   }
 
   const densityTicks = [
@@ -2197,7 +2437,7 @@ function createAxes() {
 
   densityTicks.forEach((item) => {
     const point = densityPointAtAltitude(item.altitude)
-    const tickEnd = point.clone().add(new THREE.Vector3(0.38, 0, -0.12))
+    const tickEnd = point.clone().add(new THREE.Vector3(0.42, 0, 0))
     const tick = new THREE.Line(
       registerGeometry(
         new THREE.BufferGeometry().setFromPoints([
@@ -2209,7 +2449,7 @@ function createAxes() {
     )
     densityAxisGroup?.add(tick)
 
-    addLabel(item.label, tickEnd.clone().add(new THREE.Vector3(0.08, 0, -0.03)), {
+    addLabel(item.label, tickEnd.clone().add(new THREE.Vector3(0.08, 0, 0)), {
       className: 'axis-label density-axis-label',
       group: 'density-axis',
       accent: '#d9eefc',
@@ -2231,7 +2471,7 @@ function createAxes() {
     parent: pressureAxisGroup,
   })
 
-  addLabel('密度 / (g·cm⁻³)', densityAxisTop.clone().add(new THREE.Vector3(0.26, 0.62, -0.08)), {
+  addLabel('密度 / (g·cm⁻³)', densityAxisTop.clone().add(new THREE.Vector3(0.3, 0.62, 0)), {
     className: 'axis-title-label density-axis-title',
     group: 'density-axis',
     accent: '#d9eefc',
@@ -2355,32 +2595,120 @@ function createTemperatureCurve() {
 }
 
 function updateLayerHighlight() {
-  layerMeshes.forEach((mesh, key) => {
-    const material = mesh.material as THREE.MeshPhysicalMaterial
-    const active = key === currentLayer.value
+  const selected = currentLayer.value
+  const rangeSelected = selected === 'ozone' || selected === 'ionosphere'
 
-    if (key === 'ozone' || key === 'ionosphere') {
-      material.opacity = active
-        ? Math.min(0.72, atmosphereOpacity.value + 0.18)
-        : Math.min(0.48, atmosphereOpacity.value + 0.02)
-      material.emissiveIntensity = active ? 0.78 : 0.26
-      mesh.scale.set(active ? 1.025 : 1, 1, active ? 1.025 : 1)
-      return
-    }
-
-    material.opacity = active
-      ? Math.min(0.78, atmosphereOpacity.value + 0.18)
-      : atmosphereOpacity.value * 0.92
-    material.emissiveIntensity = active ? 0.42 : 0.08
-    mesh.scale.set(active ? 1.015 : 1, 1, active ? 1.015 : 1)
-  })
+  const majorRanges: Record<
+    Exclude<LayerKey, 'ozone' | 'ionosphere'>,
+    [number, number]
+  > = {
+    troposphere: [0, 12],
+    stratosphere: [12, 50],
+    mesosphere: [50, 85],
+    thermosphere: [85, 500],
+    exosphere: [500, 3000],
+  }
+  const overlapRanges: Record<'ozone' | 'ionosphere', [number, number]> = {
+    ozone: [15, 35],
+    ionosphere: [60, 1000],
+  }
 
   majorLayerMaterials.forEach((material, key) => {
-    const isDirectLayer = key === currentLayer.value
-    material.opacity = isDirectLayer
-      ? Math.min(0.76, atmosphereOpacity.value + 0.16)
-      : atmosphereOpacity.value * (key === 'exosphere' ? 0.72 : 0.92)
-    material.emissiveIntensity = isDirectLayer ? 0.38 : 0.08
+    const multiplier = Number(material.userData.baseOpacityMultiplier || 1)
+    const baseOpacity = THREE.MathUtils.clamp(
+      atmosphereOpacity.value * multiplier + 0.16,
+      0.42,
+      0.84,
+    )
+
+    let active = key === selected
+    let intersectsSelectedRange = false
+
+    if (rangeSelected) {
+      const [layerMin, layerMax] = majorRanges[
+        key as Exclude<LayerKey, 'ozone' | 'ionosphere'>
+      ]
+      const [rangeMin, rangeMax] = overlapRanges[
+        selected as 'ozone' | 'ionosphere'
+      ]
+      intersectsSelectedRange = layerMax > rangeMin && layerMin < rangeMax
+      active = intersectsSelectedRange
+    }
+
+    /*
+     * 当前层高亮时进一步提升亮度，但仍保持透明，避免前表面泛白发糊。
+     * 亮度主要来自同色系自发光，这样既能看清层内自然现象，也能保留各层本身颜色。
+     */
+    material.opacity = active
+      ? Math.min(0.8, baseOpacity + 0.015)
+      : Math.max(0.18, baseOpacity * 0.36)
+    material.emissiveIntensity = active ? 0.4 : 0.03
+    material.clearcoat = active ? 0.18 : 0.05
+    material.clearcoatRoughness = active ? 0.52 : 0.78
+  })
+
+  rangeHighlightMeshes.forEach((mesh, key) => {
+    const material = mesh.material as THREE.MeshBasicMaterial
+    const active = key === selected
+    /*
+     * 重叠层只添加非常轻的背面底色，高亮范围依靠箭头、标签和基础层亮度共同表达。
+     * 不再放大范围盒，避免叠层边缘发虚。
+     */
+    material.opacity = active
+      ? key === 'ionosphere'
+        ? 0.11
+        : 0.14
+      : 0
+    mesh.scale.set(1, 1, 1)
+  })
+
+  rangeBracketGroups.forEach((group, key) => {
+    const active = key === selected
+    group.children.forEach((child) => {
+      const material = (child as THREE.Mesh | THREE.Line).material as
+        | THREE.Material
+        | THREE.Material[]
+        | undefined
+
+      if (!material || Array.isArray(material)) {
+        return
+      }
+
+      material.opacity = active ? 1 : 0.62
+      material.transparent = true
+    })
+  })
+
+  const majorKeys: Array<Exclude<LayerKey, 'ozone' | 'ionosphere'>> = [
+    'troposphere',
+    'stratosphere',
+    'mesosphere',
+    'thermosphere',
+    'exosphere',
+  ]
+
+  majorKeys.forEach((key) => {
+    const group = labelGroups.get(`layer-label-${key}`) || []
+    let opacity = key === selected ? 1 : 0.48
+
+    if (rangeSelected) {
+      const [layerMin, layerMax] = majorRanges[key]
+      const [rangeMin, rangeMax] = overlapRanges[
+        selected as 'ozone' | 'ionosphere'
+      ]
+      opacity = layerMax > rangeMin && layerMin < rangeMax ? 0.82 : 0.38
+    }
+
+    group.forEach((label) => {
+      label.element.style.opacity = String(opacity)
+    })
+  })
+
+  ;(['ozone', 'ionosphere'] as const).forEach((key) => {
+    const group = labelGroups.get(`range-label-${key}`) || []
+    group.forEach((label) => {
+      label.element.style.opacity = key === selected ? '1' : '0.68'
+    })
   })
 }
 
@@ -2812,7 +3140,7 @@ function animateScene(time: number) {
     : 0
   lastSceneFrameTime = time
 
-  const speed = animationSpeed.value
+  const speed = SCENE_ANIMATION_SPEED
 
   animateCameraTween(time)
 
@@ -2859,22 +3187,39 @@ function animateScene(time: number) {
   }
 
   meteors.forEach((meteor, index) => {
-    meteor.position.x -= delta * speed * meteor.userData.speed
-    meteor.position.y -= delta * speed * meteor.userData.speed * 0.72
+    /*
+     * 流星由左上向右下运动，尾迹留在其左上方。
+     */
+    meteor.position.x += delta * speed * meteor.userData.speed
+    meteor.position.y -= delta * speed * meteor.userData.speed * 0.58
 
-    if (meteor.position.y < altitudeToY(48) || meteor.position.x < -5.4) {
+    if (meteor.position.y < altitudeToY(50) || meteor.position.x > 5.5) {
       meteor.position.set(
-        1.5 + Math.random() * 4,
-        altitudeToY(72) + Math.random() * 1.8 + index * 0.015,
-        -1.8 + Math.random() * 3.6,
+        -5.2 + Math.random() * 2.8,
+        altitudeToY(79) + Math.random() * 1.4 + index * 0.012,
+        -1.7 + Math.random() * 3.4,
       )
     }
   })
 
-  if (auroraMesh && showPhenomena.value) {
-    auroraMesh.rotation.y = 0.18 + Math.sin(time * 0.00022) * 0.12
-    const material = auroraMesh.material as THREE.MeshBasicMaterial
-    material.opacity = 0.7 + Math.sin(time * 0.0014) * 0.12
+  if (auroraGroup && showPhenomena.value) {
+    auroraGroup.rotation.y = 0.04 + Math.sin(time * 0.00022) * 0.045
+    auroraGroup.children.forEach((child, index) => {
+      child.position.y =
+        Number(child.userData.baseY || 0) +
+        Math.sin(time * 0.0011 + Number(child.userData.phase || 0)) * 0.08
+      child.rotation.z = -0.015 + Math.sin(time * 0.0007 + index) * 0.018
+    })
+
+    auroraMaterials.forEach((material, index) => {
+      material.opacity =
+        0.42 +
+        index * 0.075 +
+        Math.sin(time * 0.0012 + index * 0.7) * 0.07
+    })
+    auroraTextures.forEach((texture, index) => {
+      texture.offset.x = (time * 0.000018 * (index + 1)) % 1
+    })
   }
 
   ambientParticles.forEach((points, index) => {
@@ -3108,6 +3453,10 @@ function disposeScene() {
   clickableMeshes.length = 0
   layerMeshes.clear()
   majorLayerMaterials.clear()
+  rangeHighlightMeshes.clear()
+  rangeBracketGroups.clear()
+  auroraMaterials.length = 0
+  auroraTextures.length = 0
   meteors.length = 0
   rainDrops.length = 0
   ambientParticles.length = 0
@@ -3128,7 +3477,7 @@ function disposeScene() {
   particleGroup = null
   starField = null
   cloudGroup = null
-  auroraMesh = null
+  auroraGroup = null
   satelliteGroup = null
   shuttleGroup = null
   planeGroup = null
@@ -3727,14 +4076,14 @@ onBeforeUnmount(() => {
   font-size: clamp(7px, 0.55vw, 10px);
   letter-spacing: 0;
   white-space: nowrap;
-  transform: translate(0, -50%) rotate(-42deg);
+  transform: translate(0, -50%);
   transform-origin: left center;
 }
 
 :deep(.density-axis-title) {
   min-width: max-content;
   white-space: nowrap;
-  transform: translate(0, -50%) rotate(-38deg);
+  transform: translate(0, -50%);
   transform-origin: left center;
 }
 
