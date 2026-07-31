@@ -2092,28 +2092,34 @@ function createMeteor(index: number) {
 
 function createAurora() {
   const group = new THREE.Group()
-  const ribbonCount = 5
+  const ribbonCount = 2
 
   for (let ribbonIndex = 0; ribbonIndex < ribbonCount; ribbonIndex += 1) {
-    const width = 7.2
-    const height = 0.92 + ribbonIndex * 0.14
-    const widthSegments = 100
-    const heightSegments = 16
+    const width = 8.0
+    const height = 1.15
+    const widthSegments = 128
+    const heightSegments = 20
     const geometry = registerGeometry(
       new THREE.PlaneGeometry(width, height, widthSegments, heightSegments),
     )
     const positions = geometry.attributes.position
-    const phase = ribbonIndex * 0.82
+    const phase = ribbonIndex * 1.4
 
     for (let vertexIndex = 0; vertexIndex < positions.count; vertexIndex += 1) {
       const x = positions.getX(vertexIndex)
       const y = positions.getY(vertexIndex)
       const normalizedY = y / height + 0.5
+      // 多层正弦叠加形成不规则波浪幕布效果，模拟真实极光的帘幕状结构
       const curtain =
-        Math.sin(x * 1.05 + phase) * 0.26 +
-        Math.sin(x * 2.35 - phase * 0.55) * 0.09
-      const lowerWave = Math.sin(x * 0.72 + phase) * 0.13
-      positions.setZ(vertexIndex, curtain * (0.35 + normalizedY * 0.65))
+        Math.sin(x * 0.85 + phase) * 0.22 +
+        Math.sin(x * 1.6 - phase * 0.4) * 0.11 +
+        Math.sin(x * 3.1 + phase * 0.7) * 0.05 +
+        Math.cos(x * 0.55 - phase * 1.2) * 0.08
+      // 底部波动比顶部更大，模拟极光底部更亮的真实特征
+      const lowerWave =
+        Math.sin(x * 0.68 + phase) * 0.1 +
+        Math.sin(x * 1.9 + phase * 1.3) * 0.04
+      positions.setZ(vertexIndex, curtain * (0.3 + normalizedY * 0.7))
       positions.setY(vertexIndex, y + lowerWave * (1 - normalizedY))
     }
     geometry.computeVertexNormals()
@@ -2122,31 +2128,35 @@ function createAurora() {
       context.clearRect(0, 0, 1024, 256)
 
       /*
-       * 极光改为更亮的绿色光幕。
-       * 仍保持上下透明和轻薄叠加，避免遮挡后方的飞行器、流星与分层颜色。
+       * 真实极光以绿色 (557.7nm) 为主，底部最亮向上渐暗。
+       * 颜色使用纯正翡翠绿，避免偏白曝光；垂直渐变底部浓、顶部完全透明。
        */
       const vertical = context.createLinearGradient(0, 0, 0, 256)
-      vertical.addColorStop(0, 'rgba(116,255,138,0)')
-      vertical.addColorStop(0.12, 'rgba(108,255,132,0.22)')
-      vertical.addColorStop(0.4, 'rgba(74,255,108,0.94)')
-      vertical.addColorStop(0.68, 'rgba(120,255,146,0.64)')
-      vertical.addColorStop(1, 'rgba(130,255,154,0)')
+      vertical.addColorStop(0, 'rgba(40,210,80,0)')
+      vertical.addColorStop(0.08, 'rgba(30,200,70,0.15)')
+      vertical.addColorStop(0.25, 'rgba(0,220,70,0.72)')
+      vertical.addColorStop(0.48, 'rgba(0,230,60,0.96)')
+      vertical.addColorStop(0.7, 'rgba(10,200,60,0.55)')
+      vertical.addColorStop(0.88, 'rgba(20,180,65,0.14)')
+      vertical.addColorStop(1, 'rgba(30,160,70,0)')
       context.fillStyle = vertical
       context.fillRect(0, 0, 1024, 256)
 
-      for (let band = 0; band < 14; band += 1) {
-        const bandX = band * 82 + ribbonIndex * 16
-        const bandGradient = context.createLinearGradient(
-          bandX - 34,
-          0,
-          bandX + 46,
-          0,
-        )
-        bandGradient.addColorStop(0, 'rgba(210,255,218,0)')
-        bandGradient.addColorStop(0.5, 'rgba(192,255,202,0.38)')
-        bandGradient.addColorStop(1, 'rgba(210,255,218,0)')
+      // 不规则竖直条纹，模拟真实极光中亮度不均的帘幕条纹
+      const bandPositions = [0.04, 0.12, 0.22, 0.35, 0.44, 0.53, 0.61, 0.7, 0.78, 0.87, 0.95]
+      const bandWidths = [0.06, 0.09, 0.05, 0.11, 0.07, 0.08, 0.09, 0.05, 0.11, 0.06, 0.08]
+      const bandAlphas = [0.18, 0.32, 0.15, 0.38, 0.22, 0.28, 0.35, 0.16, 0.30, 0.20, 0.26]
+
+      for (let b = 0; b < bandPositions.length; b += 1) {
+        const cx = bandPositions[b] * 1024
+        const hw = (bandWidths[b] * 1024) / 2
+        const alpha = bandAlphas[b] + (Math.sin(b * 2.4 + ribbonIndex * 1.7) * 0.06)
+        const bandGradient = context.createLinearGradient(cx - hw, 0, cx + hw, 0)
+        bandGradient.addColorStop(0, 'rgba(0,200,50,0)')
+        bandGradient.addColorStop(0.5, `rgba(0,220,55,${alpha.toFixed(3)})`)
+        bandGradient.addColorStop(1, 'rgba(0,200,50,0)')
         context.fillStyle = bandGradient
-        context.fillRect(bandX - 34, 0, 80, 256)
+        context.fillRect(cx - hw, 0, hw * 2, 256)
       }
     })
     texture.wrapS = THREE.RepeatWrapping
@@ -2156,9 +2166,9 @@ function createAurora() {
     const material = registerMaterial(
       new THREE.MeshBasicMaterial({
         map: texture,
-        color: '#93ff8b',
+        color: '#00e050',
         transparent: true,
-        opacity: 0.52 + ribbonIndex * 0.08,
+        opacity: 0.38 + ribbonIndex * 0.06,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
@@ -2168,11 +2178,11 @@ function createAurora() {
 
     const ribbon = new THREE.Mesh(geometry, material)
     ribbon.position.set(
-      -0.55 + ribbonIndex * 0.08,
-      (ribbonIndex - 2) * 0.18,
-      -1.45 + ribbonIndex * 0.34,
+      -0.35 + ribbonIndex * 0.15,
+      (ribbonIndex - 0.5) * 0.22,
+      -1.1 + ribbonIndex * 0.65,
     )
-    ribbon.rotation.set(-0.04, -0.08 + ribbonIndex * 0.04, -0.015)
+    ribbon.rotation.set(-0.03, -0.05 + ribbonIndex * 0.06, -0.01)
     ribbon.userData.baseY = ribbon.position.y
     ribbon.userData.phase = phase
     group.add(ribbon)
@@ -2201,7 +2211,7 @@ function createPhenomena() {
     group: 'phenomena',
     accent: '#fff2c3',
   })
-  addLabel('极光', new THREE.Vector3(-1.7, altitudeToY(250), 2.98), {
+  addLabel('极光', new THREE.Vector3(-1.7, altitudeToY(248), 2.98), {
     className: 'object-label aurora-label',
     group: 'phenomena',
     accent: '#b9ffce',
@@ -3213,9 +3223,9 @@ function animateScene(time: number) {
 
     auroraMaterials.forEach((material, index) => {
       material.opacity =
-        0.42 +
-        index * 0.075 +
-        Math.sin(time * 0.0012 + index * 0.7) * 0.07
+        0.35 +
+        index * 0.06 +
+        Math.sin(time * 0.0012 + index * 0.7) * 0.06
     })
     auroraTextures.forEach((texture, index) => {
       texture.offset.x = (time * 0.000018 * (index + 1)) % 1
