@@ -195,6 +195,24 @@ export const routes = [
     component: () =>
       import('@/views/layers-inside-the-earth/index.vue'),
   },
+  {
+    path: '/solar-and-lunar-eclipses',
+    name: 'solar-and-lunar-eclipses',
+    meta: {
+      title: '日食和月食',
+    },
+    component: () =>
+      import('@/views/solar-and-lunar-eclipses/index.vue'),
+  },
+  {
+    path: '/tidal-phenomenon',
+    name: 'tidal-phenomenon',
+    meta: {
+      title: '潮汐现象',
+    },
+    component: () =>
+      import('@/views/tidal-phenomenon/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
