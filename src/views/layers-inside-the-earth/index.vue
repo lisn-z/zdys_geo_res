@@ -1,16 +1,10 @@
 <template>
-  <div
-    ref="pageRef"
-    class="layers-inside-the-earth-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="layers-inside-the-earth-container geo-template-page geo-page theme-dark"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
       <h1 class="page-title">地球内部圈层与地震波</h1>
@@ -20,11 +14,7 @@
           恢复默认
         </button>
 
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="toggleAllPanels"
-        >
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
           {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
         </button>
       </div>
@@ -44,14 +34,9 @@
           <section class="geo-card control-section">
             <h3 class="section-title">教学功能</h3>
             <div class="function-grid">
-              <button
-                v-for="item in stageOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn function-btn"
-                :class="{ active: stageMode === item.value }"
-                @click="setStageMode(item.value)"
-              >
+              <button v-for="item in stageOptions" :key="item.value" type="button"
+                class="theme-btn option-btn function-btn" :class="{ active: stageMode === item.value }"
+                @click="setStageMode(item.value)">
                 <span class="function-index">{{ item.index }}</span>
                 <span>{{ item.label }}</span>
               </button>
@@ -90,14 +75,9 @@
           <section v-if="stageMode === 'wave'" class="geo-card control-section">
             <h3 class="section-title">波动模型</h3>
             <div class="option-grid wave-mode-grid">
-              <button
-                v-for="item in waveModeOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn wave-mode-btn"
-                :class="{ active: waveMode === item.value }"
-                @click="setWaveMode(item.value)"
-              >
+              <button v-for="item in waveModeOptions" :key="item.value" type="button"
+                class="theme-btn option-btn wave-mode-btn" :class="{ active: waveMode === item.value }"
+                @click="setWaveMode(item.value)">
                 {{ item.label }}
               </button>
             </div>
@@ -106,25 +86,13 @@
               <span class="mini-control-label">振幅</span>
               <strong class="control-value">{{ waveAmplitude.toFixed(1) }}×</strong>
             </div>
-            <el-slider
-              v-model="waveAmplitude"
-              :min="0.4"
-              :max="2"
-              :step="0.1"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="waveAmplitude" :min="0.4" :max="2" :step="0.1" :show-tooltip="false" />
 
             <div class="section-title-row compact-title-row">
               <span class="mini-control-label">频率</span>
               <strong class="control-value">{{ waveFrequency.toFixed(1) }}×</strong>
             </div>
-            <el-slider
-              v-model="waveFrequency"
-              :min="0.4"
-              :max="2.4"
-              :step="0.1"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="waveFrequency" :min="0.4" :max="2.4" :step="0.1" :show-tooltip="false" />
           </section>
 
           <section class="geo-card control-section">
@@ -140,14 +108,8 @@
 
 
             <div class="option-grid view-grid">
-              <button
-                v-for="item in viewOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn"
-                :class="{ active: currentView === item.value }"
-                @click="applyView(item.value)"
-              >
+              <button v-for="item in viewOptions" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: currentView === item.value }" @click="applyView(item.value)">
                 {{ item.label }}
               </button>
             </div>
@@ -169,51 +131,32 @@
         </div>
 
         <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-left"
-          v-bind="leftCollapseAttrs"
-        >
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
           ‹
         </button>
       </aside>
 
       <section class="center-stage">
         <div class="stage-content earth-stage-content">
-          <div
-            v-show="stageMode === 'earth'"
-            ref="wedgeContainerRef"
-            class="scene-host three-host wedge-three-host"
-          ></div>
+          <div v-show="stageMode === 'earth'" ref="wedgeContainerRef" class="scene-host three-host wedge-three-host">
+          </div>
 
-          <div
-            v-show="stageMode === 'wave' && waveMode === 'body'"
-            ref="waveContainerRef"
-            class="scene-host three-host wave-three-host"
-          ></div>
+          <div v-show="stageMode === 'wave' && waveMode === 'body'" ref="waveContainerRef"
+            class="scene-host three-host wave-three-host"></div>
 
-          <canvas
-            v-show="stageMode === 'wave' && waveMode === 'surface'"
-            ref="surfaceWaveCanvasRef"
-            class="surface-wave-canvas"
-          ></canvas>
+          <canvas v-show="stageMode === 'wave' && waveMode === 'surface'" ref="surfaceWaveCanvasRef"
+            class="surface-wave-canvas"></canvas>
 
           <div v-show="stageMode === 'seismic'" class="seismic-stage">
-            <button
-              type="button"
-              class="seismic-demo-launch-btn"
-              @click="openSeismicPropagationDemo"
-            >
-              <el-icon><VideoPlay /></el-icon>
+            <button type="button" class="seismic-demo-launch-btn" @click="openSeismicPropagationDemo">
+              <el-icon>
+                <VideoPlay />
+              </el-icon>
               <span>地震传播演示</span>
             </button>
 
             <div class="seismic-reference-frame">
-              <img
-                class="seismic-reference-image"
-                :src="SEISMIC_REFERENCE_IMAGE"
-                alt="地震波传播速度与地球内部圈层示意图"
-              />
+              <img class="seismic-reference-image" :src="SEISMIC_REFERENCE_IMAGE" alt="地震波传播速度与地球内部圈层示意图" />
 
               <section class="seismic-chart-card seismogram-card seismic-overlay-card">
                 <div class="static-card-title">某次地震波谱示意图</div>
@@ -222,18 +165,11 @@
             </div>
           </div>
 
-          <div
-            v-show="stageMode === 'lithosphere'"
-            ref="lithosphereContainerRef"
-            class="scene-host three-host lithosphere-three-host"
-          ></div>
+          <div v-show="stageMode === 'lithosphere'" ref="lithosphereContainerRef"
+            class="scene-host three-host lithosphere-three-host"></div>
 
           <Transition name="seismic-demo-fade">
-            <section
-              v-if="showSeismicPropagationDemo"
-              class="seismic-demo-overlay"
-              aria-label="地震波在地球内部传播演示"
-            >
+            <section v-if="showSeismicPropagationDemo" class="seismic-demo-overlay" aria-label="地震波在地球内部传播演示">
               <div class="seismic-demo-shell">
                 <header class="seismic-demo-header">
                   <div class="seismic-demo-heading">
@@ -244,50 +180,31 @@
 
                   <div class="seismic-demo-controls">
                     <div class="seismic-demo-speed-group" aria-label="演示速度">
-                      <button
-                        v-for="item in seismicDemoSpeedOptions"
-                        :key="item"
-                        type="button"
-                        :class="{ active: seismicDemoSpeed === item }"
-                        @click="seismicDemoSpeed = item"
-                      >
+                      <button v-for="item in seismicDemoSpeedOptions" :key="item" type="button"
+                        :class="{ active: seismicDemoSpeed === item }" @click="seismicDemoSpeed = item">
                         {{ item }}×
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      class="seismic-demo-control-btn"
-                      @click="restartSeismicPropagationDemo"
-                    >
+                    <button type="button" class="seismic-demo-control-btn" @click="restartSeismicPropagationDemo">
                       ↺ 重新演示
                     </button>
-                    <button
-                      type="button"
-                      class="seismic-demo-control-btn primary"
-                      @click="seismicDemoPlaying = !seismicDemoPlaying"
-                    >
+                    <button type="button" class="seismic-demo-control-btn primary"
+                      @click="seismicDemoPlaying = !seismicDemoPlaying">
                       <el-icon>
                         <VideoPause v-if="seismicDemoPlaying" />
                         <VideoPlay v-else />
                       </el-icon>
                       {{ seismicDemoPlaying ? '暂停' : '继续' }}
                     </button>
-                    <button
-                      type="button"
-                      class="seismic-demo-close-btn"
-                      aria-label="关闭地震传播演示"
-                      @click="closeSeismicPropagationDemo"
-                    >
+                    <button type="button" class="seismic-demo-close-btn" aria-label="关闭地震传播演示"
+                      @click="closeSeismicPropagationDemo">
                       ×
                     </button>
                   </div>
                 </header>
 
                 <div class="seismic-demo-canvas-wrap">
-                  <canvas
-                    ref="seismicPropagationCanvasRef"
-                    class="seismic-propagation-canvas"
-                  ></canvas>
+                  <canvas ref="seismicPropagationCanvasRef" class="seismic-propagation-canvas"></canvas>
                 </div>
 
                 <footer class="seismic-demo-footer">
@@ -314,39 +231,24 @@
             <small>{{ currentStageMeta.subtitle }}</small>
           </div>
 
-          <div
-            v-if="stageMode === 'wave' && waveMode === 'body'"
-            class="stage-legend body-wave-legend"
-          >
+          <div v-if="stageMode === 'wave' && waveMode === 'body'" class="stage-legend body-wave-legend">
             <span><i class="legend-dot longitudinal-dot"></i>纵波</span>
             <span><i class="legend-dot transverse-dot"></i>横波</span>
           </div>
 
-          <div
-            v-if="stageMode === 'wave' && waveMode === 'body'"
-            class="body-wave-label body-wave-label-top"
-          >
+          <div v-if="stageMode === 'wave' && waveMode === 'body'" class="body-wave-label body-wave-label-top">
             纵波（P 波）：压缩——伸张
           </div>
 
-          <div
-            v-if="stageMode === 'wave' && waveMode === 'body'"
-            class="body-wave-label body-wave-label-bottom"
-          >
+          <div v-if="stageMode === 'wave' && waveMode === 'body'" class="body-wave-label body-wave-label-bottom">
             横波（S 波）：垂直传播方向
           </div>
 
         </div>
 
         <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="isPlaying = !isPlaying"
-          >
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -358,23 +260,12 @@
               <span>{{ timelineTitle }}</span>
               <strong>{{ Math.round(progress) }}%</strong>
             </div>
-            <el-slider
-              v-model="progress"
-              :min="0"
-              :max="100"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" />
           </div>
 
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
@@ -394,26 +285,16 @@
           <section class="geo-card knowledge-selector-card">
             <h3 class="section-title">地球内部三大圈层</h3>
             <div class="knowledge-tab-grid">
-              <button
-                v-for="item in knowledgeTabs"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn knowledge-tab-btn"
-                :class="{ active: selectedKnowledge === item.value }"
-                @click="selectedKnowledge = item.value"
-              >
+              <button v-for="item in knowledgeTabs" :key="item.value" type="button"
+                class="theme-btn option-btn knowledge-tab-btn" :class="{ active: selectedKnowledge === item.value }"
+                @click="selectedKnowledge = item.value">
                 {{ item.label }}
               </button>
             </div>
           </section>
 
           <div class="data-grid layer-data-grid">
-            <article
-              v-for="item in dataCards"
-              :key="item.label"
-              class="geo-card data-card"
-              :class="item.className"
-            >
+            <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="item.className">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
               <small>{{ item.description }}</small>
@@ -468,30 +349,18 @@
         </div>
 
         <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-right"
-          v-bind="rightCollapseAttrs"
-        >
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
           ›
         </button>
       </aside>
 
-      <button
-        v-if="hasLeftPanel && leftCollapsed"
-        type="button"
-        class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs"
-      >
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+        v-bind="leftEntryAttrs">
         ›
       </button>
 
-      <button
-        v-if="hasRightPanel && rightCollapsed"
-        type="button"
-        class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs"
-      >
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+        v-bind="rightEntryAttrs">
         ‹
       </button>
     </main>
@@ -705,15 +574,15 @@ const currentStageMeta = computed(() => {
   if (stageMode.value === 'wave') {
     return waveMode.value === 'body'
       ? {
-          eyebrow: 'BODY WAVE',
-          title: '体波：纵波与横波三维动态模型',
-          subtitle: '上方展示纵波压缩—伸张，下方展示横波垂直传播方向振动',
-        }
+        eyebrow: 'BODY WAVE',
+        title: '体波：纵波与横波三维动态模型',
+        subtitle: '上方展示纵波压缩—伸张，下方展示横波垂直传播方向振动',
+      }
       : {
-          eyebrow: 'SURFACE WAVE',
-          title: '面波：纵波与横波二维动态模型',
-          subtitle: '对比振幅、频率、波长和质点振动方向',
-        }
+        eyebrow: 'SURFACE WAVE',
+        title: '面波：纵波与横波二维动态模型',
+        subtitle: '对比振幅、频率、波长和质点振动方向',
+      }
   }
 
   if (stageMode.value === 'lithosphere') {
@@ -1230,26 +1099,26 @@ function addWedgeLabels(root: THREE.Group) {
     fontSize?: number
     stroke?: string
   }> = [
-    { text: '海平面', position: [4.35, 4.82, 2.18], scale: 0.62, color: '#0072cc' },
-    { text: '莫霍面', position: [-4.56, 3.63, 2.18], scale: 0.56, color: '#0049d8' },
-    { text: '平均约17千米', position: [-4.34, 3.94, 2.18], scale: 0.52 },
-    { text: '50千米', position: [-4.05, 3.42, 2.18], scale: 0.52 },
-    { text: '400千米', position: [-3.8, 2.67, 2.18], scale: 0.52 },
-    { text: '1 000千米', position: [-3.3, 1.2, 2.18], scale: 0.56 },
-    { text: '古登堡面', position: [-2.68, -1.43, 2.18], scale: 0.56, color: '#0049d8' },
-    { text: '2 900千米', position: [-2.1, -1.06, 2.18], scale: 0.56 },
-    { text: '5 100千米', position: [-0.78, -4.25, 2.18], scale: 0.56 },
-    { text: '地壳（固态）', position: [1.5, 3.88, 2.2], scale: 0.68 },
-    { text: '岩石圈', position: [-0.25, 3.48, 2.2], scale: 0.64 },
-    { text: '（地壳与上地幔顶部）', position: [-0.25, 3.1, 2.2], scale: 0.54, fontSize: 70 },
-    { text: '上地幔', position: [2.6, 2.22, 2.2], scale: 0.66 },
-    { text: '软流层', position: [4.15, 2.91, 2.2], scale: 0.66 },
-    { text: '地幔（固态）', position: [0.15, 1.52, 2.2], scale: 0.69 },
-    { text: '下地幔', position: [3.12, 0.38, 2.2], scale: 0.65 },
-    { text: '外核（接近液态）', position: [1.22, -2.73, 2.2], scale: 0.69 },
-    { text: '地核', position: [2.18, -3.62, 2.2], scale: 0.66 },
-    { text: '内核（固态）', position: [0.75, -4.85, 2.2], scale: 0.66 },
-  ]
+      { text: '海平面', position: [4.35, 4.82, 2.18], scale: 0.62, color: '#0072cc' },
+      { text: '莫霍面', position: [-4.56, 3.63, 2.18], scale: 0.56, color: '#0049d8' },
+      { text: '平均约17千米', position: [-4.34, 3.94, 2.18], scale: 0.52 },
+      { text: '50千米', position: [-4.05, 3.42, 2.18], scale: 0.52 },
+      { text: '400千米', position: [-3.8, 2.67, 2.18], scale: 0.52 },
+      { text: '1 000千米', position: [-3.3, 1.2, 2.18], scale: 0.56 },
+      { text: '古登堡面', position: [-2.68, -1.43, 2.18], scale: 0.56, color: '#0049d8' },
+      { text: '2 900千米', position: [-2.1, -1.06, 2.18], scale: 0.56 },
+      { text: '5 100千米', position: [-0.78, -4.25, 2.18], scale: 0.56 },
+      { text: '地壳（固态）', position: [1.5, 3.88, 2.2], scale: 0.68 },
+      { text: '岩石圈', position: [-0.25, 3.48, 2.2], scale: 0.64 },
+      { text: '（地壳与上地幔顶部）', position: [-0.25, 3.1, 2.2], scale: 0.54, fontSize: 70 },
+      { text: '上地幔', position: [2.6, 2.22, 2.2], scale: 0.66 },
+      { text: '软流层', position: [4.15, 2.91, 2.2], scale: 0.66 },
+      { text: '地幔（固态）', position: [0.15, 1.52, 2.2], scale: 0.69 },
+      { text: '下地幔', position: [3.12, 0.38, 2.2], scale: 0.65 },
+      { text: '外核（接近液态）', position: [1.22, -2.73, 2.2], scale: 0.69 },
+      { text: '地核', position: [2.18, -3.62, 2.2], scale: 0.66 },
+      { text: '内核（固态）', position: [0.75, -4.85, 2.2], scale: 0.66 },
+    ]
 
   labelItems.forEach((item) => {
     const label = createTextSprite(item.text, {
@@ -1766,18 +1635,18 @@ function drawSeismicSpeedDepthChart(
   const sDepth = Math.min(2900, phase * yMax)
   const pSpeed = interpolateCurve(pCurve, pDepth)
   const sSpeed = interpolateCurve(sCurve, sDepth)
-  ;[
-    { depth: pDepth, speed: pSpeed, color: '#1676f3' },
-    { depth: sDepth, speed: sSpeed, color: '#e84444' },
-  ].forEach((point) => {
-    ctx.beginPath()
-    ctx.arc(toX(point.speed), toY(point.depth), 4.5, 0, Math.PI * 2)
-    ctx.fillStyle = point.color
-    ctx.fill()
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 1.5
-    ctx.stroke()
-  })
+    ;[
+      { depth: pDepth, speed: pSpeed, color: '#1676f3' },
+      { depth: sDepth, speed: sSpeed, color: '#e84444' },
+    ].forEach((point) => {
+      ctx.beginPath()
+      ctx.arc(toX(point.speed), toY(point.depth), 4.5, 0, Math.PI * 2)
+      ctx.fillStyle = point.color
+      ctx.fill()
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+    })
 
   const mohoY = toY(33)
   const gutenbergY = toY(2900)
@@ -1785,12 +1654,12 @@ function drawSeismicSpeedDepthChart(
   ctx.setLineDash([4, 3])
   ctx.strokeStyle = '#596c7a'
   ctx.lineWidth = 1
-  ;[mohoY, gutenbergY].forEach((lineY) => {
-    ctx.beginPath()
-    ctx.moveTo(chartX, lineY)
-    ctx.lineTo(chartX + chartWidth, lineY)
-    ctx.stroke()
-  })
+    ;[mohoY, gutenbergY].forEach((lineY) => {
+      ctx.beginPath()
+      ctx.moveTo(chartX, lineY)
+      ctx.lineTo(chartX + chartWidth, lineY)
+      ctx.stroke()
+    })
   ctx.restore()
 
   ctx.font = '10px "Microsoft YaHei", sans-serif'
@@ -2278,15 +2147,15 @@ function drawSeismogramCanvas() {
   ctx.fillStyle = '#2d3942'
   ctx.font = '11px Microsoft YaHei'
   ctx.textAlign = 'right'
-  ;[-10, -5, 0, 5].forEach((v) => {
-    const y = yToCanvas(v)
-    ctx.beginPath()
-    ctx.moveTo(pad.left - 8, y)
-    ctx.lineTo(pad.left, y)
-    ctx.stroke()
-    if (v !== 0) ctx.fillText(String(v), pad.left - 12, y + 4)
-    else ctx.fillText('0', pad.left - 12, y + 4)
-  })
+    ;[-10, -5, 0, 5].forEach((v) => {
+      const y = yToCanvas(v)
+      ctx.beginPath()
+      ctx.moveTo(pad.left - 8, y)
+      ctx.lineTo(pad.left, y)
+      ctx.stroke()
+      if (v !== 0) ctx.fillText(String(v), pad.left - 12, y + 4)
+      else ctx.fillText('0', pad.left - 12, y + 4)
+    })
 
   for (let v = yMin; v <= yMax; v += 1) {
     if (v === -10 || v === -5 || v === 0 || v === 5) continue
@@ -2838,21 +2707,21 @@ function addLithosphereProfile(root: THREE.Group, renderer: THREE.WebGLRenderer)
   const scaleX = 5.45
   const points = [new THREE.Vector3(scaleX, 0.2, 1.2), new THREE.Vector3(scaleX, -3.0, 1.2)]
   profile.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), scaleLineMaterial))
-  ;[
-    ['0', 0.15], ['10', -0.62], ['20', -1.35], ['30', -2.1], ['40', -2.88],
-  ].forEach(([text, y]) => {
-    const tick = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(scaleX - 0.12, Number(y), 1.2),
-        new THREE.Vector3(scaleX + 0.12, Number(y), 1.2),
-      ]),
-      scaleLineMaterial,
-    )
-    profile.add(tick)
-    const label = createTextSprite(String(text), { fontSize: 84, scale: 0.4, color: '#17212b' })
-    label.position.set(scaleX + 0.42, Number(y), 1.35)
-    profile.add(label)
-  })
+    ;[
+      ['0', 0.15], ['10', -0.62], ['20', -1.35], ['30', -2.1], ['40', -2.88],
+    ].forEach(([text, y]) => {
+      const tick = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(scaleX - 0.12, Number(y), 1.2),
+          new THREE.Vector3(scaleX + 0.12, Number(y), 1.2),
+        ]),
+        scaleLineMaterial,
+      )
+      profile.add(tick)
+      const label = createTextSprite(String(text), { fontSize: 84, scale: 0.4, color: '#17212b' })
+      label.position.set(scaleX + 0.42, Number(y), 1.35)
+      profile.add(label)
+    })
   const depthLabel = createTextSprite('深度/km', { fontSize: 84, scale: 0.46, color: '#17212b' })
   depthLabel.position.set(6.05, -1.45, 1.35)
   depthLabel.rotation.z = Math.PI / 2
@@ -3541,19 +3410,19 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(12px);
 }
 
-.stage-title-card > span {
+.stage-title-card>span {
   color: #68d9cc;
   font-size: clamp(9px, 0.65vw, 11px);
   font-weight: 800;
   letter-spacing: 0.16em;
 }
 
-.stage-title-card > strong {
+.stage-title-card>strong {
   font-size: clamp(15px, 1.15vw, 22px);
   line-height: 1.35;
 }
 
-.stage-title-card > small {
+.stage-title-card>small {
   color: var(--text-secondary);
   font-size: clamp(10px, 0.72vw, 12px);
   line-height: 1.55;
@@ -3810,20 +3679,20 @@ onBeforeUnmount(() => {
   gap: 2px;
 }
 
-.seismic-demo-heading > span {
+.seismic-demo-heading>span {
   color: #2378d4;
   font-size: clamp(8px, 0.56vw, 10px);
   font-weight: 800;
   letter-spacing: 0.14em;
 }
 
-.seismic-demo-heading > strong {
+.seismic-demo-heading>strong {
   color: #123b6a;
   font-size: clamp(17px, 1.35vw, 26px);
   line-height: 1.3;
 }
 
-.seismic-demo-heading > small {
+.seismic-demo-heading>small {
   color: #59738b;
   font-size: clamp(9px, 0.7vw, 12px);
   line-height: 1.45;
@@ -4048,11 +3917,11 @@ onBeforeUnmount(() => {
   gap: 5px;
 }
 
-.right-panel .data-card > small {
+.right-panel .data-card>small {
   line-height: 1.55;
 }
 
-.right-panel .current-knowledge-card > p {
+.right-panel .current-knowledge-card>p {
   line-height: 1.88;
 }
 
@@ -4074,6 +3943,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: clamp(8px, 0.75vw, 11px);
+  padding: clamp(10px, 0.9vw, 14px) clamp(10px, 0.9vw, 14px) clamp(10px, 0.9vw, 14px)
 }
 
 .knowledge-tab-grid {
@@ -4094,6 +3964,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: clamp(8px, 0.8vw, 12px);
+  margin-bottom: clamp(10px, 0.9vw, 14px);
+  padding: clamp(10px, 0.9vw, 14px) clamp(10px, 0.9vw, 14px) clamp(10px, 0.9vw, 14px)
 }
 
 .knowledge-heading-row {
@@ -4126,7 +3998,7 @@ onBeforeUnmount(() => {
   border-radius: 6px;
 }
 
-.current-knowledge-card > p {
+.current-knowledge-card>p {
   margin: 0;
   color: var(--text-secondary);
   font-size: clamp(10px, 0.73vw, 12px);
@@ -4196,6 +4068,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 760px) {
+
   .view-grid,
   .wave-mode-grid,
   .knowledge-tab-grid {
@@ -4244,7 +4117,7 @@ onBeforeUnmount(() => {
     padding: 9px 10px;
   }
 
-  .seismic-demo-heading > small,
+  .seismic-demo-heading>small,
   .seismic-demo-speed-group,
   .seismic-demo-control-btn:first-of-type {
     display: none;

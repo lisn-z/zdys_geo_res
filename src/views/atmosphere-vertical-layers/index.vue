@@ -1,48 +1,27 @@
 <template>
-  <div
-    ref="pageRef"
-    class="atmosphere-vertical-layers-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="atmosphere-vertical-layers-container geo-template-page geo-page theme-dark"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
       <h1 class="page-title">大气垂直分层（中纬度地区）</h1>
 
       <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn toolbar-btn"
-          @click="resetScene"
-        >
+        <button type="button" class="theme-btn toolbar-btn" @click="resetScene">
           恢复全景
         </button>
 
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="toggleAllPanels"
-        >
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
           {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
         </button>
       </div>
     </header>
 
-    <main
-      class="workspace"
-      v-bind="workspaceAttrs"
-    >
-      <aside
-        id="left-panel"
-        class="side-panel left-panel"
-        v-bind="leftPanelAttrs"
-      >
+    <main class="workspace" v-bind="workspaceAttrs">
+      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -137,13 +116,7 @@
               <strong class="control-value">{{ particleDensity }}%</strong>
             </div>
 
-            <el-slider
-              v-model="particleDensity"
-              :min="20"
-              :max="100"
-              :step="10"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="particleDensity" :min="20" :max="100" :step="10" :show-tooltip="false" />
           </section>
 
           <section class="geo-card control-section">
@@ -152,13 +125,7 @@
               <strong class="control-value">{{ atmosphereOpacity.toFixed(2) }}</strong>
             </div>
 
-            <el-slider
-              v-model="atmosphereOpacity"
-              :min="0.18"
-              :max="0.72"
-              :step="0.02"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="atmosphereOpacity" :min="0.18" :max="0.72" :step="0.02" :show-tooltip="false" />
 
           </section>
 
@@ -166,14 +133,8 @@
             <h3 class="section-title">观察视角</h3>
 
             <div class="option-grid view-option-grid">
-              <button
-                v-for="item in viewOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn"
-                :class="{ active: currentView === item.value }"
-                @click="applyView(item.value)"
-              >
+              <button v-for="item in viewOptions" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: currentView === item.value }" @click="applyView(item.value)">
                 {{ item.label }}
               </button>
             </div>
@@ -183,67 +144,35 @@
             <h3 class="section-title">快速定位</h3>
 
             <div class="option-grid layer-focus-grid">
-              <button
-                v-for="item in layerOptions"
-                :key="item.key"
-                type="button"
-                class="theme-btn option-btn layer-focus-btn"
-                :class="{ active: currentLayer === item.key }"
-                @click="selectLayer(item.key, true)"
-              >
+              <button v-for="item in layerOptions" :key="item.key" type="button"
+                class="theme-btn option-btn layer-focus-btn" :class="{ active: currentLayer === item.key }"
+                @click="selectLayer(item.key, true)">
                 {{ item.shortName }}
               </button>
             </div>
 
-            <button
-              type="button"
-              class="theme-btn reset-scene-btn"
-              @click="resetScene"
-            >
+            <button type="button" class="theme-btn reset-scene-btn" @click="resetScene">
               恢复默认场景
             </button>
           </section>
         </div>
 
-        <div
-          class="resize-handle resize-right"
-          v-bind="leftResizeAttrs"
-        ></div>
+        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
 
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-left"
-          v-bind="leftCollapseAttrs"
-        >
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
           ‹
         </button>
       </aside>
 
-      <section
-        ref="centerStageRef"
-        class="center-stage atmosphere-center-stage"
-      >
-        <div
-          ref="stageContentRef"
-          class="stage-content atmosphere-stage-content"
-          :style="stageContentStyle"
-        >
-          <div
-            ref="threeContainerRef"
-            class="scene-host three-host"
-          ></div>
+      <section ref="centerStageRef" class="center-stage atmosphere-center-stage">
+        <div ref="stageContentRef" class="stage-content atmosphere-stage-content" :style="stageContentStyle">
+          <div ref="threeContainerRef" class="scene-host three-host"></div>
 
-          <div
-            v-if="!sceneReady && !sceneErrorMessage"
-            class="scene-loading-card"
-          >
+          <div v-if="!sceneReady && !sceneErrorMessage" class="scene-loading-card">
             正在构建大气垂直分层模型…
           </div>
 
-          <div
-            v-if="sceneErrorMessage"
-            class="scene-error-card"
-          >
+          <div v-if="sceneErrorMessage" class="scene-error-card">
             <strong>3D 场景初始化失败</strong>
             <span>{{ sceneErrorMessage }}</span>
           </div>
@@ -254,11 +183,7 @@
           </div>
 
           <div class="stage-legend">
-            <div
-              v-for="item in majorLegendItems"
-              :key="item.key"
-              class="legend-row"
-            >
+            <div v-for="item in majorLegendItems" :key="item.key" class="legend-row">
               <i :style="{ background: item.color }"></i>
               <span>{{ item.label }}</span>
             </div>
@@ -269,18 +194,9 @@
           </div>
         </div>
 
-        <div
-          ref="timelineDockRef"
-          class="timeline-dock"
-        >
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="toggleTour"
-          >
+        <div ref="timelineDockRef" class="timeline-dock">
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="toggleTour">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -293,35 +209,19 @@
               <strong>{{ Math.round(progress) }}%</strong>
             </div>
 
-            <el-slider
-              v-model="progress"
-              :min="0"
-              :max="100"
-              :show-tooltip="false"
-              @change="handleTimelineChange"
-            />
+            <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" @change="handleTimelineChange" />
           </div>
 
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
         </div>
       </section>
 
-      <aside
-        id="right-panel"
-        class="side-panel right-panel"
-        v-bind="rightPanelAttrs"
-      >
+      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -334,14 +234,9 @@
 
           <section class="geo-card layer-selector-card">
             <div class="layer-button-grid">
-              <button
-                v-for="item in layerOptions"
-                :key="item.key"
-                type="button"
-                class="theme-btn option-btn layer-info-btn"
-                :class="{ active: currentLayer === item.key }"
-                @click="selectLayer(item.key, true)"
-              >
+              <button v-for="item in layerOptions" :key="item.key" type="button"
+                class="theme-btn option-btn layer-info-btn" :class="{ active: currentLayer === item.key }"
+                @click="selectLayer(item.key, true)">
                 {{ item.shortName }}
               </button>
             </div>
@@ -388,52 +283,30 @@
             </p>
 
             <ul class="feature-list">
-              <li
-                v-for="item in currentLayerInfo.features"
-                :key="item"
-              >
+              <li v-for="item in currentLayerInfo.features" :key="item">
                 {{ item }}
               </li>
             </ul>
 
-            <figure
-              v-if="currentLayerInfo.diagram"
-              class="textbook-figure"
-            >
-              <img
-                :src="currentLayerInfo.diagram"
-                :alt="currentLayerInfo.diagramAlt"
-              />
+            <figure v-if="currentLayerInfo.diagram" class="textbook-figure">
+              <img :src="currentLayerInfo.diagram" :alt="currentLayerInfo.diagramAlt" />
             </figure>
 
-            <div
-              v-else
-              class="phenomenon-summary"
-            >
+            <div v-else class="phenomenon-summary">
               <strong>{{ currentLayerInfo.phenomenon }}</strong>
               <span>{{ currentLayerInfo.humanRelation }}</span>
             </div>
           </section>
 
-          <el-collapse
-            v-model="activePanels"
-            class="analysis-collapse"
-          >
-            <el-collapse-item
-              title="1. 密度和气压怎样随高度变化？"
-              name="pressure"
-            >
+          <el-collapse v-model="activePanels" class="analysis-collapse">
+            <el-collapse-item title="1. 密度和气压怎样随高度变化？" name="pressure">
               <div class="collapse-content">
                 <p>
                   大气密度和气压都随高度增加而降低，而且近地面下降最快。原因是越往高处，上方空气柱越短、空气受到的重力压缩越弱，单位体积中的空气分子越来越少。
                 </p>
 
                 <div class="pressure-bars">
-                  <div
-                    v-for="item in pressureExamples"
-                    :key="item.altitude"
-                    class="pressure-bar-row"
-                  >
+                  <div v-for="item in pressureExamples" :key="item.altitude" class="pressure-bar-row">
                     <span>{{ item.altitude }}</span>
                     <div class="pressure-track">
                       <i :style="{ width: item.width + '%' }"></i>
@@ -448,10 +321,7 @@
               </div>
             </el-collapse-item>
 
-            <el-collapse-item
-              title="2. 自然现象与人类活动"
-              name="phenomena"
-            >
+            <el-collapse-item title="2. 自然现象与人类活动" name="phenomena">
               <div class="collapse-content">
                 <div class="relation-list">
                   <article>
@@ -478,10 +348,7 @@
               </div>
             </el-collapse-item>
 
-            <el-collapse-item
-              title="3. 逆温层特点与示意图"
-              name="inversion"
-            >
+            <el-collapse-item title="3. 逆温层特点与示意图" name="inversion">
               <div class="collapse-content">
                 <p>
                   正常情况下，对流层气温随高度升高而降低；若某一高度范围内气温反而随高度升高而升高，就形成逆温层。逆温层大气稳定，会抑制垂直对流，使近地面污染物不易扩散。
@@ -498,19 +365,9 @@
                     <div class="chart-grid-line line-one"></div>
                     <div class="chart-grid-line line-two"></div>
                     <div class="chart-grid-line line-three"></div>
-                    <svg
-                      viewBox="0 0 240 170"
-                      preserveAspectRatio="none"
-                      aria-label="逆温层示意图"
-                    >
-                      <polyline
-                        points="28,15 64,52 104,90 82,118 126,153"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="4"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
+                    <svg viewBox="0 0 240 170" preserveAspectRatio="none" aria-label="逆温层示意图">
+                      <polyline points="28,15 64,52 104,90 82,118 126,153" fill="none" stroke="currentColor"
+                        stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     <div class="inversion-zone">逆温层</div>
                   </div>
@@ -530,35 +387,20 @@
           </el-collapse>
         </div>
 
-        <div
-          class="resize-handle resize-left"
-          v-bind="rightResizeAttrs"
-        ></div>
+        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
 
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-right"
-          v-bind="rightCollapseAttrs"
-        >
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
           ›
         </button>
       </aside>
 
-      <button
-        v-if="hasLeftPanel && leftCollapsed"
-        type="button"
-        class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs"
-      >
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+        v-bind="leftEntryAttrs">
         ›
       </button>
 
-      <button
-        v-if="hasRightPanel && rightCollapsed"
-        type="button"
-        class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs"
-      >
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+        v-bind="rightEntryAttrs">
         ‹
       </button>
     </main>
@@ -1210,7 +1052,7 @@ function createModelFrame() {
   frame.renderOrder = 6
   atmosphereGroup.add(frame)
 
-  ;[12, 50, 85, 500].forEach(createLayerBoundary)
+    ;[12, 50, 85, 500].forEach(createLayerBoundary)
 }
 
 function createRangeHighlight(
@@ -1398,12 +1240,12 @@ function createLayerModel() {
     altitude: number
     accent: string
   }> = [
-    { key: 'exosphere', text: '散逸层', altitude: 1500, accent: '#dbeafe' },
-    { key: 'thermosphere', text: '热层', altitude: 220, accent: '#c4b5fd' },
-    { key: 'mesosphere', text: '中间层', altitude: 67, accent: '#b9d5ff' },
-    { key: 'stratosphere', text: '平流层', altitude: 30, accent: '#ffe0ac' },
-    { key: 'troposphere', text: '对流层', altitude: 6, accent: '#d9f8ff' },
-  ]
+      { key: 'exosphere', text: '散逸层', altitude: 1500, accent: '#dbeafe' },
+      { key: 'thermosphere', text: '热层', altitude: 220, accent: '#c4b5fd' },
+      { key: 'mesosphere', text: '中间层', altitude: 67, accent: '#b9d5ff' },
+      { key: 'stratosphere', text: '平流层', altitude: 30, accent: '#ffe0ac' },
+      { key: 'troposphere', text: '对流层', altitude: 6, accent: '#d9f8ff' },
+    ]
 
   layerLabelSpecs.forEach((item) => {
     addLabel(
@@ -2573,28 +2415,28 @@ function createTemperatureCurve() {
   )
   temperatureCurveGroup.add(xAxis)
 
-  ;[-100, -80, -60, -40, -20, 0, 20].forEach((temperature) => {
-    const x = temperatureToX(temperature)
-    const tick = new THREE.Line(
-      registerGeometry(
-        new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(x, xAxisY - 0.1, 3.32),
-          new THREE.Vector3(x, xAxisY + 0.1, 3.32),
-        ]),
-      ),
-      registerMaterial(
-        new THREE.LineBasicMaterial({ color: '#e5eef6', transparent: true, opacity: 0.7 }),
-      ),
-    )
-    temperatureCurveGroup?.add(tick)
+    ;[-100, -80, -60, -40, -20, 0, 20].forEach((temperature) => {
+      const x = temperatureToX(temperature)
+      const tick = new THREE.Line(
+        registerGeometry(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(x, xAxisY - 0.1, 3.32),
+            new THREE.Vector3(x, xAxisY + 0.1, 3.32),
+          ]),
+        ),
+        registerMaterial(
+          new THREE.LineBasicMaterial({ color: '#e5eef6', transparent: true, opacity: 0.7 }),
+        ),
+      )
+      temperatureCurveGroup?.add(tick)
 
-    addLabel(`${temperature}`, new THREE.Vector3(x, xAxisY - 0.28, 3.32), {
-      className: 'axis-label temperature-axis-label',
-      group: 'temperature-axis',
-      accent: '#eef6ff',
-      parent: temperatureCurveGroup,
+      addLabel(`${temperature}`, new THREE.Vector3(x, xAxisY - 0.28, 3.32), {
+        className: 'axis-label temperature-axis-label',
+        group: 'temperature-axis',
+        accent: '#eef6ff',
+        parent: temperatureCurveGroup,
+      })
     })
-  })
 
   addLabel('气温 / ℃', new THREE.Vector3(0, xAxisY - 0.62, 3.32), {
     className: 'axis-title-label',
@@ -2714,12 +2556,12 @@ function updateLayerHighlight() {
     })
   })
 
-  ;(['ozone', 'ionosphere'] as const).forEach((key) => {
-    const group = labelGroups.get(`range-label-${key}`) || []
-    group.forEach((label) => {
-      label.element.style.opacity = key === selected ? '1' : '0.68'
+    ; (['ozone', 'ionosphere'] as const).forEach((key) => {
+      const group = labelGroups.get(`range-label-${key}`) || []
+      group.forEach((label) => {
+        label.element.style.opacity = key === selected ? '1' : '0.68'
+      })
     })
-  })
 }
 
 function updateVisibility() {
@@ -3290,110 +3132,110 @@ async function initScene() {
 
   try {
     scene = new THREE.Scene()
-  scene.background = new THREE.Color('#020815')
+    scene.background = new THREE.Color('#020815')
 
-  camera = new THREE.PerspectiveCamera(42, 1, 0.1, 140)
-  camera.position.set(15.8, 11.7, 22.5)
+    camera = new THREE.PerspectiveCamera(42, 1, 0.1, 140)
+    camera.position.set(15.8, 11.7, 22.5)
 
-  renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha: false,
-    powerPreference: 'high-performance',
-  })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-  renderer.outputColorSpace = THREE.SRGBColorSpace
-  renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFShadowMap
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.12
-  renderer.domElement.className = 'scene-canvas three-canvas'
-  Object.assign(renderer.domElement.style, {
-    position: 'absolute',
-    inset: '0',
-    display: 'block',
-    width: '100%',
-    height: '100%',
-  })
-  container.appendChild(renderer.domElement)
+    renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance',
+    })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFShadowMap
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.12
+    renderer.domElement.className = 'scene-canvas three-canvas'
+    Object.assign(renderer.domElement.style, {
+      position: 'absolute',
+      inset: '0',
+      display: 'block',
+      width: '100%',
+      height: '100%',
+    })
+    container.appendChild(renderer.domElement)
 
-  labelRenderer = new CSS2DRenderer()
-  labelRenderer.domElement.className = 'scene-label-layer'
-  labelRenderer.domElement.style.position = 'absolute'
-  labelRenderer.domElement.style.inset = '0'
-  labelRenderer.domElement.style.pointerEvents = 'none'
-  labelRenderer.domElement.style.zIndex = '2'
-  container.appendChild(labelRenderer.domElement)
+    labelRenderer = new CSS2DRenderer()
+    labelRenderer.domElement.className = 'scene-label-layer'
+    labelRenderer.domElement.style.position = 'absolute'
+    labelRenderer.domElement.style.inset = '0'
+    labelRenderer.domElement.style.pointerEvents = 'none'
+    labelRenderer.domElement.style.zIndex = '2'
+    container.appendChild(labelRenderer.domElement)
 
-  controls = new OrbitControls(camera, renderer.domElement)
-  controls.enableDamping = true
-  controls.dampingFactor = 0.075
-  controls.minDistance = 11
-  controls.maxDistance = 42
-  controls.minPolarAngle = 0.45
-  controls.maxPolarAngle = Math.PI * 0.58
-  controls.target.set(0, 10.5, 0)
+    controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.dampingFactor = 0.075
+    controls.minDistance = 11
+    controls.maxDistance = 42
+    controls.minPolarAngle = 0.45
+    controls.maxPolarAngle = Math.PI * 0.58
+    controls.target.set(0, 10.5, 0)
 
-  const hemisphereLight = new THREE.HemisphereLight(0xd8f3ff, 0x081020, 1.45)
-  scene.add(hemisphereLight)
+    const hemisphereLight = new THREE.HemisphereLight(0xd8f3ff, 0x081020, 1.45)
+    scene.add(hemisphereLight)
 
-  const keyLight = new THREE.DirectionalLight(0xffffff, 2.25)
-  keyLight.position.set(9, 24, 13)
-  keyLight.castShadow = true
-  keyLight.shadow.mapSize.set(2048, 2048)
-  keyLight.shadow.camera.near = 0.5
-  keyLight.shadow.camera.far = 60
-  keyLight.shadow.camera.left = -16
-  keyLight.shadow.camera.right = 16
-  keyLight.shadow.camera.top = 30
-  keyLight.shadow.camera.bottom = -8
-  scene.add(keyLight)
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.25)
+    keyLight.position.set(9, 24, 13)
+    keyLight.castShadow = true
+    keyLight.shadow.mapSize.set(2048, 2048)
+    keyLight.shadow.camera.near = 0.5
+    keyLight.shadow.camera.far = 60
+    keyLight.shadow.camera.left = -16
+    keyLight.shadow.camera.right = 16
+    keyLight.shadow.camera.top = 30
+    keyLight.shadow.camera.bottom = -8
+    scene.add(keyLight)
 
-  const rimLight = new THREE.DirectionalLight(0x4ec7ff, 1.25)
-  rimLight.position.set(-12, 15, -8)
-  scene.add(rimLight)
+    const rimLight = new THREE.DirectionalLight(0x4ec7ff, 1.25)
+    rimLight.position.set(-12, 15, -8)
+    scene.add(rimLight)
 
-  const warmLight = new THREE.PointLight(0xff9f43, 1.2, 18, 2)
-  warmLight.position.set(-3, altitudeToY(24), 4)
-  scene.add(warmLight)
+    const warmLight = new THREE.PointLight(0xff9f43, 1.2, 18, 2)
+    warmLight.position.set(-3, altitudeToY(24), 4)
+    scene.add(warmLight)
 
-  createStars()
-  createLayerModel()
-  createTerrain()
-  createWeather()
-  createVehicles()
-  createPhenomena()
-  createAmbientParticles()
-  createAxes()
-  createTemperatureCurve()
+    createStars()
+    createLayerModel()
+    createTerrain()
+    createWeather()
+    createVehicles()
+    createPhenomena()
+    createAmbientParticles()
+    createAxes()
+    createTemperatureCurve()
 
-  updateVisibility()
-  updateLayerHighlight()
-  updateParticleDensity()
+    updateVisibility()
+    updateLayerHighlight()
+    updateParticleDensity()
 
-  renderer.domElement.addEventListener('pointerdown', handlePointerDown)
+    renderer.domElement.addEventListener('pointerdown', handlePointerDown)
 
-  resizeSceneNow()
+    resizeSceneNow()
 
-  resizeObserver = new ResizeObserver(() => {
-    if (draggingSide.value || viewportResizing.value) {
-      return
-    }
-
-    scheduleSceneResize(110)
-  })
-  resizeObserver.observe(container)
-
-  if (centerStageRef.value) {
-    stageResizeObserver = new ResizeObserver(() => {
+    resizeObserver = new ResizeObserver(() => {
       if (draggingSide.value || viewportResizing.value) {
         return
       }
 
-      syncStageContentSize()
-      scheduleSceneResize(90)
+      scheduleSceneResize(110)
     })
-    stageResizeObserver.observe(centerStageRef.value)
-  }
+    resizeObserver.observe(container)
+
+    if (centerStageRef.value) {
+      stageResizeObserver = new ResizeObserver(() => {
+        if (draggingSide.value || viewportResizing.value) {
+          return
+        }
+
+        syncStageContentSize()
+        scheduleSceneResize(90)
+      })
+      stageResizeObserver.observe(centerStageRef.value)
+    }
 
     lastSceneFrameTime = 0
     animationFrameId = requestAnimationFrame(animateScene)
@@ -3709,6 +3551,8 @@ onBeforeUnmount(() => {
 
 .current-layer-card {
   margin-top: clamp(10px, 0.9vw, 14px);
+  padding: clamp(10px, 0.9vw, 14px);
+  margin-bottom: 16px;
 }
 
 .layer-detail-head {
@@ -3973,27 +3817,16 @@ onBeforeUnmount(() => {
   letter-spacing: 0.15em;
 }
 
-.atmosphere-vertical-layers-container
-.workspace.panel-resizing,
-.atmosphere-vertical-layers-container
-.workspace.layout-resizing,
-.atmosphere-vertical-layers-container
-.workspace.panel-resizing
-.side-panel,
-.atmosphere-vertical-layers-container
-.workspace.layout-resizing
-.side-panel,
-.atmosphere-vertical-layers-container
-.workspace.panel-resizing
-.center-stage,
-.atmosphere-vertical-layers-container
-.workspace.layout-resizing
-.center-stage {
+.atmosphere-vertical-layers-container .workspace.panel-resizing,
+.atmosphere-vertical-layers-container .workspace.layout-resizing,
+.atmosphere-vertical-layers-container .workspace.panel-resizing .side-panel,
+.atmosphere-vertical-layers-container .workspace.layout-resizing .side-panel,
+.atmosphere-vertical-layers-container .workspace.panel-resizing .center-stage,
+.atmosphere-vertical-layers-container .workspace.layout-resizing .center-stage {
   transition: none !important;
 }
 
-.atmosphere-vertical-layers-container
-:deep(.three-canvas) {
+.atmosphere-vertical-layers-container:deep(.three-canvas) {
   position: absolute;
   inset: 0;
   display: block;
