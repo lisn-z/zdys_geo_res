@@ -40,6 +40,11 @@ export default defineConfig({
         target: 'https://zdys.szjx.ai-study.net/',
         changeOrigin: true,
       },
+      '/geojson_data': {
+        target: 'https://document.szjx.ai-study.net/',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/geojson_data/, '/geography/geojson_data'),
+      },
     },
   },
   base: './',
