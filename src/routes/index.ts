@@ -195,6 +195,51 @@ export const routes = [
     component: () =>
       import('@/views/the-twenty-four-solar-term/index.vue'),
   },
+  {
+    path: '/atmosphere-vertical-layers',
+    name: 'atmosphere-vertical-layers',
+    meta: {
+      title: '大气垂直分层',
+    },
+    component: () =>
+      import('@/views/atmosphere-vertical-layers/index.vue'),
+  },
+  {
+    path: '/layers-inside-the-earth',
+    name: 'layers-inside-the-earth',
+    meta: {
+      title: '地球内部圈层',
+    },
+    component: () =>
+      import('@/views/layers-inside-the-earth/index.vue'),
+  },
+  {
+    path: '/solar-and-lunar-eclipses',
+    name: 'solar-and-lunar-eclipses',
+    meta: {
+      title: '日食和月食',
+    },
+    component: () =>
+      import('@/views/solar-and-lunar-eclipses/index.vue'),
+  },
+  {
+    path: '/tidal-phenomenon',
+    name: 'tidal-phenomenon',
+    meta: {
+      title: '潮汐现象',
+    },
+    component: () =>
+      import('@/views/tidal-phenomenon/index.vue'),
+  },
+  {
+    path: '/runoff-simulation',
+    name: 'runoff-simulation',
+    meta: {
+      title: '径流模拟',
+    },
+    component: () =>
+      import('@/views/runoff-simulation/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
