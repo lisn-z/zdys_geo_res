@@ -213,6 +213,15 @@ export const routes = [
     component: () =>
       import('@/views/tidal-phenomenon/index.vue'),
   },
+  {
+    path: '/runoff-simulation',
+    name: 'runoff-simulation',
+    meta: {
+      title: '径流模拟',
+    },
+    component: () =>
+      import('@/views/runoff-simulation/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
