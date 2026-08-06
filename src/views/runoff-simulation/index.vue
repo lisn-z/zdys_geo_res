@@ -1,5 +1,5 @@
 <!--
-  径流模拟 v10
+  径流模拟 v11
   Vue 3 + TypeScript + Element Plus + Three.js
   数据：内置 Model My Watershed 原始 model.csv 的 240 组水量平衡结果；显示值按原网页规则保留 1 位小数。
   资源：全部图片通过 IMAGE_BASE_URL + 文件名访问 runoff 子文件夹；业务版本升级时沿用已部署的稳定 OSS 图片文件名。主模型与过程效果改为普通 img DOM 图层，Three.js 仅负责透明粒子动画，避免跨域纹理与层叠遮挡问题。
@@ -2312,9 +2312,14 @@ onBeforeUnmount(() => {
 }
 
 .soil-model-object {
-  top: 65%;
+  /*
+   * 地表主图为 500×500，土壤图为 500×250。
+   * 两张透明 PNG 的实际拼接边界相差约 356px，
+   * 换算到当前 10 / 12.4 的组合容器后，土壤层应从 57.4% 开始。
+   */
+  top: 57.4%;
   z-index: 1;
-  height: 40%;
+  height: 40.4%;
 }
 
 .land-model-image,
@@ -3034,7 +3039,7 @@ onBeforeUnmount(() => {
 
 
 /*
- * v10 主场景可见性兜底：公共模板或第三方样式即使给 scene-host/canvas
+ * v11 主场景可见性兜底：公共模板或第三方样式即使给 scene-host/canvas
  * 设置了更高层级，也将 WebGL 固定在最底层；模型、过程图和数据柱始终位于其上。
  */
 .runoff-simulation-container .center-stage,
