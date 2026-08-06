@@ -208,15 +208,10 @@
 
       <section class="center-stage">
         <div class="stage-content eclipse-stage-content">
-          <div
-            ref="threeContainerRef"
-            class="scene-host three-host"
-          ></div>
-
           <!--
-            OSS 图片可直接作为普通网页背景显示，但浏览器不允许把无 CORS
-            响应的跨源图片上传到 WebGL。这里将图片投影到对应的 Three.js
-            球体屏幕位置，底层仍保留真实 3D 球体、光照、影锥和点击交互。
+            OSS 图片保持 IMAGE_BASE_URL + 文件名。
+            当同源映射不可用时，图片作为普通 DOM 球面显示，不上传到 WebGL；
+            Three.js 高细分球体、光照、高光、影锥和点击交互仍在其上方运行。
           -->
           <div
             class="celestial-texture-layer"
@@ -240,6 +235,11 @@
               :style="{ backgroundImage: `url(${MOON_TEXTURE_IMAGE})` }"
             ></div>
           </div>
+
+          <div
+            ref="threeContainerRef"
+            class="scene-host three-host"
+          ></div>
 
           <div class="scene-title-chip">
             <span class="scene-title-dot"></span>
@@ -465,6 +465,22 @@ const MOON_TEXTURE_IMAGE =
 const SUN_TEXTURE_IMAGE =
   IMAGE_BASE_URL + 'sun.png'
 
+/*
+ * 与“地球运动”页面相同，优先尝试站点同源资源映射。
+ * 本地未配置映射时不会影响 OSS DOM 球面显示。
+ */
+const SAME_ORIGIN_TEXTURE_BASE =
+  '/geo-resources-folder/images/'
+
+const EARTH_SAME_ORIGIN_TEXTURE =
+  SAME_ORIGIN_TEXTURE_BASE + 'earth.jpg'
+
+const MOON_SAME_ORIGIN_TEXTURE =
+  SAME_ORIGIN_TEXTURE_BASE + 'moon.jpg'
+
+const SUN_SAME_ORIGIN_TEXTURE =
+  SAME_ORIGIN_TEXTURE_BASE + 'sun.png'
+
 const TEXTURE_SOURCE_URLS: Record<CelestialTextureKey, string> = {
   earth: EARTH_TEXTURE_IMAGE,
   moon: MOON_TEXTURE_IMAGE,
@@ -502,6 +518,14 @@ const previewSunTextureRef = ref<HTMLElement | null>(null)
 const previewMoonTextureRef = ref<HTMLElement | null>(null)
 const previewLunarMoonTextureRef = ref<HTMLElement | null>(null)
 const previewEarthShadowTextureRef = ref<HTMLElement | null>(null)
+
+const sunDomTextureReady = ref(false)
+const earthDomTextureReady = ref(false)
+const moonDomTextureReady = ref(false)
+
+const sunWebglTextureReady = ref(false)
+const earthWebglTextureReady = ref(false)
+const moonWebglTextureReady = ref(false)
 
 const moonOrbitEnabled = ref(true)
 const earthRotationEnabled = ref(false)
@@ -860,6 +884,7 @@ const pointer = new THREE.Vector2()
 const clickableObjects: THREE.Object3D[] = []
 const disposableMaterials: THREE.Material[] = []
 const disposableGeometries: THREE.BufferGeometry[] = []
+const disposableTextures: THREE.Texture[] = []
 
 /**
  * 统一登记场景资源，便于组件卸载时完整释放。
@@ -875,6 +900,11 @@ function registerMaterial<T extends THREE.Material>(material: T) {
 function registerGeometry<T extends THREE.BufferGeometry>(geometry: T) {
   disposableGeometries.push(geometry)
   return geometry
+}
+
+function registerTexture<T extends THREE.Texture>(texture: T) {
+  disposableTextures.push(texture)
+  return texture
 }
 
 const systemScale = {
@@ -938,86 +968,803 @@ function getCurrentScale() {
 }
 
 /**
- * earth.jpg、moon.jpg、sun.png 都是经纬展开图。
- * 这种约 2:1 的长方形图片正是球体表面贴图的标准形态，图片比例本身没有问题。
+ * earth.jpg、moon.jpg、sun.png 都是标准经纬展开图。
  *
- * 当前页面从 localhost 等地址访问 OSS 时，图片属于跨源资源。普通 <img> / CSS
- * 背景可以显示，但没有 CORS 响应头的图片不能被浏览器上传到 WebGL 纹理。
- * 因此底层 Three.js 球体始终保留各自的教学颜色；OSS 图片通过 DOM 投影层
- * 精确跟随球体的位置、大小、相机缩放和公转，避免 texSubImage2D 安全异常。
+ * 运行策略：
+ * 1. 若 /geo-resources-folder/images/ 存在同源映射，直接生成 WebGL UV 纹理；
+ * 2. 若同源映射不可用，OSS 原图作为普通 DOM 球面显示；
+ * 3. Three.js 高细分球体始终保留真实明暗、高光、边缘光、遮挡和点击检测；
+ * 4. 三类图片都读取失败时，继续显示黄色太阳、蓝色地球和灰白色月球。
  */
-function createBodyMaterial(
-  textureKey: CelestialTextureKey,
-  options: {
-    emissive?: string
-    emissiveIntensity?: number
-    basic?: boolean
-  } = {}
-) {
-  const fallbackColor = CELESTIAL_FALLBACK_COLORS[textureKey]
 
-  if (options.basic) {
-    return registerMaterial(
-      new THREE.MeshBasicMaterial({
-        color: fallbackColor,
-      })
-    )
+type CelestialShaderUniforms = {
+  uMap: { value: THREE.Texture }
+  uLightDirection: { value: THREE.Vector3 }
+  uAmbient: { value: number }
+  uDiffuse: { value: number }
+  uSpecular: { value: number }
+  uShininess: { value: number }
+  uRimStrength: { value: number }
+  uEmission: { value: number }
+  uUnlit: { value: number }
+  uOpacity: { value: number }
+  uTint: { value: THREE.Color }
+}
+
+function createFallbackTexture(
+  primaryColor: string,
+  secondaryColor: string,
+) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 256
+
+  const context = canvas.getContext('2d')
+
+  if (!context) {
+    throw new Error('无法创建天体备用纹理')
   }
 
+  const gradient = context.createLinearGradient(
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  )
+
+  gradient.addColorStop(0, primaryColor)
+  gradient.addColorStop(1, secondaryColor)
+
+  context.fillStyle = gradient
+  context.fillRect(0, 0, canvas.width, canvas.height)
+
+  for (let index = 0; index < 170; index += 1) {
+    context.fillStyle =
+      `rgba(255,255,255,${0.035 + Math.random() * 0.12})`
+
+    context.beginPath()
+
+    context.arc(
+      Math.random() * canvas.width,
+      Math.random() * canvas.height,
+      0.5 + Math.random() * 2.2,
+      0,
+      Math.PI * 2,
+    )
+
+    context.fill()
+  }
+
+  const texture = registerTexture(
+    new THREE.CanvasTexture(canvas),
+  )
+
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.needsUpdate = true
+
+  return texture
+}
+
+const celestialUniforms: Record<
+  CelestialTextureKey,
+  CelestialShaderUniforms
+> = {
+  sun: {
+    uMap: {
+      value: createFallbackTexture(
+        '#ff7b00',
+        '#ffd84d',
+      ),
+    },
+    uLightDirection: {
+      value: new THREE.Vector3(1, 0, 0),
+    },
+    uAmbient: { value: 1 },
+    uDiffuse: { value: 0 },
+    uSpecular: { value: 0.08 },
+    uShininess: { value: 18 },
+    uRimStrength: { value: 0.32 },
+    uEmission: { value: 0.48 },
+    uUnlit: { value: 1 },
+    uOpacity: { value: 1 },
+    uTint: {
+      value: new THREE.Color('#fff1b0'),
+    },
+  },
+
+  earth: {
+    uMap: {
+      value: createFallbackTexture(
+        '#1768a8',
+        '#2c91bf',
+      ),
+    },
+    uLightDirection: {
+      value: new THREE.Vector3(
+        -0.8,
+        0.28,
+        0.46,
+      ).normalize(),
+    },
+    uAmbient: { value: 0.3 },
+    uDiffuse: { value: 1.08 },
+    uSpecular: { value: 0.18 },
+    uShininess: { value: 30 },
+    uRimStrength: { value: 0.17 },
+    uEmission: { value: 0 },
+    uUnlit: { value: 0 },
+    uOpacity: { value: 1 },
+    uTint: {
+      value: new THREE.Color('#ffffff'),
+    },
+  },
+
+  moon: {
+    uMap: {
+      value: createFallbackTexture(
+        '#96999e',
+        '#d1d2d4',
+      ),
+    },
+    uLightDirection: {
+      value: new THREE.Vector3(
+        -0.8,
+        0.28,
+        0.46,
+      ).normalize(),
+    },
+    uAmbient: { value: 0.2 },
+    uDiffuse: { value: 1.08 },
+    uSpecular: { value: 0.05 },
+    uShininess: { value: 9 },
+    uRimStrength: { value: 0.08 },
+    uEmission: { value: 0 },
+    uUnlit: { value: 0 },
+    uOpacity: { value: 1 },
+    uTint: {
+      value: new THREE.Color('#eeeeee'),
+    },
+  },
+}
+
+function createBodyMaterial(
+  textureKey: CelestialTextureKey,
+) {
+  const uniforms =
+    celestialUniforms[textureKey]
+
   return registerMaterial(
-    new THREE.MeshStandardMaterial({
-      color: fallbackColor,
-      roughness: 0.88,
-      metalness: 0.02,
-      emissive: new THREE.Color(options.emissive || '#000000'),
-      emissiveIntensity: options.emissiveIntensity || 0,
-    })
+    new THREE.ShaderMaterial({
+      uniforms,
+
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vUv = uv;
+
+          vec4 worldPosition =
+            modelMatrix *
+            vec4(position, 1.0);
+
+          vWorldPosition =
+            worldPosition.xyz;
+
+          vWorldNormal =
+            normalize(
+              mat3(modelMatrix) *
+              normal
+            );
+
+          gl_Position =
+            projectionMatrix *
+            viewMatrix *
+            worldPosition;
+        }
+      `,
+
+      fragmentShader: `
+        uniform sampler2D uMap;
+        uniform vec3 uLightDirection;
+        uniform float uAmbient;
+        uniform float uDiffuse;
+        uniform float uSpecular;
+        uniform float uShininess;
+        uniform float uRimStrength;
+        uniform float uEmission;
+        uniform float uUnlit;
+        uniform float uOpacity;
+        uniform vec3 uTint;
+
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vec3 normalDirection =
+            normalize(vWorldNormal);
+
+          vec3 lightDirection =
+            normalize(uLightDirection);
+
+          vec3 viewDirection =
+            normalize(
+              cameraPosition -
+              vWorldPosition
+            );
+
+          float diffuseAmount =
+            max(
+              dot(
+                normalDirection,
+                lightDirection
+              ),
+              0.0
+            );
+
+          vec3 halfDirection =
+            normalize(
+              lightDirection +
+              viewDirection
+            );
+
+          float specularAmount =
+            pow(
+              max(
+                dot(
+                  normalDirection,
+                  halfDirection
+                ),
+                0.0
+              ),
+              uShininess
+            ) *
+            step(
+              0.001,
+              diffuseAmount
+            );
+
+          float rimAmount =
+            pow(
+              1.0 -
+              max(
+                dot(
+                  normalDirection,
+                  viewDirection
+                ),
+                0.0
+              ),
+              2.4
+            );
+
+          vec3 surfaceColor =
+            texture2D(
+              uMap,
+              vUv
+            ).rgb *
+            uTint;
+
+          float illuminatedFactor =
+            uAmbient +
+            diffuseAmount *
+            uDiffuse;
+
+          float finalLightFactor =
+            mix(
+              illuminatedFactor,
+              1.0,
+              uUnlit
+            );
+
+          vec3 shadedColor =
+            surfaceColor *
+            finalLightFactor;
+
+          shadedColor +=
+            vec3(1.0) *
+            specularAmount *
+            uSpecular;
+
+          shadedColor +=
+            surfaceColor *
+            rimAmount *
+            uRimStrength;
+
+          shadedColor +=
+            surfaceColor *
+            uEmission;
+
+          gl_FragColor =
+            vec4(
+              shadedColor,
+              uOpacity
+            );
+        }
+      `,
+
+      transparent: true,
+      depthWrite: true,
+    }),
   )
 }
 
-const overlayWorldPosition = new THREE.Vector3()
-const overlayCameraSpacePosition = new THREE.Vector3()
-const overlayCenterNdc = new THREE.Vector3()
-const overlayEdgeNdc = new THREE.Vector3()
-const overlayCameraRight = new THREE.Vector3()
-const overlayWorldScale = new THREE.Vector3()
+function createPreviewBodyMaterial(
+  textureKey: CelestialTextureKey,
+) {
+  return registerMaterial(
+    new THREE.MeshBasicMaterial({
+      color:
+        CELESTIAL_FALLBACK_COLORS[
+          textureKey
+        ],
+    }),
+  )
+}
 
-function getSphereWorldRadius(mesh: THREE.Mesh) {
-  const geometry = mesh.geometry as THREE.BufferGeometry
+function configureCelestialTexture(
+  texture: THREE.Texture,
+) {
+  texture.colorSpace =
+    THREE.SRGBColorSpace
+
+  texture.wrapS =
+    THREE.RepeatWrapping
+
+  texture.wrapT =
+    THREE.ClampToEdgeWrapping
+
+  texture.minFilter =
+    THREE.LinearMipmapLinearFilter
+
+  texture.magFilter =
+    THREE.LinearFilter
+
+  texture.generateMipmaps = true
+
+  if (renderer) {
+    texture.anisotropy =
+      Math.min(
+        8,
+        renderer.capabilities
+          .getMaxAnisotropy(),
+      )
+  }
+
+  texture.needsUpdate = true
+
+  return registerTexture(texture)
+}
+
+const celestialPreloadImages:
+  HTMLImageElement[] = []
+
+const celestialImageBitmaps:
+  ImageBitmap[] = []
+
+function getDomTextureReadyState(
+  textureKey: CelestialTextureKey,
+) {
+  if (textureKey === 'sun') {
+    return sunDomTextureReady
+  }
+
+  if (textureKey === 'earth') {
+    return earthDomTextureReady
+  }
+
+  return moonDomTextureReady
+}
+
+function getWebglTextureReadyState(
+  textureKey: CelestialTextureKey,
+) {
+  if (textureKey === 'sun') {
+    return sunWebglTextureReady
+  }
+
+  if (textureKey === 'earth') {
+    return earthWebglTextureReady
+  }
+
+  return moonWebglTextureReady
+}
+
+function getMainTextureOverlay(
+  textureKey: CelestialTextureKey,
+) {
+  if (textureKey === 'sun') {
+    return sunTextureOverlayRef.value
+  }
+
+  if (textureKey === 'earth') {
+    return earthTextureOverlayRef.value
+  }
+
+  return moonTextureOverlayRef.value
+}
+
+function syncCelestialSurfaceMode() {
+  ;(
+    [
+      'sun',
+      'earth',
+      'moon',
+    ] as CelestialTextureKey[]
+  ).forEach((textureKey) => {
+    const domReady =
+      getDomTextureReadyState(
+        textureKey,
+      ).value
+
+    const webglReady =
+      getWebglTextureReadyState(
+        textureKey,
+      ).value
+
+    const usesDom =
+      domReady &&
+      !webglReady
+
+    celestialUniforms[
+      textureKey
+    ].uOpacity.value =
+      usesDom
+        ? textureKey === 'sun'
+          ? 0.2
+          : textureKey === 'earth'
+            ? 0.21
+            : 0.18
+        : 1
+
+    const overlay =
+      getMainTextureOverlay(
+        textureKey,
+      )
+
+    if (overlay && !usesDom) {
+      overlay.style.display = 'none'
+    }
+  })
+}
+
+function preloadDomCelestialTexture(
+  textureKey: CelestialTextureKey,
+) {
+  const image = new Image()
+  const readyState =
+    getDomTextureReadyState(
+      textureKey,
+    )
+
+  image.decoding = 'async'
+
+  image.onload = () => {
+    readyState.value = true
+    syncCelestialSurfaceMode()
+    updateMainTextureOverlays()
+  }
+
+  image.onerror = () => {
+    readyState.value = false
+    syncCelestialSurfaceMode()
+  }
+
+  /*
+   * 不设置 crossOrigin。
+   * OSS 图片只作为 DOM/CSS 背景显示，不读取进 Canvas/WebGL。
+   */
+  image.src =
+    TEXTURE_SOURCE_URLS[
+      textureKey
+    ]
+
+  celestialPreloadImages.push(image)
+}
+
+async function loadSameOriginCelestialTexture(
+  textureKey: CelestialTextureKey,
+  url: string,
+) {
+  const readyState =
+    getWebglTextureReadyState(
+      textureKey,
+    )
+
+  try {
+    const response =
+      await fetch(
+        url,
+        {
+          cache: 'force-cache',
+          credentials: 'same-origin',
+        },
+      )
+
+    const contentType =
+      response.headers.get(
+        'content-type',
+      ) || ''
+
+    if (
+      !response.ok ||
+      !contentType.startsWith(
+        'image/',
+      )
+    ) {
+      readyState.value = false
+      syncCelestialSurfaceMode()
+      return
+    }
+
+    const blob =
+      await response.blob()
+
+    const bitmap =
+      await createImageBitmap(
+        blob,
+      )
+
+    celestialImageBitmaps.push(
+      bitmap,
+    )
+
+    const texture =
+      new THREE.Texture(bitmap)
+
+    celestialUniforms[
+      textureKey
+    ].uMap.value =
+      configureCelestialTexture(
+        texture,
+      )
+
+    readyState.value = true
+    syncCelestialSurfaceMode()
+  } catch {
+    /*
+     * 同源映射不存在时保持静默，
+     * 继续使用 OSS DOM 球面。
+     */
+    readyState.value = false
+    syncCelestialSurfaceMode()
+  }
+}
+
+function loadCelestialTextures() {
+  ;(
+    [
+      'sun',
+      'earth',
+      'moon',
+    ] as CelestialTextureKey[]
+  ).forEach(
+    preloadDomCelestialTexture,
+  )
+
+  void loadSameOriginCelestialTexture(
+    'sun',
+    SUN_SAME_ORIGIN_TEXTURE,
+  )
+
+  void loadSameOriginCelestialTexture(
+    'earth',
+    EARTH_SAME_ORIGIN_TEXTURE,
+  )
+
+  void loadSameOriginCelestialTexture(
+    'moon',
+    MOON_SAME_ORIGIN_TEXTURE,
+  )
+}
+
+const celestialLightSunPosition =
+  new THREE.Vector3()
+
+const celestialLightBodyPosition =
+  new THREE.Vector3()
+
+function updateCelestialLightUniforms() {
+  if (!sunMesh) {
+    return
+  }
+
+  sunMesh.getWorldPosition(
+    celestialLightSunPosition,
+  )
+
+  if (earthMesh) {
+    earthMesh.getWorldPosition(
+      celestialLightBodyPosition,
+    )
+
+    celestialUniforms
+      .earth
+      .uLightDirection
+      .value
+      .copy(
+        celestialLightSunPosition,
+      )
+      .sub(
+        celestialLightBodyPosition,
+      )
+      .normalize()
+  }
+
+  if (moonMesh) {
+    moonMesh.getWorldPosition(
+      celestialLightBodyPosition,
+    )
+
+    celestialUniforms
+      .moon
+      .uLightDirection
+      .value
+      .copy(
+        celestialLightSunPosition,
+      )
+      .sub(
+        celestialLightBodyPosition,
+      )
+      .normalize()
+  }
+}
+
+const overlayWorldPosition =
+  new THREE.Vector3()
+
+const overlayCameraSpacePosition =
+  new THREE.Vector3()
+
+const overlayCenterNdc =
+  new THREE.Vector3()
+
+const overlayEdgeNdc =
+  new THREE.Vector3()
+
+const overlayCameraRight =
+  new THREE.Vector3()
+
+const overlayWorldScale =
+  new THREE.Vector3()
+
+const overlayViewDirection =
+  new THREE.Vector3()
+
+const overlayLocalDirection =
+  new THREE.Vector3()
+
+const overlayWorldQuaternion =
+  new THREE.Quaternion()
+
+const overlayInverseQuaternion =
+  new THREE.Quaternion()
+
+const overlayLongitudeState:
+  Record<
+    CelestialTextureKey,
+    {
+      value: number
+      initialized: boolean
+    }
+  > = {
+    sun: {
+      value: 0,
+      initialized: false,
+    },
+    earth: {
+      value: 0,
+      initialized: false,
+    },
+    moon: {
+      value: 0,
+      initialized: false,
+    },
+  }
+
+function getSphereWorldRadius(
+  mesh: THREE.Mesh,
+) {
+  const geometry =
+    mesh.geometry as
+      THREE.BufferGeometry
 
   if (!geometry.boundingSphere) {
     geometry.computeBoundingSphere()
   }
 
-  mesh.getWorldScale(overlayWorldScale)
+  mesh.getWorldScale(
+    overlayWorldScale,
+  )
 
   return (
-    (geometry.boundingSphere?.radius || 1) *
+    (
+      geometry
+        .boundingSphere
+        ?.radius || 1
+    ) *
     Math.max(
-      Math.abs(overlayWorldScale.x),
-      Math.abs(overlayWorldScale.y),
-      Math.abs(overlayWorldScale.z)
+      Math.abs(
+        overlayWorldScale.x,
+      ),
+      Math.abs(
+        overlayWorldScale.y,
+      ),
+      Math.abs(
+        overlayWorldScale.z,
+      ),
     )
   )
 }
 
-function hideTextureOverlay(element: HTMLElement | null) {
+function hideTextureOverlay(
+  element: HTMLElement | null,
+) {
   if (element) {
     element.style.display = 'none'
   }
 }
 
+function unwrapOverlayLongitude(
+  textureKey: CelestialTextureKey,
+  wrappedLongitude: number,
+) {
+  const state =
+    overlayLongitudeState[
+      textureKey
+    ]
+
+  if (!state.initialized) {
+    state.initialized = true
+    state.value =
+      wrappedLongitude
+
+    return state.value
+  }
+
+  const previousWrapped =
+    THREE.MathUtils
+      .euclideanModulo(
+        state.value + 180,
+        360,
+      ) - 180
+
+  let delta =
+    wrappedLongitude -
+    previousWrapped
+
+  if (delta > 180) {
+    delta -= 360
+  } else if (delta < -180) {
+    delta += 360
+  }
+
+  state.value += delta
+  return state.value
+}
+
 function positionTextureOverlay(
   element: HTMLElement | null,
   mesh: THREE.Mesh | null,
-  textureKey: CelestialTextureKey
+  textureKey: CelestialTextureKey,
 ) {
+  const usesDom =
+    getDomTextureReadyState(
+      textureKey,
+    ).value &&
+    !getWebglTextureReadyState(
+      textureKey,
+    ).value
+
   if (
     !element ||
     !mesh ||
     !mesh.visible ||
+    !usesDom ||
     !camera ||
-    !renderer ||
     lastSceneWidth <= 0 ||
     lastSceneHeight <= 0
   ) {
@@ -1025,81 +1772,231 @@ function positionTextureOverlay(
     return
   }
 
-  mesh.getWorldPosition(overlayWorldPosition)
+  camera.updateMatrixWorld()
+
+  mesh.updateWorldMatrix(
+    true,
+    false,
+  )
+
+  mesh.getWorldPosition(
+    overlayWorldPosition,
+  )
+
   overlayCameraSpacePosition
-    .copy(overlayWorldPosition)
-    .applyMatrix4(camera.matrixWorldInverse)
-
-  // PerspectiveCamera 朝向局部 -Z；z >= 0 表示天体位于相机后方。
-  if (overlayCameraSpacePosition.z >= 0) {
-    hideTextureOverlay(element)
-    return
-  }
-
-  overlayCenterNdc.copy(overlayWorldPosition).project(camera)
-
-  overlayCameraRight
-    .set(1, 0, 0)
-    .applyQuaternion(camera.quaternion)
-    .multiplyScalar(getSphereWorldRadius(mesh))
-
-  overlayEdgeNdc
-    .copy(overlayWorldPosition)
-    .add(overlayCameraRight)
-    .project(camera)
-
-  const radiusPixels = Math.abs(
-    overlayEdgeNdc.x - overlayCenterNdc.x
-  ) * lastSceneWidth * 0.5
-
-  const centerX = (overlayCenterNdc.x * 0.5 + 0.5) * lastSceneWidth
-  const centerY = (-overlayCenterNdc.y * 0.5 + 0.5) * lastSceneHeight
+    .copy(
+      overlayWorldPosition,
+    )
+    .applyMatrix4(
+      camera.matrixWorldInverse,
+    )
 
   if (
-    !Number.isFinite(radiusPixels) ||
-    radiusPixels < 1 ||
-    centerX + radiusPixels < 0 ||
-    centerX - radiusPixels > lastSceneWidth ||
-    centerY + radiusPixels < 0 ||
-    centerY - radiusPixels > lastSceneHeight
+    overlayCameraSpacePosition.z >= 0
   ) {
     hideTextureOverlay(element)
     return
   }
 
-  const diameter = radiusPixels * 2.035
-  const distance = camera.position.distanceTo(overlayWorldPosition)
-  const cameraLongitude = THREE.MathUtils.radToDeg(
-    Math.atan2(
-      camera.position.z - overlayWorldPosition.z,
-      camera.position.x - overlayWorldPosition.x
+  overlayCenterNdc
+    .copy(
+      overlayWorldPosition,
     )
+    .project(camera)
+
+  overlayCameraRight
+    .set(1, 0, 0)
+    .applyQuaternion(
+      camera.quaternion,
+    )
+    .multiplyScalar(
+      getSphereWorldRadius(
+        mesh,
+      ),
+    )
+
+  overlayEdgeNdc
+    .copy(
+      overlayWorldPosition,
+    )
+    .add(
+      overlayCameraRight,
+    )
+    .project(camera)
+
+  const radiusPixels =
+    Math.abs(
+      overlayEdgeNdc.x -
+      overlayCenterNdc.x,
+    ) *
+    lastSceneWidth *
+    0.5
+
+  const centerX =
+    (
+      overlayCenterNdc.x *
+      0.5 +
+      0.5
+    ) *
+    lastSceneWidth
+
+  const centerY =
+    (
+      -overlayCenterNdc.y *
+      0.5 +
+      0.5
+    ) *
+    lastSceneHeight
+
+  if (
+    !Number.isFinite(
+      radiusPixels,
+    ) ||
+    radiusPixels < 1 ||
+    centerX + radiusPixels < 0 ||
+    centerX - radiusPixels >
+      lastSceneWidth ||
+    centerY + radiusPixels < 0 ||
+    centerY - radiusPixels >
+      lastSceneHeight
+  ) {
+    hideTextureOverlay(element)
+    return
+  }
+
+  mesh.getWorldQuaternion(
+    overlayWorldQuaternion,
   )
-  const bodyLongitude = THREE.MathUtils.radToDeg(mesh.rotation.y)
-  const textureLongitude = normalizeDegrees(bodyLongitude - cameraLongitude)
+
+  overlayInverseQuaternion
+    .copy(
+      overlayWorldQuaternion,
+    )
+    .invert()
+
+  overlayViewDirection
+    .copy(camera.position)
+    .sub(
+      overlayWorldPosition,
+    )
+    .normalize()
+
+  overlayLocalDirection
+    .copy(
+      overlayViewDirection,
+    )
+    .applyQuaternion(
+      overlayInverseQuaternion,
+    )
+    .normalize()
+
+  const wrappedLongitude =
+    THREE.MathUtils.radToDeg(
+      Math.atan2(
+        -overlayLocalDirection.z,
+        overlayLocalDirection.x,
+      ),
+    )
+
+  const continuousLongitude =
+    unwrapOverlayLongitude(
+      textureKey,
+      wrappedLongitude,
+    )
+
+  const diameter =
+    radiusPixels * 2.025
+
+  const imageWidth =
+    diameter * 2
+
+  const sourceU =
+    continuousLongitude /
+      360 +
+    0.5
+
+  const backgroundLeft =
+    diameter * 0.5 -
+    sourceU * imageWidth
+
+  const distance =
+    camera.position
+      .distanceTo(
+        overlayWorldPosition,
+      )
 
   element.style.display = 'block'
-  element.style.width = `${diameter}px`
-  element.style.height = `${diameter}px`
-  element.style.transform = `translate3d(${centerX - diameter / 2}px, ${centerY - diameter / 2}px, 0)`
-  element.style.zIndex = String(Math.max(1, Math.round(10000 - distance * 20)))
-  element.style.backgroundPosition = `${textureLongitude / 3.6}% 50%`
+
+  element.style.width =
+    `${diameter}px`
+
+  element.style.height =
+    `${diameter}px`
+
+  element.style.transform =
+    `translate3d(${centerX - diameter / 2}px, ${centerY - diameter / 2}px, 0)`
+
+  element.style.zIndex =
+    String(
+      Math.max(
+        1,
+        Math.round(
+          10000 -
+          distance * 20,
+        ),
+      ),
+    )
+
+  element.style.backgroundSize =
+    `${imageWidth}px ${diameter}px`
+
+  element.style.backgroundPosition =
+    `${backgroundLeft}px 50%`
 
   if (textureKey === 'moon') {
-    const lunarDarkening = alignmentData.value.lunarScore
-    const brightness = THREE.MathUtils.lerp(1, 0.38, lunarDarkening)
-    element.style.filter = `brightness(${brightness.toFixed(3)}) contrast(1.08)`
-  } else if (textureKey === 'earth') {
-    element.style.filter = 'saturate(1.06) contrast(1.04)'
+    const lunarDarkening =
+      alignmentData
+        .value
+        .lunarScore
+
+    const brightness =
+      THREE.MathUtils.lerp(
+        1,
+        0.38,
+        lunarDarkening,
+      )
+
+    element.style.filter =
+      `brightness(${brightness.toFixed(3)}) contrast(1.1)`
+  } else if (
+    textureKey === 'earth'
+  ) {
+    element.style.filter =
+      'saturate(1.08) contrast(1.05)'
   } else {
-    element.style.filter = 'saturate(1.12) contrast(1.03)'
+    element.style.filter =
+      'saturate(1.14) contrast(1.04) brightness(1.04)'
   }
 }
 
 function updateMainTextureOverlays() {
-  positionTextureOverlay(sunTextureOverlayRef.value, sunMesh, 'sun')
-  positionTextureOverlay(earthTextureOverlayRef.value, earthMesh, 'earth')
-  positionTextureOverlay(moonTextureOverlayRef.value, moonMesh, 'moon')
+  positionTextureOverlay(
+    sunTextureOverlayRef.value,
+    sunMesh,
+    'sun',
+  )
+
+  positionTextureOverlay(
+    earthTextureOverlayRef.value,
+    earthMesh,
+    'earth',
+  )
+
+  positionTextureOverlay(
+    moonTextureOverlayRef.value,
+    moonMesh,
+    'moon',
+  )
 }
 
 function setPreviewSurfacePosition(
@@ -1122,6 +2019,9 @@ function setPreviewSurfacePosition(
   element.style.top = `${top}%`
   element.style.width = `${diameter}%`
   element.style.height = `${diameter}%`
+  element.style.transform =
+    'translate(-50%, -50%)'
+  element.style.borderRadius = '50%'
 }
 
 function updatePreviewTextureOverlays() {
@@ -1513,9 +2413,26 @@ function updateBodyGeometry(
 function updateCelestialGeometry() {
   const scale = getCurrentScale()
 
-  updateBodyGeometry(sunMesh, scale.sunRadius, 72, 48)
-  updateBodyGeometry(earthMesh, scale.earthRadius, 72, 48)
-  updateBodyGeometry(moonMesh, scale.moonRadius, 64, 40)
+  updateBodyGeometry(
+    sunMesh,
+    scale.sunRadius,
+    128,
+    96,
+  )
+
+  updateBodyGeometry(
+    earthMesh,
+    scale.earthRadius,
+    128,
+    96,
+  )
+
+  updateBodyGeometry(
+    moonMesh,
+    scale.moonRadius,
+    96,
+    72,
+  )
 
   if (sunMesh) {
     sunMesh.position.set(-scale.sunDistance, 0, 0)
@@ -1602,6 +2519,7 @@ function updateMoonTransform() {
     earthSunlightBeam.visible = !isSolarHalf
   }
 
+  updateCelestialLightUniforms()
   updatePreviewObjects()
 }
 
@@ -1612,15 +2530,20 @@ function createPreviewScene() {
   previewCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 20)
   previewCamera.position.set(0, 0, 5)
 
-  const sunMaterial = createBodyMaterial('sun', {
-    basic: true,
-  })
-  const moonMaterial = createBodyMaterial('moon', {
-    basic: true,
-  })
-  const lunarMoonMaterial = createBodyMaterial('moon', {
-    basic: true,
-  })
+  const sunMaterial =
+    createPreviewBodyMaterial(
+      'sun',
+    )
+
+  const moonMaterial =
+    createPreviewBodyMaterial(
+      'moon',
+    )
+
+  const lunarMoonMaterial =
+    createPreviewBodyMaterial(
+      'moon',
+    )
 
   previewSun = new THREE.Mesh(
     registerGeometry(new THREE.SphereGeometry(0.55, 64, 40)),
@@ -1725,30 +2648,51 @@ function createCelestialScene() {
   const scale = getCurrentScale()
 
   sunMesh = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(scale.sunRadius, 72, 48)),
-    createBodyMaterial('sun', {
-      basic: true,
-      })
+    registerGeometry(
+      new THREE.SphereGeometry(
+        scale.sunRadius,
+        128,
+        96,
+      ),
+    ),
+    createBodyMaterial(
+      'sun',
+    ),
   )
   sunMesh.name = 'sun'
+  sunMesh.renderOrder = 1
   sunMesh.position.set(-scale.sunDistance, 0, 0)
 
   earthMesh = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(scale.earthRadius, 72, 48)),
-    createBodyMaterial('earth', {
-      emissive: '#0b2634',
-      emissiveIntensity: 0.08,
-    })
+    registerGeometry(
+      new THREE.SphereGeometry(
+        scale.earthRadius,
+        128,
+        96,
+      ),
+    ),
+    createBodyMaterial(
+      'earth',
+    ),
   )
   earthMesh.name = 'earth'
+  earthMesh.renderOrder = 1
   earthMesh.rotation.z = THREE.MathUtils.degToRad(23.5)
 
   moonMesh = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(scale.moonRadius, 64, 40)),
-    createBodyMaterial('moon', {
-    })
+    registerGeometry(
+      new THREE.SphereGeometry(
+        scale.moonRadius,
+        96,
+        72,
+      ),
+    ),
+    createBodyMaterial(
+      'moon',
+    ),
   )
   moonMesh.name = 'moon'
+  moonMesh.renderOrder = 1
 
   clickableObjects.push(sunMesh, earthMesh, moonMesh)
   scene.add(sunMesh, earthMesh, moonMesh)
@@ -1915,12 +2859,31 @@ function animateScene(time: number) {
     )
   }
 
-  if (earthRotationEnabled.value && earthMesh) {
-    earthMesh.rotation.y += delta * 0.72 * playbackSpeed.value
+  if (sunMesh) {
+    sunMesh.rotation.y +=
+      delta *
+      0.09 *
+      playbackSpeed.value
   }
 
-  if (moonOrbitEnabled.value && moonMesh) {
-    moonMesh.rotation.y += delta * 0.2 * playbackSpeed.value
+  if (
+    earthRotationEnabled.value &&
+    earthMesh
+  ) {
+    earthMesh.rotation.y +=
+      delta *
+      0.72 *
+      playbackSpeed.value
+  }
+
+  if (
+    moonOrbitEnabled.value &&
+    moonMesh
+  ) {
+    moonMesh.rotation.y +=
+      delta *
+      0.2 *
+      playbackSpeed.value
   }
 
   if (starField) {
@@ -1942,19 +2905,31 @@ function initScene() {
   container.replaceChildren()
 
   scene = new THREE.Scene()
-  // 参考图背景的中性灰色，采样值约为 RGB(91, 91, 91)。
-  scene.background = new THREE.Color('#5b5b5b')
+  scene.background = null
 
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 600)
   camera.position.set(18, 28, 70)
 
   renderer = new THREE.WebGLRenderer({
     antialias: true,
-    alpha: false,
+    alpha: true,
+    premultipliedAlpha: true,
     powerPreference: 'high-performance',
   })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.setPixelRatio(
+    Math.min(
+      window.devicePixelRatio,
+      2,
+    ),
+  )
+
+  renderer.setClearColor(
+    0x000000,
+    0,
+  )
+
+  renderer.outputColorSpace =
+    THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.08
   renderer.domElement.className = 'scene-canvas three-canvas'
@@ -1976,6 +2951,8 @@ function initScene() {
 
   createCelestialScene()
   createPreviewScene()
+  loadCelestialTextures()
+  syncCelestialSurfaceMode()
   setCameraView(currentView.value)
 
   renderer.domElement.addEventListener('pointerdown', handleScenePointerDown)
@@ -2188,8 +3165,36 @@ function disposeScene() {
   orbitControls?.dispose()
   orbitControls = null
 
-  disposableMaterials.forEach((material) => material.dispose())
-  disposableGeometries.forEach((geometry) => geometry.dispose())
+  disposableMaterials.forEach(
+    (material) =>
+      material.dispose(),
+  )
+
+  disposableGeometries.forEach(
+    (geometry) =>
+      geometry.dispose(),
+  )
+
+  disposableTextures.forEach(
+    (texture) =>
+      texture.dispose(),
+  )
+
+  celestialPreloadImages.forEach(
+    (image) => {
+      image.onload = null
+      image.onerror = null
+    },
+  )
+
+  celestialPreloadImages.length = 0
+
+  celestialImageBitmaps.forEach(
+    (bitmap) =>
+      bitmap.close(),
+  )
+
+  celestialImageBitmaps.length = 0
 
   renderer?.dispose()
 
@@ -2200,6 +3205,45 @@ function disposeScene() {
   clickableObjects.length = 0
   disposableMaterials.length = 0
   disposableGeometries.length = 0
+  disposableTextures.length = 0
+
+  sunDomTextureReady.value = false
+  earthDomTextureReady.value = false
+  moonDomTextureReady.value = false
+
+  sunWebglTextureReady.value = false
+  earthWebglTextureReady.value = false
+  moonWebglTextureReady.value = false
+
+  hideTextureOverlay(
+    sunTextureOverlayRef.value,
+  )
+
+  hideTextureOverlay(
+    earthTextureOverlayRef.value,
+  )
+
+  hideTextureOverlay(
+    moonTextureOverlayRef.value,
+  )
+
+  ;(
+    [
+      'sun',
+      'earth',
+      'moon',
+    ] as CelestialTextureKey[]
+  ).forEach(
+    (textureKey) => {
+      overlayLongitudeState[
+        textureKey
+      ].value = 0
+
+      overlayLongitudeState[
+        textureKey
+      ].initialized = false
+    },
+  )
 
   scene = null
   camera = null
@@ -2250,16 +3294,18 @@ onBeforeUnmount(() => {
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
+  background: #5b5b5b;
 }
 
 .eclipse-stage-content .three-host {
   position: absolute;
-  z-index: 0;
+  z-index: 2;
   inset: 0;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
+  background: transparent;
 }
 
 
@@ -2279,12 +3325,17 @@ onBeforeUnmount(() => {
   overflow: hidden;
   pointer-events: none;
   background-repeat: repeat-x;
-  background-position: 50% 50%;
-  background-size: 200% 100%;
+  background-position-y: 50%;
   border-radius: 50%;
-  will-change: width, height, transform, background-position;
+  transform-origin: 0 0;
+  will-change:
+    width,
+    height,
+    transform,
+    background-position;
 }
 
+.celestial-texture-overlay::before,
 .celestial-texture-overlay::after {
   position: absolute;
   content: '';
@@ -2293,113 +3344,210 @@ onBeforeUnmount(() => {
   border-radius: 50%;
 }
 
-.earth-texture-surface {
+.celestial-texture-overlay::before {
+  z-index: 1;
+  background:
+    radial-gradient(
+      circle at 29% 24%,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.07) 23%,
+      rgba(255, 255, 255, 0) 43%,
+      rgba(0, 0, 0, 0.1) 61%,
+      rgba(0, 0, 0, 0.46) 82%,
+      rgba(0, 0, 0, 0.88) 100%
+    );
+}
+
+.celestial-texture-overlay::after {
+  z-index: 2;
+  border:
+    1px solid
+    rgba(220, 238, 255, 0.18);
   box-shadow:
-    inset -18px -8px 28px rgba(0, 0, 0, 0.68),
-    inset 8px 5px 18px rgba(190, 229, 255, 0.13),
-    0 0 18px rgba(67, 161, 255, 0.12);
+    inset -15px -8px 26px
+      rgba(0, 0, 0, 0.3),
+    inset 8px 5px 15px
+      rgba(255, 255, 255, 0.05);
+}
+
+.earth-texture-surface {
+  filter:
+    saturate(1.08)
+    contrast(1.05);
 }
 
 .earth-texture-surface::after {
-  background:
-    radial-gradient(
-      circle at 30% 27%,
-      rgba(255, 255, 255, 0.13) 0%,
-      rgba(255, 255, 255, 0.02) 34%,
-      rgba(0, 0, 0, 0.12) 61%,
-      rgba(0, 0, 0, 0.74) 100%
-    );
+  box-shadow:
+    inset -18px -8px 28px
+      rgba(0, 0, 0, 0.48),
+    inset 8px 5px 18px
+      rgba(190, 229, 255, 0.1),
+    0 0 18px
+      rgba(67, 161, 255, 0.12);
 }
 
 .moon-texture-surface {
-  box-shadow:
-    inset -16px -7px 28px rgba(0, 0, 0, 0.62),
-    0 0 10px rgba(218, 227, 236, 0.12);
+  filter:
+    grayscale(0.03)
+    contrast(1.1)
+    brightness(0.97);
+}
+
+.moon-texture-surface::before {
+  background:
+    radial-gradient(
+      circle at 30% 25%,
+      rgba(255, 255, 255, 0.17) 0%,
+      rgba(255, 255, 255, 0.05) 27%,
+      rgba(255, 255, 255, 0) 46%,
+      rgba(0, 0, 0, 0.15) 65%,
+      rgba(0, 0, 0, 0.52) 84%,
+      rgba(0, 0, 0, 0.9) 100%
+    );
 }
 
 .moon-texture-surface::after {
-  background:
-    radial-gradient(
-      circle at 31% 28%,
-      rgba(255, 255, 255, 0.12) 0%,
-      rgba(255, 255, 255, 0.02) 36%,
-      rgba(0, 0, 0, 0.16) 63%,
-      rgba(0, 0, 0, 0.76) 100%
-    );
+  box-shadow:
+    inset -16px -7px 28px
+      rgba(0, 0, 0, 0.48),
+    0 0 10px
+      rgba(218, 227, 236, 0.12);
 }
 
 .sun-texture-surface {
-  box-shadow:
-    0 0 22px rgba(255, 174, 43, 0.6),
-    0 0 54px rgba(255, 132, 22, 0.28);
+  filter:
+    saturate(1.14)
+    contrast(1.04)
+    brightness(1.04);
+}
+
+.sun-texture-surface::before {
+  background:
+    radial-gradient(
+      circle at 36% 31%,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 223, 116, 0.06) 39%,
+      rgba(128, 33, 0, 0.16) 76%,
+      rgba(83, 18, 0, 0.42) 100%
+    );
 }
 
 .sun-texture-surface::after {
-  background:
-    radial-gradient(
-      circle at 38% 34%,
-      rgba(255, 255, 255, 0.2) 0%,
-      rgba(255, 215, 93, 0.04) 42%,
-      rgba(122, 30, 0, 0.22) 100%
-    );
+  border:
+    1px solid
+    rgba(255, 218, 112, 0.34);
+  box-shadow:
+    inset -10px -5px 20px
+      rgba(108, 24, 0, 0.24),
+    0 0 22px
+      rgba(255, 174, 43, 0.62),
+    0 0 54px
+      rgba(255, 132, 22, 0.3);
 }
+
 
 .preview-texture-surface,
 .preview-earth-shadow-texture {
   position: absolute;
   display: none;
-  z-index: 1;
   pointer-events: none;
-  transform: translate(-50%, -50%);
+  transform:
+    translate(-50%, -50%);
+  transform-origin:
+    center center;
   border-radius: 50%;
 }
 
 .preview-texture-surface {
   overflow: hidden;
-  background-repeat: repeat-x;
-  background-position: 50% 50%;
-  background-size: 200% 100%;
+  background-repeat:
+    repeat-x;
+  background-position:
+    50% 50%;
+  background-size:
+    200% 100%;
+  will-change:
+    left,
+    top,
+    width,
+    height,
+    filter;
 }
 
+.preview-texture-surface::before,
 .preview-texture-surface::after {
   position: absolute;
   content: '';
   inset: -1px;
+  pointer-events: none;
   border-radius: 50%;
+}
+
+.preview-texture-surface::before {
+  z-index: 1;
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.14);
+}
+
+.preview-texture-surface::after {
+  z-index: 2;
   background:
     radial-gradient(
       circle at 31% 28%,
-      rgba(255, 255, 255, 0.12) 0%,
-      rgba(255, 255, 255, 0.01) 37%,
-      rgba(0, 0, 0, 0.18) 65%,
-      rgba(0, 0, 0, 0.66) 100%
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.02) 35%,
+      rgba(0, 0, 0, 0.13) 61%,
+      rgba(0, 0, 0, 0.72) 100%
     );
 }
 
 .preview-sun-texture {
   z-index: 1;
-  box-shadow: 0 0 24px rgba(255, 168, 36, 0.34);
+  box-shadow:
+    0 0 22px
+      rgba(255, 174, 43, 0.42),
+    0 0 42px
+      rgba(255, 121, 22, 0.2);
 }
 
 .preview-sun-texture::after {
   background:
     radial-gradient(
       circle at 38% 34%,
-      rgba(255, 255, 255, 0.18) 0%,
-      rgba(255, 207, 76, 0.02) 48%,
-      rgba(111, 29, 0, 0.19) 100%
+      rgba(255, 255, 255, 0.2) 0%,
+      rgba(255, 207, 76, 0.03) 47%,
+      rgba(111, 29, 0, 0.2) 100%
     );
 }
 
 .preview-moon-texture,
 .preview-lunar-moon-texture {
   z-index: 2;
+  box-shadow:
+    inset -9px -5px 17px
+      rgba(0, 0, 0, 0.32);
+}
+
+.preview-moon-texture::after,
+.preview-lunar-moon-texture::after {
+  background:
+    radial-gradient(
+      circle at 30% 27%,
+      rgba(255, 255, 255, 0.11) 0%,
+      rgba(255, 255, 255, 0.02) 35%,
+      rgba(0, 0, 0, 0.16) 63%,
+      rgba(0, 0, 0, 0.76) 100%
+    );
 }
 
 .preview-earth-shadow-texture {
   z-index: 3;
-  background: rgba(25, 3, 4, 0.72);
-  box-shadow: inset 10px 0 18px rgba(134, 28, 18, 0.24);
+  background:
+    rgba(25, 3, 4, 0.72);
+  box-shadow:
+    inset 10px 0 18px
+      rgba(134, 28, 18, 0.24);
 }
 
 .scene-title-chip {
@@ -2442,14 +3590,16 @@ onBeforeUnmount(() => {
   position: absolute;
   top: clamp(14px, 1.3vw, 20px);
   left: clamp(14px, 1.3vw, 20px);
-  z-index: 2;
+  z-index: 5;
   width: clamp(200px, 22vw, 330px);
   aspect-ratio: 1 / 1;
   pointer-events: none;
+  overflow: hidden;
+  isolation: isolate;
+  background: #000;
   border: 2px solid rgba(255, 255, 255, 0.38);
   border-radius: 12px;
   box-shadow: 0 16px 38px rgba(0, 0, 0, 0.34);
-  overflow: hidden;
 }
 
 .earth-view-heading {

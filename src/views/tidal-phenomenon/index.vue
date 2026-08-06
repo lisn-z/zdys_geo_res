@@ -195,19 +195,20 @@
 
       <section class="center-stage">
         <div class="stage-content tide-stage-content">
+
           <div
             class="celestial-texture-layer"
             aria-hidden="true"
           >
             <div
               ref="earthTextureOverlayRef"
-              class="celestial-texture-overlay earth-texture-surface"
+              class="celestial-texture-sphere earth-texture-sphere"
               :style="{ backgroundImage: `url(${EARTH_TEXTURE_IMAGE})` }"
             ></div>
 
             <div
               ref="moonTextureOverlayRef"
-              class="celestial-texture-overlay moon-texture-surface"
+              class="celestial-texture-sphere moon-texture-sphere"
               :style="{ backgroundImage: `url(${MOON_TEXTURE_IMAGE})` }"
             ></div>
           </div>
@@ -385,15 +386,36 @@ const IMAGE_BASE_URL =
 const EARTH_TEXTURE_IMAGE = IMAGE_BASE_URL + 'earth.jpg'
 const MOON_TEXTURE_IMAGE = IMAGE_BASE_URL + 'moon.jpg'
 
+/*
+ * 参考“地球运动”页面的同源资源路径。
+ * 如果部署环境已经把 /geo-resources-folder 映射到 OSS，
+ * 会直接生成真实 WebGL 球体纹理；本地未映射时由 OSS DOM 球面层兜底。
+ */
+const SAME_ORIGIN_TEXTURE_BASE =
+  '/geo-resources-folder/images/'
+
+const EARTH_SAME_ORIGIN_TEXTURE =
+  SAME_ORIGIN_TEXTURE_BASE + 'earth.jpg'
+
+const MOON_SAME_ORIGIN_TEXTURE =
+  SAME_ORIGIN_TEXTURE_BASE + 'moon.jpg'
+
 const hasLeftPanel = true
 const hasRightPanel = true
 
 const threeContainerRef = ref<HTMLElement | null>(null)
-const earthTextureOverlayRef = ref<HTMLElement | null>(null)
-const moonTextureOverlayRef = ref<HTMLElement | null>(null)
 
-const earthTextureLoaded = ref(false)
-const moonTextureLoaded = ref(false)
+const earthTextureOverlayRef =
+  ref<HTMLElement | null>(null)
+
+const moonTextureOverlayRef =
+  ref<HTMLElement | null>(null)
+
+const earthDomTextureReady = ref(false)
+const moonDomTextureReady = ref(false)
+
+const earthWebglTextureReady = ref(false)
+const moonWebglTextureReady = ref(false)
 
 const moonOrbitEnabled = ref(true)
 const earthRotationEnabled = ref(false)
@@ -622,8 +644,8 @@ let lastSceneHeight = 0
 let earthCenterGroup: THREE.Group | null = null
 let earthTiltGroup: THREE.Group | null = null
 let earthSpinGroup: THREE.Group | null = null
-let earthMesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial> | null = null
-let moonMesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial> | null = null
+let earthMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
+let moonMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
 let tideMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
 let orbitLine: THREE.Line | null = null
 let earthMoonLine: THREE.Line | null = null
@@ -633,8 +655,8 @@ let barycenterLine: THREE.Line | null = null
 let observerMarker: THREE.Mesh | null = null
 let stars: THREE.Points | null = null
 
-let earthMaterial: THREE.MeshPhongMaterial | null = null
-let moonMaterial: THREE.MeshPhongMaterial | null = null
+let earthMaterial: THREE.ShaderMaterial | null = null
+let moonMaterial: THREE.ShaderMaterial | null = null
 let tideMaterial: THREE.ShaderMaterial | null = null
 
 const registeredGeometries: THREE.BufferGeometry[] = []
@@ -642,7 +664,9 @@ const registeredMaterials: THREE.Material[] = []
 const registeredTextures: THREE.Texture[] = []
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
-const clock = new THREE.Clock()
+let previousSceneFrameTime =
+  performance.now()
+
 const baseZAxis = new THREE.Vector3(0, 0, 1)
 const tmpEarthPosition = new THREE.Vector3()
 const tmpMoonPosition = new THREE.Vector3()
@@ -746,176 +770,744 @@ function createStars() {
   scene?.add(stars)
 }
 
-const preloadImages: HTMLImageElement[] = []
-const overlayWorldPosition = new THREE.Vector3()
-const overlayCameraSpacePosition = new THREE.Vector3()
-const overlayCenterNdc = new THREE.Vector3()
-const overlayEdgeNdc = new THREE.Vector3()
-const overlayCameraRight = new THREE.Vector3()
-const overlayWorldScale = new THREE.Vector3()
+function createFallbackTexture(
+  primaryColor: string,
+  secondaryColor: string,
+) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 256
 
-function syncSurfaceMaterialVisibility() {
-  if (earthMaterial) {
-    earthMaterial.colorWrite = !earthTextureLoaded.value
-    earthMaterial.needsUpdate = true
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('无法创建天体备用纹理')
   }
 
-  if (moonMaterial) {
-    moonMaterial.colorWrite = !moonTextureLoaded.value
-    moonMaterial.needsUpdate = true
+  const gradient = context.createLinearGradient(
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  )
+  gradient.addColorStop(0, primaryColor)
+  gradient.addColorStop(1, secondaryColor)
+  context.fillStyle = gradient
+  context.fillRect(0, 0, canvas.width, canvas.height)
+
+  for (let index = 0; index < 150; index += 1) {
+    context.fillStyle =
+      `rgba(255,255,255,${0.04 + Math.random() * 0.12})`
+    context.beginPath()
+    context.arc(
+      Math.random() * canvas.width,
+      Math.random() * canvas.height,
+      0.5 + Math.random() * 2.2,
+      0,
+      Math.PI * 2,
+    )
+    context.fill()
+  }
+
+  const texture = registerTexture(
+    new THREE.CanvasTexture(canvas),
+  )
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.needsUpdate = true
+  return texture
+}
+
+const earthUniforms = {
+  uMap: {
+    value: createFallbackTexture(
+      '#1a66a2',
+      '#2a99c9',
+    ) as THREE.Texture,
+  },
+  uLightDirection: {
+    value: new THREE.Vector3(
+      -0.72,
+      0.46,
+      0.52,
+    ).normalize(),
+  },
+  uAmbient: { value: 0.34 },
+  uDiffuse: { value: 1.05 },
+  uSpecular: { value: 0.18 },
+  uShininess: { value: 30 },
+  uRimStrength: { value: 0.16 },
+  uOpacity: { value: 1 },
+  uTint: {
+    value: new THREE.Color('#ffffff'),
+  },
+}
+
+const moonUniforms = {
+  uMap: {
+    value: createFallbackTexture(
+      '#8d9299',
+      '#c7c9cc',
+    ) as THREE.Texture,
+  },
+  uLightDirection: {
+    value: new THREE.Vector3(
+      -0.72,
+      0.46,
+      0.52,
+    ).normalize(),
+  },
+  uAmbient: { value: 0.23 },
+  uDiffuse: { value: 1.12 },
+  uSpecular: { value: 0.06 },
+  uShininess: { value: 10 },
+  uRimStrength: { value: 0.08 },
+  uOpacity: { value: 1 },
+  uTint: {
+    value: new THREE.Color('#e8e8e8'),
+  },
+}
+
+function createCelestialSphereMaterial(
+  uniforms:
+    | typeof earthUniforms
+    | typeof moonUniforms,
+) {
+  return registerMaterial(
+    new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vUv = uv;
+
+          vec4 worldPosition =
+            modelMatrix *
+            vec4(position, 1.0);
+
+          vWorldPosition =
+            worldPosition.xyz;
+
+          vWorldNormal =
+            normalize(
+              mat3(modelMatrix) *
+              normal
+            );
+
+          gl_Position =
+            projectionMatrix *
+            viewMatrix *
+            worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uMap;
+        uniform vec3 uLightDirection;
+        uniform float uAmbient;
+        uniform float uDiffuse;
+        uniform float uSpecular;
+        uniform float uShininess;
+        uniform float uRimStrength;
+        uniform float uOpacity;
+        uniform vec3 uTint;
+
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vec3 normalDirection =
+            normalize(vWorldNormal);
+
+          vec3 lightDirection =
+            normalize(uLightDirection);
+
+          vec3 viewDirection =
+            normalize(
+              cameraPosition -
+              vWorldPosition
+            );
+
+          float diffuseAmount =
+            max(
+              dot(
+                normalDirection,
+                lightDirection
+              ),
+              0.0
+            );
+
+          vec3 halfDirection =
+            normalize(
+              lightDirection +
+              viewDirection
+            );
+
+          float specularAmount =
+            pow(
+              max(
+                dot(
+                  normalDirection,
+                  halfDirection
+                ),
+                0.0
+              ),
+              uShininess
+            ) *
+            step(
+              0.001,
+              diffuseAmount
+            );
+
+          float rimAmount =
+            pow(
+              1.0 -
+              max(
+                dot(
+                  normalDirection,
+                  viewDirection
+                ),
+                0.0
+              ),
+              2.3
+            );
+
+          vec3 surfaceColor =
+            texture2D(
+              uMap,
+              vUv
+            ).rgb *
+            uTint;
+
+          vec3 shadedColor =
+            surfaceColor *
+            (
+              uAmbient +
+              diffuseAmount *
+              uDiffuse
+            );
+
+          shadedColor +=
+            vec3(1.0) *
+            specularAmount *
+            uSpecular;
+
+          shadedColor +=
+            surfaceColor *
+            rimAmount *
+            uRimStrength;
+
+          gl_FragColor =
+            vec4(
+              shadedColor,
+              uOpacity
+            );
+        }
+      `,
+      transparent: true,
+      depthWrite: true,
+    }),
+  )
+}
+
+function configureCelestialTexture(
+  texture: THREE.Texture,
+) {
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
+
+  if (renderer) {
+    texture.anisotropy = Math.min(
+      8,
+      renderer.capabilities.getMaxAnisotropy(),
+    )
+  }
+
+  texture.needsUpdate = true
+  return registerTexture(texture)
+}
+
+const celestialPreloadImages:
+  HTMLImageElement[] = []
+
+const celestialImageBitmaps:
+  ImageBitmap[] = []
+
+function syncCelestialSurfaceMode() {
+  const earthUsesDom =
+    earthDomTextureReady.value &&
+    !earthWebglTextureReady.value
+
+  const moonUsesDom =
+    moonDomTextureReady.value &&
+    !moonWebglTextureReady.value
+
+  earthUniforms.uOpacity.value =
+    earthUsesDom ? 0.20 : 1
+
+  moonUniforms.uOpacity.value =
+    moonUsesDom ? 0.18 : 1
+
+  if (earthTextureOverlayRef.value) {
+    earthTextureOverlayRef.value.style.display =
+      earthUsesDom ? 'block' : 'none'
+  }
+
+  if (moonTextureOverlayRef.value) {
+    moonTextureOverlayRef.value.style.display =
+      moonUsesDom ? 'block' : 'none'
   }
 }
 
-function preloadSurfaceImage(
+function preloadDomCelestialTexture(
   url: string,
-  loadedState: { value: boolean },
+  readyState: typeof earthDomTextureReady,
 ) {
   const image = new Image()
+  image.decoding = 'async'
 
   image.onload = () => {
-    loadedState.value = true
-    syncSurfaceMaterialVisibility()
+    readyState.value = true
+    syncCelestialSurfaceMode()
     updateCelestialTextureOverlays()
   }
 
   image.onerror = () => {
-    loadedState.value = false
-    syncSurfaceMaterialVisibility()
-    updateCelestialTextureOverlays()
-    console.warn(`天体贴图读取失败，继续使用备用颜色：${url}`)
+    readyState.value = false
+    syncCelestialSurfaceMode()
   }
 
+  /*
+   * 不设置 crossOrigin。
+   * 图片只作为 DOM/CSS 背景显示，不会被读取进 Canvas 或 WebGL。
+   */
   image.src = url
-  preloadImages.push(image)
+  celestialPreloadImages.push(image)
 }
 
-function getSphereWorldRadius(mesh: THREE.Mesh) {
-  const geometry = mesh.geometry as THREE.BufferGeometry
+async function loadSameOriginCelestialTexture(
+  url: string,
+  targetUniform:
+    | typeof earthUniforms.uMap
+    | typeof moonUniforms.uMap,
+  readyState: typeof earthWebglTextureReady,
+) {
+  try {
+    /*
+     * 先用 fetch 检查响应类型，避免 TextureLoader 对 404 HTML
+     * 产生额外的图片解码报错。
+     */
+    const response = await fetch(
+      url,
+      {
+        cache: 'force-cache',
+        credentials: 'same-origin',
+      },
+    )
 
-  if (!geometry.boundingSphere) {
-    geometry.computeBoundingSphere()
+    const contentType =
+      response.headers.get(
+        'content-type',
+      ) || ''
+
+    if (
+      !response.ok ||
+      !contentType.startsWith('image/')
+    ) {
+      readyState.value = false
+      syncCelestialSurfaceMode()
+      return
+    }
+
+    const blob = await response.blob()
+    const bitmap =
+      await createImageBitmap(blob)
+
+    celestialImageBitmaps.push(bitmap)
+
+    const texture =
+      new THREE.Texture(bitmap)
+
+    targetUniform.value =
+      configureCelestialTexture(
+        texture,
+      )
+
+    readyState.value = true
+    syncCelestialSurfaceMode()
+  } catch {
+    /*
+     * 同源镜像不可用时保持静默，
+     * 直接使用 OSS DOM 球面贴图，不输出 CORS 或纹理解码警告。
+     */
+    readyState.value = false
+    syncCelestialSurfaceMode()
+  }
+}
+
+function loadCelestialTextures() {
+  /*
+   * OSS 图片始终按用户指定的 IMAGE_BASE_URL + 文件名加载，
+   * 但仅作为浏览器可直接显示的 DOM 图片，不上传到 WebGL。
+   */
+  preloadDomCelestialTexture(
+    EARTH_TEXTURE_IMAGE,
+    earthDomTextureReady,
+  )
+
+  preloadDomCelestialTexture(
+    MOON_TEXTURE_IMAGE,
+    moonDomTextureReady,
+  )
+
+  /*
+   * 部署端具备同源映射时自动升级为真正的 WebGL UV 纹理。
+   * 本地开发端没有映射也不会影响 OSS DOM 贴图显示。
+   */
+  void loadSameOriginCelestialTexture(
+    EARTH_SAME_ORIGIN_TEXTURE,
+    earthUniforms.uMap,
+    earthWebglTextureReady,
+  )
+
+  void loadSameOriginCelestialTexture(
+    MOON_SAME_ORIGIN_TEXTURE,
+    moonUniforms.uMap,
+    moonWebglTextureReady,
+  )
+}
+
+const overlayWorldPosition =
+  new THREE.Vector3()
+
+const overlayCameraRight =
+  new THREE.Vector3()
+
+const overlayCenterNdc =
+  new THREE.Vector3()
+
+const overlayEdgeNdc =
+  new THREE.Vector3()
+
+const overlayViewDirection =
+  new THREE.Vector3()
+
+const overlayLocalDirection =
+  new THREE.Vector3()
+
+const overlayWorldQuaternion =
+  new THREE.Quaternion()
+
+let earthOverlayLongitude = 0
+let earthOverlayLongitudeInitialized = false
+
+let moonOverlayLongitude = 0
+let moonOverlayLongitudeInitialized = false
+
+function unwrapLongitude(
+  currentWrapped: number,
+  currentContinuous: number,
+  initialized: boolean,
+) {
+  if (!initialized) {
+    return currentWrapped
   }
 
-  mesh.getWorldScale(overlayWorldScale)
+  const previousWrapped =
+    THREE.MathUtils.euclideanModulo(
+      currentContinuous + 180,
+      360,
+    ) - 180
+
+  let delta =
+    currentWrapped -
+    previousWrapped
+
+  if (delta > 180) {
+    delta -= 360
+  } else if (delta < -180) {
+    delta += 360
+  }
+
+  return currentContinuous + delta
+}
+
+function getSphereWorldRadius(
+  mesh: THREE.Mesh,
+) {
+  const geometry =
+    mesh.geometry as
+      THREE.SphereGeometry
+
+  const baseRadius =
+    geometry.parameters.radius
+
+  const scale =
+    mesh.getWorldScale(
+      new THREE.Vector3(),
+    )
 
   return (
-    (geometry.boundingSphere?.radius || 1) *
+    baseRadius *
     Math.max(
-      Math.abs(overlayWorldScale.x),
-      Math.abs(overlayWorldScale.y),
-      Math.abs(overlayWorldScale.z),
+      scale.x,
+      scale.y,
+      scale.z,
     )
   )
 }
 
-function hideTextureOverlay(element: HTMLElement | null) {
+function hideCelestialOverlay(
+  element: HTMLElement | null,
+) {
   if (element) {
     element.style.display = 'none'
   }
 }
 
-function positionTextureOverlay(
+function positionCelestialTextureOverlay(
   element: HTMLElement | null,
   mesh: THREE.Mesh | null,
-  loaded: boolean,
-  longitudeDeg: number,
-  textureType: 'earth' | 'moon',
+  ready: boolean,
+  textureKind: 'earth' | 'moon',
 ) {
   if (
     !element ||
     !mesh ||
-    !loaded ||
+    !ready ||
     !mesh.visible ||
     !camera ||
-    !renderer ||
     lastSceneWidth <= 0 ||
     lastSceneHeight <= 0
   ) {
-    hideTextureOverlay(element)
+    hideCelestialOverlay(element)
     return
   }
+
+  mesh.updateWorldMatrix(
+    true,
+    false,
+  )
 
   camera.updateMatrixWorld()
-  mesh.updateWorldMatrix(true, false)
-  mesh.getWorldPosition(overlayWorldPosition)
 
-  overlayCameraSpacePosition
+  mesh.getWorldPosition(
+    overlayWorldPosition,
+  )
+
+  overlayCenterNdc
     .copy(overlayWorldPosition)
-    .applyMatrix4(camera.matrixWorldInverse)
-
-  if (overlayCameraSpacePosition.z >= 0) {
-    hideTextureOverlay(element)
-    return
-  }
-
-  overlayCenterNdc.copy(overlayWorldPosition).project(camera)
+    .project(camera)
 
   overlayCameraRight
     .set(1, 0, 0)
-    .applyQuaternion(camera.quaternion)
-    .multiplyScalar(getSphereWorldRadius(mesh))
+    .applyQuaternion(
+      camera.quaternion,
+    )
+    .multiplyScalar(
+      getSphereWorldRadius(mesh),
+    )
 
   overlayEdgeNdc
     .copy(overlayWorldPosition)
     .add(overlayCameraRight)
     .project(camera)
 
-  const radiusPixels = Math.abs(
-    overlayEdgeNdc.x - overlayCenterNdc.x,
-  ) * lastSceneWidth * 0.5
+  const radiusPixels =
+    Math.abs(
+      overlayEdgeNdc.x -
+      overlayCenterNdc.x,
+    ) *
+    lastSceneWidth *
+    0.5
 
-  const centerX = (overlayCenterNdc.x * 0.5 + 0.5) * lastSceneWidth
-  const centerY = (-overlayCenterNdc.y * 0.5 + 0.5) * lastSceneHeight
+  const centerX =
+    (
+      overlayCenterNdc.x *
+      0.5 +
+      0.5
+    ) *
+    lastSceneWidth
+
+  const centerY =
+    (
+      -overlayCenterNdc.y *
+      0.5 +
+      0.5
+    ) *
+    lastSceneHeight
 
   if (
     !Number.isFinite(radiusPixels) ||
     radiusPixels < 1 ||
     centerX + radiusPixels < 0 ||
-    centerX - radiusPixels > lastSceneWidth ||
+    centerX - radiusPixels >
+      lastSceneWidth ||
     centerY + radiusPixels < 0 ||
-    centerY - radiusPixels > lastSceneHeight
+    centerY - radiusPixels >
+      lastSceneHeight
   ) {
-    hideTextureOverlay(element)
+    hideCelestialOverlay(element)
     return
   }
 
-  const diameter = radiusPixels * 2.035
-  const cameraLongitude = THREE.MathUtils.radToDeg(
-    Math.atan2(
-      camera.position.z - overlayWorldPosition.z,
-      camera.position.x - overlayWorldPosition.x,
-    ),
+  mesh.getWorldQuaternion(
+    overlayWorldQuaternion,
   )
-  const textureLongitude = (
-    (longitudeDeg - cameraLongitude) % 360 + 360
-  ) % 360
+
+  overlayViewDirection
+    .copy(camera.position)
+    .sub(overlayWorldPosition)
+    .normalize()
+
+  overlayLocalDirection
+    .copy(overlayViewDirection)
+    .applyQuaternion(
+      overlayWorldQuaternion
+        .clone()
+        .invert(),
+    )
+    .normalize()
+
+  const wrappedLongitude =
+    THREE.MathUtils.radToDeg(
+      Math.atan2(
+        -overlayLocalDirection.z,
+        overlayLocalDirection.x,
+      ),
+    )
+
+  let continuousLongitude =
+    wrappedLongitude
+
+  if (textureKind === 'earth') {
+    continuousLongitude =
+      unwrapLongitude(
+        wrappedLongitude,
+        earthOverlayLongitude,
+        earthOverlayLongitudeInitialized,
+      )
+
+    earthOverlayLongitude =
+      continuousLongitude
+
+    earthOverlayLongitudeInitialized =
+      true
+  } else {
+    continuousLongitude =
+      unwrapLongitude(
+        wrappedLongitude,
+        moonOverlayLongitude,
+        moonOverlayLongitudeInitialized,
+      )
+
+    moonOverlayLongitude =
+      continuousLongitude
+
+    moonOverlayLongitudeInitialized =
+      true
+  }
+
+  const diameter =
+    radiusPixels * 2.015
+
+  const imageWidth =
+    diameter * 2
+
+  /*
+   * 经度展开图宽高约为 2:1。
+   * 将当前视线对应的经度放到圆形球体中央，
+   * repeat-x 保证跨越 180° 经线时连续，不发生闪切。
+   */
+  const sourceU =
+    continuousLongitude / 360 +
+    0.5
+
+  const backgroundLeft =
+    diameter * 0.5 -
+    sourceU * imageWidth
 
   element.style.display = 'block'
-  element.style.width = `${diameter}px`
-  element.style.height = `${diameter}px`
-  element.style.transform = `translate3d(${centerX - diameter / 2}px, ${centerY - diameter / 2}px, 0)`
-  element.style.backgroundPosition = `${textureLongitude / 3.6}% 50%`
-  element.style.filter = textureType === 'earth'
-    ? 'saturate(1.06) contrast(1.04)'
-    : 'grayscale(0.08) contrast(1.08)'
+  element.style.width =
+    `${diameter}px`
+
+  element.style.height =
+    `${diameter}px`
+
+  element.style.transform =
+    `translate3d(${centerX - diameter / 2}px, ${centerY - diameter / 2}px, 0)`
+
+  element.style.backgroundSize =
+    `${imageWidth}px ${diameter}px`
+
+  element.style.backgroundPosition =
+    `${backgroundLeft}px 50%`
 }
 
 function updateCelestialTextureOverlays() {
-  positionTextureOverlay(
+  positionCelestialTextureOverlay(
     earthTextureOverlayRef.value,
     earthMesh,
-    earthTextureLoaded.value,
-    earthRotationDeg.value,
+    earthDomTextureReady.value &&
+      !earthWebglTextureReady.value,
     'earth',
   )
 
-  positionTextureOverlay(
+  positionCelestialTextureOverlay(
     moonTextureOverlayRef.value,
     moonMesh,
-    moonTextureLoaded.value,
-    normalizedMoonAngle.value + 90,
+    moonDomTextureReady.value &&
+      !moonWebglTextureReady.value,
     'moon',
   )
+}
+
+const virtualSunPosition =
+  new THREE.Vector3(
+    -18,
+    10,
+    15,
+  )
+
+const earthWorldPosition =
+  new THREE.Vector3()
+
+const moonWorldPosition =
+  new THREE.Vector3()
+
+function updateCelestialLightUniforms() {
+  if (earthMesh) {
+    earthMesh.getWorldPosition(
+      earthWorldPosition,
+    )
+
+    earthUniforms
+      .uLightDirection
+      .value
+      .copy(virtualSunPosition)
+      .sub(earthWorldPosition)
+      .normalize()
+  }
+
+  if (moonMesh) {
+    moonMesh.getWorldPosition(
+      moonWorldPosition,
+    )
+
+    moonUniforms
+      .uLightDirection
+      .value
+      .copy(virtualSunPosition)
+      .sub(moonWorldPosition)
+      .normalize()
+  }
 }
 
 function createTideMaterial() {
@@ -976,19 +1568,23 @@ function createCelestialScene() {
   earthTiltGroup.rotation.z = EARTH_AXIS_TILT
   earthSpinGroup = new THREE.Group()
 
-  earthMaterial = registerMaterial(
-    new THREE.MeshPhongMaterial({
-      color: '#2f7fbd',
-      shininess: 8,
-      specular: new THREE.Color('#6ba8c8'),
-    }),
-  )
+  earthMaterial =
+    createCelestialSphereMaterial(
+      earthUniforms,
+    )
 
   earthMesh = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(EARTH_RADIUS, 96, 64)),
+    registerGeometry(
+      new THREE.SphereGeometry(
+        EARTH_RADIUS,
+        128,
+        96,
+      ),
+    ),
     earthMaterial,
   )
   earthMesh.userData.objectType = 'earth'
+  earthMesh.renderOrder = 1
   earthSpinGroup.add(earthMesh)
 
   observerMarker = new THREE.Mesh(
@@ -1033,18 +1629,23 @@ function createCelestialScene() {
   tideMesh.userData.objectType = 'tide'
   scene.add(tideMesh)
 
-  moonMaterial = registerMaterial(
-    new THREE.MeshPhongMaterial({
-      color: '#bfc2c7',
-      shininess: 4,
-      specular: new THREE.Color('#40454d'),
-    }),
-  )
+  moonMaterial =
+    createCelestialSphereMaterial(
+      moonUniforms,
+    )
+
   moonMesh = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(MOON_RADIUS, 64, 48)),
+    registerGeometry(
+      new THREE.SphereGeometry(
+        MOON_RADIUS,
+        96,
+        72,
+      ),
+    ),
     moonMaterial,
   )
   moonMesh.userData.objectType = 'moon'
+  moonMesh.renderOrder = 1
   scene.add(moonMesh)
 
   orbitLine = createOrbitLine(MOON_ORBIT_RADIUS)
@@ -1089,9 +1690,8 @@ function createCelestialScene() {
   )
   scene.add(barycenterLine)
 
-  preloadSurfaceImage(EARTH_TEXTURE_IMAGE, earthTextureLoaded)
-  preloadSurfaceImage(MOON_TEXTURE_IMAGE, moonTextureLoaded)
-  syncSurfaceMaterialVisibility()
+  loadCelestialTextures()
+  syncCelestialSurfaceMode()
 
   updateScenePositions()
   updateLayerVisibility()
@@ -1147,6 +1747,8 @@ function updateScenePositions() {
     const end = moonPosition.clone().addScaledVector(tmpDirection, MOON_RADIUS * 0.4)
     updateLinePositions(earthMoonLine, start, end)
   }
+
+  updateCelestialLightUniforms()
 }
 
 function updateLayerVisibility() {
@@ -1195,7 +1797,6 @@ function setView(view: string) {
 
   camera.updateProjectionMatrix()
   controls.update()
-  updateCelestialTextureOverlays()
 }
 
 function focusEarth() {
@@ -1262,7 +1863,9 @@ function resizeSceneNow() {
   camera.updateProjectionMatrix()
 
   renderer.setSize(width, height, false)
+
   updateCelestialTextureOverlays()
+
   if (scene) {
     renderer.render(scene, camera)
   }
@@ -1289,16 +1892,44 @@ function scheduleSceneResize(delay = 110) {
   }, delay)
 }
 
-function animateScene() {
-  sceneAnimationFrameId = requestAnimationFrame(animateScene)
-  const delta = Math.min(clock.getDelta(), 0.05)
+function animateScene(
+  frameTime = performance.now(),
+) {
+  sceneAnimationFrameId =
+    requestAnimationFrame(
+      animateScene,
+    )
+
+  const delta =
+    Math.min(
+      Math.max(
+        0,
+        (
+          frameTime -
+          previousSceneFrameTime
+        ) /
+        1000,
+      ),
+      0.05,
+    )
+
+  previousSceneFrameTime =
+    frameTime
 
   if (isPlaying.value && moonOrbitEnabled.value) {
     moonAngleDeg.value = (moonAngleDeg.value + delta * 7.2 * playbackSpeed.value) % 360
   }
 
   if (isPlaying.value && earthRotationEnabled.value) {
-    earthRotationDeg.value = (earthRotationDeg.value + delta * 34 * playbackSpeed.value) % 360
+    /*
+     * 使用 Three.js 球体自身连续旋转。
+     * 经纬展开图由球体 UV 自动包裹，不再移动二维 DOM 图片。
+     */
+    earthRotationDeg.value += delta * 34 * playbackSpeed.value
+
+    if (Math.abs(earthRotationDeg.value) > 360000) {
+      earthRotationDeg.value %= 360
+    }
   }
 
   updateScenePositions()
@@ -1330,11 +1961,25 @@ function initScene() {
   renderer = new THREE.WebGLRenderer({
     antialias: true,
     alpha: true,
+    premultipliedAlpha: true,
     powerPreference: 'high-performance',
   })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-  renderer.setClearColor(0x000000, 0)
-  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.setPixelRatio(
+    Math.min(
+      window.devicePixelRatio,
+      2,
+    ),
+  )
+  renderer.setClearColor(
+    0x000000,
+    0,
+  )
+  renderer.outputColorSpace =
+    THREE.SRGBColorSpace
+  renderer.toneMapping =
+    THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure =
+    1.08
   renderer.domElement.className = 'scene-canvas three-canvas'
   container.appendChild(renderer.domElement)
 
@@ -1371,8 +2016,16 @@ function initScene() {
   })
   resizeObserver.observe(container)
 
-  clock.start()
-  animateScene()
+  /*
+   * v7 已移除弃用的 THREE.Clock，
+   * 初始化动画前同步记录当前时间，避免 mounted 阶段引用不存在的 clock。
+   */
+  previousSceneFrameTime =
+    performance.now()
+
+  animateScene(
+    previousSceneFrameTime,
+  )
 }
 
 function pauseForManualPosition() {
@@ -1429,12 +2082,6 @@ function disposeScene() {
   controls?.dispose()
   controls = null
 
-  preloadImages.forEach((image) => {
-    image.onload = null
-    image.onerror = null
-  })
-  preloadImages.length = 0
-
   registeredTextures.forEach((texture) => texture.dispose())
   registeredMaterials.forEach((material) => material.dispose())
   registeredGeometries.forEach((geometry) => geometry.dispose())
@@ -1466,10 +2113,39 @@ function disposeScene() {
   earthMaterial = null
   moonMaterial = null
   tideMaterial = null
-  earthTextureLoaded.value = false
-  moonTextureLoaded.value = false
-  hideTextureOverlay(earthTextureOverlayRef.value)
-  hideTextureOverlay(moonTextureOverlayRef.value)
+
+  celestialPreloadImages.forEach(
+    (image) => {
+      image.onload = null
+      image.onerror = null
+    },
+  )
+
+  celestialPreloadImages.length = 0
+
+  celestialImageBitmaps.forEach(
+    (bitmap) => bitmap.close(),
+  )
+
+  celestialImageBitmaps.length = 0
+
+  earthDomTextureReady.value = false
+  moonDomTextureReady.value = false
+  earthWebglTextureReady.value = false
+  moonWebglTextureReady.value = false
+
+  hideCelestialOverlay(
+    earthTextureOverlayRef.value,
+  )
+
+  hideCelestialOverlay(
+    moonTextureOverlayRef.value,
+  )
+
+  earthOverlayLongitude = 0
+  moonOverlayLongitude = 0
+  earthOverlayLongitudeInitialized = false
+  moonOverlayLongitudeInitialized = false
 }
 
 watch(
@@ -1516,29 +2192,15 @@ onBeforeUnmount(() => {
   background: #020711;
 }
 
-.tide-three-host {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  background: transparent !important;
-}
-
-.tidal-phenomenon-container .three-canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
-  background: transparent !important;
-}
-
 .celestial-texture-layer {
   position: absolute;
-  z-index: 0;
+  z-index: 1;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
 }
 
-.celestial-texture-overlay {
+.celestial-texture-sphere {
   position: absolute;
   top: 0;
   left: 0;
@@ -1546,13 +2208,18 @@ onBeforeUnmount(() => {
   overflow: hidden;
   pointer-events: none;
   background-repeat: repeat-x;
-  background-position: 50% 50%;
-  background-size: 200% 100%;
+  background-position-y: 50%;
   border-radius: 50%;
-  will-change: width, height, transform, background-position;
+  transform-origin: 0 0;
+  will-change:
+    width,
+    height,
+    transform,
+    background-position;
 }
 
-.celestial-texture-overlay::after {
+.celestial-texture-sphere::before,
+.celestial-texture-sphere::after {
   position: absolute;
   content: '';
   inset: -1px;
@@ -1560,39 +2227,74 @@ onBeforeUnmount(() => {
   border-radius: 50%;
 }
 
-.earth-texture-surface {
-  box-shadow:
-    inset -18px -8px 30px rgba(0, 0, 0, 0.68),
-    inset 8px 5px 18px rgba(190, 229, 255, 0.14),
-    0 0 18px rgba(67, 161, 255, 0.14);
-}
-
-.earth-texture-surface::after {
+.celestial-texture-sphere::before {
+  z-index: 1;
   background:
     radial-gradient(
-      circle at 30% 27%,
-      rgba(255, 255, 255, 0.13) 0%,
-      rgba(255, 255, 255, 0.02) 34%,
+      circle at 29% 24%,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.08) 22%,
+      rgba(255, 255, 255, 0) 43%,
       rgba(0, 0, 0, 0.12) 61%,
-      rgba(0, 0, 0, 0.72) 100%
+      rgba(0, 0, 0, 0.48) 82%,
+      rgba(0, 0, 0, 0.88) 100%
     );
 }
 
-.moon-texture-surface {
+.celestial-texture-sphere::after {
+  z-index: 2;
+  border:
+    1px solid
+    rgba(210, 236, 255, 0.18);
   box-shadow:
-    inset -16px -7px 28px rgba(0, 0, 0, 0.64),
-    0 0 10px rgba(218, 227, 236, 0.14);
+    inset -14px -8px 25px
+      rgba(0, 0, 0, 0.28),
+    inset 8px 6px 14px
+      rgba(255, 255, 255, 0.05),
+    0 0 10px
+      rgba(70, 175, 255, 0.12);
 }
 
-.moon-texture-surface::after {
+.earth-texture-sphere {
+  filter:
+    saturate(1.08)
+    contrast(1.05);
+}
+
+.moon-texture-sphere {
+  filter:
+    grayscale(0.03)
+    contrast(1.11)
+    brightness(0.96);
+}
+
+.moon-texture-sphere::before {
   background:
     radial-gradient(
-      circle at 31% 28%,
-      rgba(255, 255, 255, 0.12) 0%,
-      rgba(255, 255, 255, 0.02) 36%,
-      rgba(0, 0, 0, 0.16) 63%,
-      rgba(0, 0, 0, 0.74) 100%
+      circle at 30% 25%,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(255, 255, 255, 0.05) 28%,
+      rgba(255, 255, 255, 0) 46%,
+      rgba(0, 0, 0, 0.16) 65%,
+      rgba(0, 0, 0, 0.52) 84%,
+      rgba(0, 0, 0, 0.9) 100%
     );
+}
+
+.tide-three-host {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  background:
+    transparent !important;
+}
+
+.tidal-phenomenon-container .three-canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  background:
+    transparent !important;
 }
 
 .position-scale {
@@ -1611,7 +2313,7 @@ onBeforeUnmount(() => {
   position: absolute;
   top: clamp(14px, 1.4vw, 22px);
   left: 50%;
-  z-index: 4;
+  z-index: 6;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1650,7 +2352,7 @@ onBeforeUnmount(() => {
   position: absolute;
   top: clamp(16px, 1.5vw, 24px);
   right: clamp(16px, 1.6vw, 26px);
-  z-index: 4;
+  z-index: 6;
   width: min(290px, 31%);
   padding: 13px 15px;
   color: #dceef5;

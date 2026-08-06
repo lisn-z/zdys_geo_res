@@ -1,5 +1,5 @@
 <!--
-  径流模拟 v9
+  径流模拟 v10
   Vue 3 + TypeScript + Element Plus + Three.js
   数据：内置 Model My Watershed 原始 model.csv 的 240 组水量平衡结果；显示值按原网页规则保留 1 位小数。
   资源：全部图片通过 IMAGE_BASE_URL + 文件名访问 runoff 子文件夹；业务版本升级时沿用已部署的稳定 OSS 图片文件名。主模型与过程效果改为普通 img DOM 图层，Three.js 仅负责透明粒子动画，避免跨域纹理与层叠遮挡问题。
@@ -293,6 +293,13 @@
               alt=""
               draggable="false"
             />
+            <span
+              v-show="showFlowDirections && waterBalance.evapotranspiration > 0"
+              class="flow-arrow-label evapotranspiration-arrow-label"
+              :style="{ opacity: effectVisuals.evapotranspiration.opacity }"
+            >
+              蒸散
+            </span>
             <img
               v-show="showFlowDirections && waterBalance.runoff > 0"
               class="runoff-effect-image effect-runoff-image"
@@ -301,6 +308,13 @@
               alt=""
               draggable="false"
             />
+            <span
+              v-show="showFlowDirections && waterBalance.runoff > 0"
+              class="flow-arrow-label runoff-arrow-label"
+              :style="{ opacity: effectVisuals.runoff.opacity }"
+            >
+              径流
+            </span>
             <img
               v-show="showFlowDirections && waterBalance.infiltration > 0"
               class="runoff-effect-image effect-infiltration-image"
@@ -309,6 +323,13 @@
               alt=""
               draggable="false"
             />
+            <span
+              v-show="showFlowDirections && waterBalance.infiltration > 0"
+              class="flow-arrow-label infiltration-arrow-label"
+              :style="{ opacity: effectVisuals.infiltration.opacity }"
+            >
+              下渗
+            </span>
           </div>
 
           <div class="scene-title-chip">
@@ -2376,6 +2397,49 @@ onBeforeUnmount(() => {
   bottom: 18%;
 }
 
+.flow-arrow-label {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  min-width: 48px;
+  padding: 5px 10px;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #ffffff;
+  font-size: clamp(12px, 0.82vw, 15px);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  background: rgba(4, 20, 33, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(8px);
+  transition: opacity 180ms ease;
+}
+
+.evapotranspiration-arrow-label {
+  top: 29%;
+  right: 11%;
+  color: #82c9ff;
+  border-color: rgba(45, 139, 255, 0.5);
+}
+
+.runoff-arrow-label {
+  bottom: 29%;
+  left: 10%;
+  color: #ff8585;
+  border-color: rgba(237, 59, 59, 0.5);
+}
+
+.infiltration-arrow-label {
+  right: 11%;
+  bottom: 22%;
+  color: #ffe36f;
+  border-color: rgba(242, 207, 70, 0.5);
+}
+
 .scene-title-chip {
   position: absolute;
   top: clamp(12px, 1.2vw, 20px);
@@ -2575,14 +2639,14 @@ onBeforeUnmount(() => {
 .balance-summary-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
 
 .balance-summary-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 14px;
 }
 
 .balance-summary-head span,
@@ -2592,21 +2656,22 @@ onBeforeUnmount(() => {
 
 .balance-summary-head span {
   color: var(--text-tertiary);
-  font-size: clamp(12px, 0.82vw, 14px);
+  font-size: clamp(13px, 0.9vw, 15px);
+  line-height: 1.5;
 }
 
 .balance-summary-head strong {
   margin-top: 4px;
   color: #39aef5;
-  font-size: clamp(23px, 1.65vw, 31px);
-  line-height: 1;
+  font-size: clamp(26px, 1.8vw, 34px);
+  line-height: 1.08;
 }
 
 .balance-summary-head em,
 .compact-section-head em {
-  padding: 4px 8px;
+  padding: 5px 9px;
   color: #2ec4b6;
-  font-size: clamp(10px, 0.72vw, 12px);
+  font-size: clamp(11px, 0.78vw, 13px);
   font-style: normal;
   background: rgba(46, 196, 182, 0.1);
   border: 1px solid rgba(46, 196, 182, 0.22);
@@ -2616,14 +2681,19 @@ onBeforeUnmount(() => {
 
 .balance-process-list {
   display: grid;
-  gap: 12px;
+  gap: 16px;
+}
+
+.balance-process-item {
+  display: grid;
+  gap: 8px;
 }
 
 .balance-process-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
 .balance-process-head > span {
@@ -2631,7 +2701,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 7px;
   color: var(--text-secondary);
-  font-size: clamp(12px, 0.82vw, 14px);
+  font-size: clamp(13px, 0.9vw, 15px);
+  line-height: 1.5;
 }
 
 .process-dot {
@@ -2659,20 +2730,21 @@ onBeforeUnmount(() => {
 
 .balance-process-head strong {
   color: var(--text-primary);
-  font-size: clamp(13px, 0.88vw, 15px);
+  font-size: clamp(14px, 0.96vw, 17px);
+  line-height: 1.35;
   white-space: nowrap;
 }
 
 .balance-process-head strong small {
   margin-left: 4px;
   color: var(--text-tertiary);
-  font-size: clamp(10px, 0.7vw, 12px);
+  font-size: clamp(11px, 0.76vw, 13px);
   font-weight: 500;
 }
 
 .balance-process-bar {
   height: 6px;
-  margin-top: 6px;
+  margin-top: 0;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.07);
   border-radius: 999px;
@@ -2686,7 +2758,7 @@ onBeforeUnmount(() => {
 }
 
 .compact-balance-equation {
-  padding: 10px;
+  padding: 14px;
   background: var(--inactive-background);
   border: 1px solid var(--inactive-border);
   border-radius: 10px;
@@ -2694,20 +2766,22 @@ onBeforeUnmount(() => {
 
 .compact-balance-equation > span {
   color: var(--text-tertiary);
-  font-size: clamp(11px, 0.75vw, 13px);
+  font-size: clamp(12px, 0.82vw, 14px);
+  line-height: 1.6;
 }
 
 .compact-balance-equation > div {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px;
-  margin-top: 7px;
+  gap: 8px;
+  margin-top: 10px;
+  line-height: 1.45;
 }
 
 .compact-balance-equation strong {
   color: #71e7dc;
-  font-size: clamp(17px, 1.05vw, 20px);
+  font-size: clamp(18px, 1.18vw, 22px);
 }
 
 .compact-balance-equation b {
@@ -2718,11 +2792,13 @@ onBeforeUnmount(() => {
 .compact-balance-equation small {
   margin-left: 2px;
   color: var(--text-tertiary);
-  font-size: clamp(10px, 0.7vw, 12px);
+  font-size: clamp(12px, 0.82vw, 14px);
+  line-height: 1.5;
 }
 
 .balance-divider {
   height: 1px;
+  margin: 2px 0;
   background: var(--inactive-border);
 }
 
@@ -2730,7 +2806,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
 .compact-section-head span,
@@ -2746,35 +2822,45 @@ onBeforeUnmount(() => {
 .compact-section-head strong {
   margin-top: 3px;
   color: var(--text-primary);
-  font-size: clamp(16px, 1vw, 19px);
+  font-size: clamp(17px, 1.12vw, 21px);
+  line-height: 1.35;
+}
+
+.compact-selected-object {
+  display: grid;
+  gap: 10px;
+  padding: 2px 0;
 }
 
 .compact-selected-object p,
 .compact-judgement p {
-  margin: 8px 0 0;
+  margin: 0;
   color: var(--text-secondary);
-  font-size: clamp(12px, 0.82vw, 14px);
-  line-height: 1.65;
+  font-size: clamp(13px, 0.9vw, 15px);
+  line-height: 1.8;
 }
 
 .selected-object-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 9px;
+  gap: 8px;
+  margin-top: 0;
 }
 
 .selected-object-tags span {
-  padding: 3px 7px;
+  padding: 4px 8px;
   color: var(--text-tertiary);
-  font-size: clamp(10px, 0.68vw, 12px);
+  font-size: clamp(11px, 0.76vw, 13px);
+  line-height: 1.3;
   background: var(--inactive-background);
   border: 1px solid var(--inactive-border);
   border-radius: 999px;
 }
 
 .compact-judgement {
-  padding: 10px;
+  display: grid;
+  gap: 8px;
+  padding: 14px 13px;
   background: rgba(46, 196, 182, 0.06);
   border-left: 3px solid rgba(46, 196, 182, 0.68);
   border-radius: 8px;
@@ -2782,8 +2868,9 @@ onBeforeUnmount(() => {
 
 .compact-judgement > span {
   color: #71e7dc;
-  font-size: 10px;
+  font-size: clamp(12px, 0.8vw, 13px);
   font-weight: 700;
+  line-height: 1.4;
 }
 
 .compact-model-note {
@@ -2794,16 +2881,16 @@ onBeforeUnmount(() => {
 }
 
 .runoff-simulation-container .right-panel .panel-heading h2 {
-  font-size: clamp(18px, 1.15vw, 22px);
+  font-size: clamp(20px, 1.28vw, 24px);
 }
 
 .runoff-simulation-container .right-panel .panel-heading p {
-  font-size: clamp(11px, 0.76vw, 13px);
-  line-height: 1.55;
+  font-size: clamp(12px, 0.82vw, 14px);
+  line-height: 1.65;
 }
 
 .compact-balance-equation b {
-  font-size: clamp(13px, 0.84vw, 15px);
+  font-size: clamp(14px, 0.92vw, 16px);
 }
 
 .runoff-simulation-container .workspace.panel-resizing,
@@ -2947,7 +3034,7 @@ onBeforeUnmount(() => {
 
 
 /*
- * v9 主场景可见性兜底：公共模板或第三方样式即使给 scene-host/canvas
+ * v10 主场景可见性兜底：公共模板或第三方样式即使给 scene-host/canvas
  * 设置了更高层级，也将 WebGL 固定在最底层；模型、过程图和数据柱始终位于其上。
  */
 .runoff-simulation-container .center-stage,
