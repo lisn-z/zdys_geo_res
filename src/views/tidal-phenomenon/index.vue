@@ -629,6 +629,14 @@ const EARTH_BARY_RADIUS = EARTH_RADIUS * 0.73
 const EARTH_AXIS_TILT = THREE.MathUtils.degToRad(23.5)
 const ORTHOGRAPHIC_SIZE = 14
 
+/*
+ * 潮汐形变层直接贴在地球表面外侧。
+ * 仅保留约 0.8% 的安全间距，避免透明层和地球表面发生深度闪烁。
+ */
+const TIDE_SURFACE_GAP = 0.008
+const TIDE_AXIAL_BULGE_PER_STRENGTH = 0.085
+const TIDE_TRANSVERSE_COMPRESSION_PER_STRENGTH = 0.0015
+
 let scene: THREE.Scene | null = null
 let camera: THREE.OrthographicCamera | null = null
 let renderer: THREE.WebGLRenderer | null = null
@@ -1127,8 +1135,19 @@ async function loadSameOriginCelestialTexture(
     }
 
     const blob = await response.blob()
+    /*
+     * earth.jpg 和 moon.jpg 是北极在上的经纬展开图。
+     * ImageBitmap 上传 WebGL 时不会自动执行 Texture.flipY，
+     * 必须在创建阶段翻转，否则球体会出现南北颠倒。
+     */
     const bitmap =
-      await createImageBitmap(blob)
+      await createImageBitmap(
+        blob,
+        {
+          imageOrientation: 'flipY',
+          premultiplyAlpha: 'none',
+        },
+      )
 
     celestialImageBitmaps.push(bitmap)
 
@@ -1557,6 +1576,9 @@ function createTideMaterial() {
   )
 
   material.blending = THREE.NormalBlending
+  material.polygonOffset = true
+  material.polygonOffsetFactor = -1
+  material.polygonOffsetUnits = -1
   return material
 }
 
@@ -1622,7 +1644,13 @@ function createCelestialScene() {
 
   tideMaterial = createTideMaterial()
   tideMesh = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(EARTH_RADIUS * 1.22, 96, 64)),
+    registerGeometry(
+      new THREE.SphereGeometry(
+        EARTH_RADIUS,
+        128,
+        96,
+      ),
+    ),
     tideMaterial,
   )
   tideMesh.renderOrder = 4
@@ -1733,13 +1761,48 @@ function updateScenePositions() {
   tmpDirection.copy(moonPosition).sub(earthPosition).normalize()
 
   if (tideMesh) {
-    tideMesh.quaternion.setFromUnitVectors(baseZAxis, tmpDirection)
-    const strength = highlightDeformation.value
-      ? deformationStrength.value
-      : 0
-    const sideScale = 1 - strength * 0.08
-    const axialScale = 1 + strength * 0.22
-    tideMesh.scale.set(sideScale, sideScale, axialScale)
+    tideMesh.quaternion.setFromUnitVectors(
+      baseZAxis,
+      tmpDirection,
+    )
+
+    const strength =
+      highlightDeformation.value
+        ? deformationStrength.value
+        : 0
+
+    /*
+     * 横向半径始终保持在地球表面外约 0.6%～0.8%：
+     * - 不再出现潮汐层悬浮在地球外侧的明显空隙；
+     * - 地月连线方向仍保留教学需要的夸张潮汐隆起；
+     * - 关闭“突出显示形变”后恢复为贴合地表的薄球壳。
+     */
+    const sideScale =
+      1 +
+      TIDE_SURFACE_GAP -
+      strength *
+        TIDE_TRANSVERSE_COMPRESSION_PER_STRENGTH
+
+    const axialScale =
+      1 +
+      TIDE_SURFACE_GAP +
+      strength *
+        TIDE_AXIAL_BULGE_PER_STRENGTH
+
+    tideMesh.scale.set(
+      Math.max(
+        1.004,
+        sideScale,
+      ),
+      Math.max(
+        1.004,
+        sideScale,
+      ),
+      Math.max(
+        1.004,
+        axialScale,
+      ),
+    )
   }
 
   if (earthMoonLine) {
