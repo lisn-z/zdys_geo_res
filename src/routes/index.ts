@@ -240,6 +240,15 @@ export const routes = [
     component: () =>
       import('@/views/runoff-simulation/index.vue'),
   },
+  {
+    path: '/the-twenty-four-solar-term',
+    name: 'the-twenty-four-solar-term',
+    meta: {
+      title: '24节气',
+    },
+    component: () =>
+      import('@/views/the-twenty-four-solar-term/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
