@@ -76,9 +76,17 @@
               </div>
             </div>
 
+            <!-- 圆盘缩放控制 -->
+            <div class="plate-scale-control">
+              <button type="button" class="scale-btn" @click="scaleDown" :disabled="plateScale <= 0.5">−</button>
+              <span class="scale-label">{{ Math.round(plateScale * 100) }}%</span>
+              <button type="button" class="scale-btn" @click="scaleUp" :disabled="plateScale >= 1.5">+</button>
+              <button type="button" class="scale-btn reset-scale-btn" @click="plateScalePercent = 100">↺</button>
+            </div>
+
             <!-- 圆盘游戏区 -->
             <div class="plate-area">
-              <div class="round-plate">
+              <div class="round-plate" :style="{ transform: `scale(${plateScale})` }">
                 <!-- 8 个方位提示标签 -->
                 <div
                   v-for="dir in directions"
@@ -115,13 +123,10 @@
                   @dragover.prevent
                   @drop="(e) => onDropOnSlot(e, dir.key)"
                 >
-                  <div v-if="placed[dir.key]" class="card-slot filled">
+                  <div v-if="placed[dir.key]" class="card-slot filled" :class="{ 'placed-correct': placed[dir.key]!.correct, 'placed-wrong': placed[dir.key]!.correct === false }" @click.stop="showResultPopup(dir.key)">
                     <img :src="placed[dir.key]!.card.img" :alt="placed[dir.key]!.card.name" class="card-image" />
                     <span class="card-name-tag">{{ placed[dir.key]!.card.name }}</span>
-                    <span class="result-mark" v-if="placed[dir.key]!.checked">
-                      <span v-if="placed[dir.key]!.correct">✓</span>
-                      <span v-else>✗</span>
-                    </span>
+                    <button type="button" class="card-remove-btn" @click.stop="removeFromSlot(dir.key)" title="移除卡片">✕</button>
                   </div>
                   <div v-else class="card-slot empty">
                     <span class="slot-direction">{{ dir.label }}</span>
@@ -129,6 +134,25 @@
                       {{ correctName(dir.key) }}
                     </span>
                   </div>
+                  <!-- 结果弹窗 -->
+                  <transition name="result-popup">
+                    <div v-if="resultPopupKey === dir.key" class="result-popup" :class="'popup-' + dir.key" @click.stop>
+                      <div v-if="placed[dir.key]?.correct" class="result-popup-correct">
+                        <span class="result-popup-icon">✓</span>
+                        <span class="result-popup-text">回答正确!</span>
+                      </div>
+                      <div v-else class="result-popup-wrong">
+                        <span class="result-popup-icon">✗</span>
+                        <span class="result-popup-text">回答错误</span>
+                        <div v-if="correctAnswers[dir.key]" class="result-popup-answer">
+                          <img :src="correctAnswers[dir.key]!.img" :alt="correctAnswers[dir.key]!.name" class="popup-image" />
+                          <span class="popup-name">{{ correctAnswers[dir.key]!.name }}</span>
+                          <span class="popup-label">正确答案</span>
+                        </div>
+                      </div>
+                      <button type="button" class="result-popup-close" @click.stop="resultPopupKey = ''">✕</button>
+                    </div>
+                  </transition>
                 </div>
 
                 <!-- 连击激励气泡 -->
@@ -203,50 +227,6 @@
           </div>
         </div>
 
-        <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="isPlaying = !isPlaying"
-          >
-            <el-icon>
-              <VideoPause v-if="isPlaying" />
-              <VideoPlay v-else />
-            </el-icon>
-          </button>
-
-          <div class="timeline-main">
-            <div class="timeline-copy">
-              <span>演示进度</span>
-              <strong>{{ Math.round(progress) }}%</strong>
-            </div>
-
-            <el-slider
-              v-model="progress"
-              :min="0"
-              :max="100"
-              :show-tooltip="false"
-            />
-          </div>
-
-          <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{
-                active: playbackSpeed === item
-              }"
-              @click="playbackSpeed = item"
-            >
-              {{ item }}×
-            </button>
-          </div>
-        </div>
       </section>
 
       <aside
@@ -344,13 +324,27 @@
                 <tr>
                   <th>方位</th>
                   <th>你的答案</th>
+                  <th>正确答案</th>
                   <th>结果</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="dir in directions" :key="'ans-' + dir.key">
                   <td>{{ dir.label }}</td>
-                  <td>{{ placed[dir.key]?.card?.name || '—' }}</td>
+                  <td>
+                    <div v-if="placed[dir.key]?.card" class="ans-cell">
+                      <img v-if="placed[dir.key]!.card" :src="placed[dir.key]!.card.img" class="ans-thumb" />
+                      {{ placed[dir.key]!.card.name }}
+                    </div>
+                    <span v-else>—</span>
+                  </td>
+                  <td>
+                    <div v-if="correctAnswers[dir.key]" class="ans-cell correct-ans">
+                      <img :src="correctAnswers[dir.key]!.img" class="ans-thumb" />
+                      {{ correctAnswers[dir.key]!.name }}
+                    </div>
+                    <span v-else class="no-neighbor">—</span>
+                  </td>
                   <td>
                     <span v-if="placed[dir.key]?.checked === true" class="answer-ok">✓</span>
                     <span v-else-if="placed[dir.key]?.checked === false" class="answer-no">✗</span>
@@ -407,11 +401,6 @@ import {
   ref,
 } from 'vue'
 
-import {
-  VideoPause,
-  VideoPlay,
-} from '@element-plus/icons-vue'
-
 import '@/styles/geo-page-template.css'
 
 import {
@@ -456,12 +445,6 @@ const {
     }
   },
 })
-
-const progress = ref(36)
-const playbackSpeed = ref(1)
-const isPlaying = ref(false)
-const activePanels = ref(['parameters'])
-const speedOptions = [0.5, 1, 2, 5]
 
 /* =========================================================
  * 七大洲四大洋 - 数据 + 相邻关系
@@ -509,48 +492,48 @@ const allCards: RegionCard[] = [
  */
 const neighborMap: Record<string, Record<string, string | null>> = {
   '亚洲': {
-    n: '北冰洋', ne: '北冰洋', e: '太平洋', se: '太平洋',
+    n: '北冰洋', ne: '北冰洋', e: '太平洋', se: '大洋洲',
     s: '印度洋', sw: '非洲', w: '欧洲', nw: '欧洲',
   },
   '欧洲': {
     n: '北冰洋', ne: '北冰洋', e: '亚洲', se: '亚洲',
-    s: '非洲', sw: '非洲', w: '大西洋', nw: '大西洋',
+    s: '非洲', sw: '大西洋', w: '大西洋', nw: '北冰洋',
   },
   '非洲': {
     n: '欧洲', ne: '亚洲', e: '印度洋', se: '印度洋',
-    s: '大西洋', sw: '大西洋', w: '大西洋', nw: '欧洲',
+    s: '南极洲', sw: '大西洋', w: '大西洋', nw: '欧洲',
   },
   '北美': {
-    n: '北冰洋', ne: '北冰洋', e: '大西洋', se: '大西洋',
-    s: '南美', sw: '太平洋', w: '太平洋', nw: '太平洋',
+    n: '北冰洋', ne: '北冰洋', e: '大西洋', se: '南美',
+    s: '南美', sw: '太平洋', w: '太平洋', nw: '北冰洋',
   },
   '南美': {
-    n: '北美', ne: '大西洋', e: '大西洋', se: '大西洋',
+    n: '北美', ne: '大西洋', e: '大西洋', se: '南极洲',
     s: '南极洲', sw: '太平洋', w: '太平洋', nw: '北美',
   },
   '大洋洲': {
-    n: '亚洲', ne: '太平洋', e: '太平洋', se: '太平洋',
-    s: '南极洲', sw: '印度洋', w: '印度洋', nw: '印度洋',
+    n: '亚洲', ne: '太平洋', e: '太平洋', se: '南极洲',
+    s: '南极洲', sw: '印度洋', w: '印度洋', nw: '亚洲',
   },
   '南极洲': {
-    n: '太平洋', ne: '大西洋', e: '印度洋', se: '印度洋',
-    s: null, sw: null, w: '太平洋', nw: '太平洋',
+    n: '大西洋', ne: '印度洋', e: '印度洋', se: '太平洋',
+    s: null, sw: '太平洋', w: '大西洋', nw: '大西洋',
   },
   '太平洋': {
-    n: '北冰洋', ne: '北冰洋', e: '北美', se: '南美',
+    n: '北冰洋', ne: '北美', e: '北美', se: '大洋洲',
     s: '南极洲', sw: '大洋洲', w: '亚洲', nw: '亚洲',
   },
   '大西洋': {
-    n: '北冰洋', ne: '欧洲', e: '欧洲', se: '非洲',
-    s: '南极洲', sw: '南美', w: '北美', nw: '北美',
+    n: '北冰洋', ne: '欧洲', e: '非洲', se: '南极洲',
+    s: '南极洲', sw: '南美', w: '北美', nw: '北冰洋',
   },
   '印度洋': {
-    n: '亚洲', ne: '亚洲', e: '大洋洲', se: '大洋洲',
+    n: '亚洲', ne: '大洋洲', e: '大洋洲', se: '南极洲',
     s: '南极洲', sw: '非洲', w: '非洲', nw: '亚洲',
   },
   '北冰洋': {
     n: null, ne: null, e: null, se: null,
-    s: '亚洲', sw: '欧洲', w: '欧洲', nw: '北美',
+    s: '亚洲', sw: '欧洲', w: '北美', nw: null,
   },
 }
 
@@ -576,6 +559,24 @@ const gameMode = ref<GameMode>('random')
 const showHint = ref(false)
 const messageText = ref('点击下方卡片,或拖动到圆盘上的方位格')
 const messageClass = ref('info')
+
+// 圆盘缩放
+const plateScalePercent = ref(100)
+const plateScale = computed(() => plateScalePercent.value / 100)
+function scaleUp() {
+  plateScalePercent.value = Math.min(150, plateScalePercent.value + 10)
+}
+function scaleDown() {
+  plateScalePercent.value = Math.max(50, plateScalePercent.value - 10)
+}
+
+// 结果弹窗
+const resultPopupKey = ref('')
+function showResultPopup(dirKey: string) {
+  const entry = placed[dirKey]
+  if (!entry || !entry.checked) return
+  resultPopupKey.value = resultPopupKey.value === dirKey ? '' : dirKey
+}
 
 const centerCard = ref<RegionCard | null>(null)
 const availableCards = ref<RegionCard[]>([])
@@ -721,6 +722,7 @@ function startRound() {
   availableCards.value.sort(() => Math.random() - 0.5)
   for (const dir of directions) placed[dir.key] = null
   showHint.value = false
+  resultPopupKey.value = ''
   roundStart.value = Date.now()
   now.value = Date.now()
   timeLeft.value = TIME_LIMIT_SEC
@@ -770,6 +772,17 @@ function onDropOnSlot(e: DragEvent, dirKey: string) {
   placeCardAt(card, dirKey)
 }
 
+function removeFromSlot(dirKey: string) {
+  const entry = placed[dirKey]
+  if (!entry) return
+  // 将卡片移回待选区
+  availableCards.value.push(entry.card)
+  placed[dirKey] = null
+  // 重置连击
+  combo.value = 0
+  setMessage('info', `已移除${directionLabel(dirKey)}方向的${entry.card.name}，可重新放置`)
+}
+
 function quickPickCard(card: RegionCard) {
   // 自动找第一个空的方向
   const emptyDir = directions.find(d => !placed[d.key])
@@ -806,8 +819,8 @@ function placeCardAt(card: RegionCard, dirKey: string) {
   } else {
     combo.value = 0
     score.value = Math.max(0, score.value - 3)
-    const realName = correct?.name || '该方向无相邻'
-    setMessage('no', `✗ 不太对哦,${realName ? realName + ' 才在该方位' : ''}`)
+    const realName = correct?.name || '无相邻'
+    setMessage('no', `✗ 不太对哦，${directionLabel(dirKey)}方正确答案应为「${realName}」`)
   }
 
   // 从待选区移除
@@ -828,8 +841,6 @@ function setMessage(cls: string, text: string) {
 }
 
 /* 生命周期 */
-// 之前 demo 用的 timeline 占位(页面不渲染)
-let timelineAnimationFrameId = 0
 
 onMounted(async () => {
   await nextTick()
@@ -850,7 +861,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (nowTimer) { clearInterval(nowTimer); nowTimer = null }
-  cancelAnimationFrame(timelineAnimationFrameId)
 })
 </script>
 
@@ -910,6 +920,44 @@ onBeforeUnmount(() => {
 }
 .game-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* 圆盘缩放控制 */
+.plate-scale-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(8, 12, 28, 0.55);
+  border: 1px solid rgba(46, 196, 182, 0.25);
+  border-radius: 8px;
+  width: fit-content;
+  margin: 0 auto;
+}
+.scale-btn {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(46, 196, 182, 0.5);
+  background: rgba(46, 196, 182, 0.12);
+  color: #2ec4b6;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s ease;
+  padding: 0;
+  line-height: 1;
+}
+.scale-btn:hover:not(:disabled) { background: rgba(46, 196, 182, 0.25); }
+.scale-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.scale-label {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+  min-width: 36px;
+  text-align: center;
+}
+.reset-scale-btn { font-size: 12px; }
+
 /* 圆盘 */
 .plate-area {
   display: flex;
@@ -917,6 +965,7 @@ onBeforeUnmount(() => {
   align-items: center;
   flex: 1;
   min-height: 460px;
+  overflow: visible;
 }
 .round-plate {
   position: relative;
@@ -930,7 +979,8 @@ onBeforeUnmount(() => {
     inset 0 0 40px rgba(46, 196, 182, 0.22),
     0 0 24px rgba(46, 196, 182, 0.35),
     0 0 48px rgba(36, 124, 255, 0.2);
-  overflow: hidden;
+  overflow: visible;
+  transition: transform 0.25s ease;
 }
 /* 圆盘上的径向分割线(8 方位) */
 .round-plate::before {
@@ -1045,28 +1095,29 @@ onBeforeUnmount(() => {
 .direction-label {
   position: absolute;
   z-index: 8;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 800;
   color: #ffffff;
   letter-spacing: 2px;
   pointer-events: none;
   user-select: none;
-  line-height: 1;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: rgba(8, 12, 28, 0.72);
-  border: 1px solid rgba(46, 196, 182, 0.45);
-  box-shadow: 0 0 6px rgba(46, 196, 182, 0.5);
-  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  line-height: 1.2;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(8, 12, 28, 0.78);
+  border: 1px solid rgba(46, 196, 182, 0.4);
+  box-shadow: 0 0 5px rgba(46, 196, 182, 0.4);
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
 }
-.direction-label.dir-n { top: 0; left: 50%; transform: translateX(-50%); }
-.direction-label.dir-ne { top: 12%; right: 12%; transform: translate(50%, -50%); }
-.direction-label.dir-e { top: 50%; right: 0; transform: translateY(-50%); }
-.direction-label.dir-se { bottom: 12%; right: 12%; transform: translate(50%, 50%); }
-.direction-label.dir-s { bottom: 0; left: 50%; transform: translateX(-50%); }
-.direction-label.dir-sw { bottom: 12%; left: 12%; transform: translate(-50%, 50%); }
-.direction-label.dir-w { top: 50%; left: 0; transform: translateY(-50%); }
-.direction-label.dir-nw { top: 12%; left: 12%; transform: translate(-50%, -50%); }
+.direction-label.dir-n { top: 4%; left: 50%; transform: translateX(-50%); }
+.direction-label.dir-ne { top: 14%; right: 14%; transform: translate(50%, -50%); }
+.direction-label.dir-e { top: 50%; right: 4%; transform: translateY(-50%); }
+.direction-label.dir-se { bottom: 14%; right: 14%; transform: translate(50%, 50%); }
+.direction-label.dir-s { bottom: 4%; left: 50%; transform: translateX(-50%); }
+.direction-label.dir-sw { bottom: 14%; left: 14%; transform: translate(-50%, 50%); }
+.direction-label.dir-w { top: 50%; left: 4%; transform: translateY(-50%); }
+.direction-label.dir-nw { top: 14%; left: 14%; transform: translate(-50%, -50%); }
 
 .plate-center-slot {
   position: absolute;
@@ -1081,14 +1132,14 @@ onBeforeUnmount(() => {
   z-index: 4;
   transition: transform 0.2s ease;
 }
-.neighbor-slot.slot-n { top: 12%; left: 50%; transform: translateX(-50%); }
-.neighbor-slot.slot-ne { top: 18%; right: 12%; }
-.neighbor-slot.slot-e { top: 50%; right: 6%; transform: translateY(-50%); }
-.neighbor-slot.slot-se { bottom: 12%; right: 12%; }
-.neighbor-slot.slot-s { bottom: 6%; left: 50%; transform: translateX(-50%); }
-.neighbor-slot.slot-sw { bottom: 12%; left: 12%; }
-.neighbor-slot.slot-w { top: 50%; left: 6%; transform: translateY(-50%); }
-.neighbor-slot.slot-nw { top: 18%; left: 12%; }
+.neighbor-slot.slot-n { top: 16%; left: 50%; transform: translateX(-50%); }
+.neighbor-slot.slot-ne { top: 22%; right: 18%; }
+.neighbor-slot.slot-e { top: 50%; right: 12%; transform: translateY(-50%); }
+.neighbor-slot.slot-se { bottom: 22%; right: 18%; }
+.neighbor-slot.slot-s { bottom: 16%; left: 50%; transform: translateX(-50%); }
+.neighbor-slot.slot-sw { bottom: 22%; left: 18%; }
+.neighbor-slot.slot-w { top: 50%; left: 12%; transform: translateY(-50%); }
+.neighbor-slot.slot-nw { top: 22%; left: 18%; }
 
 .neighbor-slot.hint { animation: pulse-hint 1.2s ease-in-out infinite; }
 @keyframes pulse-hint {
@@ -1108,7 +1159,9 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(4px);
   transition: all 0.2s ease;
 }
-.card-slot.filled { border-style: solid; border-color: rgba(46, 196, 182, 0.7); }
+.card-slot.filled { border-style: solid; border-color: rgba(46, 196, 182, 0.7); cursor: pointer; }
+.card-slot.filled.placed-correct { border-color: #2ec4b6; box-shadow: 0 0 8px rgba(46, 196, 182, 0.5); }
+.card-slot.filled.placed-wrong { border-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.5); }
 .neighbor-slot.correct .card-slot.filled { border-color: #2ec4b6; box-shadow: 0 0 12px rgba(46, 196, 182, 0.6); }
 .neighbor-slot.wrong .card-slot.filled { border-color: #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.6); }
 .plate-center-slot .card-slot { border-color: rgba(251, 191, 36, 0.7); background: rgba(251, 191, 36, 0.08); }
@@ -1156,18 +1209,116 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 .card-type-tag.ocean { background: rgba(96, 165, 250, 0.25); color: #93c5fd; }
-.result-mark {
+.card-remove-btn {
   position: absolute;
-  top: 2px; left: 2px;
+  bottom: 2px; right: 2px;
   width: 18px; height: 18px;
   border-radius: 50%;
-  font-size: 12px;
-  font-weight: 800;
-  display: flex; align-items: center; justify-content: center;
+  background: rgba(239, 68, 68, 0.85);
   color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10;
+  transition: transform 0.15s ease, background 0.15s ease;
+  padding: 0;
 }
-.neighbor-slot.correct .result-mark { background: #2ec4b6; box-shadow: 0 0 8px #2ec4b6; }
-.neighbor-slot.wrong .result-mark { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+.card-remove-btn:hover { transform: scale(1.2); background: #ef4444; }
+.popup-image { width: 48px; height: 48px; object-fit: contain; }
+.popup-name { font-size: 10px; color: #2ec4b6; font-weight: 700; white-space: nowrap; }
+.popup-label { font-size: 8px; color: #fbbf24; font-weight: 600; white-space: nowrap; }
+
+/* 结果弹窗 */
+.result-popup {
+  position: absolute;
+  z-index: 30;
+  min-width: 120px;
+  padding: 10px 12px;
+  background: rgba(6, 17, 31, 0.95);
+  border: 1.5px solid rgba(46, 196, 182, 0.7);
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(46, 196, 182, 0.4), 0 8px 24px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: default;
+}
+.result-popup-close {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.85);
+  color: #fff;
+  font-size: 10px;
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.result-popup-close:hover { transform: scale(1.2); }
+.result-popup-correct {
+  display: flex; align-items: center; gap: 6px;
+}
+.result-popup-wrong {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.result-popup-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  font-size: 14px; font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+.result-popup-correct .result-popup-icon { background: #2ec4b6; box-shadow: 0 0 10px rgba(46, 196, 182, 0.6); }
+.result-popup-wrong .result-popup-icon { background: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.6); }
+.result-popup-text {
+  font-size: 13px; font-weight: 700; color: #fff;
+}
+.result-popup-wrong .result-popup-text { color: #f87171; }
+.result-popup-correct .result-popup-text { color: #2ec4b6; }
+.result-popup-answer {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px;
+  background: rgba(46, 196, 182, 0.1);
+  border: 1px solid rgba(46, 196, 182, 0.4);
+  border-radius: 8px;
+}
+/* 弹出方向根据方位键调整 */
+.result-popup.popup-n, .result-popup.popup-ne, .result-popup.popup-nw { bottom: 100%; margin-bottom: 8px; }
+.result-popup.popup-s, .result-popup.popup-se, .result-popup.popup-sw { top: 100%; margin-top: 8px; }
+.result-popup.popup-e { left: 100%; margin-left: 8px; }
+.result-popup.popup-w { right: 100%; margin-right: 8px; }
+.result-popup.popup-n, .result-popup.popup-s { left: 50%; transform: translateX(-50%); }
+.result-popup.popup-ne, .result-popup.popup-se { left: 50%; }
+.result-popup.popup-nw, .result-popup.popup-sw { right: 50%; }
+.result-popup.popup-e, .result-popup.popup-ne { top: 0; }
+.result-popup.popup-w, .result-popup.popup-nw { top: 0; }
+.result-popup.popup-se { bottom: 0; }
+.result-popup.popup-sw { bottom: 0; }
+.result-popup-enter-active { animation: result-popup-in 0.3s ease; }
+.result-popup-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.result-popup-leave-to { opacity: 0; transform: scale(0.8); }
+@keyframes result-popup-in {
+  0% { transform: scale(0.5); opacity: 0; }
+  70% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+/* 覆盖 translateX 方向的弹窗动画 */
+.result-popup.popup-n.result-popup-enter-active,
+.result-popup.popup-s.result-popup-enter-active {
+  animation: result-popup-in-center 0.3s ease;
+}
+@keyframes result-popup-in-center {
+  0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+  70% { transform: translateX(-50%) scale(1.05); }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
 
 /* 待选卡片区 */
 .card-pool {
@@ -1286,6 +1437,10 @@ onBeforeUnmount(() => {
 }
 .answer-table th { background: rgba(46, 196, 182, 0.15); color: #2ec4b6; font-weight: 700; }
 .answer-table td { color: #cbd5e1; }
+.ans-cell { display: flex; align-items: center; gap: 4px; justify-content: center; }
+.ans-thumb { width: 22px; height: 22px; object-fit: contain; border-radius: 3px; background: rgba(255,255,255,0.06); padding: 1px; }
+.correct-ans { color: #2ec4b6; font-weight: 600; }
+.no-neighbor { color: #64748b; }
 .answer-ok { color: #2ec4b6; font-weight: 800; font-size: 14px; }
 .answer-no { color: #ef4444; font-weight: 800; font-size: 14px; }
 .answer-pending { color: #64748b; }
