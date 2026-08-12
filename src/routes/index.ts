@@ -186,6 +186,24 @@ export const routes = [
     component: () =>
       import('@/views/atmosphere-vertical-layers/index.vue'),
   },
+  {
+    path: '/sunshine',
+    name: 'sunshine',
+    meta: {
+      title: '不同纬度的太阳辐射差异',
+    },
+    component: () =>
+      import('@/views/sunshine/index.vue'),
+  },
+  {
+    path: '/earth-ball',
+    name: 'earth-ball',
+    meta: {
+      title: '观察：地球是球形的',
+    },
+    component: () =>
+      import('@/views/earth-ball/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
