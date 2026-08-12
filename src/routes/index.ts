@@ -240,6 +240,15 @@ export const routes = [
     component: () =>
       import('@/views/runoff-simulation/index.vue'),
   },
+  {
+    path: '/sponge-city',
+    name: 'sponge-city',
+    meta: {
+      title: '海绵城市',
+    },
+    component: () =>
+      import('@/views/sponge-city/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
