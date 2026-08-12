@@ -25,11 +25,27 @@
           <div class="map-zone">
             <div id="china-map" ref="chartRef" class="china-map-chart"></div>
 
+            <!-- 地图左上角简称速查区 -->
+            <div class="map-short-quick-ref">
+              <button v-for="p in PROVINCES" :key="p.adcode" type="button" class="short-tile" :class="{
+                matched: matchedSet.has(p.name),
+                active: activeProvince && activeProvince === p.name,
+                selected: draggingName === p.name,
+              }" :title="p.name" :disabled="matchedSet.has(p.name)"
+                :draggable="gameMode === 'drag' && !matchedSet.has(p.name)" @click="selectProvince(p.name)"
+                @dragstart="(e) => onDragStartProvince(e, p.name)" @dragend="onDragEndProvince">
+                {{ p.shortName }}
+              </button>
+            </div>
+
             <div class="map-approval-number">
               GS(2025)5996
             </div>
 
-            <div v-if="activeProvince && !dropResult" class="selected-hint">
+            <div v-if="gameMode === 'drag' && !activeProvince && !dropResult" class="drag-hint">
+              🖐 拖拽右侧省份卡片到地图上对应位置
+            </div>
+            <div v-else-if="activeProvince && !dropResult" class="selected-hint">
               已选中：<span>{{ activeProvince }}</span> · 请点击地图上对应位置
             </div>
 
@@ -45,11 +61,25 @@
           <div class="panel-heading">
             <div>
               <h2>省级行政区</h2>
-              <p>选择右侧名称，再点击地图对应位置</p>
+              <p>{{ gameMode === 'drag' ? '拖拽卡片到地图对应位置' : '点击右侧名称，再点击地图对应位置' }}</p>
             </div>
 
             <span class="panel-badge">DATA</span>
           </div>
+
+          <!-- 模式切换 -->
+          <section class="geo-card mode-switch-card">
+            <div class="mode-switch">
+              <button type="button" class="mode-btn" :class="{ active: gameMode === 'click' }"
+                @click="switchMode('click')">
+                👆 点选
+              </button>
+              <button type="button" class="mode-btn" :class="{ active: gameMode === 'drag' }"
+                @click="switchMode('drag')">
+                🖐 拖拽
+              </button>
+            </div>
+          </section>
 
           <section class="geo-card progress-card">
             <div class="progress-head">
@@ -72,14 +102,17 @@
           <section class="geo-card province-list-card">
             <div class="province-list-head">
               <h3>34 个省级行政区</h3>
-              <span>只显示名称</span>
+              <span>左上角为简称</span>
             </div>
 
             <div class="province-name-grid">
               <button v-for="p in provinceList" :key="p.name" type="button" class="province-card" :class="{
                 active: activeProvince && activeProvince === p.name,
                 matched: matchedSet.has(p.name),
-              }" @click="selectProvince(p.name)">
+                dragging: draggingName === p.name,
+              }" :draggable="gameMode === 'drag' && !matchedSet.has(p.name)" @click="selectProvince(p.name)"
+                @dragstart="(e) => onDragStartProvince(e, p.name)" @dragend="onDragEndProvince">
+                <span class="province-short">{{ p.shortName }}</span>
                 <span class="province-name">{{ p.name }}</span>
               </button>
             </div>
@@ -87,7 +120,8 @@
 
           <section class="geo-card map-note-card">
             <h3>操作说明</h3>
-            <p>先点击右侧省级行政区名称，再点击地图中对应位置。</p>
+            <p v-if="gameMode === 'click'">👆 点选模式：先点击右侧省级行政区名称，再点击地图中对应位置。</p>
+            <p v-else>🖐 拖拽模式：直接按住右侧卡片（左上角为简称）拖到地图上对应位置松开。</p>
             <p>匹配正确后，该省份会高亮，右侧名称会变为已完成状态。</p>
           </section>
         </div>
@@ -234,7 +268,7 @@ const {
   },
 })
 const activeProvince = ref('')
-const provinceList = ref<Array<{ name: string; shortName: string; svgPath: string }>>([])
+const provinceList = ref<Array<{ name: string; shortName: string; svgPath: string; adcode: string }>>([])
 const dropResult = ref<{ msg: string; success: boolean } | null>(null)
 const matchedSet = ref<Set<string>>(new Set())
 const totalCount = ref(34)
@@ -246,6 +280,60 @@ const completionTime = ref('')
 const showTimeout = ref(false)
 const timeoutMessage = ref('')
 const encourageWord = ref('')
+
+// 游戏模式: click(点选) / drag(拖拽)
+const gameMode = ref<'click' | 'drag'>('click')
+const draggingName = ref('') // 拖拽中的省份名
+
+// 34 个省级行政区: adcode + 名称 + 简称
+const PROVINCES: Array<{ adcode: string; name: string; shortName: string }> = [
+  { adcode: '110000', name: '北京市', shortName: '京' },
+  { adcode: '120000', name: '天津市', shortName: '津' },
+  { adcode: '130000', name: '河北省', shortName: '冀' },
+  { adcode: '140000', name: '山西省', shortName: '晋' },
+  { adcode: '150000', name: '内蒙古自治区', shortName: '蒙' },
+  { adcode: '210000', name: '辽宁省', shortName: '辽' },
+  { adcode: '220000', name: '吉林省', shortName: '吉' },
+  { adcode: '230000', name: '黑龙江省', shortName: '黑' },
+  { adcode: '310000', name: '上海市', shortName: '沪' },
+  { adcode: '320000', name: '江苏省', shortName: '苏' },
+  { adcode: '330000', name: '浙江省', shortName: '浙' },
+  { adcode: '340000', name: '安徽省', shortName: '皖' },
+  { adcode: '350000', name: '福建省', shortName: '闽' },
+  { adcode: '360000', name: '江西省', shortName: '赣' },
+  { adcode: '370000', name: '山东省', shortName: '鲁' },
+  { adcode: '410000', name: '河南省', shortName: '豫' },
+  { adcode: '420000', name: '湖北省', shortName: '鄂' },
+  { adcode: '430000', name: '湖南省', shortName: '湘' },
+  { adcode: '440000', name: '广东省', shortName: '粤' },
+  { adcode: '450000', name: '广西壮族自治区', shortName: '桂' },
+  { adcode: '460000', name: '海南省', shortName: '琼' },
+  { adcode: '500000', name: '重庆市', shortName: '渝' },
+  { adcode: '510000', name: '四川省', shortName: '川' },
+  { adcode: '520000', name: '贵州省', shortName: '黔' },
+  { adcode: '530000', name: '云南省', shortName: '滇' },
+  { adcode: '540000', name: '西藏自治区', shortName: '藏' },
+  { adcode: '610000', name: '陕西省', shortName: '陕' },
+  { adcode: '620000', name: '甘肃省', shortName: '甘' },
+  { adcode: '630000', name: '青海省', shortName: '青' },
+  { adcode: '640000', name: '宁夏回族自治区', shortName: '宁' },
+  { adcode: '650000', name: '新疆维吾尔自治区', shortName: '新' },
+  { adcode: '710000', name: '台湾省', shortName: '台' },
+  { adcode: '810000', name: '香港特别行政区', shortName: '港' },
+  { adcode: '820000', name: '澳门特别行政区', shortName: '澳' },
+]
+
+// 中国省级行政区 GeoJSON：高德下载的全国省级完整数据
+const CHINA_GEOJSON_URL = '/geo-resources-folder/geojson/中国矢量数据/中国省级行政区.json'
+// 不能注册成 china：ECharts 对名为 china 的地图会注入内置南海诸岛小窗。
+// 使用自定义地图名后，完全按我们提供的 GeoJSON 原样渲染。
+const CHINA_MAP_NAME = 'chinaProvincePuzzle'
+
+const shortNameMap = new Map(PROVINCES.map(p => [p.name, p.shortName]))
+
+function getShortName(name: string): string {
+  return shortNameMap.get(name) || name.slice(0, 1)
+}
 
 const encourageList = [
   '每一条河流都记得你的努力，加油！',
@@ -264,6 +352,47 @@ let dropTimer: number | null = null
 let countdownTimer: number | null = null
 let startTime = 0
 
+// 高德 中国省级行政区.json 的最后一个辅助要素通常使用 adcode=100000_JD / adchar=JD，
+// geometry 为 MultiPolygon。它不是普通省级行政区，而是九段线的面状几何表达。
+const NINE_DASH_REGION_NAME = '__九段线__'
+
+function isNineDashFeature(feature: any): boolean {
+  const props = feature?.properties || {}
+  const adcode = String(props.adcode ?? props.adCode ?? '').trim()
+  const adchar = String(props.adchar ?? props.ADCHAR ?? '').trim().toUpperCase()
+  const name = String(props.name ?? props.NAME ?? '').trim()
+
+  return (
+    adcode === '100000_JD' ||
+    adchar === 'JD' ||
+    /九段线|十段线|断续线/.test(name)
+  )
+}
+
+function getBaseGeoRegions() {
+  return [
+    {
+      name: NINE_DASH_REGION_NAME,
+      silent: true,
+      itemStyle: {
+        areaColor: '#ffffff',
+        borderColor: '#ffffff',
+        borderWidth: 0,
+        opacity: 0.95,
+      },
+      emphasis: {
+        disabled: true,
+        itemStyle: {
+          areaColor: '#ffffff',
+          borderColor: '#ffffff',
+          borderWidth: 0,
+          opacity: 0.95,
+        },
+      },
+      select: { disabled: true },
+    },
+  ]
+}
 
 function isPanelLayoutResizing() {
   return (
@@ -361,6 +490,13 @@ function resetGame() {
   window.location.reload()
 }
 
+function switchMode(mode: 'click' | 'drag') {
+  gameMode.value = mode
+  activeProvince.value = ''
+  dropResult.value = null
+  showDropFeedback(false, mode === 'drag' ? '🖐 拖拽模式:把右侧省份卡片拖到地图上对应位置' : '👆 点选模式:点击右侧名称,再点击地图对应位置')
+}
+
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -369,14 +505,14 @@ function formatTime(seconds: number): string {
 }
 
 function normalizeCoords(coords: number[][][][]): { path: string } {
-  let allPoints: number[][] = []
+  const allPoints: number[][] = []
   for (const poly of coords) {
     for (const ring of poly) {
       for (const p of ring) allPoints.push(p)
     }
   }
   if (allPoints.length === 0) return { path: '' }
-  const xs = allPoints.map(p => p[0]), ys = allPoints.map(p => p[1])
+  const xs = allPoints.map(p => p[0] ?? 0), ys = allPoints.map(p => p[1] ?? 0)
   const minX = Math.min(...xs), maxX = Math.max(...xs)
   const minY = Math.min(...ys), maxY = Math.max(...ys)
   const range = Math.max(maxX - minX, maxY - minY) || 1
@@ -384,8 +520,10 @@ function normalizeCoords(coords: number[][][][]): { path: string } {
   for (const poly of coords) {
     for (const ring of poly) {
       const pts = ring.map(p => {
-        const nx = ((p[0] - minX) / range * 90 + 5).toFixed(1)
-        const ny = ((p[1] - minY) / range * 90 + 5).toFixed(1)
+        const x = p[0] ?? 0
+        const y = p[1] ?? 0
+        const nx = ((x - minX) / range * 90 + 5).toFixed(1)
+        const ny = ((y - minY) / range * 90 + 5).toFixed(1)
         return `${nx},${ny}`
       })
       if (pts.length >= 3) parts.push('M' + pts.join(' L') + ' Z')
@@ -395,6 +533,11 @@ function normalizeCoords(coords: number[][][][]): { path: string } {
 }
 
 function selectProvince(name: string) {
+  // 拖拽模式下点击无效(需拖拽到地图)
+  if (gameMode.value === 'drag') {
+    showDropFeedback(false, '当前为拖拽模式,请将卡片拖到地图对应位置')
+    return
+  }
   // 点击同一个已选中省份则取消选中
   if (activeProvince.value === name) {
     activeProvince.value = ''
@@ -403,6 +546,73 @@ function selectProvince(name: string) {
   activeProvince.value = name
   // 清除上一次成功提示
   dropResult.value = null
+}
+
+// ---- 拖拽模式 ----
+function onDragStartProvince(e: DragEvent, name: string) {
+  draggingName.value = name
+  if (e.dataTransfer) {
+    e.dataTransfer.setData('text/plain', name)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+}
+function onDragEndProvince() {
+  draggingName.value = ''
+}
+
+function onDropOnMap(e: DragEvent) {
+  e.preventDefault()
+  const name = e.dataTransfer?.getData('text/plain') || draggingName.value
+  if (!name) return
+  draggingName.value = ''
+  if (matchedSet.value.has(name)) return // 已匹配
+
+  // 获取 drop 相对地图容器的坐标
+  const el = chartRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const px = e.clientX - rect.left
+  const py = e.clientY - rect.top
+
+  const hitProvince = getProvinceAtPoint(px, py)
+  if (hitProvince && hitProvince === name) {
+    // 匹配成功
+    matchProvince(name)
+  } else {
+    showDropFeedback(false, hitProvince ? `✗ 这是 ${hitProvince},不是 ${name}` : '✗ 请拖到对应的省份区域上')
+  }
+}
+function onDragOverMap(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+}
+
+// 匹配成功统一处理
+function matchProvince(name: string) {
+  playSuccessSound()
+  matchedSet.value.add(name)
+  matchedSet.value = new Set(matchedSet.value)
+  matchedCount.value = matchedSet.value.size
+  progressPercent.value = (matchedCount.value / totalCount.value) * 100
+
+  const regions = [
+    ...getBaseGeoRegions(),
+    ...[...matchedSet.value].map(n => ({
+      name: n,
+      itemStyle: { areaColor: '#2ec4b6', borderColor: '#ffffff', borderWidth: 1.5 },
+    })),
+  ]
+  chart?.setOption({ geo: { regions } }, false)
+
+  showDropFeedback(true, `✅ ${name} 位置正确！🎯`)
+  activeProvince.value = ''
+
+  if (matchedCount.value >= totalCount.value) {
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+    const elapsed = Math.floor((Date.now() - startTime) / 1000)
+    completionTime.value = formatTime(elapsed)
+    setTimeout(() => { showCompletion.value = true }, 600)
+  }
 }
 
 function showDropFeedback(success: boolean, msg: string) {
@@ -458,14 +668,21 @@ function getProvinceAtPoint(x: number, y: number): string {
     if (!geoCoord || geoCoord.length < 2) return ''
     const [lng, lat] = geoCoord as [number, number]
 
-    // 遍历 GeoJSON 所有省份，射线法判断点落在哪个省份多边形内
+    // 这里只处理真正的 34 个省级行政区。
+    // 九段线在该 GeoJSON 中也是 MultiPolygon，因此必须通过辅助标记排除。
     for (const feature of geoJsonData.features) {
-      const geom = feature.geometry
-      const coordsList: number[][][][] = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates]
+      if (feature?.properties?.__auxiliary === 'nineDashLine') continue
+
+      const geom = feature?.geometry
+      if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) continue
+
+      const coordsList: number[][][][] =
+        geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates]
+
       for (const polygon of coordsList) {
         const outerRing = polygon[0] as number[][]
         if (outerRing && pointInPolygon(lng, lat, outerRing)) {
-          return feature.properties.name || ''
+          return feature.properties?.name || ''
         }
       }
     }
@@ -477,6 +694,7 @@ function getProvinceAtPoint(x: number, y: number): string {
 function onMapClick(params: any) {
   const selectedName = activeProvince.value
   if (!selectedName || !chart) return
+  if (gameMode.value === 'drag') return // 拖拽模式下禁用点击匹配
 
   // getZr().on('click') 给的是像素坐标
   const px = (params.offsetX !== undefined) ? params.offsetX : (params.event?.offsetX ?? 0)
@@ -486,58 +704,103 @@ function onMapClick(params: any) {
   // 错误匹配：不显示任何提示，静默返回
   if (!hitProvince || hitProvince !== selectedName) return
 
-  // ✅ 匹配成功：播放音效 + 高亮省份
-  playSuccessSound()
-  matchedSet.value.add(selectedName)
-  matchedSet.value = new Set(matchedSet.value) // 触发响应式
-  matchedCount.value = matchedSet.value.size
-  progressPercent.value = (matchedCount.value / totalCount.value) * 100
+  // ✅ 匹配成功
+  matchProvince(selectedName)
+}
 
-  // 通过 setOption 更新 geo.regions 直接控制区域颜色和边框
-  const regions = [...matchedSet.value].map(name => ({
-    name,
-    itemStyle: { areaColor: '#2ec4b6', borderColor: '#ffffff', borderWidth: 1.5 },
-  }))
-  chart.setOption({ geo: { regions } }, false)
-
-  showDropFeedback(true, `✅ ${selectedName} 位置正确！🎯`)
-  activeProvince.value = ''
-
-  // 全部完成
-  if (matchedCount.value >= totalCount.value) {
-    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
-    const elapsed = Math.floor((Date.now() - startTime) / 1000)
-    completionTime.value = formatTime(elapsed)
-    setTimeout(() => { showCompletion.value = true }, 600)
+// 加载高德全国省级完整 GeoJSON
+async function loadChinaGeoJson(): Promise<any> {
+  const res = await fetch(CHINA_GEOJSON_URL)
+  if (!res.ok) {
+    throw new Error(`中国 GeoJSON 加载失败：HTTP ${res.status}`)
   }
+  return await res.json()
 }
 
 // ---- 生命周期 ----
 onMounted(async () => {
   try {
-    const res = await fetch('/geo-resources-folder/geojson/中国矢量数据/中国省级行政区.geojson')
-    geoJsonData = await res.json()
+    const data = await loadChinaGeoJson()
+    const sourceFeatures = Array.isArray(data?.features) ? data.features : []
 
-    /*
-     * 去掉 GeoJSON 里的附属小框 / 空白要素：
-     * - 部分中国省级 GeoJSON 会带南海诸岛小框；
-     * - 该要素可能没有 properties.name，右侧会生成空白卡片；
-     * - 地图上也会出现右下角 inset 小框。
-     */
-    geoJsonData.features =
-      geoJsonData.features.filter((feature: any) => {
-        const name =
-          String(
-            feature?.properties?.name || ''
-          ).trim()
+    if (!sourceFeatures.length) {
+      console.error('中国 GeoJSON 中没有可用的 features')
+      return
+    }
 
-        return (
-          name &&
-          name !== '南海诸岛'
-        )
-      })
+    const provinceByAdcode = new Map(PROVINCES.map(p => [p.adcode, p]))
+    const provinceByName = new Map(PROVINCES.map(p => [p.name, p]))
+    const features: any[] = []
 
-    echarts.registerMap('china', geoJsonData)
+    let nineDashFeatureCount = 0
+
+    for (const rawFeature of sourceFeatures) {
+      if (!rawFeature?.geometry) continue
+
+      const geometryType = rawFeature.geometry.type
+      if (geometryType !== 'Polygon' && geometryType !== 'MultiPolygon') {
+        continue
+      }
+
+      const props = rawFeature.properties || {}
+
+      // 高德全国 GeoJSON 的九段线本身就是 MultiPolygon，不能按 LineString 处理。
+      // 保留真实坐标，只给它一个独立名称和辅助标记，交给 geo 原样渲染。
+      if (isNineDashFeature(rawFeature)) {
+        rawFeature.properties = {
+          ...props,
+          name: NINE_DASH_REGION_NAME,
+          __auxiliary: 'nineDashLine',
+        }
+        features.push(rawFeature)
+        nineDashFeatureCount += 1
+        continue
+      }
+
+      const rawAdcode = String(props.adcode ?? props.adCode ?? '').trim()
+      const rawName = String(props.name ?? props.NAME ?? '').trim()
+      const province = provinceByAdcode.get(rawAdcode) || provinceByName.get(rawName)
+
+      // 仅保留七大行政区列表中定义的 34 个省级行政区。
+      if (!province) continue
+
+      rawFeature.properties = {
+        ...props,
+        name: province.name,
+        shortName: province.shortName,
+        adcode: province.adcode,
+      }
+      features.push(rawFeature)
+    }
+
+    geoJsonData = {
+      type: 'FeatureCollection',
+      features,
+    }
+
+    const provinceFeatureCount = features.filter(
+      f => f?.properties?.__auxiliary !== 'nineDashLine'
+    ).length
+
+    if (!provinceFeatureCount) {
+      console.error('中国省级行政区.json 中没有识别到省级行政区面数据')
+      return
+    }
+
+    console.info(
+      `[中国地图] 已从 ${CHINA_GEOJSON_URL} 加载 ${provinceFeatureCount} 个省级面要素；` +
+      `九段线 MultiPolygon ${nineDashFeatureCount} 个；地图注册名：${CHINA_MAP_NAME}`
+    )
+
+    if (!nineDashFeatureCount) {
+      console.warn(
+        '[中国地图] 未识别到九段线 MultiPolygon。请检查最后一个 feature 的 adcode/adchar，' +
+        '当前优先识别 100000_JD / JD。'
+      )
+    }
+
+    // 关键：不要使用 "china" 作为注册名，否则 ECharts 会额外注入自己的南海诸岛小窗。
+    echarts.registerMap(CHINA_MAP_NAME, geoJsonData)
   } catch (e) {
     console.error('GeoJSON 加载失败:', e)
     return
@@ -559,46 +822,37 @@ onMounted(async () => {
     return
   }
 
-  provinceList.value =
-    geoJsonData.features
-      .map((f: any) => {
-        const coords =
-          f.geometry.type === 'MultiPolygon'
-            ? f.geometry.coordinates
-            : [f.geometry.coordinates]
+  // 题目卡片固定使用 34 个省级行政区清单，不再由 GeoJSON feature 数量反推。
+  // 这样即使 GeoJSON 内存在岛屿拆分、多 feature 或辅助要素，也不会产生重复卡片。
+  provinceList.value = PROVINCES.map(p => ({
+    name: p.name,
+    shortName: p.shortName,
+    adcode: p.adcode,
+    svgPath: '',
+  }))
 
-        const { path } =
-          normalizeCoords(coords)
-
-        const name =
-          String(
-            f.properties?.name || ''
-          ).trim()
-
-        return {
-          name,
-          shortName: name,
-          svgPath: path,
-        }
-      })
-      .filter((item: any) => {
-        return (
-          item.name &&
-          item.name !== '南海诸岛'
-        )
-      })
-
-  totalCount.value =
-    provinceList.value.length
+  totalCount.value = PROVINCES.length
 
   chart.setOption({
     backgroundColor: 'transparent',
     geo: {
-      map: 'china', roam: true, silent: true,
-      center: [104, 35], zoom: 1.8,
+      map: CHINA_MAP_NAME,
+      roam: true,
+      silent: true,
+      center: [104, 35],
+      zoom: 1.8,
       label: { show: false },
-      itemStyle: { borderColor: '#ffffff', borderWidth: 1.2, areaColor: '#9ca3af' },
-      emphasis: { label: { show: false }, itemStyle: { areaColor: '#9ca3af' } },
+      itemStyle: {
+        borderColor: '#ffffff',
+        borderWidth: 1.2,
+        areaColor: '#9ca3af',
+      },
+      emphasis: {
+        label: { show: false },
+        itemStyle: { areaColor: '#9ca3af' },
+      },
+      // 九段线是 MultiPolygon 辅助要素：单独设为白色，不参加省份游戏。
+      regions: getBaseGeoRegions(),
     },
   })
 
@@ -622,6 +876,10 @@ onMounted(async () => {
 
   // 监听地图底层点击（silent 模式下用 getZr 捕获像素坐标）
   chart.getZr().on('click', onMapClick)
+
+  // 拖拽模式:监听地图容器 drop/dragover
+  el.addEventListener('dragover', onDragOverMap)
+  el.addEventListener('drop', onDropOnMap)
 
   // 倒计时器
   countdownTimer = window.setInterval(() => {
@@ -678,6 +936,11 @@ onUnmounted(() => {
     chartResizeSettleFrame = 0
   }
 
+  const el = chartRef.value
+  if (el) {
+    el.removeEventListener('dragover', onDragOverMap)
+    el.removeEventListener('drop', onDropOnMap)
+  }
   chart?.dispose()
   if (dropTimer) clearTimeout(dropTimer)
   if (countdownTimer) clearInterval(countdownTimer)
@@ -735,6 +998,7 @@ body {
 }
 
 .selected-hint,
+.drag-hint,
 .drop-feedback {
   position: absolute;
   top: 28px;
@@ -748,6 +1012,13 @@ body {
   white-space: nowrap;
   pointer-events: none;
   animation: dropPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drag-hint {
+  color: #2ec4b6;
+  border: 1px solid rgba(46, 196, 182, 0.4);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .selected-hint {
@@ -787,6 +1058,41 @@ body {
     transform: translateX(-50%) scale(1);
     opacity: 1;
   }
+}
+
+.mode-switch-card {
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+.mode-switch {
+  display: flex;
+  gap: 8px;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(116, 234, 229, 0.18);
+  background: rgba(15, 35, 54, 0.55);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.mode-btn:hover {
+  border-color: rgba(46, 196, 182, 0.45);
+  background: rgba(46, 196, 182, 0.12);
+}
+
+.mode-btn.active {
+  background: rgba(46, 196, 182, 0.18);
+  border-color: #2ec4b6;
+  color: #2ec4b6;
+  box-shadow: 0 0 12px rgba(46, 196, 182, 0.2);
 }
 
 .progress-card {
@@ -897,6 +1203,67 @@ body {
   font-size: 12px;
 }
 
+/* 地图左上角简称速查区 */
+.map-short-quick-ref {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 4px;
+  padding: 8px;
+  max-width: 280px;
+  border-radius: 10px;
+  background: rgba(8, 12, 28, 0.82);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(46, 196, 182, 0.22);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.short-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 24px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #2ec4b6;
+  background: rgba(46, 196, 182, 0.12);
+  border: 1px solid rgba(46, 196, 182, 0.25);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.short-tile:hover:not(:disabled) {
+  background: rgba(46, 196, 182, 0.28);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 0 8px rgba(46, 196, 182, 0.4);
+}
+
+.short-tile.matched {
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.15);
+  border-color: rgba(100, 116, 139, 0.25);
+  cursor: default;
+}
+
+.short-tile.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
+  border-color: #2ec4b6;
+  box-shadow: 0 0 12px rgba(46, 196, 182, 0.5);
+  transform: translateY(-1px) scale(1.08);
+}
+
+.short-tile.selected {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
 .province-name-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -956,6 +1323,37 @@ body {
   white-space: nowrap;
   font-size: 13px;
   font-weight: 700;
+}
+
+/* 左上角简称徽章 */
+.province-short {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 3px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 900;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 8px rgba(46, 196, 182, 0.5);
+}
+
+.province-card.matched .province-short {
+  background: #64748b;
+  color: #e2e8f0;
+}
+
+.province-card.dragging {
+  opacity: 0.4;
+  transform: scale(0.95);
 }
 
 .map-note-card {
@@ -1130,10 +1528,11 @@ body {
   }
 }
 
-/* ===================== v3：公共面板 Hook =====================
+/* ===================== v6：禁用 ECharts 内置南海小窗 + 高德九段线 MultiPolygon =====================
    - 右侧面板宽度、断点、触控拖拽与展开折叠交给 Hook；
    - 平板最小宽度使用公共配置 240px；
    - 小屏最小宽度使用公共配置 210px；
-   - 保留过滤南海小框与空白省份卡逻辑。
+   - 地图注册名不再使用 china，避免 ECharts 自动注入右下角南海诸岛小窗；
+   - 识别高德 100000_JD / JD 的九段线 MultiPolygon，按真实经纬度原位绘制。
 */
 </style>

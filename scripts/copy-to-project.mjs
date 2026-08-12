@@ -40,7 +40,14 @@ const COPY_WHITELIST = [
   'moon-phase',
   'temperature-and-precipitation',
   'soil-erosion',
-  'general-atmospheric-circulation'
+  'general-atmospheric-circulation',
+  'water-recycle',
+  'earth-evolution',
+  'soil-profile',
+  'river-landforms',
+  'frontal-system',
+  'atmosphere-vertical-layers',
+  'layers-inside-the-earth',
 ]
 
 const MAPPINGS = [

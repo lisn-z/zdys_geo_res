@@ -178,6 +178,24 @@ export const routes = [
       import('@/views/find-terrain/index.vue'),
   },
   {
+    path: '/find-neighborhood',
+    name: 'find-neighborhood',
+    meta: {
+      title: '找邻居',
+    },
+    component: () =>
+      import('@/views/find-neighborhood/index.vue'),
+  },
+  {
+    path: '/the-twenty-four-solar-term',
+    name: 'the-twenty-four-solar-term',
+    meta: {
+      title: '24节气',
+    },
+    component: () =>
+      import('@/views/the-twenty-four-solar-term/index.vue'),
+  },
+  {
     path: '/atmosphere-vertical-layers',
     name: 'atmosphere-vertical-layers',
     meta: {
@@ -203,6 +221,40 @@ export const routes = [
     },
     component: () =>
       import('@/views/earth-ball/index.vue'),
+    path: '/layers-inside-the-earth',
+    name: 'layers-inside-the-earth',
+    meta: {
+      title: '地球内部圈层',
+    },
+    component: () =>
+      import('@/views/layers-inside-the-earth/index.vue'),
+  },
+  {
+    path: '/solar-and-lunar-eclipses',
+    name: 'solar-and-lunar-eclipses',
+    meta: {
+      title: '日食和月食',
+    },
+    component: () =>
+      import('@/views/solar-and-lunar-eclipses/index.vue'),
+  },
+  {
+    path: '/tidal-phenomenon',
+    name: 'tidal-phenomenon',
+    meta: {
+      title: '潮汐现象',
+    },
+    component: () =>
+      import('@/views/tidal-phenomenon/index.vue'),
+  },
+  {
+    path: '/runoff-simulation',
+    name: 'runoff-simulation',
+    meta: {
+      title: '径流模拟',
+    },
+    component: () =>
+      import('@/views/runoff-simulation/index.vue'),
   },
 ]
 
