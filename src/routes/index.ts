@@ -265,6 +265,24 @@ export const routes = [
     component: () =>
       import('@/views/sponge-city/index.vue'),
   },
+  {
+    path: '/fold-fault',
+    name: 'fold-fault',
+    meta: {
+      title: '褶皱断层',
+    },
+    component: () =>
+      import('@/views/fold-fault/index.vue'),
+  },
+  {
+    path: '/volcano',
+    name: 'volcano',
+    meta: {
+      title: '火山',
+    },
+    component: () =>
+      import('@/views/volcano/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
