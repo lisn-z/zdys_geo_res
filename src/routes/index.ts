@@ -205,6 +205,22 @@ export const routes = [
       import('@/views/atmosphere-vertical-layers/index.vue'),
   },
   {
+    path: '/sunshine',
+    name: 'sunshine',
+    meta: {
+      title: '不同纬度的太阳辐射差异',
+    },
+    component: () =>
+      import('@/views/sunshine/index.vue'),
+  },
+  {
+    path: '/earth-ball',
+    name: 'earth-ball',
+    meta: {
+      title: '观察：地球是球形的',
+    },
+    component: () =>
+      import('@/views/earth-ball/index.vue'),
     path: '/layers-inside-the-earth',
     name: 'layers-inside-the-earth',
     meta: {
@@ -248,6 +264,15 @@ export const routes = [
     },
     component: () =>
       import('@/views/karst-landform/index.vue'),
+  },
+  {
+    path: '/sponge-city',
+    name: 'sponge-city',
+    meta: {
+      title: '海绵城市',
+    },
+    component: () =>
+      import('@/views/sponge-city/index.vue'),
   },
 ]
 
