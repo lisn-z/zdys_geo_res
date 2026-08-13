@@ -1,184 +1,177 @@
 <template>
-  <div ref="pageRef" class="find-terrain-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode">
+  <div ref="pageRef" class="find-terrain-container geo-template-page geo-page theme-dark">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
           alt="logo" />
       </div>
-      <h1 class="page-title">找地形 <span class="page-subtitle">中国主要地形区判读</span></h1>
+      <h1 class="page-title">
+        找地形
+        <span class="page-subtitle">中国主要地形区判读</span>
+      </h1>
       <div class="toolbar-actions">
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">{{
-          allPanelsCollapsed ? '展开面板' : '收起面板' }}</button>
+        <button type="button" class="theme-btn toolbar-btn" @click="resetGame">重新开始</button>
       </div>
     </header>
 
-    <main class="workspace" v-bind="workspaceAttrs">
+    <main class="workspace">
       <section class="center-stage">
         <div class="stage-content">
           <div ref="leafletContainerRef" class="scene-host leaflet-host"></div>
-          <div class="map-hint" :class="{ finding: selectedFeature }">{{ findingHint || '点击右侧列表中的地形名称，在地图上点击查找' }}</div>
-        </div>
-      </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>地形要素</h2>
-              <p>山脉 · 盆地 · 河流</p>
+          <!-- 地图顶部：任务提示 + 总进度 -->
+          <div class="game-top-hud">
+            <div class="mission-box" :class="mapHintState">
+              <span class="mission-dot"></span>
+              <div class="mission-copy">
+                <span class="mission-kicker">当前任务</span>
+                <strong>{{ findingHint || '从下方选择一个地形名称，再点击地图中对应的地形走向或范围' }}</strong>
+              </div>
             </div>
-            <span class="panel-badge">FIND</span>
+
+            <div class="progress-box">
+              <div class="progress-head">
+                <span>查找进度</span>
+                <strong>{{ foundTotal }}/{{ totalTerrainCount }}</strong>
+              </div>
+              <div class="progress-track">
+                <span :style="{ width: `${progressPercent}%` }"></span>
+              </div>
+              <div class="progress-groups">
+                <span><i class="legend-dot mountain"></i>山脉 {{ foundCount.mountains }}/{{ totalCount.mountains }}</span>
+                <span><i class="legend-dot basin"></i>盆地 {{ foundCount.basins }}/{{ totalCount.basins }}</span>
+                <span><i class="legend-dot river"></i>河流 {{ foundCount.rivers }}/{{ totalCount.rivers }}</span>
+                <span><i class="legend-dot hill"></i>丘陵 {{ foundCount.hills }}/{{ totalCount.hills }}</span>
+                <span><i class="legend-dot plain"></i>平原 {{ foundCount.plains }}/{{ totalCount.plains }}</span>
+              </div>
+            </div>
           </div>
 
-          <!-- 展示模式 -->
-          <section class="geo-card control-section">
-            <h3 class="section-title">🗺 展示模式</h3>
-            <div class="switch-row">
-              <div class="control-copy"><strong>显示全部地形</strong><span>在地图上展示所有山脉、盆地、河流</span></div>
-              <el-switch v-model="showAllMode" @change="toggleShowAll" />
-            </div>
-          </section>
+          <!-- 地图底部：横向题库 -->
+          <div class="terrain-dock">
+            <div class="dock-head">
+              <div class="dock-title">
+                <span class="dock-title-icon">⌖</span>
+                <div>
+                  <strong>{{ activeFilterTitle }}</strong>
+                  <span>先选名称，再到地图中找对应的无名称地形</span>
+                </div>
+              </div>
 
-          <!-- 筛选 -->
-          <section class="geo-card control-section">
-            <h3 class="section-title">🔍 类型筛选</h3>
-            <div class="filter-buttons">
-              <button v-for="f in filterTypes" :key="f.key" class="theme-btn option-btn"
-                :class="{ active: activeFilter === f.key }" @click="activeFilter = f.key">{{ f.label }}</button>
-            </div>
-          </section>
+              <div class="dock-filters">
+                <button v-for="f in filterTypes" :key="f.key" type="button" class="filter-tab"
+                  :class="{ active: activeFilter === f.key }" @click="activeFilter = f.key">{{ f.label }}</button>
+              </div>
 
-          <!-- 找到的计数 -->
-          <section class="geo-card control-section">
-            <h3 class="section-title">📊 查找进度</h3>
-            <div class="find-progress">
-              <div class="progress-item" :class="{ 'has-found': foundCount.mountains > 0, completed: foundCount.mountains === totalCount.mountains }"><span class="progress-icon">🏔</span><strong>{{ foundCount.mountains }}</strong><span>/ {{ totalCount.mountains }} 山脉</span></div>
-              <div class="progress-item" :class="{ 'has-found': foundCount.basins > 0, completed: foundCount.basins === totalCount.basins }"><span class="progress-icon">🏺</span><strong>{{ foundCount.basins }}</strong><span>/ {{ totalCount.basins }} 盆地</span></div>
-              <div class="progress-item" :class="{ 'has-found': foundCount.rivers > 0, completed: foundCount.rivers === totalCount.rivers }"><span class="progress-icon">🌊</span><strong>{{ foundCount.rivers }}</strong><span>/ {{ totalCount.rivers }} 河流</span></div>
-            </div>
-          </section>
-
-          <!-- 列表 -->
-          <section class="geo-card control-section" v-if="activeFilter === 'all' || activeFilter === 'mountains'">
-            <h3 class="section-title">🏔 主要山脉</h3>
-            <div class="terrain-list">
-              <div v-for="m in mountains" :key="m.name" class="terrain-item"
-                :class="{ found: m.found, selected: selectedFeature?.name === m.name }" @click="selectFeature(m)">
-                <span class="terrain-icon" style="color:#ef4444">🏔</span>
-                <div class="terrain-info"><span class="terrain-name">{{ m.name }}</span><span class="terrain-desc">{{
-                  m.desc }}</span></div>
-                <span class="terrain-check" v-if="m.found">✓</span>
-                <span class="terrain-arrow" v-else-if="selectedFeature?.name === m.name">→</span>
+              <div class="dock-tools">
+                <div class="dock-legend">
+                  <span><i class="legend-line mountain"></i>山脉</span>
+                  <span><i class="legend-area basin"></i>盆地</span>
+                  <span><i class="legend-line river"></i>河流</span>
+                  <span><i class="legend-area hill"></i>丘陵</span>
+                  <span><i class="legend-area plain"></i>平原</span>
+                </div>
+                <button type="button" class="zone-toggle" :class="{ active: showAllMode }"
+                  @click="toggleShowAll(!showAllMode)">
+                  <span class="toggle-light"></span>
+                  {{ showAllMode ? '地形已显示' : '地形已隐藏' }}
+                </button>
               </div>
             </div>
-          </section>
 
-          <section class="geo-card control-section" v-if="activeFilter === 'all' || activeFilter === 'basins'">
-            <h3 class="section-title">🏺 四大盆地</h3>
-            <div class="terrain-list">
-              <div v-for="b in basins" :key="b.name" class="terrain-item"
-                :class="{ found: b.found, selected: selectedFeature?.name === b.name }" @click="selectFeature(b)">
-                <span class="terrain-icon" style="color:#fbbf24">🏺</span>
-                <div class="terrain-info"><span class="terrain-name">{{ b.name }}</span><span class="terrain-desc">{{
-                  b.desc }}</span></div>
-                <span class="terrain-check" v-if="b.found">✓</span>
-                <span class="terrain-arrow" v-else-if="selectedFeature?.name === b.name">→</span>
-              </div>
+            <div class="terrain-strip">
+              <button v-for="item in filteredFeatures" :key="item.name" type="button" class="terrain-chip" :class="[
+                item.type,
+                {
+                  found: item.found,
+                  selected: selectedFeature?.name === item.name,
+                },
+              ]" :title="item.desc" @click="selectFeature(item)">
+                <span class="chip-icon">{{ getTerrainEmoji(item.type) }}</span>
+                <span class="chip-copy">
+                  <strong>{{ item.name }}</strong>
+                  <small>{{ item.desc }}</small>
+                </span>
+                <span v-if="item.found" class="chip-status found">✓</span>
+                <span v-else-if="selectedFeature?.name === item.name" class="chip-status selected">定位</span>
+              </button>
             </div>
-          </section>
-
-          <section class="geo-card control-section" v-if="activeFilter === 'all' || activeFilter === 'rivers'">
-            <h3 class="section-title">🌊 主要河流</h3>
-            <div class="terrain-list">
-              <div v-for="r in rivers" :key="r.name" class="terrain-item" :class="{ found: r.found, selected: selectedFeature?.name === r.name }" @click="selectFeature(r)">
-                <span class="terrain-icon" :style="{ color: getRiverColor(r.name) }">🌊</span>
-                <div class="terrain-info"><span class="terrain-name">{{ r.name }}</span><span class="terrain-desc">{{ r.desc }}</span></div>
-                <span class="terrain-check" v-if="r.found">✓</span>
-                <span class="terrain-arrow" v-else-if="selectedFeature?.name === r.name">→</span>
-              </div>
-            </div>
-          </section>
+          </div>
         </div>
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">›</button>
-      </aside>
-
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">›</button>
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">‹</button>
+      </section>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import '@/styles/geo-page-template.css'
-import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-const hasLeftPanel = false
-const hasRightPanel = true
-
-const {
-  rootRef: pageRef, layoutMode,
-  leftCollapsed, rightCollapsed, allPanelsCollapsed,
-  draggingSide, viewportResizing,
-  workspaceAttrs, leftPanelAttrs, rightPanelAttrs,
-  leftResizeAttrs, rightResizeAttrs,
-  leftCollapseAttrs, rightCollapseAttrs,
-  leftEntryAttrs, rightEntryAttrs,
-  setAllCollapsed, resetWidths, toggleAll: toggleAllPanels,
-} = useGeoPanelLayout({
-  left: { enabled: hasLeftPanel },
-  right: { enabled: hasRightPanel },
-  onLayoutChange(state) { if (!state.resizing) scheduleSceneResize(90) },
-  onResize(payload) { if (payload.phase === 'end' || payload.phase === 'reset') scheduleSceneResize(0) },
-})
-
-// ==================== 地形数据（初中教材知识点） ====================
 interface TerrainFeature {
-  name: string; lat: number; lon: number; desc: string; type: 'mountain' | 'basin' | 'river'; found: boolean
-  path?: [number, number][] // 河流路径
-  area?: [number, number][] // 盆地轮廓多边形
-  extent?: [number, number][] // 山脉走向线段 [起点, 终点]
+  name: string
+  lat: number
+  lon: number
+  desc: string
+  type: 'mountain' | 'basin' | 'river' | 'hill' | 'plain'
+  found: boolean
+  path?: [number, number][]
+  area?: [number, number][]
+  extent?: [number, number][]
 }
 
+type TerrainAnswerLayer = L.Polyline | L.Polygon
+
+const pageRef = ref<HTMLElement | null>(null)
+const leafletContainerRef = ref<HTMLElement | null>(null)
+
+// ==================== 地形数据 ====================
+// 控制点负责地理走向；实际渲染时再通过样条/平滑算法加密到几十～上百个点，
+// 避免原来“几段直线拼起来”的粗糙效果。
 const mountains = reactive<TerrainFeature[]>([
-  { name: '天山山脉', lat: 42.5, lon: 85, desc: '新疆中部，南疆北疆分界', type: 'mountain', found: false, extent: [[42.5, 78], [42.5, 90]] },
-  { name: '阴山山脉', lat: 41, lon: 107, desc: '内蒙古中部东西走向', type: 'mountain', found: false, extent: [[41, 104], [41, 112]] },
-  { name: '昆仑山脉', lat: 36.5, lon: 82, desc: '新疆与西藏交界', type: 'mountain', found: false, extent: [[36.5, 76], [36.5, 91]] },
-  { name: '秦岭', lat: 34, lon: 108, desc: '中国南北分界线', type: 'mountain', found: false, extent: [[34, 104], [34, 113]] },
-  { name: '南岭', lat: 25, lon: 113, desc: '湖南、江西与广东交界', type: 'mountain', found: false, extent: [[25, 108], [25, 118]] },
-  { name: '大兴安岭', lat: 50.5, lon: 123, desc: '内蒙古东北部', type: 'mountain', found: false, extent: [[53, 122], [48, 124]] },
-  { name: '太行山脉', lat: 37.5, lon: 113.5, desc: '山西与河北交界', type: 'mountain', found: false, extent: [[39, 113.5], [35, 113.5]] },
-  { name: '巫山', lat: 31, lon: 110, desc: '重庆与湖北交界', type: 'mountain', found: false, extent: [[32, 110], [30, 110]] },
-  { name: '雪峰山', lat: 27.5, lon: 110, desc: '湖南西部', type: 'mountain', found: false, extent: [[29, 110], [26, 110]] },
-  { name: '长白山脉', lat: 42, lon: 128, desc: '吉林东部中朝边境', type: 'mountain', found: false, extent: [[43, 128], [41, 130]] },
-  { name: '武夷山脉', lat: 27.5, lon: 118, desc: '福建与江西交界', type: 'mountain', found: false, extent: [[29, 117.5], [26, 117.5]] },
-  { name: '台湾山脉', lat: 23.5, lon: 121, desc: '台湾岛东部', type: 'mountain', found: false, extent: [[25.5, 121], [22.5, 121]] },
-  { name: '横断山脉', lat: 30, lon: 100, desc: '川滇藏交界南北走向', type: 'mountain', found: false, extent: [[32, 99], [27, 99]] },
-  { name: '阿尔泰山脉', lat: 47.5, lon: 88, desc: '新疆北部中俄边境', type: 'mountain', found: false, extent: [[49, 86], [46, 91]] },
-  { name: '祁连山脉', lat: 38.5, lon: 99, desc: '甘肃与青海交界', type: 'mountain', found: false, extent: [[39, 95], [36.5, 103]] },
-  { name: '贺兰山', lat: 38.5, lon: 106, desc: '宁夏西北部', type: 'mountain', found: false, extent: [[40, 106], [38, 106]] },
+  { name: '天山山脉', lat: 42.75, lon: 84.7, desc: '新疆中部，南北疆重要分界', type: 'mountain', found: false, extent: [[42.0, 75.4], [42.15, 76.4], [42.28, 77.4], [42.45, 78.45], [42.58, 79.45], [42.72, 80.5], [42.83, 81.55], [42.96, 82.55], [43.05, 83.6], [43.12, 84.65], [43.16, 85.7], [43.12, 86.75], [43.0, 87.8], [42.86, 88.85], [42.67, 89.9], [42.45, 90.95], [42.2, 92.0]] },
+  { name: '阴山山脉', lat: 41.0, lon: 108.6, desc: '内蒙古中部，近东西走向', type: 'mountain', found: false, extent: [[41.28, 103.8], [41.25, 104.55], [41.22, 105.3], [41.15, 106.05], [41.08, 106.8], [41.02, 107.55], [40.98, 108.3], [40.98, 109.05], [40.95, 109.8], [40.88, 110.55], [40.8, 111.3], [40.72, 112.05], [40.65, 112.85], [40.6, 113.45]] },
+  { name: '昆仑山脉', lat: 36.1, lon: 84.4, desc: '塔里木盆地南缘、青藏高原北缘', type: 'mountain', found: false, extent: [[36.05, 74.7], [36.18, 75.7], [36.35, 76.8], [36.48, 77.9], [36.6, 79.0], [36.7, 80.1], [36.73, 81.2], [36.7, 82.3], [36.62, 83.4], [36.5, 84.5], [36.38, 85.6], [36.24, 86.7], [36.08, 87.8], [35.92, 88.9], [35.76, 90.0], [35.58, 91.1], [35.42, 92.2], [35.28, 93.3], [35.17, 94.4], [35.08, 95.2]] },
+  { name: '秦岭', lat: 33.9, lon: 108.2, desc: '我国重要南北地理分界线', type: 'mountain', found: false, extent: [[34.25, 103.35], [34.2, 104.05], [34.13, 104.75], [34.08, 105.45], [34.03, 106.15], [34.0, 106.85], [34.0, 107.55], [33.98, 108.25], [33.93, 108.95], [33.87, 109.65], [33.8, 110.35], [33.72, 111.05], [33.64, 111.75], [33.58, 112.45], [33.52, 113.1]] },
+  { name: '南岭', lat: 25.15, lon: 113.0, desc: '湘赣与两广之间的重要山地', type: 'mountain', found: false, extent: [[25.28, 108.05], [25.33, 108.8], [25.35, 109.55], [25.33, 110.3], [25.25, 111.05], [25.18, 111.8], [25.2, 112.55], [25.25, 113.3], [25.22, 114.05], [25.12, 114.8], [25.02, 115.55], [24.97, 116.3], [24.96, 117.05], [25.0, 117.85]] },
+  { name: '大兴安岭', lat: 49.8, lon: 122.6, desc: '东北—西南走向，内蒙古高原东缘', type: 'mountain', found: false, extent: [[53.25, 120.6], [52.85, 120.82], [52.45, 121.05], [52.05, 121.3], [51.65, 121.55], [51.25, 121.8], [50.85, 122.0], [50.45, 122.18], [50.05, 122.35], [49.65, 122.55], [49.25, 122.75], [48.85, 122.95], [48.45, 123.18], [48.05, 123.42], [47.65, 123.68], [47.25, 123.92], [46.85, 124.15], [46.5, 124.35]] },
+  { name: '太行山脉', lat: 37.7, lon: 113.5, desc: '黄土高原与华北平原重要分界', type: 'mountain', found: false, extent: [[40.2, 112.95], [39.85, 113.1], [39.5, 113.25], [39.15, 113.4], [38.8, 113.55], [38.45, 113.67], [38.1, 113.73], [37.75, 113.73], [37.4, 113.65], [37.05, 113.55], [36.7, 113.42], [36.35, 113.28], [36.0, 113.12], [35.65, 112.95]] },
+  { name: '巫山', lat: 31.25, lon: 110.3, desc: '重庆东部与湖北西部交界附近', type: 'mountain', found: false, extent: [[32.7, 109.7], [32.42, 109.82], [32.14, 109.93], [31.86, 110.04], [31.58, 110.16], [31.3, 110.28], [31.02, 110.38], [30.74, 110.48], [30.46, 110.56], [30.18, 110.62], [29.95, 110.66]] },
+  { name: '雪峰山', lat: 27.7, lon: 109.9, desc: '湖南西部，东北—西南走向', type: 'mountain', found: false, extent: [[29.45, 109.18], [29.15, 109.3], [28.85, 109.42], [28.55, 109.55], [28.25, 109.68], [27.95, 109.82], [27.65, 109.95], [27.35, 110.07], [27.05, 110.18], [26.75, 110.27], [26.45, 110.33], [26.15, 110.37]] },
+  { name: '长白山脉', lat: 42.0, lon: 128.3, desc: '吉林东部中朝边境附近', type: 'mountain', found: false, extent: [[43.55, 126.55], [43.3, 126.75], [43.05, 126.98], [42.8, 127.22], [42.55, 127.48], [42.3, 127.75], [42.05, 128.02], [41.8, 128.3], [41.55, 128.58], [41.3, 128.86], [41.05, 129.14], [40.82, 129.42]] },
+  { name: '武夷山脉', lat: 27.7, lon: 117.8, desc: '福建与江西交界，东北—西南走向', type: 'mountain', found: false, extent: [[29.8, 116.9], [29.5, 117.03], [29.2, 117.16], [28.9, 117.3], [28.6, 117.44], [28.3, 117.58], [28.0, 117.72], [27.7, 117.86], [27.4, 118.0], [27.1, 118.14], [26.8, 118.28], [26.5, 118.4], [26.2, 118.52], [25.9, 118.62], [25.65, 118.68]] },
+  { name: '台湾山脉', lat: 23.8, lon: 121.15, desc: '台湾岛中东部，纵贯南北', type: 'mountain', found: false, extent: [[25.4, 121.0], [25.13, 121.04], [24.86, 121.08], [24.59, 121.13], [24.32, 121.18], [24.05, 121.22], [23.78, 121.25], [23.51, 121.25], [23.24, 121.22], [22.97, 121.16], [22.7, 121.06], [22.48, 120.96]] },
+  { name: '横断山脉', lat: 29.8, lon: 100.0, desc: '川滇藏交界，多列南北向高山深谷', type: 'mountain', found: false, extent: [[33.3, 97.9], [32.95, 98.15], [32.6, 98.4], [32.25, 98.65], [31.9, 98.9], [31.55, 99.15], [31.2, 99.4], [30.85, 99.63], [30.5, 99.84], [30.15, 100.03], [29.8, 100.2], [29.45, 100.36], [29.1, 100.5], [28.75, 100.63], [28.4, 100.75], [28.05, 100.85], [27.7, 100.92], [27.35, 100.98], [27.0, 101.0], [26.7, 100.98]] },
+  { name: '阿尔泰山脉', lat: 48.2, lon: 88.5, desc: '新疆北部，西北—东南走向', type: 'mountain', found: false, extent: [[49.55, 84.5], [49.35, 85.15], [49.15, 85.8], [48.95, 86.45], [48.75, 87.1], [48.53, 87.75], [48.3, 88.4], [48.05, 89.05], [47.8, 89.7], [47.55, 90.35], [47.3, 91.0], [47.05, 91.65], [46.8, 92.25]] },
+  { name: '祁连山脉', lat: 38.2, lon: 99.0, desc: '甘肃与青海交界，西北—东南走向', type: 'mountain', found: false, extent: [[39.6, 94.1], [39.43, 94.75], [39.25, 95.4], [39.05, 96.05], [38.85, 96.7], [38.63, 97.35], [38.4, 98.0], [38.18, 98.65], [37.95, 99.3], [37.72, 99.95], [37.5, 100.6], [37.27, 101.25], [37.05, 101.9], [36.82, 102.55], [36.6, 103.2]] },
+  { name: '贺兰山', lat: 38.8, lon: 106.0, desc: '宁夏平原西侧，近南北走向', type: 'mountain', found: false, extent: [[40.25, 105.72], [39.98, 105.77], [39.71, 105.82], [39.44, 105.87], [39.17, 105.93], [38.9, 105.99], [38.63, 106.04], [38.36, 106.08], [38.09, 106.09], [37.82, 106.07], [37.55, 106.02]] },
 ])
 
 const basins = reactive<TerrainFeature[]>([
-  { name: '塔里木盆地', lat: 40, lon: 85, desc: '中国最大盆地，位于新疆南部', type: 'basin', found: false, area: [[42, 76], [42, 90], [37, 90], [37, 76]] },
-  { name: '准噶尔盆地', lat: 46, lon: 87, desc: '新疆北部，中国第二大盆地', type: 'basin', found: false, area: [[48, 82], [48, 92], [44, 92], [44, 82]] },
-  { name: '柴达木盆地', lat: 37, lon: 95, desc: '青海省西北部，"聚宝盆"', type: 'basin', found: false, area: [[39, 90], [39, 99], [36, 99], [36, 90]] },
-  { name: '四川盆地', lat: 30, lon: 105, desc: '四川省东部，"天府之国"', type: 'basin', found: false, area: [[32, 102], [32, 110], [28, 110], [28, 102]] },
+  { name: '塔里木盆地', lat: 39.7, lon: 84.5, desc: '中国最大盆地，位于新疆南部', type: 'basin', found: false, area: [[41.65, 75.45], [42.05, 76.25], [42.3, 77.2], [42.48, 78.3], [42.56, 79.45], [42.55, 80.65], [42.5, 81.9], [42.45, 83.15], [42.35, 84.4], [42.25, 85.65], [42.1, 86.9], [41.9, 88.1], [41.58, 89.2], [41.15, 90.15], [40.62, 90.85], [40.02, 91.2], [39.38, 91.13], [38.78, 90.7], [38.25, 89.95], [37.82, 89.0], [37.5, 87.9], [37.28, 86.72], [37.18, 85.5], [37.2, 84.25], [37.3, 83.0], [37.5, 81.78], [37.78, 80.62], [38.15, 79.52], [38.62, 78.5], [39.15, 77.58], [39.75, 76.8], [40.38, 76.13], [41.0, 75.65]] },
+  { name: '准噶尔盆地', lat: 46.2, lon: 87.0, desc: '新疆北部，中国第二大盆地', type: 'basin', found: false, area: [[47.72, 81.55], [48.08, 82.15], [48.35, 82.9], [48.52, 83.78], [48.58, 84.75], [48.55, 85.78], [48.43, 86.85], [48.25, 87.93], [48.0, 88.98], [47.68, 89.92], [47.28, 90.73], [46.8, 91.35], [46.25, 91.72], [45.7, 91.77], [45.2, 91.5], [44.78, 90.95], [44.46, 90.18], [44.23, 89.25], [44.1, 88.2], [44.08, 87.08], [44.18, 85.98], [44.38, 84.92], [44.7, 83.98], [45.12, 83.15], [45.62, 82.48], [46.18, 82.0], [46.78, 81.68], [47.3, 81.52]] },
+  { name: '柴达木盆地', lat: 37.5, lon: 95.0, desc: '青海省西北部，地势封闭的高原盆地', type: 'basin', found: false, area: [[38.88, 89.45], [39.1, 90.15], [39.24, 90.95], [39.3, 91.85], [39.28, 92.82], [39.2, 93.82], [39.05, 94.84], [38.84, 95.85], [38.55, 96.8], [38.18, 97.62], [37.72, 98.28], [37.22, 98.65], [36.72, 98.62], [36.3, 98.2], [35.98, 97.52], [35.78, 96.65], [35.7, 95.7], [35.75, 94.72], [35.9, 93.75], [36.15, 92.82], [36.48, 91.95], [36.88, 91.15], [37.35, 90.48], [37.86, 89.95], [38.38, 89.58]] },
+  { name: '四川盆地', lat: 30.4, lon: 105.5, desc: '四川东部和重庆西部，四周山地环绕', type: 'basin', found: false, area: [[32.08, 102.58], [32.34, 103.18], [32.48, 103.9], [32.48, 104.68], [32.38, 105.48], [32.18, 106.24], [31.9, 106.94], [31.54, 107.57], [31.12, 108.1], [30.62, 108.55], [30.08, 108.8], [29.52, 108.78], [29.02, 108.55], [28.62, 108.1], [28.35, 107.48], [28.22, 106.75], [28.23, 105.98], [28.35, 105.2], [28.6, 104.47], [28.94, 103.82], [29.38, 103.28], [29.9, 102.86], [30.45, 102.58], [31.02, 102.44], [31.57, 102.45]] },
 ])
 
 const rivers = reactive<TerrainFeature[]>([
-  { name: '长江', lat: 30.5, lon: 114, desc: '中国第一长河，注入东海', type: 'river', found: false, path: [[28, 96], [29, 100], [29.5, 103], [29.5, 106], [30, 110], [30.5, 114], [31, 117], [31.5, 119], [32, 121]] },
-  { name: '黄河', lat: 37, lon: 112, desc: '中国第二长河，注入渤海', type: 'river', found: false, path: [[35, 96], [36, 100], [36, 103], [37, 106], [39, 108], [40, 110], [40, 112], [38, 114], [37, 116], [38, 118]] },
-  { name: '珠江', lat: 23, lon: 113, desc: '南方最大河流，注入南海', type: 'river', found: false, path: [[24.5, 103], [24, 106], [23.5, 110], [23, 113], [22.5, 113.5]] },
-  { name: '黑龙江', lat: 50, lon: 128, desc: '中俄界河，注入鄂霍次克海', type: 'river', found: false, path: [[53, 122], [52, 126], [49, 128], [48, 134]] },
-  { name: '雅鲁藏布江', lat: 29, lon: 91, desc: '西藏最大河流，注入印度洋', type: 'river', found: false, path: [[30, 82], [29.5, 88], [29, 91], [28, 95], [27, 97]] },
-  { name: '塔里木河', lat: 40, lon: 84, desc: '中国最长的内流河', type: 'river', found: false, path: [[37, 79], [39, 81], [41, 84], [40.5, 87]] },
+  { name: '珠江', lat: 23.2, lon: 112.2, desc: '华南主要河流，注入南海', type: 'river', found: false, path: [[25.05, 102.9], [24.92, 103.45], [24.78, 104.0], [24.62, 104.55], [24.48, 105.1], [24.35, 105.65], [24.25, 106.2], [24.15, 106.75], [24.05, 107.3], [23.92, 107.85], [23.78, 108.4], [23.65, 108.95], [23.55, 109.5], [23.48, 110.05], [23.42, 110.6], [23.34, 111.15], [23.25, 111.68], [23.15, 112.15], [23.08, 112.55], [22.98, 112.9], [22.88, 113.18], [22.75, 113.42], [22.62, 113.58], [22.52, 113.72]] },
+  { name: '黑龙江', lat: 50.2, lon: 128.5, desc: '我国东北北部重要界河', type: 'river', found: false, path: [[53.45, 121.2], [53.38, 121.8], [53.25, 122.4], [53.08, 123.0], [52.88, 123.6], [52.65, 124.2], [52.42, 124.8], [52.18, 125.4], [51.92, 126.0], [51.65, 126.6], [51.38, 127.2], [51.12, 127.8], [50.85, 128.4], [50.58, 129.0], [50.28, 129.6], [49.98, 130.2], [49.68, 130.8], [49.38, 131.4], [49.08, 132.0], [48.8, 132.6], [48.55, 133.2], [48.32, 133.8], [48.15, 134.35]] },
+  { name: '雅鲁藏布江', lat: 29.4, lon: 91.0, desc: '青藏高原南部重要河流，东流后形成大拐弯', type: 'river', found: false, path: [[30.2, 82.0], [30.18, 82.7], [30.16, 83.4], [30.12, 84.1], [30.08, 84.8], [30.02, 85.5], [29.96, 86.2], [29.9, 86.9], [29.84, 87.6], [29.76, 88.3], [29.68, 89.0], [29.6, 89.7], [29.52, 90.4], [29.44, 91.1], [29.36, 91.8], [29.3, 92.5], [29.24, 93.2], [29.18, 93.9], [29.12, 94.55], [29.05, 95.05], [28.95, 95.45], [28.8, 95.75], [28.58, 95.92], [28.32, 95.98], [28.05, 95.9], [27.82, 95.72], [27.65, 95.48], [27.55, 95.2], [27.52, 94.9]] },
+  { name: '塔里木河', lat: 40.4, lon: 84.0, desc: '中国最长的内流河，位于塔里木盆地北部', type: 'river', found: false, path: [[39.25, 76.0], [39.38, 76.55], [39.52, 77.1], [39.68, 77.65], [39.82, 78.2], [39.94, 78.75], [40.04, 79.3], [40.13, 79.85], [40.22, 80.4], [40.3, 80.95], [40.38, 81.5], [40.46, 82.05], [40.52, 82.6], [40.57, 83.15], [40.6, 83.7], [40.62, 84.25], [40.62, 84.8], [40.58, 85.35], [40.54, 85.9], [40.48, 86.45], [40.4, 87.0], [40.33, 87.55], [40.25, 88.1], [40.18, 88.65], [40.12, 89.2], [40.08, 89.75], [40.06, 90.3]] },
+])
+
+const hills = reactive<TerrainFeature[]>([
+  { name: '东南丘陵', lat: 26.6, lon: 116.2, desc: '长江以南、云贵高原以东的广阔低山丘陵区', type: 'hill', found: false, area: [[31.0, 112.3], [30.6, 113.5], [30.4, 114.8], [30.1, 116.0], [29.7, 117.3], [29.2, 118.5], [28.8, 119.5], [28.2, 120.1], [27.4, 120.3], [26.6, 120.1], [25.8, 119.6], [24.9, 118.9], [24.1, 117.8], [23.4, 116.8], [22.9, 115.6], [22.6, 114.4], [22.8, 113.2], [23.4, 112.1], [24.1, 111.1], [25.0, 110.3], [26.0, 109.8], [27.0, 109.7], [28.0, 110.0], [29.0, 110.6], [30.0, 111.3]] },
+  { name: '山东丘陵', lat: 36.4, lon: 120.1, desc: '山东半岛中东部，以低山丘陵为主', type: 'hill', found: false, area: [[37.35, 118.7], [37.55, 119.4], [37.55, 120.1], [37.35, 120.8], [37.05, 121.5], [36.65, 122.1], [36.15, 122.45], [35.7, 122.25], [35.35, 121.75], [35.15, 121.05], [35.15, 120.3], [35.35, 119.6], [35.7, 119.0], [36.15, 118.6], [36.75, 118.45]] },
+  { name: '辽东丘陵', lat: 40.3, lon: 123.2, desc: '辽东半岛及其北部丘陵地带', type: 'hill', found: false, area: [[41.55, 122.2], [41.55, 123.0], [41.35, 123.8], [41.0, 124.45], [40.55, 124.8], [40.05, 124.75], [39.55, 124.45], [39.05, 123.9], [38.65, 123.25], [38.55, 122.55], [38.85, 121.95], [39.3, 121.55], [39.85, 121.45], [40.45, 121.65], [41.0, 121.9]] },
+])
+
+const plains = reactive<TerrainFeature[]>([
+  { name: '东北平原', lat: 45.2, lon: 125.0, desc: '我国面积最大的平原，主要由松嫩、辽河、三江平原组成', type: 'plain', found: false, area: [[49.7, 122.2], [49.8, 123.7], [49.5, 125.0], [49.0, 126.2], [48.2, 127.0], [47.3, 127.5], [46.3, 127.6], [45.4, 127.4], [44.5, 127.0], [43.6, 126.5], [42.8, 125.8], [42.0, 124.9], [41.5, 123.9], [41.3, 122.9], [41.55, 121.9], [42.2, 121.2], [43.1, 120.9], [44.1, 121.0], [45.1, 121.2], [46.1, 121.45], [47.1, 121.65], [48.1, 121.8], [49.0, 121.9]] },
+  { name: '华北平原', lat: 36.0, lon: 116.5, desc: '太行山以东、燕山以南，黄淮海冲积平原主体', type: 'plain', found: false, area: [[40.2, 116.2], [39.8, 117.1], [39.1, 118.0], [38.3, 118.5], [37.5, 119.0], [36.7, 119.5], [35.9, 119.6], [35.1, 119.2], [34.4, 118.7], [33.8, 118.0], [33.4, 117.1], [33.35, 116.1], [33.6, 115.2], [34.1, 114.4], [34.8, 113.9], [35.6, 113.6], [36.5, 113.6], [37.4, 113.8], [38.3, 114.3], [39.1, 115.0], [39.8, 115.5]] },
+  { name: '长江中下游平原', lat: 30.4, lon: 116.6, desc: '巫山以东、长江中下游沿江及湖区平原', type: 'plain', found: false, area: [[32.1, 110.6], [32.25, 111.8], [32.2, 113.0], [32.0, 114.3], [31.75, 115.6], [31.55, 116.8], [31.45, 118.0], [31.4, 119.2], [31.25, 120.3], [30.9, 121.2], [30.45, 121.6], [30.0, 121.45], [29.6, 120.8], [29.35, 119.8], [29.25, 118.6], [29.3, 117.4], [29.45, 116.2], [29.55, 115.0], [29.55, 113.8], [29.45, 112.7], [29.55, 111.7], [29.85, 110.9], [30.35, 110.4], [31.0, 110.3], [31.6, 110.4]] },
 ])
 
 const filterTypes = [
@@ -186,884 +179,1214 @@ const filterTypes = [
   { key: 'mountains', label: '山脉' },
   { key: 'basins', label: '盆地' },
   { key: 'rivers', label: '河流' },
+  { key: 'hills', label: '丘陵' },
+  { key: 'plains', label: '平原' },
 ]
-const activeFilter = ref('all')
+
+const activeFilter = ref<'all' | 'mountains' | 'basins' | 'rivers' | 'hills' | 'plains'>('all')
 const selectedFeature = ref<TerrainFeature | null>(null)
 const findingHint = ref('')
-const showAllMode = ref(false)
+const showAllMode = ref(true)
 
-// 河流 GeoJSON 坐标存储（用于距离判断）
-const riverGeoJSONCoords: Record<string, [number, number][]> = {}
-// 隐藏的标记（找到后显示）
-type HiddenTerrainLayer = L.Marker | L.Polyline | L.GeoJSON
-const hiddenMarkers: Record<string, HiddenTerrainLayer> = {}
+const allFeatures = computed(() => [...mountains, ...basins, ...rivers, ...hills, ...plains])
+const filteredFeatures = computed(() => {
+  if (activeFilter.value === 'mountains') return mountains
+  if (activeFilter.value === 'basins') return basins
+  if (activeFilter.value === 'rivers') return rivers
+  if (activeFilter.value === 'hills') return hills
+  if (activeFilter.value === 'plains') return plains
+  return allFeatures.value
+})
 
-const totalCount = { mountains: mountains.length, basins: basins.length, rivers: rivers.length }
+const activeFilterTitle = computed(() => {
+  if (activeFilter.value === 'mountains') return '主要山脉'
+  if (activeFilter.value === 'basins') return '四大盆地'
+  if (activeFilter.value === 'rivers') return '主要河流'
+  if (activeFilter.value === 'hills') return '主要丘陵'
+  if (activeFilter.value === 'plains') return '主要平原'
+  return '全部地形题库'
+})
+
+const totalCount = {
+  mountains: mountains.length,
+  basins: basins.length,
+  rivers: rivers.length,
+  hills: hills.length,
+  plains: plains.length,
+}
+
 const foundCount = computed(() => ({
-  mountains: mountains.filter(m => m.found).length,
-  basins: basins.filter(b => b.found).length,
-  rivers: rivers.filter(r => r.found).length,
+  mountains: mountains.filter(item => item.found).length,
+  basins: basins.filter(item => item.found).length,
+  rivers: rivers.filter(item => item.found).length,
+  hills: hills.filter(item => item.found).length,
+  plains: plains.filter(item => item.found).length,
 }))
 
-// ==================== 简化中国轮廓线 ====================
-const chinaOutline: [number, number][] = [
-  [49.5, 87.5], [50, 92], [50.5, 97], [52, 105], [53, 115], [53.5, 122], [52.5, 124.5],
-  [49, 125], [47, 130], [44, 131], [42.5, 130.5], [41, 128], [39.5, 125], [38, 124],
-  [37, 126], [36, 129], [35.5, 131], [33, 130], [31, 122], [30, 121.5], [28, 121],
-  [27, 120.5], [25, 119.5], [23.5, 118], [22, 116], [21.5, 112], [21, 108.5],
-  [20, 110], [19, 110], [18, 109], [20.5, 108], [21.5, 106], [22.5, 104], [23.5, 105],
-  [24, 103], [27, 100.5], [28, 98.5], [29, 97], [28, 92.5], [27.5, 88], [28, 85],
-  [30, 82], [32, 79], [34, 78.5], [36, 76], [37, 75.5], [38.5, 74.5], [39, 73.5],
-  [40, 74], [42, 80], [44, 80.5], [45, 82], [46.5, 84], [48, 85.5], [49.5, 87.5],
-]
+const totalTerrainCount = mountains.length + basins.length + rivers.length + hills.length + plains.length
+const foundTotal = computed(() => foundCount.value.mountains + foundCount.value.basins + foundCount.value.rivers + foundCount.value.hills + foundCount.value.plains)
+const progressPercent = computed(() => totalTerrainCount ? (foundTotal.value / totalTerrainCount) * 100 : 0)
+
+const mapHintState = computed(() => {
+  if (findingHint.value.startsWith('✅')) return 'success'
+  if (findingHint.value.startsWith('❌')) return 'error'
+  if (selectedFeature.value) return 'active'
+  return 'idle'
+})
+
+function getTerrainEmoji(type: TerrainFeature['type']) {
+  if (type === 'mountain') return '🏔'
+  if (type === 'basin') return '◉'
+  if (type === 'river') return '≈'
+  if (type === 'hill') return '⌁'
+  return '▰'
+}
+
+// ==================== 路径精细化 ====================
+function catmullRomPath(points: [number, number][], subdivisions = 6): [number, number][] {
+  if (points.length < 3) return points.map(p => [...p] as [number, number])
+  const result: [number, number][] = []
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)]!
+    const p1 = points[i]!
+    const p2 = points[i + 1]!
+    const p3 = points[Math.min(points.length - 1, i + 2)]!
+
+    for (let step = 0; step < subdivisions; step++) {
+      const t = step / subdivisions
+      const t2 = t * t
+      const t3 = t2 * t
+      const lat = 0.5 * (
+        2 * p1[0] +
+        (-p0[0] + p2[0]) * t +
+        (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 +
+        (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3
+      )
+      const lon = 0.5 * (
+        2 * p1[1] +
+        (-p0[1] + p2[1]) * t +
+        (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 +
+        (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3
+      )
+      result.push([lat, lon])
+    }
+  }
+
+  result.push([...points[points.length - 1]!] as [number, number])
+  return result
+}
+
+function chaikinClosed(points: [number, number][], iterations = 2): [number, number][] {
+  if (points.length < 3) return points.map(p => [...p] as [number, number])
+  let current = points.map(p => [...p] as [number, number])
+
+  for (let round = 0; round < iterations; round++) {
+    const next: [number, number][] = []
+    for (let i = 0; i < current.length; i++) {
+      const p = current[i]!
+      const q = current[(i + 1) % current.length]!
+      next.push([
+        p[0] * 0.75 + q[0] * 0.25,
+        p[1] * 0.75 + q[1] * 0.25,
+      ])
+      next.push([
+        p[0] * 0.25 + q[0] * 0.75,
+        p[1] * 0.25 + q[1] * 0.75,
+      ])
+    }
+    current = next
+  }
+
+  return current
+}
+
+function getMountainPath(feature: TerrainFeature) {
+  return catmullRomPath(feature.extent || [], 7)
+}
+
+function getRiverPath(feature: TerrainFeature) {
+  return catmullRomPath(feature.path || [], 8)
+}
+
+function getBasinArea(feature: TerrainFeature) {
+  return chaikinClosed(feature.area || [], 2)
+}
 
 // ==================== Leaflet ====================
-const leafletContainerRef = ref<HTMLElement | null>(null)
+const ARCGIS_TILE_URL = '/geo-resources-folder/tiles/arcgis-tiles/{z}/{x}/{y}.png'
 let leafletMap: L.Map | null = null
 let tileLayer: L.TileLayer | null = null
-let chinaOutlineLayer: L.GeoJSON | L.Polygon | null = null
-let featureMarkers: L.Marker[] = []
-let riverLayers: L.Polyline[] = []
-let riverGeoJSONLayers: L.GeoJSON[] = []
-let highlightMarker: L.CircleMarker | null = null
-let hintLayer: L.Circle | L.Polygon | null = null
-const contourLayers: (L.Polygon | L.Polyline)[] = []
-let leafletResizeObserver: ResizeObserver | null = null
-let sceneResizeTimer: ReturnType<typeof setTimeout> | null = null
-let sceneResizeFrame = 0
-let sceneResizeSettleFrame = 0
-let lastSceneWidth = 0
-let lastSceneHeight = 0
+let chinaOutlineLayer: L.GeoJSON | null = null
+let resizeObserver: ResizeObserver | null = null
+let resizeTimer: ReturnType<typeof setTimeout> | null = null
+let wrongFlashTimer: ReturnType<typeof setTimeout> | null = null
+let feedbackTimer: ReturnType<typeof setTimeout> | null = null
 
-const ARCGIS_TILE_URL = '/geo-resources-folder/tiles/arcgis-tiles/{z}/{x}/{y}.png'
+const answerZoneLayers: Record<string, TerrainAnswerLayer> = {}
+const detailLayers: Record<string, L.Layer[]> = {}
+const foundLabelLayers: Record<string, L.Marker> = {}
 
-// ==================== 中国轮廓线加载 ====================
-// 为 Leaflet SVG path 应用主题渐变描边
-function applyGradientStroke(layer: L.GeoJSON | L.Polygon) {
-  const layerAny = layer as any
-  const container = (layerAny.getElement?.() ?? null) as SVGElement | null
-  const paths: SVGElement[] = []
-  if (container) {
-    if (container.tagName === 'path') paths.push(container)
-    else container.querySelectorAll?.('path').forEach(p => paths.push(p as SVGElement))
-  }
-  if (!paths.length) return
-  const svg = paths[0]!.ownerSVGElement
-  if (!svg) return
-  // 创建渐变定义
-  let defs = svg.querySelector('defs')
-  if (!defs) { defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs'); svg.insertBefore(defs, svg.firstChild) }
-  // 避免重复创建
-  if (defs.querySelector('#china-gradient-stroke')) return
-  const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient')
-  grad.setAttribute('id', 'china-gradient-stroke')
-  grad.setAttribute('x1', '0%'); grad.setAttribute('y1', '0%')
-  grad.setAttribute('x2', '100%'); grad.setAttribute('y2', '100%')
-  const s1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop')
-  s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', '#2ec4b6')
-  const s2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop')
-  s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', '#247cff')
-  grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad)
-  // 应用渐变描边到所有 path
-  paths.forEach(p => {
-    p.setAttribute('stroke', 'url(#china-gradient-stroke)')
-    p.setAttribute('stroke-width', '4')
-  })
+function getTerrainZoneColor(feature: TerrainFeature) {
+  if (feature.type === 'mountain') return '#c2410c'
+  if (feature.type === 'basin') return '#d97706'
+  if (feature.type === 'river') return '#0e7490'
+  if (feature.type === 'hill') return '#7c3aed'
+  return '#15803d'
+}
+
+function getTerrainDetailColor(feature: TerrainFeature) {
+  if (feature.type === 'mountain') return '#fed7aa'
+  if (feature.type === 'basin') return '#fde68a'
+  if (feature.type === 'river') return '#67e8f9'
+  if (feature.type === 'hill') return '#c4b5fd'
+  return '#bbf7d0'
 }
 
 async function loadChinaOutline() {
   if (!leafletMap) return
   try {
     const res = await fetch('/geo-resources-folder/geojson/中国矢量数据/中国轮廓线.geojson')
-    if (!res.ok) throw new Error('GeoJSON 文件不存在')
+    if (!res.ok) return
     const data = await res.json()
     chinaOutlineLayer = L.geoJSON(data, {
-      style() {
-        return {
-          color: '#2ec4b6', weight: 4, opacity: 0.9,
-          fillColor: '#2ec4b6', fillOpacity: 0.04,
-        }
+      pane: 'outline-pane',
+      style: {
+        color: '#2ec4b6',
+        weight: 2.4,
+        opacity: 0.88,
+        fillColor: '#2ec4b6',
+        fillOpacity: 0.025,
       },
+      interactive: false,
     })
     chinaOutlineLayer.addTo(leafletMap)
-    applyGradientStroke(chinaOutlineLayer)
   } catch {
-    // 后备：使用简化多边形
-    chinaOutlineLayer = L.polygon(chinaOutline, {
-      color: '#2ec4b6', weight: 4, opacity: 0.9,
-      fillColor: '#2ec4b6', fillOpacity: 0.04,
-    })
-    chinaOutlineLayer.addTo(leafletMap)
-    applyGradientStroke(chinaOutlineLayer as L.Polygon)
+    // 轮廓文件不可用时不阻塞游戏主体。
   }
 }
 
-// ==================== 初始化 ====================
 async function initScene() {
   const container = leafletContainerRef.value
   if (!container) return
 
   leafletMap = L.map(container, {
-    center: [35, 105], zoom: 4, minZoom: 3, maxZoom: 8,
-    zoomControl: true, attributionControl: false,
-    zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false,
+    center: [35, 105],
+    zoom: 4,
+    minZoom: 3,
+    maxZoom: 8,
+    zoomControl: true,
+    attributionControl: false,
+    zoomAnimation: false,
+    fadeAnimation: false,
+    markerZoomAnimation: false,
+    preferCanvas: false,
   })
 
-  // 河流使用独立高层级 Pane，避免被底图或中国轮廓线遮挡
-  if (!leafletMap.getPane('river-pane')) {
-    const riverPane = leafletMap.createPane('river-pane')
-    riverPane.style.zIndex = '650'
-    riverPane.style.pointerEvents = 'auto'
-  }
+  const outlinePane = leafletMap.createPane('outline-pane')
+  outlinePane.style.zIndex = '430'
+  outlinePane.style.pointerEvents = 'none'
 
-  tileLayer = L.tileLayer(ARCGIS_TILE_URL, { minZoom: 0, maxZoom: 8, maxNativeZoom: 8, opacity: 1, noWrap: true })
-  tileLayer.addTo(leafletMap)
+  const areaPane = leafletMap.createPane('terrain-area-pane')
+  areaPane.style.zIndex = '500'
 
-  // 中国轮廓线 — 优先从 GeoJSON 文件加载，失败则用简化多边形
+  const terrainPane = leafletMap.createPane('terrain-zone-pane')
+  terrainPane.style.zIndex = '520'
+
+  const detailPane = leafletMap.createPane('terrain-detail-pane')
+  detailPane.style.zIndex = '530'
+  detailPane.style.pointerEvents = 'none'
+
+  const labelPane = leafletMap.createPane('terrain-label-pane')
+  labelPane.style.zIndex = '650'
+  labelPane.style.pointerEvents = 'none'
+
+  tileLayer = L.tileLayer(ARCGIS_TILE_URL, {
+    minZoom: 0,
+    maxZoom: 8,
+    maxNativeZoom: 8,
+    opacity: 1,
+    noWrap: true,
+  }).addTo(leafletMap)
+
   await loadChinaOutline()
+  addTerrainAnswerZones()
 
-  // 审图号
   const ApprovalControl = L.Control.extend({
     onAdd() {
       const el = L.DomUtil.create('div', 'map-approval-number')
       el.textContent = 'GS(2025)5996'
-      el.style.cssText = 'font-size:12px;color:#666;background:rgba(255,255,255,0.8);padding:2px 6px;border-radius:3px;white-space:nowrap;'
+      el.style.cssText = 'font-size:12px;color:#666;background:rgba(255,255,255,.84);padding:2px 6px;border-radius:3px;white-space:nowrap;'
       return el
     },
   })
   new ApprovalControl({ position: 'bottomleft' }).addTo(leafletMap)
-
-  // 比例尺
   L.control.scale({ imperial: false, position: 'bottomright' }).addTo(leafletMap)
 
-  // 地形标记
-  addTerrainMarkers()
+  leafletMap.on('click', onMapBlankClick)
 
-  leafletResizeObserver = new ResizeObserver(() => scheduleSceneResize(110))
-  leafletResizeObserver.observe(container)
+  resizeObserver = new ResizeObserver(() => scheduleSceneResize())
+  resizeObserver.observe(container)
   scheduleSceneResize(0)
 }
 
-// ==================== 地形标记（初始隐藏，找到后显示） ====================
-function createIcon(emoji: string, color: string) {
-  return L.divIcon({
-    html: `<div style="font-size:20px;line-height:1;text-shadow:0 0 3px ${color};cursor:pointer;">${emoji}</div>`,
-    className: 'terrain-div-icon', iconSize: [24, 24], iconAnchor: [12, 12],
-  })
-}
+function setAnswerZoneState(feature: TerrainFeature, state: 'idle' | 'hover' | 'found' | 'wrong') {
+  const layer = answerZoneLayers[feature.name]
+  if (!layer) return
 
-// 生成锯齿状路径（让山脉走向线不那么平滑）
-function generateZigzagExtent(extent: [number, number][]): [number, number][] {
-  if (extent.length < 2) return extent
-  const [start, end] = extent
-  const lat1 = start![0], lon1 = start![1]
-  const lat2 = end![0], lon2 = end![1]
-  const dLat = lat2 - lat1, dLon = lon2 - lon1
-  const length = Math.sqrt(dLat * dLat + dLon * dLon)
-  if (length < 1) return extent
-  const pLat = -dLon / length, pLon = dLat / length
-  const offsetMag = Math.min(1.2, length * 0.07)
-  const numSeg = Math.max(4, Math.min(8, Math.round(length / 2)))
-  const points: [number, number][] = [[lat1, lon1]]
-  for (let i = 1; i < numSeg; i++) {
-    const t = i / numSeg
-    const baseLat = lat1 + dLat * t
-    const baseLon = lon1 + dLon * t
-    const sign = i % 2 === 1 ? 1 : -1
-    points.push([baseLat + pLat * offsetMag * sign, baseLon + pLon * offsetMag * sign])
-  }
-  points.push([lat2, lon2])
-  return points
-}
-
-// 将角度 snap 到最近的 45° 增量（让箭头方向不那么平滑）
-function snapAngle45(angle: number): number {
-  return Math.round(angle / 45) * 45
-}
-
-// 获取河流专属颜色（黄河用金色，其余用蓝色）
-function getRiverColor(name: string): string {
-  if (name === '黄河') return '#facc15'
-  return '#60a5fa'
-}
-
-function addTerrainMarkers() {
-  if (!leafletMap) return
-  // 山脉标记 — 初始隐藏（图标与右面板一致 🏔）
-  mountains.forEach(m => {
-    const marker = L.marker([m.lat, m.lon], { icon: createIcon('🏔', '#ef4444') })
-    marker.bindPopup(`<b style="color:#ef4444">${m.name}</b><br><span style="font-size:12px;color:#666">${m.desc}</span>`)
-    marker.on('click', () => { m.found = true })
-    marker.addTo(leafletMap!)
-    marker.setOpacity(0) // 初始隐藏
-    hiddenMarkers[m.name] = marker
-  })
-  // 盆地标记 — 初始隐藏（图标与右面板一致 🏺）
-  basins.forEach(b => {
-    const marker = L.marker([b.lat, b.lon], { icon: createIcon('🏺', '#fbbf24') })
-    marker.bindPopup(`<b style="color:#fbbf24">${b.name}</b><br><span style="font-size:12px;color:#666">${b.desc}</span>`)
-    marker.on('click', () => { b.found = true })
-    marker.addTo(leafletMap!)
-    marker.setOpacity(0)
-    hiddenMarkers[b.name] = marker
-  })
-  // 河流 — 先加载 GeoJSON，其余用简化路径
-  loadRivers()
-}
-
-// ==================== 河流 GeoJSON 加载 ====================
-/**
- * 从任意 GeoJSON 几何结构中提取河流坐标。
- * GeoJSON 坐标顺序为 [经度, 纬度]，这里转换为 Leaflet 使用的 [纬度, 经度]。
- */
-function collectRiverCoords(geometry: any, result: [number, number][]) {
-  if (!geometry) return
-
-  const pushCoord = (coord: any) => {
-    if (
-      Array.isArray(coord) &&
-      coord.length >= 2 &&
-      Number.isFinite(Number(coord[0])) &&
-      Number.isFinite(Number(coord[1]))
-    ) {
-      result.push([Number(coord[1]), Number(coord[0])])
-    }
-  }
-
-  if (geometry.type === 'LineString') {
-    geometry.coordinates?.forEach(pushCoord)
-    return
-  }
-
-  if (geometry.type === 'MultiLineString') {
-    geometry.coordinates?.forEach((line: any[]) => {
-      line?.forEach(pushCoord)
-    })
-    return
-  }
-
-  if (geometry.type === 'GeometryCollection') {
-    geometry.geometries?.forEach((item: any) => {
-      collectRiverCoords(item, result)
-    })
-  }
-}
-
-function extractAllRiverCoords(data: any): [number, number][] {
-  const result: [number, number][] = []
-  if (!data) return result
-
-  if (data.type === 'FeatureCollection') {
-    data.features?.forEach((feature: any) => {
-      collectRiverCoords(feature?.geometry, result)
-    })
-    return result
-  }
-
-  if (data.type === 'Feature') {
-    collectRiverCoords(data.geometry, result)
-    return result
-  }
-
-  collectRiverCoords(data, result)
-  return result
-}
-
-/**
- * 统一调整 Marker、Polyline、GeoJSON 图层透明度。
- */
-function setTerrainLayerOpacity(layer: HiddenTerrainLayer, opacity: number) {
-  if (layer instanceof L.Marker) {
-    layer.setOpacity(opacity)
-    return
-  }
-
-  if (layer instanceof L.GeoJSON) {
+  if (feature.type === 'basin' || feature.type === 'hill' || feature.type === 'plain') {
+    const color = state === 'wrong' ? '#ef4444' : getTerrainZoneColor(feature)
     layer.setStyle({
-      opacity,
-      fillOpacity: 0,
+      color,
+      weight: state === 'found' ? 3.2 : state === 'hover' ? 3 : 2.4,
+      opacity: state === 'wrong' ? 1 : state === 'found' ? 1 : state === 'hover' ? 0.98 : 0.92,
+      fillColor: color,
+      fillOpacity: state === 'wrong' ? 0.72 : state === 'found' ? 0.72 : state === 'hover' ? 0.64 : 0.52,
+      dashArray: '',
     })
     return
   }
 
-  if (layer instanceof L.Polyline) {
-    layer.setStyle({ opacity })
-  }
-}
-
-async function loadRivers() {
-  if (!leafletMap) return
-
-  // 长江、黄河直接交给 L.geoJSON 渲染完整 FeatureCollection，
-  // 不再只读取 data.features[0]。
-  const geojsonRivers = [
-    { name: '长江', url: '/geo-resources-folder/geojson/中国矢量数据/长江.geojson', color: '#60a5fa' },
-    { name: '黄河', url: '/geo-resources-folder/geojson/中国矢量数据/黄河.geojson', color: '#facc15' },
-  ]
-
-  for (const config of geojsonRivers) {
-    try {
-      const res = await fetch(gr.url)
-      if (!res.ok) throw new Error(`${gr.name} GeoJSON 不存在`)
-      const data = await res.json()
-      const feature = data.features?.[0]
-      if (feature?.geometry?.coordinates) {
-        // GeoJSON 坐标为 [lon, lat]，转换为 [lat, lon]
-        const coords: [number, number][] = feature.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number])
-        riverGeoJSONCoords[gr.name] = coords
-        // 更新 rivers 数据中的 path
-        const river = rivers.find(r => r.name === gr.name)
-        if (river) river.path = coords
-        // 创建折线（始终显示为参考细线）
-        const line = L.polyline(coords, { color: gr.color, weight: 2, opacity: 0.35 })
-        line.bindPopup(`<b style="color:${gr.color}">${gr.name}</b><br><span style="font-size:12px;color:#666">${river?.desc || ''}</span>`)
-        line.on('click', () => { if (river) river.found = true })
-        line.addTo(leafletMap!)
-        hiddenMarkers[gr.name] = line
-      }
-    } catch {
-      // 后备：使用简化路径
-      const river = rivers.find(r => r.name === gr.name)
-      if (river && (river.path?.length ?? 0) > 0) {
-        const line = L.polyline(river.path!, { color: gr.color, weight: 2, opacity: 0.35 })
-        line.addTo(leafletMap!)
-        hiddenMarkers[gr.name] = line
-      }
-    }
-  }
-  // 其余河流用简化路径
-  rivers.forEach(r => {
-    if ((r.path?.length ?? 0) > 0 && !hiddenMarkers[r.name] && leafletMap) {
-      const line = L.polyline(r.path!, { color: getRiverColor(r.name), weight: 2, opacity: 0.35 })
-      line.bindPopup(`<b style="color:${getRiverColor(r.name)}">${r.name}</b><br><span style="font-size:12px;color:#666">${r.desc}</span>`)
-      line.on('click', () => { r.found = true })
-      line.addTo(leafletMap!)
-      hiddenMarkers[r.name] = line
-    }
-    // 河流图标标记 — 🌊（初始隐藏，与右面板一致）
-    if (leafletMap && !hiddenMarkers[r.name + '_icon']) {
-      const riverIcon = L.marker([r.lat, r.lon], { icon: createIcon('🌊', getRiverColor(r.name)), zIndexOffset: 900 })
-      riverIcon.bindPopup(`<b style="color:${getRiverColor(r.name)}">${r.name}</b><br><span style="font-size:12px;color:#666">${r.desc}</span>`)
-      riverIcon.on('click', () => { r.found = true })
-      riverIcon.addTo(leafletMap)
-      riverIcon.setOpacity(0)
-      hiddenMarkers[r.name + '_icon'] = riverIcon
-    }
-    // 河流名称标记（初始隐藏）
-    if (leafletMap && (r.path?.length ?? 0) === 0) return // 等待 GeoJSON
-    const marker = L.marker([r.lat, r.lon], { icon: L.divIcon({ html: `<div style="font-size:11px;color:${getRiverColor(r.name)};font-weight:700;text-shadow:0 0 3px ${getRiverColor(r.name)};white-space:nowrap;">🌊 ${r.name}</div>`, className: 'river-label-icon', iconSize: [80, 16], iconAnchor: [40, 8] }) })
-    marker.on('click', () => { r.found = true })
-    marker.addTo(leafletMap!)
-    marker.setOpacity(0)
-    hiddenMarkers[river.name + '_label'] = marker
+  const color = state === 'wrong' ? '#ef4444' : getTerrainZoneColor(feature)
+  const baseWeight = feature.type === 'mountain' ? 11 : 10
+  layer.setStyle({
+    color,
+    weight: state === 'found' ? baseWeight + 2 : state === 'hover' ? baseWeight + 1 : baseWeight,
+    opacity: state === 'wrong' ? 1 : state === 'found' ? 0.98 : state === 'hover' ? 0.96 : 0.88,
+    lineCap: 'round',
+    lineJoin: 'round',
   })
 }
 
-// ==================== 自主查找模式 ====================
-function selectFeature(f: TerrainFeature) {
-  if (f.found) return
-  selectedFeature.value = f
-  findingHint.value = `请在地图上点击「${f.name}」的大致位置`
+function addTerrainAnswerZones() {
   if (!leafletMap) return
-  // 清除上一次提示
-  if (hintLayer) { hintLayer.remove(); hintLayer = null }
-  // 显示搜索提示区域（半透明圆）
-  hintLayer = L.circle([f.lat, f.lon], {
-    radius: 300000, // 300km
-    color: '#fbbf24', weight: 2, opacity: 0.5,
-    fillColor: '#fbbf24', fillOpacity: 0.08,
-    dashArray: '6 4',
-  })
-  hintLayer.addTo(leafletMap)
-  // 启用地图点击查找
-  leafletMap.on('click', onMapClickFind)
-}
 
-function onMapClickFind(e: L.LeafletMouseEvent) {
-  const f = selectedFeature.value
-  if (!f || !leafletMap) return
-  const clickLat = e.latlng.lat; const clickLon = e.latlng.lng
-  let isCorrect = false
+  allFeatures.value.forEach(feature => {
+    let answerLayer: TerrainAnswerLayer | null = null
+    const detail: L.Layer[] = []
 
-  if (f.type === 'river' && (f.path?.length ?? 0) > 0) {
-    // 河流：检查点击位置是否靠近河流路径任一点
-    const threshold = 2.5 // 度
-    isCorrect = f.path!.some(([plat, plon]) => {
-      const dLat = plat - clickLat; const dLon = plon - clickLon
-      return Math.sqrt(dLat * dLat + dLon * dLon) < threshold
-    })
-  } else {
-    // 山脉/盆地：检查点击位置是否靠近实际位置
-    const threshold = 3.5 // 度
-    const dLat = f.lat - clickLat; const dLon = f.lon - clickLon
-    isCorrect = Math.sqrt(dLat * dLat + dLon * dLon) < threshold
-  }
-
-  if (isCorrect) {
-    f.found = true
-    findingHint.value = `✅ 正确！「${f.name}」已找到`
-    // 清除搜索提示区域
-    if (hintLayer) { hintLayer.remove(); hintLayer = null }
-    // 显示该地形的标记和区域轮廓
-    showFeatureMarker(f)
-    showAreaContour(f)
-    // 高亮
-    if (highlightMarker) highlightMarker.remove()
-    highlightMarker = L.circleMarker([f.lat, f.lon], { radius: 20, color: '#2ec4b6', weight: 3, fillOpacity: 0, dashArray: '4 4' })
-    highlightMarker.addTo(leafletMap)
-    setTimeout(() => { if (highlightMarker) { highlightMarker.remove(); highlightMarker = null } }, 3000)
-    // 清除选中
-    selectedFeature.value = null
-    leafletMap.off('click', onMapClickFind)
-    setTimeout(() => { findingHint.value = '' }, 2500)
-  } else {
-    findingHint.value = `❌ 不太对哦，再试试找「${f.name}」的位置`
-  }
-}
-
-// 显示区域轮廓 — 山脉：箭头走向 / 盆地：圈出范围 / 河流：粗线
-function showAreaContour(f: TerrainFeature) {
-  if (!leafletMap) return
-  const color = f.type === 'mountain' ? '#ef4444' : f.type === 'basin' ? '#fbbf24' : getRiverColor(f.name)
-  const name = f.name; const desc = f.desc
-
-  if (f.type === 'mountain') {
-    // 山脉：沿走向绘制箭头线段
-    drawMountainArrows(f, color, name, desc)
-  } else if (f.type === 'river') {
-    // 河流：粗线已由 showFeatureMarker 显示，此处加缓冲带 + 流向箭头 + 🌊 图标
-    const coords = f.path
-    if ((coords?.length ?? 0) > 0) {
-      const color = getRiverColor(f.name)
-      // 缓冲区（范围带）
-      const buffer = L.polyline(coords!, {
-        color, weight: 12, opacity: 0.12,
+    if (feature.type === 'mountain' && (feature.extent?.length || 0) >= 2) {
+      const coords = getMountainPath(feature)
+      answerLayer = L.polyline(coords, {
+        pane: 'terrain-zone-pane',
+        color: getTerrainZoneColor(feature),
+        weight: 11,
+        opacity: 0.88,
+        smoothFactor: 0,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: true,
+        bubblingMouseEvents: false,
       })
-      buffer.addTo(leafletMap)
-      contourLayers.push(buffer as any)
-      // 沿路径放置流向箭头 + 🌊 图标
-      drawRiverFlowArrows(coords!, color)
+      detail.push(L.polyline(coords, {
+        pane: 'terrain-detail-pane',
+        color: getTerrainDetailColor(feature),
+        weight: 2.2,
+        opacity: 0.72,
+        smoothFactor: 0,
+        dashArray: '6 5',
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false,
+      }))
     }
-  } else if (f.type === 'basin' && (f.area?.length ?? 0) > 0) {
-    // 盆地：圈出范围 + 🏺 图标 + 流向箭头（指向中心，表示地势内倾）
-    const contour = L.polygon(f.area!, {
-      color, weight: 3.5, opacity: 0.9,
-      fillColor: color, fillOpacity: 0.18,
-      dashArray: '5 3',
-    })
-    contour.bindPopup(`<b style="color:${color}">${name}</b><br><span style="font-size:12px;color:#666">${desc}</span>`)
-    contour.addTo(leafletMap)
-    contourLayers.push(contour)
-    drawBasinDirectionArrows(f.area!, color)
-  }
-}
 
-// 山脉走向：锯齿状线段 + 🏔 图标 + ▶ 方向箭头
-function drawMountainArrows(f: TerrainFeature, color: string, name: string, desc: string) {
-  if (!leafletMap || !f.extent || f.extent.length < 2) return
-  const lat1 = f.extent[0]![0]; const lon1 = f.extent[0]![1]
-  const lat2 = f.extent[1]![0]; const lon2 = f.extent[1]![1]
-  // 生成锯齿状走向路径（不那么平滑）
-  const zigzagPath = generateZigzagExtent(f.extent)
-  // 走向基准线（锯齿状虚线）
-  const baseLine = L.polyline(zigzagPath, {
-    color, weight: 3.5, opacity: 0.85, dashArray: '8 4',
-  })
-  baseLine.bindPopup(`<b style="color:${color}">${name}</b><br><span style="font-size:12px;color:#666">${desc}</span>`)
-  baseLine.addTo(leafletMap)
-  contourLayers.push(baseLine as any)
-  // 计算总体走向角度（snap到45°，不那么平滑）
-  const arrowAngle = snapAngle45(Math.atan2(lon2 - lon1, lat2 - lat1) * (180 / Math.PI))
-  // 沿路径放置 🏔 图标（与右侧面板一致）
-  const numEmoji = 3
-  for (let i = 0; i < numEmoji; i++) {
-    const t = (i + 1) / (numEmoji + 1)
-    const idx = Math.min(Math.floor(t * (zigzagPath.length - 1)), zigzagPath.length - 1)
-    const [elat, elon] = zigzagPath[idx]!
-    const emojiIcon = L.divIcon({
-      html: `<div style="font-size:18px;color:${color};text-shadow:0 0 4px ${color};line-height:1;">🏔</div>`,
-      className: 'mountain-emoji-icon', iconSize: [22, 22], iconAnchor: [11, 11],
-    })
-    const emojiMarker = L.marker([elat, elon], { icon: emojiIcon, interactive: false })
-    emojiMarker.addTo(leafletMap); contourLayers.push(emojiMarker as any)
-  }
-  // 沿路径放置 ▶ 方向箭头（snap到45°方向）
-  const numArrows = 5
-  for (let i = 0; i < numArrows; i++) {
-    const t = (i + 0.5) / numArrows
-    const idx = Math.min(Math.floor(t * (zigzagPath.length - 1)), zigzagPath.length - 1)
-    const [alat, alon] = zigzagPath[idx]!
-    const arrowIcon = L.divIcon({
-      html: `<div style="font-size:13px;color:${color};transform:rotate(${arrowAngle}deg);text-shadow:0 0 3px ${color};line-height:1;">▶</div>`,
-      className: 'mountain-arrow-icon', iconSize: [18, 18], iconAnchor: [9, 9],
-    })
-    const arrowMarker = L.marker([alat, alon], { icon: arrowIcon, interactive: false })
-    arrowMarker.addTo(leafletMap); contourLayers.push(arrowMarker as any)
-  }
-}
-
-// 河流流向：粗线 + 🌊 图标 + ▶ 流向箭头（snap到45°）
-function drawRiverFlowArrows(coords: [number, number][], color: string) {
-  if (!leafletMap || coords.length < 2) return
-  // 沿路径放置 🌊 图标（与右侧面板一致）
-  const numEmoji = Math.min(3, coords.length - 1)
-  for (let i = 0; i < numEmoji; i++) {
-    const t = (i + 1) / (numEmoji + 1)
-    const idx = Math.min(Math.floor(t * (coords.length - 1)), coords.length - 1)
-    const [elat, elon] = coords[idx]!
-    const emojiIcon = L.divIcon({
-      html: `<div style="font-size:16px;color:${color};text-shadow:0 0 4px ${color};line-height:1;">🌊</div>`,
-      className: 'river-emoji-icon', iconSize: [20, 20], iconAnchor: [10, 10],
-    })
-    const emojiMarker = L.marker([elat, elon], { icon: emojiIcon, interactive: false })
-    emojiMarker.addTo(leafletMap); contourLayers.push(emojiMarker as any)
-  }
-  // 沿路径放置 ▶ 流向箭头（snap到45°方向）
-  const numArrows = Math.min(8, coords.length - 1)
-  for (let i = 0; i < numArrows; i++) {
-    const idx = Math.floor((i + 0.5) * (coords.length - 1) / numArrows)
-    if (idx >= coords.length - 1) continue
-    const [lat1, lon1] = coords[idx]!
-    const [lat2, lon2] = coords[idx + 1]!
-    const angle = snapAngle45(Math.atan2(lon2 - lon1, lat2 - lat1) * (180 / Math.PI))
-    const arrowIcon = L.divIcon({
-      html: `<div style="font-size:12px;color:${color};transform:rotate(${angle}deg);text-shadow:0 0 3px ${color};line-height:1;">▶</div>`,
-      className: 'river-arrow-icon', iconSize: [16, 16], iconAnchor: [8, 8],
-    })
-    const arrowMarker = L.marker([lat1, lon1], { icon: arrowIcon, interactive: false })
-    arrowMarker.addTo(leafletMap); contourLayers.push(arrowMarker as any)
-  }
-}
-
-// 盆地流向：边界内指箭头（表示地势向中心倾斜）+ 🏺 图标
-function drawBasinDirectionArrows(area: [number, number][], color: string) {
-  if (!leafletMap || area.length < 3) return
-  const centerLat = area.reduce((s, p) => s + p[0], 0) / area.length
-  const centerLon = area.reduce((s, p) => s + p[1], 0) / area.length
-  // 沿边界放置 🏺 图标
-  const numEmoji = Math.min(4, area.length)
-  for (let i = 0; i < numEmoji; i++) {
-    const idx = Math.floor((i + 0.5) * area.length / numEmoji) % area.length
-    const [elat, elon] = area[idx]!
-    const emojiIcon = L.divIcon({
-      html: `<div style="font-size:14px;color:${color};text-shadow:0 0 4px ${color};line-height:1;">🏺</div>`,
-      className: 'basin-emoji-icon', iconSize: [18, 18], iconAnchor: [9, 9],
-    })
-    const emojiMarker = L.marker([elat, elon], { icon: emojiIcon, interactive: false })
-    emojiMarker.addTo(leafletMap); contourLayers.push(emojiMarker as any)
-  }
-  // 在每条边界中点放置指向中心的 ▶ 箭头（snap到45°）
-  for (let i = 0; i < area.length; i++) {
-    const next = (i + 1) % area.length
-    const midLat = (area[i]![0] + area[next]![0]) / 2
-    const midLon = (area[i]![1] + area[next]![1]) / 2
-    const angle = snapAngle45(Math.atan2(centerLon - midLon, centerLat - midLat) * (180 / Math.PI))
-    const arrowIcon = L.divIcon({
-      html: `<div style="font-size:11px;color:${color};transform:rotate(${angle}deg);text-shadow:0 0 2px ${color};line-height:1;">▶</div>`,
-      className: 'basin-arrow-icon', iconSize: [14, 14], iconAnchor: [7, 7],
-    })
-    const arrowMarker = L.marker([midLat, midLon], { icon: arrowIcon, interactive: false })
-    arrowMarker.addTo(leafletMap); contourLayers.push(arrowMarker as any)
-  }
-}
-
-function showFeatureMarker(f: TerrainFeature) {
-  const marker = hiddenMarkers[f.name]
-  if (marker) {
-    if (marker instanceof L.Marker) {
-      marker.setOpacity(1)
-      // 山脉/盆地/河流找到后添加辉光标注圆
-      addFoundGlow(f)
-    } else if (marker instanceof L.Polyline) {
-      // 河流路径：粗实线展现，使用河流专属颜色
-      marker.setStyle({ opacity: 0.85, weight: 5, dashArray: '', color: getRiverColor(f.name) })
-      addFoundGlow(f)
+    if ((feature.type === 'basin' || feature.type === 'hill' || feature.type === 'plain') && (feature.area?.length || 0) >= 3) {
+      const area = getBasinArea(feature)
+      answerLayer = L.polygon(area, {
+        pane: 'terrain-area-pane',
+        color: getTerrainZoneColor(feature),
+        weight: 2.4,
+        opacity: 0.92,
+        fillColor: getTerrainZoneColor(feature),
+        fillOpacity: 0.52,
+        smoothFactor: 0,
+        interactive: true,
+        bubblingMouseEvents: false,
+      })
+      detail.push(L.polygon(area, {
+        pane: 'terrain-detail-pane',
+        color: getTerrainDetailColor(feature),
+        weight: 1.2,
+        opacity: 0.68,
+        fillOpacity: 0,
+        smoothFactor: 0,
+        interactive: false,
+      }))
     }
+
+    if (feature.type === 'river' && (feature.path?.length || 0) >= 2) {
+      const coords = getRiverPath(feature)
+      answerLayer = L.polyline(coords, {
+        pane: 'terrain-zone-pane',
+        color: '#0e7490',
+        weight: 10,
+        opacity: 0.9,
+        smoothFactor: 0,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: true,
+        bubblingMouseEvents: false,
+      })
+      detail.push(L.polyline(coords, {
+        pane: 'terrain-detail-pane',
+        color: '#67e8f9',
+        weight: 3.4,
+        opacity: 0.95,
+        smoothFactor: 0,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false,
+      }))
+    }
+
+    if (!answerLayer) return
+
+    answerZoneLayers[feature.name] = answerLayer
+    detailLayers[feature.name] = detail
+
+    answerLayer.on('click', () => handleTerrainZoneClick(feature))
+    answerLayer.on('mouseover', () => {
+      if (!feature.found) setAnswerZoneState(feature, 'hover')
+    })
+    answerLayer.on('mouseout', () => {
+      setAnswerZoneState(feature, feature.found ? 'found' : 'idle')
+    })
+
+    if (showAllMode.value) {
+      answerLayer.addTo(leafletMap!)
+      detail.forEach(layer => layer.addTo(leafletMap!))
+    }
+  })
+}
+
+function selectFeature(feature: TerrainFeature) {
+  if (feature.found) {
+    findingHint.value = `✅ 「${feature.name}」已经找到，可继续选择其他地形`
+    clearFeedbackLater(1600)
+    return
   }
-  // 河流图标标记（🌊，与右面板一致）
-  const riverIcon = hiddenMarkers[f.name + '_icon']
-  if (riverIcon instanceof L.Marker) riverIcon.setOpacity(1)
-  // 文字标签
-  const label = hiddenMarkers[f.name + '_label']
-  if (label instanceof L.Marker) label.setOpacity(1)
+
+  selectedFeature.value = feature
+  findingHint.value = `请在地图中点击「${feature.name}」对应的${feature.type === 'basin' || feature.type === 'hill' || feature.type === 'plain' ? '地形范围' : '地形走向'}`
 }
 
-// 为已找到的地形添加辉光 + 文字标牌
-const foundGlowLayers: L.Circle[] = []
-function addFoundGlow(f: TerrainFeature) {
-  if (!leafletMap) return
-  const color = f.type === 'mountain' ? '#ef4444' : f.type === 'basin' ? '#fbbf24' : getRiverColor(f.name)
-  // 辉光圈
-  const glow = L.circle([f.lat, f.lon], {
-    radius: 120000,
-    color, weight: 2, opacity: 0.6, fillOpacity: 0,
-    dashArray: '3 3',
-  })
-  glow.addTo(leafletMap)
-  foundGlowLayers.push(glow)
-  // 文字标牌（地图中央标注名称，含图标）
-  const emoji = f.type === 'mountain' ? '🏔' : f.type === 'basin' ? '🏺' : '🌊'
-  const labelIcon = L.divIcon({
-    html: `<div style="
-      font-size:13px;font-weight:800;color:${color};white-space:nowrap;
-      text-shadow: 0 0 4px ${color};
-      background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;
-      border:1px solid ${color};letter-spacing:1px;
-    ">${emoji} ${f.name}</div>`,
-    className: 'found-label-icon',
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
-  const labelMarker = L.marker([f.lat, f.lon], { icon: labelIcon, zIndexOffset: 1000 })
-  labelMarker.addTo(leafletMap)
-  foundGlowLayers.push(labelMarker as any)
+function onMapBlankClick() {
+  if (!selectedFeature.value) {
+    findingHint.value = '请先从下方题库选择一个地形名称'
+    clearFeedbackLater(1500)
+    return
+  }
+  findingHint.value = `❌ 请直接点击地图中的地形色带或填充区域来寻找「${selectedFeature.value.name}」`
 }
 
-// 展示全部地形
-let showAllContours: (L.Polygon | L.Polyline | L.Marker)[] = []
+function handleTerrainZoneClick(clicked: TerrainFeature) {
+  const target = selectedFeature.value
+
+  if (!target) {
+    findingHint.value = '请先从下方题库选择一个地形名称，再点击地图地形'
+    clearFeedbackLater(1600)
+    return
+  }
+
+  if (clicked.name !== target.name) {
+    findingHint.value = `❌ 这里不是「${target.name}」，再观察一下走向和位置`
+    if (wrongFlashTimer) clearTimeout(wrongFlashTimer)
+    setAnswerZoneState(clicked, 'wrong')
+    wrongFlashTimer = setTimeout(() => {
+      setAnswerZoneState(clicked, clicked.found ? 'found' : 'idle')
+      wrongFlashTimer = null
+    }, 520)
+    return
+  }
+
+  target.found = true
+  setAnswerZoneState(target, 'found')
+  addFoundLabel(target)
+  findingHint.value = `✅ 正确！「${target.name}」已找到`
+  selectedFeature.value = null
+  clearFeedbackLater(2100)
+}
+
+function addFoundLabel(feature: TerrainFeature) {
+  if (!leafletMap || foundLabelLayers[feature.name]) return
+
+  const color = getTerrainDetailColor(feature)
+  const icon = L.divIcon({
+    className: 'terrain-found-label-wrapper',
+    html: `<div class="terrain-found-label terrain-found-label-${feature.type}" style="--terrain-color:${color}">
+      <span>${getTerrainEmoji(feature.type)}</span><strong>${feature.name}</strong>
+    </div>`,
+    iconSize: [140, 34],
+    iconAnchor: [70, 17],
+  })
+
+  const marker = L.marker([feature.lat, feature.lon], {
+    pane: 'terrain-label-pane',
+    icon,
+    interactive: false,
+  }).addTo(leafletMap)
+
+  foundLabelLayers[feature.name] = marker
+}
+
 function toggleShowAll(on: boolean) {
+  showAllMode.value = on
   if (!leafletMap) return
-  // 清除展示模式的轮廓
-  showAllContours.forEach(c => c.remove()); showAllContours = []
-  const allFeatures = [...mountains, ...basins, ...rivers]
-  allFeatures.forEach(f => {
-    const marker = hiddenMarkers[f.name]
-    const label = hiddenMarkers[f.name + '_label']
-    const riverIcon = hiddenMarkers[f.name + '_icon']
+
+  allFeatures.value.forEach(feature => {
+    const answer = answerZoneLayers[feature.name]
+    const details = detailLayers[feature.name] || []
+    if (!answer) return
+
     if (on) {
-      // 显示全部
-      if (marker) {
-        if (marker instanceof L.Marker) marker.setOpacity(1)
-        else if (marker instanceof L.Polyline) {
-          marker.setStyle({ opacity: 0.8, ...(f.type === 'river' ? { weight: 4, dashArray: '', color: getRiverColor(f.name) } : {}) })
-        }
-      }
-      if (riverIcon instanceof L.Marker) riverIcon.setOpacity(1)
-      if (label instanceof L.Marker) label.setOpacity(1)
-      // 山脉：锯齿状走向线 + 🏔 图标 + ▶ 箭头
-      if (f.type === 'mountain' && (f.extent?.length ?? 0) >= 2) {
-        const color = '#ef4444'
-        const ext = f.extent!
-        const sLat = ext[0]![0]; const sLon = ext[0]![1]
-        const eLat = ext[1]![0]; const eLon = ext[1]![1]
-        const zigzag = generateZigzagExtent(ext)
-        const baseLine = L.polyline(zigzag, { color, weight: 2, opacity: 0.55, dashArray: '6 3' })
-        baseLine.addTo(leafletMap!); showAllContours.push(baseLine)
-        const arrowAngle = snapAngle45(Math.atan2(eLon - sLon, eLat - sLat) * (180 / Math.PI))
-        // 🏔 图标沿走向分布
-        const numEmoji = 2
-        for (let i = 0; i < numEmoji; i++) {
-          const t = (i + 1) / (numEmoji + 1)
-          const idx = Math.min(Math.floor(t * (zigzag.length - 1)), zigzag.length - 1)
-          const [elat, elon] = zigzag[idx]!
-          const eIcon = L.divIcon({
-            html: `<div style="font-size:14px;color:${color};text-shadow:0 0 3px ${color};line-height:1;">🏔</div>`,
-            className: 'mountain-emoji-icon', iconSize: [18, 18], iconAnchor: [9, 9],
-          })
-          const em = L.marker([elat, elon], { icon: eIcon, interactive: false })
-          em.addTo(leafletMap!); showAllContours.push(em)
-        }
-        // ▶ 方向箭头（snap到45°）
-        const numArrows = 4
-        for (let i = 0; i < numArrows; i++) {
-          const t = (i + 0.5) / numArrows
-          const idx = Math.min(Math.floor(t * (zigzag.length - 1)), zigzag.length - 1)
-          const [al, an] = zigzag[idx]!
-          const icon = L.divIcon({
-            html: `<div style="font-size:11px;color:${color};transform:rotate(${arrowAngle}deg);text-shadow:0 0 2px ${color};line-height:1;">▶</div>`,
-            className: 'mountain-arrow-icon', iconSize: [14, 14], iconAnchor: [7, 7],
-          })
-          const am = L.marker([al, an], { icon, interactive: false })
-          am.addTo(leafletMap!); showAllContours.push(am)
-        }
-      }
-      // 盆地：圈出范围 + 🏺 图标 + 流向箭头
-      if (f.type === 'basin' && (f.area?.length ?? 0) > 0) {
-        const color = '#fbbf24'
-        const area = f.area!
-        const contour = L.polygon(area, { color, weight: 2, opacity: 0.5, fillColor: color, fillOpacity: 0.07, dashArray: '4 3' })
-        contour.addTo(leafletMap!)
-        showAllContours.push(contour)
-        const centerLat = area.reduce((s, p) => s + p[0], 0) / area.length
-        const centerLon = area.reduce((s, p) => s + p[1], 0) / area.length
-        // 🏺 图标沿边界分布
-        const numEmoji = Math.min(2, area.length)
-        for (let i = 0; i < numEmoji; i++) {
-          const idx = Math.floor((i + 0.5) * area.length / numEmoji) % area.length
-          const [elat, elon] = area[idx]!
-          const eIcon = L.divIcon({
-            html: `<div style="font-size:12px;color:${color};text-shadow:0 0 3px ${color};line-height:1;">🏺</div>`,
-            className: 'basin-emoji-icon', iconSize: [16, 16], iconAnchor: [8, 8],
-          })
-          const em = L.marker([elat, elon], { icon: eIcon, interactive: false })
-          em.addTo(leafletMap!); showAllContours.push(em)
-        }
-        // ▶ 指向中心的流向箭头（snap到45°）
-        for (let i = 0; i < area.length; i++) {
-          const next = (i + 1) % area.length
-          const midLat = (area[i]![0] + area[next]![0]) / 2
-          const midLon = (area[i]![1] + area[next]![1]) / 2
-          const angle = snapAngle45(Math.atan2(centerLon - midLon, centerLat - midLat) * (180 / Math.PI))
-          const icon = L.divIcon({
-            html: `<div style="font-size:9px;color:${color};transform:rotate(${angle}deg);text-shadow:0 0 2px ${color};line-height:1;">▶</div>`,
-            className: 'basin-arrow-icon', iconSize: [12, 12], iconAnchor: [6, 6],
-          })
-          const am = L.marker([midLat, midLon], { icon, interactive: false })
-          am.addTo(leafletMap!); showAllContours.push(am)
-        }
-      }
-      // 河流：粗线已由 hiddenMarkers 显示，此处加 🌊 图标 + ▶ 流向箭头
-      if (f.type === 'river' && (f.path?.length ?? 0) > 0) {
-        const color = getRiverColor(f.name)
-        const coords = f.path!
-        // 🌊 图标沿河流分布
-        const numEmoji = Math.min(2, coords.length - 1)
-        for (let i = 0; i < numEmoji; i++) {
-          const t = (i + 1) / (numEmoji + 1)
-          const idx = Math.min(Math.floor(t * (coords.length - 1)), coords.length - 1)
-          const [elat, elon] = coords[idx]!
-          const eIcon = L.divIcon({
-            html: `<div style="font-size:14px;color:${color};text-shadow:0 0 3px ${color};line-height:1;">🌊</div>`,
-            className: 'river-emoji-icon', iconSize: [18, 18], iconAnchor: [9, 9],
-          })
-          const em = L.marker([elat, elon], { icon: eIcon, interactive: false })
-          em.addTo(leafletMap!); showAllContours.push(em)
-        }
-        // ▶ 流向箭头（snap到45°）
-        const numArrows = Math.min(5, coords.length - 1)
-        for (let i = 0; i < numArrows; i++) {
-          const idx = Math.floor((i + 0.5) * (coords.length - 1) / numArrows)
-          if (idx >= coords.length - 1) continue
-          const [lat1, lon1] = coords[idx]!
-          const [lat2, lon2] = coords[idx + 1]!
-          const angle = snapAngle45(Math.atan2(lon2 - lon1, lat2 - lat1) * (180 / Math.PI))
-          const icon = L.divIcon({
-            html: `<div style="font-size:10px;color:${color};transform:rotate(${angle}deg);text-shadow:0 0 2px ${color};line-height:1;">▶</div>`,
-            className: 'river-arrow-icon', iconSize: [12, 12], iconAnchor: [6, 6],
-          })
-          const am = L.marker([lat1, lon1], { icon, interactive: false })
-          am.addTo(leafletMap!); showAllContours.push(am)
-        }
-      }
+      if (!leafletMap!.hasLayer(answer)) answer.addTo(leafletMap!)
+      details.forEach(layer => {
+        if (!leafletMap!.hasLayer(layer)) layer.addTo(leafletMap!)
+      })
+      setAnswerZoneState(feature, feature.found ? 'found' : 'idle')
     } else {
-      // 隐藏未找到的
-      if (!f.found) {
-        if (marker) {
-        if (marker instanceof L.Marker) marker.setOpacity(0)
-        else if (marker instanceof L.Polyline) {
-          // 未找到河流仍保留细线可见
-          if (f.type === 'river') marker.setStyle({ opacity: 0.35, weight: 2, color: getRiverColor(f.name) })
-          else marker.setStyle({ opacity: 0 })
-        }
-        }
-        if (riverIcon instanceof L.Marker) riverIcon.setOpacity(0)
-        if (label instanceof L.Marker) label.setOpacity(0)
-      }
+      if (leafletMap!.hasLayer(answer)) answer.remove()
+      details.forEach(layer => {
+        if (leafletMap!.hasLayer(layer)) layer.remove()
+      })
     }
   })
 }
 
-// ==================== Resize ====================
-function resizeLeafletNow() {
-  const container = leafletContainerRef.value
-  if (!leafletMap || !container) return
-  const w = Math.max(1, Math.round(container.clientWidth)); const h = Math.max(1, Math.round(container.clientHeight))
-  if (w === lastSceneWidth && h === lastSceneHeight) return
-  lastSceneWidth = w; lastSceneHeight = h
-  leafletMap.invalidateSize({ animate: false, pan: false })
+function resetGame() {
+  mountains.forEach(item => { item.found = false })
+  basins.forEach(item => { item.found = false })
+  rivers.forEach(item => { item.found = false })
+  hills.forEach(item => { item.found = false })
+  plains.forEach(item => { item.found = false })
+  selectedFeature.value = null
+  findingHint.value = '已重新开始：从下方选择一个地形名称'
+
+  allFeatures.value.forEach(feature => setAnswerZoneState(feature, 'idle'))
+  Object.values(foundLabelLayers).forEach(layer => layer.remove())
+  Object.keys(foundLabelLayers).forEach(key => delete foundLabelLayers[key])
+  clearFeedbackLater(1700)
 }
-function scheduleSceneResize(delay = 110) {
-  if (sceneResizeTimer) clearTimeout(sceneResizeTimer)
-  cancelAnimationFrame(sceneResizeFrame); cancelAnimationFrame(sceneResizeSettleFrame)
-  sceneResizeTimer = setTimeout(() => {
-    sceneResizeTimer = null
-    if (draggingSide.value || viewportResizing.value) return
-    sceneResizeFrame = requestAnimationFrame(() => { sceneResizeSettleFrame = requestAnimationFrame(() => resizeLeafletNow()) })
+
+function clearFeedbackLater(delay: number) {
+  if (feedbackTimer) clearTimeout(feedbackTimer)
+  feedbackTimer = setTimeout(() => {
+    if (!selectedFeature.value) findingHint.value = ''
+    feedbackTimer = null
   }, delay)
 }
 
-// ==================== 生命周期 ====================
-onMounted(async () => { await nextTick(); initScene() })
+function scheduleSceneResize(delay = 80) {
+  if (resizeTimer) clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(() => {
+    resizeTimer = null
+    leafletMap?.invalidateSize({ animate: false, pan: false })
+  }, delay)
+}
+
+onMounted(async () => {
+  await nextTick()
+  await initScene()
+})
 
 onBeforeUnmount(() => {
-  if (sceneResizeTimer) { clearTimeout(sceneResizeTimer); sceneResizeTimer = null }
-  leafletMap?.off('click', onMapClickFind)
-  if (hintLayer) { hintLayer.remove(); hintLayer = null }
-  contourLayers.forEach(l => l.remove()); contourLayers.length = 0
-  foundGlowLayers.forEach(l => l.remove()); foundGlowLayers.length = 0
-  showAllContours.forEach(l => l.remove()); showAllContours = []
-  cancelAnimationFrame(sceneResizeFrame); cancelAnimationFrame(sceneResizeSettleFrame)
-  leafletResizeObserver?.disconnect(); leafletResizeObserver = null
-  featureMarkers.forEach(m => m.remove()); featureMarkers = []
-  riverLayers.forEach(l => l.remove()); riverLayers = []
-  riverGeoJSONLayers.forEach(l => l.remove()); riverGeoJSONLayers = []
-  if (highlightMarker) { highlightMarker.remove(); highlightMarker = null }
-  chinaOutlineLayer?.remove(); chinaOutlineLayer = null
-  leafletMap?.remove(); leafletMap = null; tileLayer = null
+  if (resizeTimer) clearTimeout(resizeTimer)
+  if (wrongFlashTimer) clearTimeout(wrongFlashTimer)
+  if (feedbackTimer) clearTimeout(feedbackTimer)
+  resizeObserver?.disconnect()
+  resizeObserver = null
+
+  Object.values(answerZoneLayers).forEach(layer => layer.remove())
+  Object.values(detailLayers).flat().forEach(layer => layer.remove())
+  Object.values(foundLabelLayers).forEach(layer => layer.remove())
+
+  leafletMap?.off('click', onMapBlankClick)
+  chinaOutlineLayer?.remove()
+  tileLayer?.remove()
+  leafletMap?.remove()
+  leafletMap = null
+  tileLayer = null
+  chinaOutlineLayer = null
 })
 </script>
 
 <style scoped>
+.find-terrain-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.find-terrain-container .top-toolbar {
+  height: 72px !important;
+  min-height: 72px !important;
+  box-sizing: border-box;
+}
+
+.find-terrain-container .workspace {
+  position: relative !important;
+  width: 100% !important;
+  height: calc(100vh - 72px) !important;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.find-terrain-container .center-stage {
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.find-terrain-container .stage-content {
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.find-terrain-container .leaflet-host {
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0;
+  min-height: 0;
+}
+
 .page-subtitle {
-  font-size: 13px;
-  color: #64748b;
-  font-weight: 400;
   margin-left: 10px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 400;
   letter-spacing: 1px;
 }
 
-.map-hint {
+.game-top-hud {
   position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  font-size: 12px;
-  color: #94a3b8;
-  background: rgba(10, 22, 40, 0.8);
-  padding: 4px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(46, 196, 182, 0.25);
+  top: 14px;
+  left: 64px;
+  right: 18px;
+  z-index: 1000;
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(330px, 390px);
+  gap: 12px;
+  align-items: stretch;
   pointer-events: none;
 }
 
-.find-progress { display: flex; flex-direction: column; gap: 6px; }
-.progress-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #94a3b8; transition: all 0.3s ease; }
-.progress-item .progress-icon { font-size: 18px; transition: all 0.3s ease; }
-.progress-item.has-found .progress-icon {
-  transform: scale(1.2);
-  filter: drop-shadow(0 0 6px currentColor);
+.mission-box,
+.progress-box,
+.terrain-dock {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(5, 13, 28, 0.92);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, .04);
+  backdrop-filter: blur(14px);
 }
-.progress-item.completed { color: #2ec4b6; }
-.progress-item.completed .progress-icon {
-  filter: drop-shadow(0 0 10px currentColor) drop-shadow(0 0 20px currentColor);
-}
-.progress-item strong { color: #2ec4b6; font-size: 16px; min-width: 24px; text-align: right; }
 
-.terrain-list { display: flex; flex-direction: column; gap: 4px; }
-.terrain-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(8,12,28,0.5); border: 1px solid transparent; cursor: pointer; transition: all 0.2s; }
-.terrain-item:hover { background: rgba(46,196,182,0.1); border-color: rgba(46,196,182,0.3); }
-.terrain-item.found { background: rgba(46,196,182,0.15); border-color: rgba(46,196,182,0.4); }
-.terrain-item.found .terrain-icon {
-  transform: scale(1.25);
-  filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 16px currentColor);
+.mission-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  pointer-events: auto;
+  transition: .2s ease;
 }
-.terrain-item.selected { background: rgba(251,191,36,0.15); border-color: rgba(251,191,36,0.5); box-shadow: 0 0 8px rgba(251,191,36,0.2); }
-.terrain-arrow { color: #fbbf24; font-size: 16px; font-weight: 700; flex-shrink: 0; animation: bounce-right 0.6s infinite alternate; }
-@keyframes bounce-right { from { transform: translateX(0); } to { transform: translateX(3px); } }
-.map-hint.finding { color: #fbbf24; border-color: rgba(251,191,36,0.4); background: rgba(40,30,10,0.85); }
-.terrain-icon { font-size: 20px; flex-shrink: 0; font-weight: 700; transition: all 0.3s ease; }
-.terrain-info { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.terrain-name { font-size: 13px; color: #cbd5e1; font-weight: 600; }
-.terrain-desc { font-size: 10px; color: #64748b; }
-.terrain-check { color: #2ec4b6; font-size: 16px; font-weight: 700; flex-shrink: 0; }
 
-.find-terrain-container .workspace.panel-resizing,
-.find-terrain-container .workspace.layout-resizing,
-.find-terrain-container .workspace.panel-resizing .side-panel,
-.find-terrain-container .workspace.layout-resizing .side-panel,
-.find-terrain-container .workspace.panel-resizing .center-stage,
-.find-terrain-container .workspace.layout-resizing .center-stage {
-  transition: none !important;
+.mission-box.active {
+  border-color: rgba(251, 191, 36, .76);
+  background: rgba(40, 28, 7, .94);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .34), 0 0 22px rgba(251, 191, 36, .16);
+}
+
+.mission-box.success {
+  border-color: rgba(34, 197, 94, .78);
+  background: rgba(4, 34, 20, .94);
+}
+
+.mission-box.error {
+  border-color: rgba(248, 113, 113, .8);
+  background: rgba(43, 8, 14, .94);
+}
+
+.mission-dot {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #2ec4b6;
+  box-shadow: 0 0 0 5px rgba(46, 196, 182, .12), 0 0 16px rgba(46, 196, 182, .75);
+}
+
+.mission-box.active .mission-dot {
+  background: #fbbf24;
+  box-shadow: 0 0 0 5px rgba(251, 191, 36, .12), 0 0 16px rgba(251, 191, 36, .75);
+}
+
+.mission-box.success .mission-dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 5px rgba(34, 197, 94, .12), 0 0 16px rgba(34, 197, 94, .75);
+}
+
+.mission-box.error .mission-dot {
+  background: #f87171;
+  box-shadow: 0 0 0 5px rgba(248, 113, 113, .12), 0 0 16px rgba(248, 113, 113, .75);
+}
+
+.mission-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mission-kicker {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+
+.mission-copy strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+.filter-tab,
+.zone-toggle,
+.terrain-chip {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.filter-tab {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(148, 163, 184, .18);
+  border-radius: 8px;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, .62);
+  font-size: 12px;
+  font-weight: 700;
+  transition: .18s ease;
+}
+
+.filter-tab:hover {
+  color: #e2e8f0;
+  border-color: rgba(46, 196, 182, .38);
+}
+
+.filter-tab.active {
+  color: #dffcf8;
+  border-color: rgba(46, 196, 182, .7);
+  background: rgba(46, 196, 182, .16);
+  box-shadow: 0 0 12px rgba(46, 196, 182, .12);
+}
+
+.zone-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 24px;
+  border-radius: 7px;
+  color: #64748b;
+  background: rgba(15, 23, 42, .46);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.zone-toggle.active {
+  color: #99f6e4;
+}
+
+.toggle-light {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #64748b;
+}
+
+.zone-toggle.active .toggle-light {
+  background: #2ec4b6;
+  box-shadow: 0 0 8px rgba(46, 196, 182, .8);
+}
+
+.progress-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  min-height: 64px;
+  padding: 9px 14px;
+  border-radius: 14px;
+  pointer-events: auto;
+}
+
+.progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.progress-head strong {
+  color: #5eead4;
+  font-size: 16px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, .16);
+}
+
+.progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2ec4b6, #247cff);
+  box-shadow: 0 0 10px rgba(46, 196, 182, .45);
+  transition: width .3s ease;
+}
+
+.progress-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  color: #94a3b8;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.progress-groups span,
+.dock-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.legend-dot.mountain {
+  background: #c2410c;
+}
+
+.legend-dot.basin {
+  background: #d97706;
+}
+
+.legend-dot.river {
+  background: #0e7490;
+}
+
+.legend-dot.hill {
+  background: #7c3aed;
+}
+
+.legend-dot.plain {
+  background: #15803d;
+}
+
+.terrain-dock {
+  position: absolute;
+  right: 18px;
+  bottom: 8px;
+  left: 18px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px 12px 11px;
+  border-radius: 16px;
+}
+
+.dock-head {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto minmax(330px, auto);
+  align-items: center;
+  gap: 14px;
+  min-height: 34px;
+}
+
+.dock-filters {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(52px, 1fr));
+  gap: 5px;
+  min-width: 390px;
+  padding: 3px;
+  border: 1px solid rgba(148, 163, 184, .12);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, .42);
+}
+
+.dock-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dock-tools .zone-toggle {
+  flex: 0 0 auto;
+  min-width: 86px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, .18);
+}
+
+.dock-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dock-title-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(46, 196, 182, .38);
+  border-radius: 9px;
+  color: #5eead4;
+  background: rgba(46, 196, 182, .1);
+  font-size: 17px;
+}
+
+.dock-title>div {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  min-width: 0;
+}
+
+.dock-title strong {
+  color: #f8fafc;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.dock-title span:not(.dock-title-icon) {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dock-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #94a3b8;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.legend-line {
+  width: 18px;
+  height: 5px;
+  border-radius: 999px;
+}
+
+.legend-line.mountain {
+  background: #c2410c;
+  box-shadow: inset 0 0 0 1px rgba(254, 215, 170, .35);
+}
+
+.legend-line.river {
+  background: #0e7490;
+  box-shadow: inset 0 0 0 1px rgba(103, 232, 249, .52);
+}
+
+.legend-area {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.legend-area.basin {
+  background: rgba(217, 119, 6, .82);
+  border: 1px solid #fde68a;
+}
+
+.legend-area.hill {
+  background: rgba(124, 58, 237, .78);
+  border: 1px solid #c4b5fd;
+}
+
+.legend-area.plain {
+  background: rgba(21, 128, 61, .78);
+  border: 1px solid #bbf7d0;
+}
+
+.terrain-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1px 2px 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(46, 196, 182, .32) transparent;
+}
+
+.terrain-strip::-webkit-scrollbar {
+  height: 5px;
+}
+
+.terrain-strip::-webkit-scrollbar-thumb {
+  background: rgba(46, 196, 182, .28);
+  border-radius: 999px;
+}
+
+.terrain-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 164px;
+  min-width: 0;
+  height: 58px;
+  padding: 7px 10px;
+  border: 1px solid rgba(148, 163, 184, .18);
+  border-radius: 11px;
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, .72);
+  text-align: left;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+
+.terrain-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(148, 163, 184, .42);
+  background: rgba(30, 41, 59, .82);
+}
+
+.terrain-chip.mountain {
+  --chip-color: #fb923c;
+}
+
+.terrain-chip.basin {
+  --chip-color: #fbbf24;
+}
+
+.terrain-chip.river {
+  --chip-color: #67e8f9;
+}
+
+.terrain-chip.hill {
+  --chip-color: #c4b5fd;
+}
+
+.terrain-chip.plain {
+  --chip-color: #86efac;
+}
+
+.terrain-chip.selected {
+  border-color: var(--chip-color);
+  background: color-mix(in srgb, var(--chip-color) 14%, rgba(15, 23, 42, .9));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-color) 35%, transparent), 0 0 18px color-mix(in srgb, var(--chip-color) 16%, transparent);
+}
+
+.terrain-chip.found {
+  border-color: rgba(46, 196, 182, .56);
+  background: rgba(15, 118, 110, .16);
+}
+
+.chip-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  color: var(--chip-color);
+  background: color-mix(in srgb, var(--chip-color) 12%, transparent);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.chip-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chip-copy strong {
+  overflow: hidden;
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-copy small {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 9px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-status {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.chip-status.found {
+  color: #d1fae5;
+  background: #0f766e;
+}
+
+.chip-status.selected {
+  color: #422006;
+  background: #fbbf24;
+}
+
+.find-terrain-container :deep(.leaflet-interactive) {
+  cursor: pointer;
+}
+
+.find-terrain-container :deep(.terrain-found-label-wrapper) {
+  background: transparent !important;
+  border: none !important;
+}
+
+.find-terrain-container :deep(.terrain-found-label) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 94px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--terrain-color);
+  border-radius: 999px;
+  color: #f8fafc;
+  background: rgba(3, 10, 20, .9);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .36), 0 0 12px color-mix(in srgb, var(--terrain-color) 35%, transparent);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.find-terrain-container :deep(.terrain-found-label strong) {
+  font-weight: 900;
+}
+
+@media (max-width: 1280px) {
+  .game-top-hud {
+    grid-template-columns: 1fr 330px;
+  }
+
+  .dock-head {
+    grid-template-columns: 1fr auto;
+  }
+
+  .dock-title {
+    display: none;
+  }
+
+  .dock-filters {
+    min-width: 0;
+  }
+
+  .terrain-chip {
+    flex-basis: 150px;
+  }
+}
+
+@media (max-width: 980px) {
+  .progress-box {
+    display: none;
+  }
+
+  .game-top-hud {
+    grid-template-columns: 1fr;
+  }
+
+  .dock-head {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .dock-tools {
+    justify-content: space-between;
+  }
+
+  .dock-filters {
+    grid-template-columns: repeat(6, minmax(46px, 1fr));
+  }
+
+  .dock-legend {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .game-top-hud {
+    left: 52px;
+  }
+
+  .mission-copy strong {
+    font-size: 13px;
+  }
+
+  .dock-legend {
+    display: none;
+  }
+
+  .dock-title>div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 1px;
+  }
 }
 </style>
