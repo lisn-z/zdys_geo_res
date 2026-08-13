@@ -240,6 +240,15 @@ export const routes = [
     component: () =>
       import('@/views/runoff-simulation/index.vue'),
   },
+  {
+    path: '/karst-landform',
+    name: 'karst-landform',
+    meta: {
+      title: '喀斯特地貌',
+    },
+    component: () =>
+      import('@/views/karst-landform/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
