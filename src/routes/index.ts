@@ -221,6 +221,8 @@ export const routes = [
     },
     component: () =>
       import('@/views/earth-ball/index.vue'),
+  },
+  {
     path: '/layers-inside-the-earth',
     name: 'layers-inside-the-earth',
     meta: {
@@ -255,6 +257,15 @@ export const routes = [
     },
     component: () =>
       import('@/views/runoff-simulation/index.vue'),
+  },
+  {
+    path: '/foehn-effect',
+    name: 'foehn-effect',
+    meta: {
+      title: '焚风效应',
+    },
+    component: () =>
+      import('@/views/foehn-effect/index.vue'),
   },
 ]
 
