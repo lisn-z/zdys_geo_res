@@ -5,47 +5,29 @@
   资源：全部图片通过 IMAGE_BASE_URL + 文件名访问 runoff 子文件夹；业务版本升级时沿用已部署的稳定 OSS 图片文件名。主模型与过程效果改为普通 img DOM 图层，Three.js 仅负责透明粒子动画，避免跨域纹理与层叠遮挡问题。
 -->
 <template>
-  <div
-    ref="pageRef"
-    class="runoff-simulation-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="runoff-simulation-container geo-template-page geo-page theme-dark"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
       <h1 class="page-title">径流模拟</h1>
 
       <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn toolbar-btn"
-          @click="restartSimulation"
-        >
+        <button type="button" class="theme-btn toolbar-btn" @click="restartSimulation">
           重新演示
         </button>
 
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="toggleAllPanels"
-        >
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
           {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside
-        id="left-panel"
-        class="side-panel left-panel"
-        v-bind="leftPanelAttrs"
-      >
+      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -62,36 +44,18 @@
             </div>
 
             <div class="rain-slider-row">
-              <span
-                class="rain-slider-icon runoff-oss-surface"
-                role="img"
-                aria-label="较少降水"
-                :style="{ backgroundImage: `url(${SLIDER_MIN_IMAGE})` }"
-              ></span>
-              <el-slider
-                v-model="precipitationIndex"
-                :min="0"
-                :max="RAIN_LEVELS.length - 1"
-                :step="1"
-                :show-tooltip="false"
-              />
-              <span
-                class="rain-slider-icon rain-slider-icon-max runoff-oss-surface"
-                role="img"
-                aria-label="较多降水"
-                :style="{ backgroundImage: `url(${SLIDER_MAX_IMAGE})` }"
-              ></span>
+              <span class="rain-slider-icon runoff-oss-surface" role="img" aria-label="较少降水"
+                :style="{ backgroundImage: `url(${SLIDER_MIN_IMAGE})` }"></span>
+              <el-slider v-model="precipitationIndex" :min="0" :max="RAIN_LEVELS.length - 1" :step="1"
+                :show-tooltip="false" />
+              <span class="rain-slider-icon rain-slider-icon-max runoff-oss-surface" role="img" aria-label="较多降水"
+                :style="{ backgroundImage: `url(${SLIDER_MAX_IMAGE})` }"></span>
             </div>
 
             <div class="preset-row rain-level-row">
-              <button
-                v-for="item in rainPresets"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn rain-preset-btn"
-                :class="{ active: precipitationCm === item.value }"
-                @click="selectRainLevel(item.value)"
-              >
+              <button v-for="item in rainPresets" :key="item.value" type="button"
+                class="theme-btn option-btn rain-preset-btn" :class="{ active: precipitationCm === item.value }"
+                @click="selectRainLevel(item.value)">
                 {{ item.label }}
               </button>
             </div>
@@ -101,22 +65,12 @@
             <h3 class="section-title">地表覆盖类型</h3>
 
             <div class="land-option-grid">
-              <button
-                v-for="item in landCoverOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn land-option-btn"
-                :class="{ active: selectedLandCover === item.value }"
-                :title="item.label"
-                @click="selectedLandCover = item.value"
-              >
+              <button v-for="item in landCoverOptions" :key="item.value" type="button"
+                class="theme-btn option-btn land-option-btn" :class="{ active: selectedLandCover === item.value }"
+                :title="item.label" @click="selectedLandCover = item.value">
                 <span class="land-thumb-wrap">
-                  <span
-                    class="land-thumb-image runoff-oss-surface"
-                    role="img"
-                    :aria-label="item.label"
-                    :style="{ backgroundImage: `url(${item.thumbnail})` }"
-                  ></span>
+                  <span class="land-thumb-image runoff-oss-surface" role="img" :aria-label="item.label"
+                    :style="{ backgroundImage: `url(${item.thumbnail})` }"></span>
                 </span>
                 <span class="land-option-label">{{ item.shortLabel }}</span>
               </button>
@@ -127,20 +81,11 @@
             <h3 class="section-title">水文土壤组</h3>
 
             <div class="soil-option-grid">
-              <button
-                v-for="item in soilGroupOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn soil-option-btn"
-                :class="{ active: selectedSoilGroup === item.value }"
-                @click="selectedSoilGroup = item.value"
-              >
-                <span
-                  class="soil-thumb-image runoff-oss-surface"
-                  role="img"
-                  :aria-label="item.label"
-                  :style="{ backgroundImage: `url(${item.thumbnail})` }"
-                ></span>
+              <button v-for="item in soilGroupOptions" :key="item.value" type="button"
+                class="theme-btn option-btn soil-option-btn" :class="{ active: selectedSoilGroup === item.value }"
+                @click="selectedSoilGroup = item.value">
+                <span class="soil-thumb-image runoff-oss-surface" role="img" :aria-label="item.label"
+                  :style="{ backgroundImage: `url(${item.thumbnail})` }"></span>
                 <span>{{ item.code }} 组</span>
                 <small>{{ item.shortDescription }}</small>
               </button>
@@ -176,23 +121,13 @@
 
             <h3 class="section-title view-title">观察范围</h3>
             <div class="option-grid runoff-view-grid">
-              <button
-                v-for="item in viewOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn"
-                :class="{ active: currentView === item.value }"
-                @click="setCameraView(item.value)"
-              >
+              <button v-for="item in viewOptions" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: currentView === item.value }" @click="setCameraView(item.value)">
                 {{ item.label }}
               </button>
             </div>
 
-            <button
-              type="button"
-              class="theme-btn reset-scene-btn runoff-reset-btn"
-              @click="resetControls"
-            >
+            <button type="button" class="theme-btn reset-scene-btn runoff-reset-btn" @click="resetControls">
               恢复默认参数
             </button>
           </section>
@@ -200,74 +135,37 @@
 
         <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
 
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-left"
-          v-bind="leftCollapseAttrs"
-        >
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
           ‹
         </button>
       </aside>
 
       <section class="center-stage">
         <div class="stage-content runoff-stage-content">
-          <div
-            ref="threeContainerRef"
-            class="scene-host three-host runoff-three-host"
-          ></div>
+          <div ref="threeContainerRef" class="scene-host three-host runoff-three-host"></div>
 
-          <div
-            class="runoff-cloud-layer"
-            :style="{ backgroundImage: `url(${CLOUDS_IMAGE})` }"
-          ></div>
+          <div class="runoff-cloud-layer" :style="{ backgroundImage: `url(${CLOUDS_IMAGE})` }"></div>
 
           <div class="runoff-model-layer">
-            <div
-              class="runoff-model-composition"
-              :class="`selected-${selectedSceneObject}`"
-            >
-              <div
-                class="scene-model-object land-model-object"
-                role="button"
-                tabindex="0"
-                :aria-label="`查看${currentLandCover.label}信息`"
-                @click="selectedSceneObject = 'land'"
-                @keydown.enter="selectedSceneObject = 'land'"
-                @keydown.space.prevent="selectedSceneObject = 'land'"
-              >
-                <img
-                  v-if="!landImageFailed"
-                  class="land-model-image"
-                  :src="currentLandCover.mainImage"
-                  :alt="currentLandCover.label"
-                  draggable="false"
-                  @load="landImageFailed = false"
-                  @error="landImageFailed = true"
-                />
+            <div class="runoff-model-composition" :class="`selected-${selectedSceneObject}`">
+              <div class="scene-model-object land-model-object" role="button" tabindex="0"
+                :aria-label="`查看${currentLandCover.label}信息`" @click="selectedSceneObject = 'land'"
+                @keydown.enter="selectedSceneObject = 'land'" @keydown.space.prevent="selectedSceneObject = 'land'">
+                <img v-if="!landImageFailed" class="land-model-image" :src="currentLandCover.mainImage"
+                  :alt="currentLandCover.label" draggable="false" @load="landImageFailed = false"
+                  @error="landImageFailed = true" />
                 <div v-else class="model-image-fallback land-image-fallback">
                   <strong>{{ currentLandCover.label }}</strong>
                   <span>地表模型图片加载失败，请检查 OSS 文件</span>
                 </div>
               </div>
 
-              <div
-                class="scene-model-object soil-model-object"
-                role="button"
-                tabindex="0"
-                :aria-label="`查看${currentSoilGroup.label}信息`"
-                @click="selectedSceneObject = 'soil'"
-                @keydown.enter="selectedSceneObject = 'soil'"
-                @keydown.space.prevent="selectedSceneObject = 'soil'"
-              >
-                <img
-                  v-if="!soilImageFailed"
-                  class="soil-model-image"
-                  :src="currentSoilGroup.mainImage"
-                  :alt="currentSoilGroup.label"
-                  draggable="false"
-                  @load="soilImageFailed = false"
-                  @error="soilImageFailed = true"
-                />
+              <div class="scene-model-object soil-model-object" role="button" tabindex="0"
+                :aria-label="`查看${currentSoilGroup.label}信息`" @click="selectedSceneObject = 'soil'"
+                @keydown.enter="selectedSceneObject = 'soil'" @keydown.space.prevent="selectedSceneObject = 'soil'">
+                <img v-if="!soilImageFailed" class="soil-model-image" :src="currentSoilGroup.mainImage"
+                  :alt="currentSoilGroup.label" draggable="false" @load="soilImageFailed = false"
+                  @error="soilImageFailed = true" />
                 <div v-else class="model-image-fallback soil-image-fallback">
                   <strong>{{ currentSoilGroup.code }} 组土壤</strong>
                   <span>土壤模型图片加载失败，请检查 OSS 文件</span>
@@ -277,57 +175,29 @@
           </div>
 
           <div class="runoff-effect-layer" aria-hidden="true">
-            <img
-              v-show="showRain && waterBalance.precipitation > 0"
-              class="runoff-effect-image effect-precipitation-image"
-              :src="EFFECT_PRECIPITATION_IMAGE"
-              :style="effectVisuals.precipitation"
-              alt=""
-              draggable="false"
-            />
-            <img
-              v-show="showFlowDirections && waterBalance.evapotranspiration > 0"
-              class="runoff-effect-image effect-evapotranspiration-image"
-              :src="EFFECT_EVAPOTRANSPIRATION_IMAGE"
-              :style="effectVisuals.evapotranspiration"
-              alt=""
-              draggable="false"
-            />
-            <span
-              v-show="showFlowDirections && waterBalance.evapotranspiration > 0"
+            <img v-show="showRain && waterBalance.precipitation > 0"
+              class="runoff-effect-image effect-precipitation-image" :src="EFFECT_PRECIPITATION_IMAGE"
+              :style="effectVisuals.precipitation" alt="" draggable="false" />
+            <img v-show="showFlowDirections && waterBalance.evapotranspiration > 0"
+              class="runoff-effect-image effect-evapotranspiration-image" :src="EFFECT_EVAPOTRANSPIRATION_IMAGE"
+              :style="effectVisuals.evapotranspiration" alt="" draggable="false" />
+            <span v-show="showFlowDirections && waterBalance.evapotranspiration > 0"
               class="flow-arrow-label evapotranspiration-arrow-label"
-              :style="{ opacity: effectVisuals.evapotranspiration.opacity }"
-            >
+              :style="{ opacity: effectVisuals.evapotranspiration.opacity }">
               蒸散
             </span>
-            <img
-              v-show="showFlowDirections && waterBalance.runoff > 0"
-              class="runoff-effect-image effect-runoff-image"
-              :src="EFFECT_RUNOFF_IMAGE"
-              :style="effectVisuals.runoff"
-              alt=""
-              draggable="false"
-            />
-            <span
-              v-show="showFlowDirections && waterBalance.runoff > 0"
-              class="flow-arrow-label runoff-arrow-label"
-              :style="{ opacity: effectVisuals.runoff.opacity }"
-            >
+            <img v-show="showFlowDirections && waterBalance.runoff > 0" class="runoff-effect-image effect-runoff-image"
+              :src="EFFECT_RUNOFF_IMAGE" :style="effectVisuals.runoff" alt="" draggable="false" />
+            <span v-show="showFlowDirections && waterBalance.runoff > 0" class="flow-arrow-label runoff-arrow-label"
+              :style="{ opacity: effectVisuals.runoff.opacity }">
               径流
             </span>
-            <img
-              v-show="showFlowDirections && waterBalance.infiltration > 0"
-              class="runoff-effect-image effect-infiltration-image"
-              :src="EFFECT_INFILTRATION_IMAGE"
-              :style="effectVisuals.infiltration"
-              alt=""
-              draggable="false"
-            />
-            <span
-              v-show="showFlowDirections && waterBalance.infiltration > 0"
+            <img v-show="showFlowDirections && waterBalance.infiltration > 0"
+              class="runoff-effect-image effect-infiltration-image" :src="EFFECT_INFILTRATION_IMAGE"
+              :style="effectVisuals.infiltration" alt="" draggable="false" />
+            <span v-show="showFlowDirections && waterBalance.infiltration > 0"
               class="flow-arrow-label infiltration-arrow-label"
-              :style="{ opacity: effectVisuals.infiltration.opacity }"
-            >
+              :style="{ opacity: effectVisuals.infiltration.opacity }">
               下渗
             </span>
           </div>
@@ -345,36 +215,25 @@
                 <p>{{ waterBalance.precipitation.toFixed(1) }} cm 降水的分配结果</p>
               </div>
               <div class="water-column-status">
-                <span
-                  v-if="waterBalance.runoff >= 2"
-                  class="runoff-alert-icon runoff-oss-surface"
-                  role="img"
-                  aria-label="径流偏高"
-                  title="地表径流量达到 2.0 cm，需关注快速汇流风险"
-                  :style="{ backgroundImage: `url(${ALERT_IMAGE})` }"
-                ></span>
+                <span v-if="waterBalance.runoff >= 2" class="runoff-alert-icon runoff-oss-surface" role="img"
+                  aria-label="径流偏高" title="地表径流量达到 2.0 cm，需关注快速汇流风险"
+                  :style="{ backgroundImage: `url(${ALERT_IMAGE})` }"></span>
                 <strong>{{ dominantProcess.label }}</strong>
               </div>
             </div>
 
             <div class="stage-water-column-body">
               <div class="stage-water-column-track">
-                <div
-                  class="water-column-segment water-column-et"
-                  :style="{ height: waterBalance.percentages.evapotranspiration + '%' }"
-                >
+                <div class="water-column-segment water-column-et"
+                  :style="{ height: waterBalance.percentages.evapotranspiration + '%' }">
                   <span v-if="waterBalance.percentages.evapotranspiration >= 7">蒸散</span>
                 </div>
-                <div
-                  class="water-column-segment water-column-runoff"
-                  :style="{ height: waterBalance.percentages.runoff + '%' }"
-                >
+                <div class="water-column-segment water-column-runoff"
+                  :style="{ height: waterBalance.percentages.runoff + '%' }">
                   <span v-if="waterBalance.percentages.runoff >= 7">径流</span>
                 </div>
-                <div
-                  class="water-column-segment water-column-infiltration"
-                  :style="{ height: waterBalance.percentages.infiltration + '%' }"
-                >
+                <div class="water-column-segment water-column-infiltration"
+                  :style="{ height: waterBalance.percentages.infiltration + '%' }">
                   <span v-if="waterBalance.percentages.infiltration >= 7">下渗</span>
                 </div>
               </div>
@@ -411,14 +270,8 @@
         </div>
 
         <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="isPlaying = !isPlaying"
-          >
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -431,34 +284,19 @@
               <strong>{{ Math.round(progress) }}%</strong>
             </div>
 
-            <el-slider
-              v-model="progress"
-              :min="0"
-              :max="100"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" />
           </div>
 
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
         </div>
       </section>
 
-      <aside
-        id="right-panel"
-        class="side-panel right-panel"
-        v-bind="rightPanelAttrs"
-      >
+      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -487,7 +325,8 @@
                   </strong>
                 </div>
                 <div class="balance-process-bar">
-                  <span class="process-bar-et" :style="{ width: waterBalance.percentages.evapotranspiration + '%' }"></span>
+                  <span class="process-bar-et"
+                    :style="{ width: waterBalance.percentages.evapotranspiration + '%' }"></span>
                 </div>
               </div>
 
@@ -513,7 +352,8 @@
                   </strong>
                 </div>
                 <div class="balance-process-bar">
-                  <span class="process-bar-infiltration" :style="{ width: waterBalance.percentages.infiltration + '%' }"></span>
+                  <span class="process-bar-infiltration"
+                    :style="{ width: waterBalance.percentages.infiltration + '%' }"></span>
                 </div>
               </div>
             </div>
@@ -557,30 +397,18 @@
 
         <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
 
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-right"
-          v-bind="rightCollapseAttrs"
-        >
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
           ›
         </button>
       </aside>
 
-      <button
-        v-if="hasLeftPanel && leftCollapsed"
-        type="button"
-        class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs"
-      >
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+        v-bind="leftEntryAttrs">
         ›
       </button>
 
-      <button
-        v-if="hasRightPanel && rightCollapsed"
-        type="button"
-        class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs"
-      >
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+        v-bind="rightEntryAttrs">
         ‹
       </button>
     </main>
@@ -1546,7 +1374,7 @@ function updateProcessVisuals() {
     const activeRainCount = Math.round(rainParticles.maxCount * precipitationFactor)
     rainParticles.points.geometry.setDrawRange(0, activeRainCount)
     rainParticles.points.visible = showRain.value && balance.precipitation > 0
-    ;(rainParticles.points.material as THREE.PointsMaterial).opacity = 0.24 + rainPhase * 0.72
+      ; (rainParticles.points.material as THREE.PointsMaterial).opacity = 0.24 + rainPhase * 0.72
   }
 
   const processVisibility = showProcessParticles.value && balance.precipitation > 0
@@ -1558,7 +1386,7 @@ function updateProcessVisuals() {
       Math.round(evapotranspirationParticles.maxCount * factor),
     )
     evapotranspirationParticles.points.visible = processVisibility && splitPhase > 0.03
-    ;(evapotranspirationParticles.points.material as THREE.PointsMaterial).opacity = splitPhase * finishFade * 0.86
+      ; (evapotranspirationParticles.points.material as THREE.PointsMaterial).opacity = splitPhase * finishFade * 0.86
   }
 
   if (runoffParticles) {
@@ -1568,7 +1396,7 @@ function updateProcessVisuals() {
       Math.round(runoffParticles.maxCount * factor),
     )
     runoffParticles.points.visible = processVisibility && splitPhase > 0.03
-    ;(runoffParticles.points.material as THREE.PointsMaterial).opacity = splitPhase * finishFade * 0.92
+      ; (runoffParticles.points.material as THREE.PointsMaterial).opacity = splitPhase * finishFade * 0.92
   }
 
   if (infiltrationParticles) {
@@ -1578,7 +1406,7 @@ function updateProcessVisuals() {
       Math.round(infiltrationParticles.maxCount * factor),
     )
     infiltrationParticles.points.visible = processVisibility && splitPhase > 0.03
-    ;(infiltrationParticles.points.material as THREE.PointsMaterial).opacity = splitPhase * finishFade * 0.92
+      ; (infiltrationParticles.points.material as THREE.PointsMaterial).opacity = splitPhase * finishFade * 0.92
   }
 
   const arrowVisible = false
@@ -1764,17 +1592,17 @@ function createSceneObjects() {
     0.24,
   )
 
-  ;[
-    rainArrow,
-    evapotranspirationArrow,
-    runoffArrow,
-    infiltrationArrow,
-  ].forEach((arrow) => {
-    if (arrow) {
-      arrow.renderOrder = 9
-      scene?.add(arrow)
-    }
-  })
+    ;[
+      rainArrow,
+      evapotranspirationArrow,
+      runoffArrow,
+      infiltrationArrow,
+    ].forEach((arrow) => {
+      if (arrow) {
+        arrow.renderOrder = 9
+        scene?.add(arrow)
+      }
+    })
 
   updateProcessVisuals()
 }
@@ -2518,7 +2346,7 @@ onBeforeUnmount(() => {
   gap: 5px;
 }
 
-.water-column-status > strong {
+.water-column-status>strong {
   color: #2ec4b6;
   font-size: clamp(9px, 0.64vw, 11px);
   white-space: nowrap;
@@ -2595,7 +2423,7 @@ onBeforeUnmount(() => {
   gap: 14px;
 }
 
-.stage-water-column-legend > div {
+.stage-water-column-legend>div {
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr);
   gap: 6px;
@@ -2645,6 +2473,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  padding: 16px;
 }
 
 .balance-summary-head {
@@ -2701,7 +2530,7 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
-.balance-process-head > span {
+.balance-process-head>span {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -2769,13 +2598,13 @@ onBeforeUnmount(() => {
   border-radius: 10px;
 }
 
-.compact-balance-equation > span {
+.compact-balance-equation>span {
   color: var(--text-tertiary);
   font-size: clamp(12px, 0.82vw, 14px);
   line-height: 1.6;
 }
 
-.compact-balance-equation > div {
+.compact-balance-equation>div {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -2871,7 +2700,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 }
 
-.compact-judgement > span {
+.compact-judgement>span {
   color: #71e7dc;
   font-size: clamp(12px, 0.8vw, 13px);
   font-weight: 700;
@@ -2908,8 +2737,17 @@ onBeforeUnmount(() => {
 }
 
 @keyframes runoff-alert-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.88; }
-  50% { transform: scale(1.12); opacity: 1; }
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.88;
+  }
+
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
 }
 
 @media (max-width: 1280px) {
@@ -2941,6 +2779,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 860px) {
+
   .runoff-model-layer,
   .runoff-effect-layer {
     right: 30%;
@@ -2981,6 +2820,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
+
   .runoff-model-layer,
   .runoff-effect-layer {
     right: 0;
@@ -3016,7 +2856,7 @@ onBeforeUnmount(() => {
     gap: 7px;
   }
 
-  .stage-water-column-legend > div {
+  .stage-water-column-legend>div {
     grid-template-columns: 7px minmax(0, 1fr);
     gap: 5px;
   }
@@ -3052,31 +2892,30 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.runoff-simulation-container .runoff-stage-content > .runoff-three-host {
+.runoff-simulation-container .runoff-stage-content>.runoff-three-host {
   z-index: 0 !important;
 }
 
-.runoff-simulation-container .runoff-stage-content > .runoff-cloud-layer {
+.runoff-simulation-container .runoff-stage-content>.runoff-cloud-layer {
   z-index: 1 !important;
 }
 
-.runoff-simulation-container .runoff-stage-content > .runoff-model-layer {
+.runoff-simulation-container .runoff-stage-content>.runoff-model-layer {
   z-index: 3 !important;
 }
 
-.runoff-simulation-container .runoff-stage-content > .runoff-effect-layer {
+.runoff-simulation-container .runoff-stage-content>.runoff-effect-layer {
   z-index: 4 !important;
 }
 
-.runoff-simulation-container .runoff-stage-content > .scene-title-chip,
-.runoff-simulation-container .runoff-stage-content > .scene-instruction {
+.runoff-simulation-container .runoff-stage-content>.scene-title-chip,
+.runoff-simulation-container .runoff-stage-content>.scene-instruction {
   z-index: 6 !important;
 }
 
-.runoff-simulation-container .runoff-stage-content > .stage-water-column-card {
+.runoff-simulation-container .runoff-stage-content>.stage-water-column-card {
   z-index: 7 !important;
   visibility: visible !important;
   opacity: 1 !important;
 }
-
 </style>

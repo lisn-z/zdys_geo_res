@@ -5,9 +5,13 @@
       <h1 class="home-title">地理资源</h1>
       <div class="nav-grid">
         <div v-for="item in navItems" :key="item.path" class="nav-card" @click="router.push(item.path)">
+          <div class="nav-card-tags">
+            <span v-for="tag in item.meta?.tags || []" :key="tag" class="nav-card-tag" :style="tagStyle(tag)">{{ tag
+            }}</span>
+          </div>
           <div class="nav-card-icon">📖</div>
           <div class="nav-card-title">{{ item.meta?.title || item.name }}</div>
-          <div class="nav-card-title">{{ item.path.slice(1) }}</div>
+          <div class="nav-card-path">{{ item.path.slice(1) }}</div>
         </div>
       </div>
     </div>
@@ -35,6 +39,25 @@ const router = useRouter()
 
 // 过滤掉首页路由，只显示子页面导航
 const navItems = computed(() => routesNav.filter((item) => item.path !== '/'))
+
+// 不同标签使用不同颜色
+const TAG_STYLES: Record<string, { background: string; color: string; boxShadow: string }> = {
+  '第一批': { background: 'rgba(251, 191, 36, 0.95)', color: '#3b2c06', boxShadow: '0 2px 8px rgba(251, 191, 36, 0.35)' },
+  '第二批': { background: 'rgba(96, 165, 250, 0.95)', color: '#172554', boxShadow: '0 2px 8px rgba(96, 165, 250, 0.35)' },
+  '第三批': { background: 'rgba(74, 222, 128, 0.95)', color: '#052e16', boxShadow: '0 2px 8px rgba(74, 222, 128, 0.35)' },
+  '第四批': { background: 'rgba(167, 139, 250, 0.95)', color: '#2e1065', boxShadow: '0 2px 8px rgba(167, 139, 250, 0.35)' },
+  '第五批': { background: 'rgba(244, 114, 182, 0.95)', color: '#500724', boxShadow: '0 2px 8px rgba(244, 114, 182, 0.35)' },
+
+  '工具': { background: 'rgba(45, 212, 191, 0.95)', color: '#042f2e', boxShadow: '0 2px 8px rgba(45, 212, 191, 0.35)' },
+  '禁用': { background: 'rgba(148, 163, 184, 0.9)', color: '#1e293b', boxShadow: '0 2px 8px rgba(100, 116, 139, 0.35)' },
+  '暂时不上': { background: 'rgba(248, 113, 113, 0.95)', color: '#450a0a', boxShadow: '0 2px 8px rgba(248, 113, 113, 0.35)' },
+}
+
+const DEFAULT_TAG_STYLE = { background: 'rgba(148, 163, 184, 0.9)', color: '#1e293b', boxShadow: '0 2px 8px rgba(100, 116, 139, 0.35)' }
+
+function tagStyle(tag: string) {
+  return TAG_STYLES[tag] || DEFAULT_TAG_STYLE
+}
 
 </script>
 
@@ -70,6 +93,7 @@ const navItems = computed(() => routesNav.filter((item) => item.path !== '/'))
 }
 
 .nav-card {
+  position: relative;
   width: 200px;
   height: 220px;
   background: rgba(255, 255, 255, 0.15);
@@ -83,6 +107,28 @@ const navItems = computed(() => routesNav.filter((item) => item.path !== '/'))
   cursor: pointer;
   transition: all 0.3s ease;
   color: #fff;
+}
+
+.nav-card-tags {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.nav-card-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.9);
+  color: #1a2b3c;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .nav-card:hover {
@@ -104,6 +150,14 @@ const navItems = computed(() => routesNav.filter((item) => item.path !== '/'))
 .nav-card-title {
   font-size: 1rem;
   font-weight: 600;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.nav-card-path {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.8rem;
   text-align: center;
   line-height: 1.5;
 }

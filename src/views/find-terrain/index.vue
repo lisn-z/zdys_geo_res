@@ -141,7 +141,7 @@ const mountains = reactive<TerrainFeature[]>([
   { name: '雪峰山', lat: 27.7, lon: 109.9, desc: '湖南西部，东北—西南走向', type: 'mountain', found: false, extent: [[29.45, 109.18], [29.15, 109.3], [28.85, 109.42], [28.55, 109.55], [28.25, 109.68], [27.95, 109.82], [27.65, 109.95], [27.35, 110.07], [27.05, 110.18], [26.75, 110.27], [26.45, 110.33], [26.15, 110.37]] },
   { name: '长白山脉', lat: 42.0, lon: 128.3, desc: '吉林东部中朝边境附近', type: 'mountain', found: false, extent: [[43.55, 126.55], [43.3, 126.75], [43.05, 126.98], [42.8, 127.22], [42.55, 127.48], [42.3, 127.75], [42.05, 128.02], [41.8, 128.3], [41.55, 128.58], [41.3, 128.86], [41.05, 129.14], [40.82, 129.42]] },
   { name: '武夷山脉', lat: 27.7, lon: 117.8, desc: '福建与江西交界，东北—西南走向', type: 'mountain', found: false, extent: [[29.8, 116.9], [29.5, 117.03], [29.2, 117.16], [28.9, 117.3], [28.6, 117.44], [28.3, 117.58], [28.0, 117.72], [27.7, 117.86], [27.4, 118.0], [27.1, 118.14], [26.8, 118.28], [26.5, 118.4], [26.2, 118.52], [25.9, 118.62], [25.65, 118.68]] },
-  { name: '台湾山脉', lat: 23.8, lon: 121.15, desc: '台湾岛中东部，纵贯南北', type: 'mountain', found: false, extent: [[25.4, 121.0], [25.13, 121.04], [24.86, 121.08], [24.59, 121.13], [24.32, 121.18], [24.05, 121.22], [23.78, 121.25], [23.51, 121.25], [23.24, 121.22], [22.97, 121.16], [22.7, 121.06], [22.48, 120.96]] },
+  { name: '台湾山脉', lat: 23.8, lon: 121.15, desc: '台湾岛中东部，纵贯南北', type: 'mountain', found: false, extent: [[24.86, 121.08], [24.59, 121.13], [24.32, 121.18], [24.05, 121.22], [23.78, 121.25], [23.51, 121.25], [23.24, 121.22], [22.97, 121.16], [22.7, 121.06], [22.48, 120.96]] },
   { name: '横断山脉', lat: 29.8, lon: 100.0, desc: '川滇藏交界，多列南北向高山深谷', type: 'mountain', found: false, extent: [[33.3, 97.9], [32.95, 98.15], [32.6, 98.4], [32.25, 98.65], [31.9, 98.9], [31.55, 99.15], [31.2, 99.4], [30.85, 99.63], [30.5, 99.84], [30.15, 100.03], [29.8, 100.2], [29.45, 100.36], [29.1, 100.5], [28.75, 100.63], [28.4, 100.75], [28.05, 100.85], [27.7, 100.92], [27.35, 100.98], [27.0, 101.0], [26.7, 100.98]] },
   { name: '阿尔泰山脉', lat: 48.2, lon: 88.5, desc: '新疆北部，西北—东南走向', type: 'mountain', found: false, extent: [[49.55, 84.5], [49.35, 85.15], [49.15, 85.8], [48.95, 86.45], [48.75, 87.1], [48.53, 87.75], [48.3, 88.4], [48.05, 89.05], [47.8, 89.7], [47.55, 90.35], [47.3, 91.0], [47.05, 91.65], [46.8, 92.25]] },
   { name: '祁连山脉', lat: 38.2, lon: 99.0, desc: '甘肃与青海交界，西北—东南走向', type: 'mountain', found: false, extent: [[39.6, 94.1], [39.43, 94.75], [39.25, 95.4], [39.05, 96.05], [38.85, 96.7], [38.63, 97.35], [38.4, 98.0], [38.18, 98.65], [37.95, 99.3], [37.72, 99.95], [37.5, 100.6], [37.27, 101.25], [37.05, 101.9], [36.82, 102.55], [36.6, 103.2]] },
@@ -1177,13 +1177,13 @@ onBeforeUnmount(() => {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex: 0 0 164px;
+  gap: 10px;
+  flex: 0 0 212px;
   min-width: 0;
-  height: 58px;
-  padding: 7px 10px;
-  border: 1px solid rgba(148, 163, 184, .18);
-  border-radius: 11px;
+  height: 90px;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, .2);
+  border-radius: 14px;
   color: #cbd5e1;
   background: rgba(15, 23, 42, .72);
   text-align: left;
@@ -1230,13 +1230,13 @@ onBeforeUnmount(() => {
 .chip-icon {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
-  border-radius: 9px;
+  border-radius: 11px;
   color: var(--chip-color);
   background: color-mix(in srgb, var(--chip-color) 12%, transparent);
-  font-size: 17px;
+  font-size: 23px;
   font-weight: 900;
 }
 
@@ -1244,14 +1244,14 @@ onBeforeUnmount(() => {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .chip-copy strong {
   overflow: hidden;
   color: #e2e8f0;
-  font-size: 12px;
+  font-size: 16.5px;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1260,8 +1260,8 @@ onBeforeUnmount(() => {
 .chip-copy small {
   overflow: hidden;
   color: #64748b;
-  font-size: 9px;
-  line-height: 1.25;
+  font-size: 12px;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1339,7 +1339,7 @@ onBeforeUnmount(() => {
   }
 
   .terrain-chip {
-    flex-basis: 150px;
+    flex-basis: 190px;
   }
 }
 

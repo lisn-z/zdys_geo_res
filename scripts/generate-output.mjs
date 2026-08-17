@@ -35,7 +35,7 @@ const GEO_DIR = join(OUTPUT_DIR, 'geo')
 const ASTRO_DIR = join(OUTPUT_DIR, 'astro')
 
 /** 不参与扫描的文件夹白名单 */
-const EXCLUDED_FOLDERS = ['skeleton', 'topo-builder']
+const EXCLUDED_FOLDERS = ['skeleton', 'topo-builder', 'volcano', 'sunshine', 'karst-landform']
 
 // ======================== 工具函数 ========================
 

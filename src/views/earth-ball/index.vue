@@ -1,24 +1,15 @@
 <template>
-  <div
-    ref="pageRef"
-    class="earth-ball-container geo-template-page geo-page theme-light layout-floating"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="earth-ball-container geo-template-page geo-page theme-light layout-floating"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
       <h1 class="page-title">观察：地球是球形的</h1>
       <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="controlPanelCollapsed = !controlPanelCollapsed"
-        >
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn"
+          @click="controlPanelCollapsed = !controlPanelCollapsed">
           {{ controlPanelCollapsed ? '展开面板' : '收起面板' }}
         </button>
       </div>
@@ -30,26 +21,17 @@
           <div ref="threeContainerRef" class="scene-host three-host"></div>
 
           <!-- 场景内浮层控制面板 -->
-          <div
-            class="scene-control-panel"
+          <div class="scene-control-panel"
             :class="{ collapsed: controlPanelCollapsed, 'scp-dragging': isControlPanelDragging }"
-            :style="controlPanelStyle"
-            @pointerdown="onControlPanelPointerDown"
-          >
+            :style="controlPanelStyle" @pointerdown="onControlPanelPointerDown">
             <div class="scp-header" @click="controlPanelCollapsed = !controlPanelCollapsed">
               <span>控制</span>
               <span class="scp-toggle">{{ controlPanelCollapsed ? '▾' : '▴' }}</span>
             </div>
             <div class="scp-body" v-show="!controlPanelCollapsed">
               <div class="scp-row">
-                <button
-                  v-for="item in viewModeOptions"
-                  :key="item.value"
-                  type="button"
-                  class="scp-mode-btn"
-                  :class="{ active: viewMode === item.value }"
-                  @click="viewMode = item.value"
-                >
+                <button v-for="item in viewModeOptions" :key="item.value" type="button" class="scp-mode-btn"
+                  :class="{ active: viewMode === item.value }" @click="viewMode = item.value">
                   {{ item.label }}
                 </button>
               </div>
@@ -70,56 +52,32 @@
           </div>
 
           <!-- 望远镜视图浮层 -->
-          <div
-            class="telescope-overlay"
-            :class="{
-              'telescope-mode-compare': viewMode === 'compare',
-              'telescope-dragging': isTelescopeDragging,
-            }"
-            :style="telescopeOverlayStyle"
-            @pointerdown="onTelescopePointerDown"
-            @wheel.prevent="onTelescopeWheel"
-          >
-            <div
-              class="telescope-view"
-              v-show="viewMode === 'curved' || viewMode === 'compare'"
-            >
+          <div class="telescope-overlay" :class="{
+            'telescope-mode-compare': viewMode === 'compare',
+            'telescope-dragging': isTelescopeDragging,
+          }" :style="telescopeOverlayStyle" @pointerdown="onTelescopePointerDown" @wheel.prevent="onTelescopeWheel">
+            <div class="telescope-view" v-show="viewMode === 'curved' || viewMode === 'compare'">
               <canvas ref="telescopeCurvedRef" class="telescope-canvas"></canvas>
               <span class="telescope-label">曲面海面</span>
             </div>
-            <div
-              class="telescope-view"
-              v-show="viewMode === 'flat' || viewMode === 'compare'"
-            >
+            <div class="telescope-view" v-show="viewMode === 'flat' || viewMode === 'compare'">
               <canvas ref="telescopeFlatRef" class="telescope-canvas"></canvas>
               <span class="telescope-label">平面海面</span>
             </div>
             <div class="telescope-zoom-controls">
-              <button
-                v-for="z in [1, 2, 3]"
-                :key="z"
-                type="button"
-                class="theme-btn zoom-btn"
-                :class="{ active: telescopeZoomLevel === z }"
-                @click.stop="telescopeZoomLevel = z"
-              >
+              <button v-for="z in [1, 2, 3]" :key="z" type="button" class="theme-btn zoom-btn"
+                :class="{ active: telescopeZoomLevel === z }" @click.stop="telescopeZoomLevel = z">
                 ×{{ z }}
               </button>
             </div>
             <div class="telescope-size-controls">
-              <button
-                type="button"
-                class="theme-btn size-btn"
-                @click.stop="telescopeScale = Math.max(0.6, Math.round((telescopeScale - 0.2) * 10) / 10)"
-              >
+              <button type="button" class="theme-btn size-btn"
+                @click.stop="telescopeScale = Math.max(0.6, Math.round((telescopeScale - 0.2) * 10) / 10)">
                 −
               </button>
               <span class="size-label">{{ Math.round(telescopeScale * 100) }}%</span>
-              <button
-                type="button"
-                class="theme-btn size-btn"
-                @click.stop="telescopeScale = Math.min(2.0, Math.round((telescopeScale + 0.2) * 10) / 10)"
-              >
+              <button type="button" class="theme-btn size-btn"
+                @click.stop="telescopeScale = Math.min(2.0, Math.round((telescopeScale + 0.2) * 10) / 10)">
                 +
               </button>
             </div>
@@ -127,14 +85,8 @@
         </div>
 
         <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="isPlaying = !isPlaying"
-          >
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -146,23 +98,11 @@
               <strong>{{ shipDistance.toFixed(1) }}km</strong>
               <span class="timeline-far">远岸</span>
             </div>
-            <el-slider
-              v-model="shipDistance"
-              :min="1"
-              :max="50"
-              :step="0.5"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="shipDistance" :min="1" :max="50" :step="0.5" :show-tooltip="false" />
           </div>
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
@@ -900,7 +840,6 @@ function scheduleSceneResize(delay = 110) {
   cancelAnimationFrame(sceneResizeSettleFrame)
   sceneResizeTimer = setTimeout(() => {
     sceneResizeTimer = null
-    if (draggingSide.value || viewportResizing.value) return
     sceneResizeFrame = requestAnimationFrame(() => {
       sceneResizeSettleFrame = requestAnimationFrame(() => {
         resizeThreeSceneNow()
@@ -1078,8 +1017,8 @@ onBeforeUnmount(() => {
   display: block;
   border-radius: 50%;
   box-shadow:
-    0 0 0 2px rgba(255,255,255,0.5),
-    0 4px 16px rgba(0,0,0,0.2);
+    0 0 0 2px rgba(255, 255, 255, 0.5),
+    0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .telescope-label {
@@ -1088,7 +1027,7 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: 600;
   color: #1a3a5c;
-  text-shadow: 0 1px 2px rgba(255,255,255,0.5);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
   white-space: nowrap;
   text-align: center;
 }
@@ -1096,7 +1035,7 @@ onBeforeUnmount(() => {
 .telescope-zoom-hint {
   text-align: center;
   font-size: 10px;
-  color: rgba(255,255,255,0.45);
+  color: rgba(255, 255, 255, 0.45);
   margin-top: 2px;
 }
 
@@ -1112,9 +1051,9 @@ onBeforeUnmount(() => {
   font-size: 11px;
   font-weight: 600;
   border-radius: 4px;
-  background: rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.7);
-  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
   transition: all 0.15s;
   min-width: 36px;
@@ -1122,14 +1061,14 @@ onBeforeUnmount(() => {
 }
 
 .telescope-zoom-controls .zoom-btn:hover {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
   color: #fff;
 }
 
 .telescope-zoom-controls .zoom-btn.active {
-  background: rgba(46,134,193,0.7);
+  background: rgba(46, 134, 193, 0.7);
   color: #fff;
-  border-color: rgba(46,134,193,0.9);
+  border-color: rgba(46, 134, 193, 0.9);
 }
 
 .telescope-size-controls {
@@ -1146,9 +1085,9 @@ onBeforeUnmount(() => {
   font-size: 16px;
   font-weight: 700;
   border-radius: 50%;
-  background: rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.8);
-  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
   transition: all 0.15s;
   display: flex;
@@ -1159,25 +1098,25 @@ onBeforeUnmount(() => {
 }
 
 .telescope-size-controls .size-btn:hover {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
   color: #fff;
 }
 
 .telescope-size-controls .size-label {
   font-size: 11px;
-  color: rgba(255,255,255,0.6);
+  color: rgba(255, 255, 255, 0.6);
   min-width: 36px;
   text-align: center;
 }
 
 /* ==================== 时间轴标签 ==================== */
 .timeline-near {
-  color: rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
 }
 
 .timeline-far {
-  color: rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
 }
 
@@ -1186,10 +1125,10 @@ onBeforeUnmount(() => {
   position: absolute;
   z-index: 20;
   width: 180px;
-  background: rgba(255,255,255,0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
   border-radius: 10px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
   overflow: hidden;
   user-select: none;
   font-size: 13px;
@@ -1204,12 +1143,12 @@ onBeforeUnmount(() => {
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   transition: background 0.15s;
 }
 
 .scp-header:hover {
-  background: rgba(46,134,193,0.08);
+  background: rgba(46, 134, 193, 0.08);
 }
 
 .scp-header {
@@ -1222,7 +1161,7 @@ onBeforeUnmount(() => {
 
 .scp-dragging {
   opacity: 0.92;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
 .scene-control-panel.collapsed .scp-header {
@@ -1249,9 +1188,9 @@ onBeforeUnmount(() => {
 .scp-mode-btn {
   flex: 1;
   padding: 4px 0;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 5px;
-  background: rgba(255,255,255,0.6);
+  background: rgba(255, 255, 255, 0.6);
   font-size: 12px;
   font-weight: 600;
   color: #5a7a9a;
@@ -1261,14 +1200,14 @@ onBeforeUnmount(() => {
 }
 
 .scp-mode-btn:hover {
-  background: rgba(46,134,193,0.1);
-  border-color: rgba(46,134,193,0.3);
+  background: rgba(46, 134, 193, 0.1);
+  border-color: rgba(46, 134, 193, 0.3);
 }
 
 .scp-mode-btn.active {
-  background: rgba(46,134,193,0.85);
+  background: rgba(46, 134, 193, 0.85);
   color: #fff;
-  border-color: rgba(46,134,193,0.9);
+  border-color: rgba(46, 134, 193, 0.9);
 }
 
 .scp-field {
@@ -1301,9 +1240,9 @@ onBeforeUnmount(() => {
 .scp-reset-btn {
   width: 100%;
   padding: 4px 0;
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 5px;
-  background: rgba(255,255,255,0.6);
+  background: rgba(255, 255, 255, 0.6);
   font-size: 12px;
   color: #5a7a9a;
   cursor: pointer;
@@ -1312,9 +1251,9 @@ onBeforeUnmount(() => {
 }
 
 .scp-reset-btn:hover {
-  background: rgba(231,76,60,0.1);
+  background: rgba(231, 76, 60, 0.1);
   color: #c0392b;
-  border-color: rgba(231,76,60,0.25);
+  border-color: rgba(231, 76, 60, 0.25);
 }
 
 .earth-ball-container .three-canvas {

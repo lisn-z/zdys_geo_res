@@ -14,6 +14,7 @@ export const routes = [
     name: 'apparent-motion-of-the-sun',
     meta: {
       title: '太阳视运动',
+      tags: ['第一批'],
     },
     component: () => import('@/views/apparent-motion-of-the-sun/index.vue'),
   },
@@ -22,6 +23,7 @@ export const routes = [
     name: 'earth-motion',
     meta: {
       title: '地球运动',
+      tags: ['第一批'],
     },
     component: () => import('@/views/earth-motion/index.vue'),
   },
@@ -30,6 +32,7 @@ export const routes = [
     name: 'grid-system-mini-game',
     meta: {
       title: '经纬网小游戏',
+      tags: ['第一批'],
     },
     component: () => import('@/views/grid-system-mini-game/index.vue'),
   },
@@ -38,6 +41,7 @@ export const routes = [
     name: 'zdys-calculator',
     meta: {
       title: '智地有申计算器',
+      tags: ['第一批'],
     },
     component: () => import('@/views/zdys-calculator/index.vue'),
   },
@@ -46,6 +50,7 @@ export const routes = [
     name: 'solar-system',
     meta: {
       title: '太阳系',
+      tags: ['第一批'],
     },
     component: () => import('@/views/solar-system/index.vue'),
   },
@@ -54,6 +59,7 @@ export const routes = [
     name: 'put-it-together',
     meta: {
       title: '拼一拼（中国省级行政区）',
+      tags: ['第一批'],
     },
     component: () => import('@/views/put-it-together/index.vue'),
   },
@@ -62,6 +68,7 @@ export const routes = [
     name: '3D-terrain',
     meta: {
       title: '3D等高线地形图',
+      tags: ['第一批'],
     },
     component: () => import('@/views/threeD-terrain/index.vue'),
   },
@@ -70,6 +77,7 @@ export const routes = [
     name: 'topo-builder',
     meta: {
       title: '智构地形',
+      tags: ['暂时不上'],
     },
     component: () => import('@/views/topo-builder/index.vue'),
   },
@@ -78,6 +86,7 @@ export const routes = [
     name: 'earth-rotation',
     meta: {
       title: '地球自转与时区',
+      tags: ['第一批'],
     },
     component: () => import('@/views/earth-rotation/index.vue'),
   },
@@ -86,6 +95,7 @@ export const routes = [
     name: 'moon-phase',
     meta: {
       title: '月相分析',
+      tags: ['第一批'],
     },
     component: () => import('@/views/moon-phase/index.vue'),
   },
@@ -94,6 +104,7 @@ export const routes = [
     name: 'soil-profile',
     meta: {
       title: '土壤剖析',
+      tags: ['第二批'],
     },
     component: () => import('@/views/soil-profile/index.vue'),
   },
@@ -102,6 +113,7 @@ export const routes = [
     name: 'skeleton',
     meta: {
       title: '骨架屏（非课件）',
+      tags: ['禁用'],
     },
     component: () =>
       import('@/views/skeleton/index.vue'),
@@ -111,6 +123,7 @@ export const routes = [
     name: 'temperature-and-precipitation',
     meta: {
       title: '气温和降水量',
+      tags: ['第一批'],
     },
     component: () => import('@/views/temperature-and-precipitation/index.vue'),
   },
@@ -119,6 +132,7 @@ export const routes = [
     name: 'general-atmospheric-circulation',
     meta: {
       title: '大气环流',
+      tags: ['第一批'],
     },
     component: () =>
       import('@/views/general-atmospheric-circulation/index.vue'),
@@ -128,6 +142,7 @@ export const routes = [
     name: 'water-recycle',
     meta: {
       title: '水循环',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/water-recycle/index.vue'),
@@ -137,6 +152,7 @@ export const routes = [
     name: 'soil-erosion',
     meta: {
       title: '水土流失',
+      tags: ['第一批'],
     },
     component: () =>
       import('@/views/soil-erosion/index.vue'),
@@ -146,6 +162,7 @@ export const routes = [
     name: 'earth-evolution',
     meta: {
       title: '地球演化',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/earth-evolution/index.vue'),
@@ -155,6 +172,7 @@ export const routes = [
     name: 'frontal-system',
     meta: {
       title: '锋面系统与气旋',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/frontal-system/index.vue'),
@@ -164,6 +182,7 @@ export const routes = [
     name: 'river-landforms',
     meta: {
       title: '河流地貌',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/river-landforms/index.vue'),
@@ -173,6 +192,7 @@ export const routes = [
     name: 'find-terrain',
     meta: {
       title: '找地形',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/find-terrain/index.vue'),
@@ -182,6 +202,7 @@ export const routes = [
     name: 'find-neighborhood',
     meta: {
       title: '找邻居',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/find-neighborhood/index.vue'),
@@ -191,6 +212,7 @@ export const routes = [
     name: 'the-twenty-four-solar-term',
     meta: {
       title: '24节气',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/the-twenty-four-solar-term/index.vue'),
@@ -200,6 +222,7 @@ export const routes = [
     name: 'atmosphere-vertical-layers',
     meta: {
       title: '大气垂直分层',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/atmosphere-vertical-layers/index.vue'),
@@ -209,6 +232,7 @@ export const routes = [
     name: 'sunshine',
     meta: {
       title: '不同纬度的太阳辐射差异',
+      tags: ['暂时不上'],
     },
     component: () =>
       import('@/views/sunshine/index.vue'),
@@ -218,6 +242,7 @@ export const routes = [
     name: 'earth-ball',
     meta: {
       title: '观察：地球是球形的',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/earth-ball/index.vue'),
@@ -227,6 +252,7 @@ export const routes = [
     name: 'layers-inside-the-earth',
     meta: {
       title: '地球内部圈层',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/layers-inside-the-earth/index.vue'),
@@ -236,6 +262,7 @@ export const routes = [
     name: 'solar-and-lunar-eclipses',
     meta: {
       title: '日食和月食',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/solar-and-lunar-eclipses/index.vue'),
@@ -245,6 +272,7 @@ export const routes = [
     name: 'tidal-phenomenon',
     meta: {
       title: '潮汐现象',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/tidal-phenomenon/index.vue'),
@@ -254,6 +282,7 @@ export const routes = [
     name: 'runoff-simulation',
     meta: {
       title: '径流模拟',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/runoff-simulation/index.vue'),
@@ -263,6 +292,7 @@ export const routes = [
     name: 'foehn-effect',
     meta: {
       title: '焚风效应',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/foehn-effect/index.vue'),
@@ -272,6 +302,7 @@ export const routes = [
     name: 'karst-landform',
     meta: {
       title: '喀斯特地貌',
+      tags: ['暂时不上'],
     },
     component: () =>
       import('@/views/karst-landform/index.vue'),
@@ -281,6 +312,7 @@ export const routes = [
     name: 'sponge-city',
     meta: {
       title: '海绵城市',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/sponge-city/index.vue'),
@@ -290,6 +322,7 @@ export const routes = [
     name: 'fold-fault',
     meta: {
       title: '褶皱断层',
+      tags: ['第二批'],
     },
     component: () =>
       import('@/views/fold-fault/index.vue'),
@@ -299,9 +332,20 @@ export const routes = [
     name: 'volcano',
     meta: {
       title: '火山',
+      tags: ['暂时不上'],
     },
     component: () =>
       import('@/views/volcano/index.vue'),
+  },
+  {
+    path: '/shijing-shanhe',
+    name: 'shijing-shanhe',
+    meta: {
+      title: '诗境·山河',
+      tags: ['第二批', '工具'],
+    },
+    component: () =>
+      import('@/views/shijing-shanhe/index.vue'),
   },
 ]
 

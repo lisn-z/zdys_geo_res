@@ -1,37 +1,22 @@
 <template>
-  <div
-    ref="pageRef"
-    class="volcano-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="volcano-container geo-template-page geo-page theme-dark" :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
       <h1 class="page-title">火山</h1>
 
       <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="toggleAllPanels"
-        >
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
           {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside
-        id="left-panel"
-        class="side-panel left-panel"
-        v-bind="leftPanelAttrs"
-      >
+      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -44,14 +29,8 @@
           <section class="geo-card control-section">
             <h3 class="section-title">喷发阶段</h3>
             <div class="option-grid eruption-stage-grid">
-              <button
-                v-for="item in eruptionStageOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn"
-                :class="{ active: currentStage === item.value }"
-                @click="jumpToStage(item.value)"
-              >
+              <button v-for="item in eruptionStageOptions" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: currentStage === item.value }" @click="jumpToStage(item.value)">
                 {{ item.label }}
               </button>
             </div>
@@ -62,37 +41,19 @@
               <h3 class="section-title">SiO₂ 含量</h3>
               <strong class="control-value">{{ silicaContent }}%</strong>
             </div>
-            <el-slider
-              v-model="silicaContent"
-              :min="45"
-              :max="75"
-              :step="1"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="silicaContent" :min="45" :max="75" :step="1" :show-tooltip="false" />
 
             <div class="section-title-row compact-title-row">
               <span class="mini-control-label">挥发分含量</span>
               <strong class="control-value">{{ volatileContent.toFixed(1) }}%</strong>
             </div>
-            <el-slider
-              v-model="volatileContent"
-              :min="1"
-              :max="6"
-              :step="0.1"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="volatileContent" :min="1" :max="6" :step="0.1" :show-tooltip="false" />
 
             <div class="section-title-row compact-title-row">
               <span class="mini-control-label">岩浆温度</span>
               <strong class="control-value">{{ magmaTemperature }} ℃</strong>
             </div>
-            <el-slider
-              v-model="magmaTemperature"
-              :min="750"
-              :max="1200"
-              :step="10"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="magmaTemperature" :min="750" :max="1200" :step="10" :show-tooltip="false" />
           </section>
 
           <section class="geo-card control-section">
@@ -134,34 +95,20 @@
           <section class="geo-card control-section">
             <h3 class="section-title">观察视角</h3>
             <div class="option-grid view-grid">
-              <button
-                v-for="item in viewOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn"
-                :class="{ active: currentView === item.value }"
-                @click="setCameraView(item.value)"
-              >
+              <button v-for="item in viewOptions" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: currentView === item.value }" @click="setCameraView(item.value)">
                 {{ item.label }}
               </button>
             </div>
 
-            <button
-              type="button"
-              class="theme-btn reset-scene-btn volcano-reset-btn"
-              @click="resetControls"
-            >
+            <button type="button" class="theme-btn reset-scene-btn volcano-reset-btn" @click="resetControls">
               恢复默认参数
             </button>
           </section>
         </div>
 
         <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-left"
-          v-bind="leftCollapseAttrs"
-        >
+        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
           ‹
         </button>
       </aside>
@@ -179,46 +126,25 @@
           <div class="geo-card stage-structure-legend">
             <div class="stage-legend-title">模型结构图例</div>
             <div class="stage-legend-list">
-              <div
-                v-for="item in structureLegend"
-                :key="item.label"
-                class="stage-legend-item"
-              >
-                <span
-                  class="legend-swatch"
-                  :style="{ background: item.color }"
-                ></span>
+              <div v-for="item in structureLegend" :key="item.label" class="stage-legend-item">
+                <span class="legend-swatch" :style="{ background: item.color }"></span>
                 <strong>{{ item.label }}</strong>
               </div>
             </div>
           </div>
 
 
-          <div
-            v-if="showLabels"
-            class="volcano-label-layer"
-          >
-            <div
-              v-for="item in sceneLabels"
-              :key="item.id"
-              :ref="(el) => setLabelRef(item.id, el)"
-              class="volcano-label"
-              :class="{ active: selectedStructureId === item.structureId }"
-            >
+          <div v-if="showLabels" class="volcano-label-layer">
+            <div v-for="item in sceneLabels" :key="item.id" :ref="(el) => setLabelRef(item.id, el)"
+              class="volcano-label" :class="{ active: selectedStructureId === item.structureId }">
               <span>{{ item.label }}</span>
             </div>
           </div>
         </div>
 
         <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="isPlaying = !isPlaying"
-          >
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -230,35 +156,19 @@
               <span>{{ currentStageLabel }}</span>
               <strong>{{ Math.round(progress) }}%</strong>
             </div>
-            <el-slider
-              v-model="progress"
-              :min="0"
-              :max="100"
-              :show-tooltip="false"
-              @input="isPlaying = false"
-            />
+            <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" @input="isPlaying = false" />
           </div>
 
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
         </div>
       </section>
 
-      <aside
-        id="right-panel"
-        class="side-panel right-panel"
-        v-bind="rightPanelAttrs"
-      >
+      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -269,12 +179,7 @@
           </div>
 
           <div class="data-grid volcano-data-grid">
-            <article
-              v-for="item in dataCards"
-              :key="item.label"
-              class="geo-card data-card"
-              :class="item.className"
-            >
+            <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="item.className">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
               <small>{{ item.description }}</small>
@@ -287,14 +192,9 @@
             </div>
 
             <div class="structure-button-grid">
-              <button
-                v-for="item in structureOptions"
-                :key="item.value"
-                type="button"
+              <button v-for="item in structureOptions" :key="item.value" type="button"
                 class="theme-btn option-btn structure-select-btn"
-                :class="{ active: selectedStructureId === item.value }"
-                @click="selectedStructureId = item.value"
-              >
+                :class="{ active: selectedStructureId === item.value }" @click="selectedStructureId = item.value">
                 {{ item.label }}
               </button>
             </div>
@@ -326,30 +226,18 @@
         </div>
 
         <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-right"
-          v-bind="rightCollapseAttrs"
-        >
+        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
           ›
         </button>
       </aside>
 
-      <button
-        v-if="hasLeftPanel && leftCollapsed"
-        type="button"
-        class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs"
-      >
+      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
+        v-bind="leftEntryAttrs">
         ›
       </button>
 
-      <button
-        v-if="hasRightPanel && rightCollapsed"
-        type="button"
-        class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs"
-      >
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
+        v-bind="rightEntryAttrs">
         ‹
       </button>
     </main>
@@ -1338,8 +1226,8 @@ function updateParticles(elapsed: number) {
     )
   }
   ashPosition.needsUpdate = true
-  ;(ashPoints.material as THREE.PointsMaterial).opacity = 0.18 + factor * (0.34 + explosive * 0.28)
-  ;(ashPoints.material as THREE.PointsMaterial).size = 0.08 + factor * 0.1
+    ; (ashPoints.material as THREE.PointsMaterial).opacity = 0.18 + factor * (0.34 + explosive * 0.28)
+    ; (ashPoints.material as THREE.PointsMaterial).size = 0.08 + factor * 0.1
 
   const bombPosition = bombPoints.geometry.attributes.position as THREE.BufferAttribute
   const bombSeeds = bombPoints.geometry.userData.seeds as Float32Array
@@ -1356,7 +1244,7 @@ function updateParticles(elapsed: number) {
     bombPosition.setXYZ(i, x, Math.max(terrainHeight(x, z) + 0.03, y), z)
   }
   bombPosition.needsUpdate = true
-  ;(bombPoints.material as THREE.PointsMaterial).opacity = Math.min(1, factor * 1.4)
+    ; (bombPoints.material as THREE.PointsMaterial).opacity = Math.min(1, factor * 1.4)
 }
 
 function createLakeProxy(group: THREE.Group) {
@@ -1404,12 +1292,12 @@ function createSceneModel() {
   const rightWall = new THREE.Mesh(createEdgeWallGeometry('right'), strataMaterial)
   const bottomMaterial = new THREE.MeshStandardMaterial({ color: '#3c332b', roughness: 1 })
   const bottom = new THREE.Mesh(createBottomGeometry(), bottomMaterial)
-  ;[frontWall, backWall, leftWall, rightWall, bottom].forEach((mesh) => {
-    mesh.receiveShadow = true
-    mesh.castShadow = true
-    modelGroup!.add(mesh)
-    disposables.push(mesh.geometry)
-  })
+    ;[frontWall, backWall, leftWall, rightWall, bottom].forEach((mesh) => {
+      mesh.receiveShadow = true
+      mesh.castShadow = true
+      modelGroup!.add(mesh)
+      disposables.push(mesh.geometry)
+    })
   disposables.push(bottomMaterial)
 
   createInternalStructure(modelGroup)
@@ -2324,6 +2212,8 @@ onBeforeUnmount(() => {
 
 .selected-structure-card {
   margin-top: clamp(10px, 0.9vw, 14px);
+  padding: 16px;
+  margin-bottom: clamp(10px, 0.9vw, 14px);
 }
 
 .selected-structure-head {
@@ -2377,8 +2267,8 @@ onBeforeUnmount(() => {
   text-align: right;
 }
 
-.principle-flow p + p,
-.collapse-content p + p {
+.principle-flow p+p,
+.collapse-content p+p {
   margin-top: 8px;
 }
 
