@@ -238,7 +238,7 @@
                 <span class="axis-info-item">A: <b style="color:#ef4444">{{ formatLon(pointA.lon) }}</b></span>
                 <span class="axis-info-item">B: <b style="color:#247cff">{{ formatLon(pointB.lon) }}</b></span>
                 <span class="axis-info-item">经度差: <b style="color:#fbbf24">{{ calcLonDiff(pointA.lon, pointB.lon)
-                    }}°</b></span>
+                }}°</b></span>
                 <span class="axis-info-item">时差: <b style="color:#2ec4b6">{{ formatTimeDiff(calcLonDiff(pointA.lon,
                   pointB.lon) / 15) }}</b></span>
                 <span class="axis-info-item">{{ pointA.lon > pointB.lon ? 'A东B西' : 'B东A西' }}</span>
@@ -267,7 +267,7 @@
                 <div class="ab-lon">{{ formatLon(pointA.lon) }}</div>
                 <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointA.lon)) }}</div>
                 <div class="ab-status" :class="{ day: isPointDaytime(pointA.lon) }">
-                  {{ isPointDaytime(pointA.lon) ? '☀️' : '🌙' }}
+                  <!--             {{ isPointDaytime(pointA.lon) ? '☀️' : '🌙' }} -->
                 </div>
               </div>
 
@@ -281,7 +281,7 @@
                 <div class="ab-lon">{{ formatLon(pointB.lon) }}</div>
                 <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointB.lon)) }}</div>
                 <div class="ab-status" :class="{ day: isPointDaytime(pointB.lon) }">
-                  {{ isPointDaytime(pointB.lon) ? '☀️' : '🌙' }}
+                  <!--                   {{ isPointDaytime(pointB.lon) ? '☀️' : '🌙' }} -->
                 </div>
               </div>
             </div>
@@ -1101,30 +1101,55 @@ function createDateLine(): THREE.Group {
 
   /*
    * 教材式国际日界线：
-   * 基本沿 180° 经线，但在白令海峡附近折向 169°W 左右，
-   * 从俄罗斯大代奥米德岛与美国小代奥米德岛之间穿过。
+   * 基本沿 180° 经线，但在以下位置发生曲折：
+   * 1) 白令海峡附近向东折向 169°W 左右，从大小代奥米德岛之间穿过；
+   * 2) 阿留申群岛西端附近向西弯（约 173°E），使阿留申群岛与美国本土同侧；
+   * 3) 南太平洋汤加、斐济一带向东偏（约 172°W 附近）；
+   * 4) 新西兰查塔姆群岛一带再次向东偏（约 176°W 附近）。
    */
   const idlPath: [number, number][] = [
     [90, 180],
     [80, 180],
     [72, 180],
+    // 白令海峡：向东折
     [68, -176],
     [66, -171],
     [65.8, -168.8],
     [64, -169.8],
     [61, -174],
+    // 回到 180°
     [56, 180],
+    // 阿留申群岛：向西弯
+    [54, 178],
+    [52.5, 173],
+    [51.5, 172],
+    [50.5, 174],
+    [49.5, 177],
+    [48.5, 180],
+    // 沿 180° 南下
     [45, 180],
     [30, 180],
     [15, 180],
     [0, 180],
-    [-15, 180],
+    // 汤加、斐济一带：向东偏
+    [-12, 180],
+    [-15, -177],
+    [-17, -174],
+    [-19, -172],
+    [-21, -175],
+    [-23, -178],
+    [-25, 180],
+    // 沿 180° 南下
     [-30, 180],
-    [-45, 180],
-    [-52, 178],
-    [-58, 172],
-    [-62, 176],
-    [-68, 180],
+    [-40, 180],
+    // 查塔姆群岛一带：再次向东偏
+    [-43, -178],
+    [-46, -176],
+    [-48, -177],
+    [-50, 180],
+    // 直到南极
+    [-60, 180],
+    [-70, 180],
     [-78, 180],
     [-90, 180],
   ]
@@ -1324,11 +1349,17 @@ function createTimeZoneCanvasTexture(): THREE.CanvasTexture {
    * 避免只在背光面明显，受光面也能看清范围。
    */
   for (let bandIndex = 0; bandIndex < 24; bandIndex += 1) {
-    const lonMin =
+    // 每个时区以 15° 的整数倍经线（zone * 15）为中心线，覆盖中心线左右各 7.5°。
+    // 例如东八区（zone=8）：中心线 120°E，正确范围 112.5°E – 127.5°E。
+    // 跨 ±180° 的带（zone = -12）会得到 x1 < 0，由纹理 wrapS = RepeatWrapping 自动循环到对侧。
+    const centerLon =
       -180 + bandIndex * 15
 
+    const lonMin =
+      centerLon - 7.5
+
     const lonMax =
-      lonMin + 15
+      centerLon + 7.5
 
     const zone =
       bandIndex - 12
@@ -1345,44 +1376,54 @@ function createTimeZoneCanvasTexture(): THREE.CanvasTexture {
     const paint =
       getZonePaint(zone)
 
-    fillZoneWithSoftHighlight(
-      x1,
-      width,
-      h,
-      paint.fill,
-      paint.edgeFill
-    )
+    // 跨 ±180° 的带（如东西十二区）会被画布左右边缘切成两段，
+    // 需要在两侧各绘制一次，配合 wrapS = RepeatWrapping 才能环绕闭合。
+    const offsets = [0]
+    if (x1 < 0) offsets.push(w)
+    if (x2 > w) offsets.push(-w)
 
-    ctx.strokeStyle =
-      paint.stroke
+    offsets.forEach((offset) => {
+      const ox = x1 + offset
 
-    ctx.lineWidth =
-      paint.lineWidth
+      fillZoneWithSoftHighlight(
+        ox,
+        width,
+        h,
+        paint.fill,
+        paint.edgeFill
+      )
 
-    ctx.beginPath()
-    ctx.moveTo(x1, 0)
-    ctx.lineTo(x1, h)
-    ctx.stroke()
-
-    if (
-      zone === 8 ||
-      zone === 0 ||
-      zone === 12 ||
-      zone === -12
-    ) {
       ctx.strokeStyle =
         paint.stroke
 
       ctx.lineWidth =
         paint.lineWidth
 
-      ctx.strokeRect(
-        x1 + 2,
-        2,
-        Math.max(1, width - 4),
-        h - 4
-      )
-    }
+      ctx.beginPath()
+      ctx.moveTo(ox, 0)
+      ctx.lineTo(ox, h)
+      ctx.stroke()
+
+      if (
+        zone === 8 ||
+        zone === 0 ||
+        zone === 12 ||
+        zone === -12
+      ) {
+        ctx.strokeStyle =
+          paint.stroke
+
+        ctx.lineWidth =
+          paint.lineWidth
+
+        ctx.strokeRect(
+          ox + 2,
+          2,
+          Math.max(1, width - 4),
+          h - 4
+        )
+      }
+    })
 
     const label =
       getZoneLabel(zone)
@@ -1403,6 +1444,15 @@ function createTimeZoneCanvasTexture(): THREE.CanvasTexture {
     const labelX =
       x1 + width / 2
 
+    // 跨 ±180° 的带（如东西十二区）：标签会落在画布接缝（x=0 / x=w）处，
+    // 文字会被画布边缘裁掉一半。因此在接缝两侧各画一份完整文字，
+    // 配合 wrapS = RepeatWrapping，无论从东西哪一侧观察都能完整显示。
+    const labelXs =
+      offsets.length > 1
+        ? [60, w - 60]
+        : [labelX]
+
+    labelXs.forEach((lx) => {
       ;[
         h * 0.22,
         h * 0.50,
@@ -1410,11 +1460,12 @@ function createTimeZoneCanvasTexture(): THREE.CanvasTexture {
       ].forEach((y) => {
         drawVerticalText(
           label,
-          labelX,
+          lx,
           y - label.length * 18,
           38
         )
       })
+    })
 
     ctx.shadowBlur = 0
   }
