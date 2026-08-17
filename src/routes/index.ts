@@ -267,6 +267,42 @@ export const routes = [
     component: () =>
       import('@/views/foehn-effect/index.vue'),
   },
+  {
+    path: '/karst-landform',
+    name: 'karst-landform',
+    meta: {
+      title: '喀斯特地貌',
+    },
+    component: () =>
+      import('@/views/karst-landform/index.vue'),
+  },
+  {
+    path: '/sponge-city',
+    name: 'sponge-city',
+    meta: {
+      title: '海绵城市',
+    },
+    component: () =>
+      import('@/views/sponge-city/index.vue'),
+  },
+  {
+    path: '/fold-fault',
+    name: 'fold-fault',
+    meta: {
+      title: '褶皱断层',
+    },
+    component: () =>
+      import('@/views/fold-fault/index.vue'),
+  },
+  {
+    path: '/volcano',
+    name: 'volcano',
+    meta: {
+      title: '火山',
+    },
+    component: () =>
+      import('@/views/volcano/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
