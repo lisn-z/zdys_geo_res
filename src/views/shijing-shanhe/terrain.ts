@@ -250,7 +250,6 @@ export async function mountTerrain(
   getLabels: () => ReadonlyMap<string, HTMLButtonElement>,
   getClusters: () => ReadonlyMap<string, TerrainClusterMarker>,
   onProgress: (value: number) => void = () => undefined,
-  onClusterFocus: (clusterId: string | null) => void = () => undefined,
 ): Promise<TerrainController> {
   const download = { map: 0, dem: 0, water: 0 }
   const reportDownload = (key: keyof typeof download, ratio: number) => {
@@ -443,8 +442,6 @@ export async function mountTerrain(
     toTarget: THREE.Vector3
   } | null = null
   let lastLabelUpdate = -Infinity
-  let lastSuggestedCluster: string | null = null
-  const homeViewDistance = homePosition.distanceTo(homeTarget)
   const projectedPosition = new THREE.Vector3()
   controls.addEventListener('start', () => { flight = null })
   const render = (time = 0) => {
@@ -495,24 +492,6 @@ export async function mountTerrain(
           && projectedPosition.y > -1.04 && projectedPosition.y < 1.04 ? 'true' : 'false'
       })
 
-      const zoomRatio = homeViewDistance / Math.max(0.01, camera.position.distanceTo(controls.target))
-      if (zoomRatio >= 1.48 && clusterVectors.size) {
-        let nearest: { key: string; distance: number } | null = null
-        clusterVectors.forEach((cluster, key) => {
-          projectedPosition.copy(cluster.position).applyMatrix4(terrainGroup.matrixWorld).project(camera)
-          if (projectedPosition.z <= -1 || projectedPosition.z >= 1) return
-          const distance = Math.hypot(projectedPosition.x, projectedPosition.y)
-          if (distance <= 0.52 && (!nearest || distance < nearest.distance)) nearest = { key, distance }
-        })
-        const suggested = (nearest as { key: string; distance: number } | null)?.key ?? null
-        if (suggested && suggested !== lastSuggestedCluster) {
-          lastSuggestedCluster = suggested
-          onClusterFocus(suggested)
-        }
-      } else if (zoomRatio <= 1.18 && lastSuggestedCluster !== null) {
-        lastSuggestedCluster = null
-        onClusterFocus(null)
-      }
       lastLabelUpdate = time
     }
     renderer.render(scene, camera)
@@ -551,8 +530,8 @@ export async function mountTerrain(
       const destinationTarget = new THREE.Vector3(x, y, terrainHeight(sampleElevation(x, y)) + 0.18)
         .applyMatrix4(terrainGroup.matrixWorld)
       const direction = camera.position.clone().sub(controls.target).normalize()
-      const destinationPosition = destinationTarget.clone().add(direction.multiplyScalar(8.2))
-      destinationPosition.z = Math.max(destinationPosition.z, destinationTarget.z + 2.25)
+      const destinationPosition = destinationTarget.clone().add(direction.multiplyScalar(5.2))
+      destinationPosition.z = Math.max(destinationPosition.z, destinationTarget.z + 1.9)
       flight = {
         startedAt: performance.now(),
         fromPosition: camera.position.clone(),

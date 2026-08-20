@@ -28,7 +28,6 @@ const catalogQuery = ref('')
 const curriculumStage = ref<CurriculumStage>('全部学段')
 const catalogPage = ref(1)
 const activeClusterKey = ref<string | null>(null)
-const autoClusterKey = ref<string | null>(null)
 const catalogLocatedPoemId = ref<string | null>(null)
 const terrainError = ref('')
 const terrainLoading = ref(true)
@@ -128,25 +127,8 @@ const setClusterRef = (element: unknown, cluster: MapCluster) => {
   else clusterRefs.delete(cluster.key)
 }
 const openCluster = (cluster: MapCluster) => {
-  autoClusterKey.value = null
   activeClusterKey.value = cluster.key
   terrainController.value?.focusCoordinate(cluster.longitude, cluster.latitude)
-}
-const closeCluster = () => {
-  activeClusterKey.value = null
-  autoClusterKey.value = null
-}
-const handleTerrainClusterFocus = (clusterId: string | null) => {
-  if (catalogLocatedPoemId.value) return
-  if (clusterId) {
-    activeClusterKey.value = clusterId
-    autoClusterKey.value = clusterId
-    return
-  }
-  if (autoClusterKey.value && activeClusterKey.value === autoClusterKey.value) {
-    activeClusterKey.value = null
-    autoClusterKey.value = null
-  }
 }
 const selectPoem = (poem: Poem) => {
   selectedPoem.value = poem
@@ -165,10 +147,7 @@ const clearCatalogLocation = () => { catalogLocatedPoemId.value = null }
 const closeOverlays = () => { selectedPoem.value = null; aboutOpen.value = false; catalogOpen.value = false }
 const onKeydown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeOverlays() }
 
-watch([dynasty, author], () => {
-  activeClusterKey.value = null
-  autoClusterKey.value = null
-})
+watch([dynasty, author], () => { activeClusterKey.value = null })
 watch([catalogQuery, curriculumStage], () => { catalogPage.value = 1 })
 watch(catalogPageCount, (count) => { if (catalogPage.value > count) catalogPage.value = count })
 
@@ -180,7 +159,7 @@ onMounted(async () => {
     await nextTick()
     terrainController.value = await mountTerrain(terrainMount.value, poems.value, () => pinRefs, () => clusterRefs, (value) => {
       loadingProgress.value = Math.max(loadingProgress.value, value)
-    }, handleTerrainClusterFocus)
+    })
     requestAnimationFrame(() => { terrainLoading.value = false })
   } catch (error) {
     terrainError.value = error instanceof Error ? error.message : '地形加载失败'
@@ -283,7 +262,7 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <button v-if="activeCluster" class="cluster-back" @click="closeCluster">
+        <button v-if="activeCluster" class="cluster-back" @click="activeClusterKey = null">
           <span>←</span> {{ activeCluster.label }} · {{ activeCluster.poems.length }} 篇 / 返回全国聚合
         </button>
 
