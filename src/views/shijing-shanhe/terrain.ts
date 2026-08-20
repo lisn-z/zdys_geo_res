@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
-import { POEMS } from './data'
+import type { Poem } from './data'
 
 type Ring = Array<[number, number]>
 type PreparedPolygon = { rings: Ring[]; bounds: [number, number, number, number] }
@@ -23,7 +23,17 @@ type WaterGeoJSON = {
   }>
 }
 
-export type TerrainController = { reset: () => void; focusPoem: (poemId: string) => void; dispose: () => void }
+export type TerrainController = {
+  reset: () => void
+  focusPoem: (poemId: string) => void
+  focusCoordinate: (longitude: number, latitude: number) => void
+  dispose: () => void
+}
+export type TerrainClusterMarker = {
+  element: HTMLButtonElement
+  longitude: number
+  latitude: number
+}
 
 const MAP_SCALE = 0.245
 const GRID_X = 384
@@ -31,8 +41,8 @@ const GRID_Y = 232
 const WATER_URL = '/geo-resources-folder/geojson/中国矢量数据/中国主要水系分布.geojson'
 
 const projectCoordinate = ([longitude, latitude]: number[]): [number, number] => [
-  (longitude! - 104) * MAP_SCALE,
-  (latitude! - 35) * MAP_SCALE,
+  (longitude - 104) * MAP_SCALE,
+  (latitude - 35) * MAP_SCALE,
 ]
 
 async function fetchJsonWithProgress<T>(url: string, onProgress: (ratio: number) => void): Promise<T> {
@@ -71,11 +81,11 @@ function prepareChinaMap(geojson: ChinaGeoJSON): PreparedProvince[] {
       ? [feature.geometry.coordinates as number[][][]]
       : feature.geometry.coordinates as number[][][][]
     const polygons = source
-      .filter((polygon) => polygon[0]?.some((point) => point![1]! >= 15))
+      .filter((polygon) => polygon[0]?.some((point) => point[1] >= 15))
       .map((polygon) => {
         const rings = polygon.map((ring) => ring.map(projectCoordinate))
-        const xs = rings[0]!.map(([x]) => x)
-        const ys = rings[0]!.map(([, y]) => y)
+        const xs = rings[0].map(([x]) => x)
+        const ys = rings[0].map(([, y]) => y)
         return {
           rings,
           bounds: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as [number, number, number, number],
@@ -88,8 +98,8 @@ function prepareChinaMap(geojson: ChinaGeoJSON): PreparedProvince[] {
 function pointInRing(x: number, y: number, ring: Ring) {
   let inside = false
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i]!
-    const [xj, yj] = ring[j]!
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
   }
   return inside
@@ -100,7 +110,7 @@ function pointInChina(x: number, y: number, provinces: PreparedProvince[]) {
     for (const polygon of province.polygons) {
       const [minX, minY, maxX, maxY] = polygon.bounds
       if (x < minX || x > maxX || y < minY || y > maxY) continue
-      if (!pointInRing(x, y, polygon.rings[0]!)) continue
+      if (!pointInRing(x, y, polygon.rings[0])) continue
       if (polygon.rings.slice(1).some((hole) => pointInRing(x, y, hole))) continue
       return true
     }
@@ -115,8 +125,8 @@ function createElevationSampler(dem: DemData) {
     const x0 = Math.floor(gx), y0 = Math.floor(gy)
     const x1 = Math.min(dem.width - 1, x0 + 1), y1 = Math.min(dem.height - 1, y0 + 1)
     const at = (px: number, py: number) => dem.values[py * dem.width + px]
-    const low = THREE.MathUtils.lerp(at(x0!, y0!)!, at(x1, y0)!, gx - x0)
-    const high = THREE.MathUtils.lerp(at(x0!, y1!)!, at(x1, y1)!, gx - x0)
+    const low = THREE.MathUtils.lerp(at(x0, y0), at(x1, y0), gx - x0)
+    const high = THREE.MathUtils.lerp(at(x0, y1), at(x1, y1), gx - x0)
     return THREE.MathUtils.lerp(low, high, gy - y0)
   }
 }
@@ -187,20 +197,6 @@ async function createTerrainGeometry(
   return geometry
 }
 
-function createProvinceBoundaries(provinces: PreparedProvince[], sampleElevation: (x: number, y: number) => number) {
-  const group = new THREE.Group()
-  provinces.forEach((province) => province.polygons.forEach((polygon) => {
-    const points = polygon.rings[0]!.map(([x, y]) => new THREE.Vector3(x, y, terrainHeight(sampleElevation(x, y)) + 0.025))
-    if (points.length > 2) {
-      group.add(new THREE.LineLoop(
-        new THREE.BufferGeometry().setFromPoints(points),
-        new THREE.LineBasicMaterial({ color: '#cbb98a', transparent: true, opacity: 0.45 }),
-      ))
-    }
-  }))
-  return group
-}
-
 function createWaterLayer(
   geojson: WaterGeoJSON,
   provinces: PreparedProvince[],
@@ -211,10 +207,10 @@ function createWaterLayer(
     if (feature.geometry.type !== 'MultiLineString') continue
     for (const line of feature.geometry.coordinates) {
       for (let index = 1; index < line.length; index++) {
-        const first = line[index - 1]!
-        const second = line[index]!
-        const middleLongitude = (first[0]! + second[0]!) / 2
-        const middleLatitude = (first[1]! + second[1]!) / 2
+        const first = line[index - 1]
+        const second = line[index]
+        const middleLongitude = (first[0] + second[0]) / 2
+        const middleLatitude = (first[1] + second[1]) / 2
         if (middleLongitude < 72 || middleLongitude > 136 || middleLatitude < 17 || middleLatitude > 55) continue
         const [middleX, middleY] = projectCoordinate([middleLongitude, middleLatitude])
         if (!pointInChina(middleX, middleY, provinces)) continue
@@ -250,8 +246,11 @@ function createWaterLayer(
 
 export async function mountTerrain(
   mount: HTMLElement,
-  getLabels: () => Array<HTMLButtonElement | null>,
+  poems: Poem[],
+  getLabels: () => ReadonlyMap<string, HTMLButtonElement>,
+  getClusters: () => ReadonlyMap<string, TerrainClusterMarker>,
   onProgress: (value: number) => void = () => undefined,
+  onClusterFocus: (clusterId: string | null) => void = () => undefined,
 ): Promise<TerrainController> {
   const download = { map: 0, dem: 0, water: 0 }
   const reportDownload = (key: keyof typeof download, ratio: number) => {
@@ -274,17 +273,21 @@ export async function mountTerrain(
   const scene = new THREE.Scene()
   scene.fog = new THREE.FogExp2('#e8e2d3', 0.027)
 
-  let viewportWidth = Math.max(2, Math.round(mount.clientWidth))
-  let viewportHeight = Math.max(2, Math.round(mount.clientHeight))
-  const camera = new THREE.PerspectiveCamera(36, viewportWidth / viewportHeight, 0.1, 100)
+  const initialViewport = mount.getBoundingClientRect()
+  let viewportWidth = Math.max(2, initialViewport.width)
+  let viewportHeight = Math.max(2, initialViewport.height)
+  let renderPixelRatio = Math.min(window.devicePixelRatio || 1, 1.5)
+  const baseFieldOfView = 36
+  const designAspect = 16 / 9
+  const camera = new THREE.PerspectiveCamera(baseFieldOfView, viewportWidth / viewportHeight, 0.1, 100)
   camera.up.set(0, 0, 1)
   const homePosition = new THREE.Vector3(0, -21, 5.8)
-  const homeTarget = new THREE.Vector3(-0.8, 0.25, 0.55)
+  const homeTarget = new THREE.Vector3(0, 0, 0.55)
   camera.position.copy(homePosition)
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
-  renderer.setSize(viewportWidth, viewportHeight, false)
+  renderer.setPixelRatio(renderPixelRatio)
+  renderer.setSize(Math.round(viewportWidth), Math.round(viewportHeight), false)
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFShadowMap
@@ -320,6 +323,27 @@ export async function mountTerrain(
   terrain.receiveShadow = true
   terrainGroup.add(terrain)
 
+  // Derive the opening composition from the actual China terrain rather than
+  // fixed screen coordinates. This keeps the map centered across OS scaling,
+  // browser zoom levels and different initial viewport sizes.
+  terrainGeometry.computeBoundingBox()
+  const terrainBounds = terrainGeometry.boundingBox
+  if (terrainBounds) {
+    const localCenter = new THREE.Vector3()
+    const terrainSize = new THREE.Vector3()
+    terrainBounds.getCenter(localCenter)
+    terrainBounds.getSize(terrainSize)
+    localCenter.z = THREE.MathUtils.clamp(terrainBounds.min.z + terrainSize.z * 0.22, 0.35, 0.9)
+    terrainGroup.updateMatrixWorld(true)
+    homeTarget.copy(localCenter).applyMatrix4(terrainGroup.matrixWorld)
+    const homeDistance = Math.max(20, terrainSize.x * 1.35, terrainSize.y * 2.2)
+    const viewDirection = new THREE.Vector3(0, -1, 0.25).normalize()
+    homePosition.copy(homeTarget).addScaledVector(viewDirection, homeDistance)
+    camera.position.copy(homePosition)
+    controls.target.copy(homeTarget)
+    controls.update()
+  }
+
   const contourGeometry = terrainGeometry.clone()
   const contour = new THREE.Mesh(contourGeometry, new THREE.MeshBasicMaterial({
     color: '#d8c99e', wireframe: true, transparent: true, opacity: 0.04,
@@ -329,9 +353,8 @@ export async function mountTerrain(
   const waterLayer = createWaterLayer(waterGeoJSON, provinces, sampleElevation)
   onProgress(96)
   await nextPaint()
-  waterLayer.materials.forEach((material) => material.resolution.set(viewportWidth, viewportHeight))
+  waterLayer.materials.forEach((material) => material.resolution.set(viewportWidth * renderPixelRatio, viewportHeight * renderPixelRatio))
   terrainGroup.add(waterLayer.group)
-  terrainGroup.add(createProvinceBoundaries(provinces, sampleElevation))
 
   scene.add(new THREE.HemisphereLight('#fff9e8', '#1e3d3b', 2.15))
   const sun = new THREE.DirectionalLight('#fff1c5', 3.2)
@@ -357,10 +380,59 @@ export async function mountTerrain(
   const dust = new THREE.Points(dustGeometry, dustMaterial)
   scene.add(dust)
 
-  const poemVectors = POEMS.map((poem) => {
+  const poemVectors = new Map(poems.map((poem) => {
     const [x, y] = projectCoordinate([poem.longitude, poem.latitude])
-    return new THREE.Vector3(x, y, terrainHeight(sampleElevation(x, y)) + 0.27)
-  })
+    return [poem.id, new THREE.Vector3(x, y, terrainHeight(sampleElevation(x, y)) + 0.27)] as const
+  }))
+  const clusterVectors = new Map<string, { longitude: number; latitude: number; position: THREE.Vector3 }>()
+  let renderWidth = viewportWidth
+  let renderHeight = viewportHeight
+
+  const updateResponsiveProjection = (width: number, height: number) => {
+    const aspect = width / height
+    const baseFovRadians = THREE.MathUtils.degToRad(baseFieldOfView)
+    // A narrow viewport needs a wider vertical field of view to keep China's
+    // east-west extent in frame. Wide viewports retain the original composition.
+    const fittedFov = aspect < designAspect
+      ? 2 * Math.atan(Math.tan(baseFovRadians / 2) * (designAspect / aspect))
+      : baseFovRadians
+    camera.aspect = aspect
+    camera.fov = THREE.MathUtils.radToDeg(fittedFov)
+    camera.updateProjectionMatrix()
+  }
+
+  updateResponsiveProjection(viewportWidth, viewportHeight)
+
+  const syncViewport = () => {
+    const mountRect = mount.getBoundingClientRect()
+    const nextWidth = Math.max(2, mountRect.width)
+    const nextHeight = Math.max(2, mountRect.height)
+    const nextPixelRatio = Math.min(window.devicePixelRatio || 1, 1.5)
+    const sizeChanged = Math.abs(nextWidth - renderWidth) > 0.01 || Math.abs(nextHeight - renderHeight) > 0.01
+    const pixelRatioChanged = Math.abs(nextPixelRatio - renderPixelRatio) > 0.001
+
+    if (sizeChanged || pixelRatioChanged) {
+      viewportWidth = nextWidth
+      viewportHeight = nextHeight
+      renderWidth = nextWidth
+      renderHeight = nextHeight
+      renderPixelRatio = nextPixelRatio
+      updateResponsiveProjection(nextWidth, nextHeight)
+      renderer.setPixelRatio(nextPixelRatio)
+      renderer.setSize(Math.round(nextWidth), Math.round(nextHeight), false)
+      waterLayer.materials.forEach((material) => material.resolution.set(nextWidth * nextPixelRatio, nextHeight * nextPixelRatio))
+    }
+
+    const canvasRect = renderer.domElement.getBoundingClientRect()
+    const labels = getLabels()
+    const clusters = getClusters()
+    const firstLabel = labels.values().next().value as HTMLButtonElement | undefined
+    const firstCluster = clusters.values().next().value as TerrainClusterMarker | undefined
+    const labelLayer = firstLabel?.parentElement ?? firstCluster?.element.parentElement
+    const labelRect = labelLayer?.getBoundingClientRect() ?? canvasRect
+    return { canvasRect, labelRect, labels, clusters }
+  }
+
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
   let frame = 0
   let flight: {
@@ -370,8 +442,13 @@ export async function mountTerrain(
     toPosition: THREE.Vector3
     toTarget: THREE.Vector3
   } | null = null
+  let lastLabelUpdate = -Infinity
+  let lastSuggestedCluster: string | null = null
+  const homeViewDistance = homePosition.distanceTo(homeTarget)
+  const projectedPosition = new THREE.Vector3()
   controls.addEventListener('start', () => { flight = null })
   const render = (time = 0) => {
+    const { canvasRect, labelRect, labels, clusters } = syncViewport()
     if (flight) {
       const progress = Math.min(1, (time - flight.startedAt) / 1450)
       const eased = progress < 0.5
@@ -385,47 +462,64 @@ export async function mountTerrain(
     if (!reduceMotion) dust.rotation.z += 0.00016
     if (!reduceMotion) waterLayer.riverMaterial.opacity = 0.9 + Math.sin(time * 0.0011) * 0.06
     scene.updateMatrixWorld()
-    poemVectors.forEach((position, index) => {
-      const label = getLabels()[index]
-      if (!label) return
-      const projected = position.clone().applyMatrix4(terrainGroup.matrixWorld).project(camera)
-      const x = (projected.x * 0.5 + 0.5) * viewportWidth
-      const y = (-projected.y * 0.5 + 0.5) * viewportHeight
-      label.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -100%)`
-      label.style.setProperty('--depth', `${Math.max(0.35, 1 - projected.z * 0.18)}`)
-      label.dataset.inView = projected.z > -1 && projected.z < 1 ? 'true' : 'false'
-    })
+    if (time - lastLabelUpdate >= 30) {
+      labels.forEach((label, poemId) => {
+        const position = poemVectors.get(poemId)
+        if (!position) return
+        projectedPosition.copy(position).applyMatrix4(terrainGroup.matrixWorld).project(camera)
+        const x = canvasRect.left - labelRect.left + (projectedPosition.x * 0.5 + 0.5) * canvasRect.width
+        const y = canvasRect.top - labelRect.top + (-projectedPosition.y * 0.5 + 0.5) * canvasRect.height
+        label.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -100%)`
+        label.style.setProperty('--depth', `${Math.max(0.35, 1 - projectedPosition.z * 0.18)}`)
+        label.dataset.inView = projectedPosition.z > -1 && projectedPosition.z < 1
+          && projectedPosition.x > -1.04 && projectedPosition.x < 1.04
+          && projectedPosition.y > -1.04 && projectedPosition.y < 1.04 ? 'true' : 'false'
+      })
+      clusters.forEach((marker, clusterId) => {
+        let cached = clusterVectors.get(clusterId)
+        if (!cached || cached.longitude !== marker.longitude || cached.latitude !== marker.latitude) {
+          const [x, y] = projectCoordinate([marker.longitude, marker.latitude])
+          cached = {
+            longitude: marker.longitude,
+            latitude: marker.latitude,
+            position: new THREE.Vector3(x, y, terrainHeight(sampleElevation(x, y)) + 0.34),
+          }
+          clusterVectors.set(clusterId, cached)
+        }
+        projectedPosition.copy(cached.position).applyMatrix4(terrainGroup.matrixWorld).project(camera)
+        const x = canvasRect.left - labelRect.left + (projectedPosition.x * 0.5 + 0.5) * canvasRect.width
+        const y = canvasRect.top - labelRect.top + (-projectedPosition.y * 0.5 + 0.5) * canvasRect.height
+        marker.element.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
+        marker.element.dataset.inView = projectedPosition.z > -1 && projectedPosition.z < 1
+          && projectedPosition.x > -1.04 && projectedPosition.x < 1.04
+          && projectedPosition.y > -1.04 && projectedPosition.y < 1.04 ? 'true' : 'false'
+      })
+
+      const zoomRatio = homeViewDistance / Math.max(0.01, camera.position.distanceTo(controls.target))
+      if (zoomRatio >= 1.48 && clusterVectors.size) {
+        let nearest: { key: string; distance: number } | null = null
+        clusterVectors.forEach((cluster, key) => {
+          projectedPosition.copy(cluster.position).applyMatrix4(terrainGroup.matrixWorld).project(camera)
+          if (projectedPosition.z <= -1 || projectedPosition.z >= 1) return
+          const distance = Math.hypot(projectedPosition.x, projectedPosition.y)
+          if (distance <= 0.52 && (!nearest || distance < nearest.distance)) nearest = { key, distance }
+        })
+        const suggested = (nearest as { key: string; distance: number } | null)?.key ?? null
+        if (suggested && suggested !== lastSuggestedCluster) {
+          lastSuggestedCluster = suggested
+          onClusterFocus(suggested)
+        }
+      } else if (zoomRatio <= 1.18 && lastSuggestedCluster !== null) {
+        lastSuggestedCluster = null
+        onClusterFocus(null)
+      }
+      lastLabelUpdate = time
+    }
     renderer.render(scene, camera)
     frame = requestAnimationFrame(render)
   }
   render()
   onProgress(100)
-
-  let resizeTimer = 0
-  let renderWidth = viewportWidth
-  let renderHeight = viewportHeight
-  const resize = () => {
-    resizeTimer = 0
-    if (viewportWidth < 2 || viewportHeight < 2 || (viewportWidth === renderWidth && viewportHeight === renderHeight)) return
-    renderWidth = viewportWidth
-    renderHeight = viewportHeight
-    camera.aspect = viewportWidth / viewportHeight
-    camera.updateProjectionMatrix()
-    renderer.setSize(viewportWidth, viewportHeight, false)
-    waterLayer.materials.forEach((material) => material.resolution.set(viewportWidth, viewportHeight))
-  }
-  const observer = new ResizeObserver((entries) => {
-    const box = entries[0]?.contentRect
-    if (!box) return
-    const width = Math.round(box.width)
-    const height = Math.round(box.height)
-    if (width < 2 || height < 2) return
-    viewportWidth = width
-    viewportHeight = height
-    if (resizeTimer) window.clearTimeout(resizeTimer)
-    resizeTimer = window.setTimeout(resize, 180)
-  })
-  observer.observe(mount)
 
   return {
     reset: () => {
@@ -435,10 +529,10 @@ export async function mountTerrain(
       controls.update()
     },
     focusPoem: (poemId: string) => {
-      const index = POEMS.findIndex((poem) => poem.id === poemId)
-      if (index < 0) return
+      const poemPosition = poemVectors.get(poemId)
+      if (!poemPosition) return
       terrainGroup.updateMatrixWorld(true)
-      const destinationTarget = poemVectors[index]!.clone().applyMatrix4(terrainGroup.matrixWorld)
+      const destinationTarget = poemPosition.clone().applyMatrix4(terrainGroup.matrixWorld)
       destinationTarget.z = Math.max(0.18, destinationTarget.z - 0.2)
       const direction = camera.position.clone().sub(controls.target).normalize()
       const destinationPosition = destinationTarget.clone().add(direction.multiplyScalar(6.4))
@@ -451,10 +545,24 @@ export async function mountTerrain(
         toTarget: destinationTarget,
       }
     },
+    focusCoordinate: (longitude: number, latitude: number) => {
+      const [x, y] = projectCoordinate([longitude, latitude])
+      terrainGroup.updateMatrixWorld(true)
+      const destinationTarget = new THREE.Vector3(x, y, terrainHeight(sampleElevation(x, y)) + 0.18)
+        .applyMatrix4(terrainGroup.matrixWorld)
+      const direction = camera.position.clone().sub(controls.target).normalize()
+      const destinationPosition = destinationTarget.clone().add(direction.multiplyScalar(8.2))
+      destinationPosition.z = Math.max(destinationPosition.z, destinationTarget.z + 2.25)
+      flight = {
+        startedAt: performance.now(),
+        fromPosition: camera.position.clone(),
+        fromTarget: controls.target.clone(),
+        toPosition: destinationPosition,
+        toTarget: destinationTarget,
+      }
+    },
     dispose: () => {
       cancelAnimationFrame(frame)
-      if (resizeTimer) window.clearTimeout(resizeTimer)
-      observer.disconnect()
       controls.dispose()
       renderer.dispose()
       terrainGeometry.dispose()

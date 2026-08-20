@@ -1,12 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
-import { DYNASTIES, POEMS, type Dynasty, type Poem } from './data'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { DYNASTIES, loadPoems, type Dynasty, type Poem } from './data'
 import { getGeographyProfile } from './geography'
-import { mountTerrain, type TerrainController } from './terrain'
+import { mountTerrain, type TerrainClusterMarker, type TerrainController } from './terrain'
 
 const OSS_BASE = 'https://cn-sh-digit-teach-geography-tools-mobile.oss-cn-shanghai.aliyuncs.com/geo-resources-folder'
 const cloudImage = `${OSS_BASE}/images/auspicious-cloud.png`
 const pineImage = `${OSS_BASE}/images/pine-ink.png`
+
+type CurriculumStage = '全部学段' | '小学' | '初中' | '高中'
+type MapCluster = {
+  key: string
+  label: string
+  longitude: number
+  latitude: number
+  poems: Poem[]
+}
 
 const terrainMount = ref<HTMLElement | null>(null)
 const dynasty = ref<Dynasty>('全部')
@@ -14,48 +23,164 @@ const author = ref('全部诗人')
 const selectedPoem = ref<Poem | null>(null)
 const aboutOpen = ref(false)
 const geoOpen = ref(false)
+const catalogOpen = ref(false)
+const catalogQuery = ref('')
+const curriculumStage = ref<CurriculumStage>('全部学段')
+const catalogPage = ref(1)
+const activeClusterKey = ref<string | null>(null)
+const autoClusterKey = ref<string | null>(null)
+const catalogLocatedPoemId = ref<string | null>(null)
 const terrainError = ref('')
 const terrainLoading = ref(true)
 const loadingProgress = ref(0)
 const terrainController = shallowRef<TerrainController | null>(null)
-const pinRefs: Array<HTMLButtonElement | null> = []
+const pinRefs = new Map<string, HTMLButtonElement>()
+const clusterRefs = new Map<string, TerrainClusterMarker>()
+const poems = ref<Poem[]>([])
+const MAP_PIN_LIMIT = 64
+const CATALOG_PAGE_SIZE = 36
+const CURRICULUM_STAGES: CurriculumStage[] = ['全部学段', '小学', '初中', '高中']
+const clusterKeyOf = (poem: Poem) => `${Math.floor((poem.longitude - 73) / 5)}:${Math.floor((poem.latitude - 18) / 4)}`
 
 const authorOptions = computed(() => {
-  const candidates = dynasty.value === '全部' ? POEMS : POEMS.filter((poem) => poem.dynasty === dynasty.value)
+  const candidates = dynasty.value === '全部' ? poems.value : poems.value.filter((poem) => poem.dynasty === dynasty.value)
   return ['全部诗人', ...Array.from(new Set(candidates.map((poem) => poem.author))).sort((a, b) => a.localeCompare(b, 'zh-CN'))]
 })
-const visiblePoems = computed(() => POEMS.filter((poem) => {
+const visiblePoems = computed(() => poems.value.filter((poem) => {
   const dynastyMatches = dynasty.value === '全部' || poem.dynasty === dynasty.value
   const authorMatches = author.value === '全部诗人' || poem.author === author.value
   return dynastyMatches && authorMatches
 }))
+const clusterBuckets = computed(() => {
+  const buckets = new Map<string, Poem[]>()
+  visiblePoems.value.forEach((poem) => {
+    const key = clusterKeyOf(poem)
+    const bucket = buckets.get(key) ?? []
+    bucket.push(poem)
+    buckets.set(key, bucket)
+  })
+  return buckets
+})
+const mapClusters = computed<MapCluster[]>(() => {
+  if (catalogLocatedPoemId.value || activeClusterKey.value || visiblePoems.value.length <= MAP_PIN_LIMIT) return []
+  return [...clusterBuckets.value.entries()].map(([key, items]) => ({
+    key,
+    label: items[0]?.place.split('·')[0].trim() || '诗意区域',
+    longitude: items.reduce((sum, poem) => sum + poem.longitude, 0) / items.length,
+    latitude: items.reduce((sum, poem) => sum + poem.latitude, 0) / items.length,
+    poems: items,
+  })).sort((a, b) => b.poems.length - a.poems.length)
+})
+const mapPoems = computed(() => {
+  if (catalogLocatedPoemId.value) {
+    const located = poems.value.find((poem) => poem.id === catalogLocatedPoemId.value)
+    return located ? [located] : []
+  }
+  if (activeClusterKey.value) return (clusterBuckets.value.get(activeClusterKey.value) ?? []).slice(0, MAP_PIN_LIMIT)
+  return visiblePoems.value.length <= MAP_PIN_LIMIT ? visiblePoems.value : []
+})
+const activeCluster = computed(() => mapClusters.value.find((cluster) => cluster.key === activeClusterKey.value)
+  ?? (activeClusterKey.value ? {
+    key: activeClusterKey.value,
+    label: clusterBuckets.value.get(activeClusterKey.value)?.[0]?.place.split('·')[0].trim() || '当前区域',
+    poems: clusterBuckets.value.get(activeClusterKey.value) ?? [],
+  } : null))
+const catalogLocatedPoem = computed(() => poems.value.find((poem) => poem.id === catalogLocatedPoemId.value) ?? null)
+const catalogFilteredPoems = computed(() => {
+  const query = catalogQuery.value.trim().toLocaleLowerCase('zh-CN')
+  return poems.value.filter((poem) => {
+    const stageMatches = curriculumStage.value === '全部学段' || poem.curriculum?.includes(curriculumStage.value)
+    if (!stageMatches) return false
+    if (!query) return true
+    return `${poem.title}${poem.author}${poem.dynasty}${poem.place}${poem.lines.join('')}`.toLocaleLowerCase('zh-CN').includes(query)
+  })
+})
+const catalogPageCount = computed(() => Math.max(1, Math.ceil(catalogFilteredPoems.value.length / CATALOG_PAGE_SIZE)))
+const catalogPagePoems = computed(() => catalogFilteredPoems.value.slice(
+  (catalogPage.value - 1) * CATALOG_PAGE_SIZE,
+  catalogPage.value * CATALOG_PAGE_SIZE,
+))
 const visibleCount = computed(() => visiblePoems.value.length)
 const selectedGeography = computed(() => selectedPoem.value ? getGeographyProfile(selectedPoem.value) : null)
 const timelineProgress = computed(() => `${(DYNASTIES.indexOf(dynasty.value) / (DYNASTIES.length - 1)) * 100}%`)
-const isVisible = (poem: Poem) => visiblePoems.value.includes(poem)
+const pinTitle = (title: string) => {
+  const compact = title.replace(/^杂曲歌辞\s*/, '').replace(/\s+/g, '')
+  return compact.length > 6 ? `${compact.slice(0, 6)}…` : compact
+}
 const selectDynasty = (item: Dynasty) => {
+  catalogLocatedPoemId.value = null
   dynasty.value = item
-  if (author.value !== '全部诗人' && !POEMS.some((poem) => poem.author === author.value && (item === '全部' || poem.dynasty === item))) {
+  if (author.value !== '全部诗人' && !poems.value.some((poem) => poem.author === author.value && (item === '全部' || poem.dynasty === item))) {
     author.value = '全部诗人'
   }
 }
 const loadingLabel = computed(() => loadingProgress.value < 79 ? '正在引山河入卷' : loadingProgress.value < 95 ? '正在铺陈山川高程' : '正在点染江河诗境')
-const setPinRef = (element: unknown, index: number) => { pinRefs[index] = element as HTMLButtonElement | null }
+const setPinRef = (element: unknown, poemId: string) => {
+  if (element) pinRefs.set(poemId, element as HTMLButtonElement)
+  else pinRefs.delete(poemId)
+}
+const setClusterRef = (element: unknown, cluster: MapCluster) => {
+  if (element) clusterRefs.set(cluster.key, {
+    element: element as HTMLButtonElement,
+    longitude: cluster.longitude,
+    latitude: cluster.latitude,
+  })
+  else clusterRefs.delete(cluster.key)
+}
+const openCluster = (cluster: MapCluster) => {
+  autoClusterKey.value = null
+  activeClusterKey.value = cluster.key
+  terrainController.value?.focusCoordinate(cluster.longitude, cluster.latitude)
+}
+const closeCluster = () => {
+  activeClusterKey.value = null
+  autoClusterKey.value = null
+}
+const handleTerrainClusterFocus = (clusterId: string | null) => {
+  if (catalogLocatedPoemId.value) return
+  if (clusterId) {
+    activeClusterKey.value = clusterId
+    autoClusterKey.value = clusterId
+    return
+  }
+  if (autoClusterKey.value && activeClusterKey.value === autoClusterKey.value) {
+    activeClusterKey.value = null
+    autoClusterKey.value = null
+  }
+}
 const selectPoem = (poem: Poem) => {
   selectedPoem.value = poem
   geoOpen.value = false
   terrainController.value?.focusPoem(poem.id)
 }
-const closeOverlays = () => { selectedPoem.value = null; aboutOpen.value = false }
+const selectCatalogPoem = (poem: Poem) => {
+  catalogOpen.value = false
+  activeClusterKey.value = null
+  dynasty.value = poem.dynasty
+  author.value = poem.author
+  catalogLocatedPoemId.value = poem.id
+  nextTick(() => selectPoem(poem))
+}
+const clearCatalogLocation = () => { catalogLocatedPoemId.value = null }
+const closeOverlays = () => { selectedPoem.value = null; aboutOpen.value = false; catalogOpen.value = false }
 const onKeydown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeOverlays() }
+
+watch([dynasty, author], () => {
+  activeClusterKey.value = null
+  autoClusterKey.value = null
+})
+watch([catalogQuery, curriculumStage], () => { catalogPage.value = 1 })
+watch(catalogPageCount, (count) => { if (catalogPage.value > count) catalogPage.value = count })
 
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
   if (!terrainMount.value) return
   try {
-    terrainController.value = await mountTerrain(terrainMount.value, () => pinRefs, (value) => {
+    poems.value = await loadPoems()
+    await nextTick()
+    terrainController.value = await mountTerrain(terrainMount.value, poems.value, () => pinRefs, () => clusterRefs, (value) => {
       loadingProgress.value = Math.max(loadingProgress.value, value)
-    })
+    }, handleTerrainClusterFocus)
     requestAnimationFrame(() => { terrainLoading.value = false })
   } catch (error) {
     terrainError.value = error instanceof Error ? error.message : '地形加载失败'
@@ -77,12 +202,14 @@ onUnmounted(() => {
       <a class="brand" href="#top" aria-label="诗境山河首页">
         <span class="seal" aria-hidden="true">诗</span>
         <span class="brand-copy">
-          <strong>诗境山河</strong>
+          <strong>诗境山河 · 智地有申</strong>
           <small>中国古诗词 · 地理鉴赏</small>
         </span>
       </a>
       <nav class="top-nav" aria-label="主导航">
         <button @click="aboutOpen = true">缘起</button>
+        <button class="catalog-nav-button" :class="{ 'is-active': catalogOpen }" :aria-pressed="catalogOpen"
+          @click="catalogOpen = !catalogOpen">诗词目录</button>
         <span class="nav-divider" />
         <button class="geo-nav-button" :class="{ 'is-active': geoOpen }" :aria-pressed="geoOpen"
           @click="geoOpen = !geoOpen">地理研习</button>
@@ -141,14 +268,24 @@ onUnmounted(() => {
         </div>
 
         <div class="poem-labels" aria-label="地图诗词标记">
-          <button v-for="(poem, index) in POEMS" :key="poem.id" :ref="(el) => setPinRef(el, index)" class="poem-pin"
-            :class="{ 'is-active': selectedPoem?.id === poem.id }" :data-visible="isVisible(poem)" data-in-view="true"
+          <button v-for="poem in mapPoems" :key="poem.id" :ref="(el) => setPinRef(el, poem.id)" class="poem-pin"
+            :class="{ 'is-active': selectedPoem?.id === poem.id }" data-in-view="true" :title="poem.title"
             :aria-label="`查看${poem.dynasty}代${poem.author}《${poem.title}》`" @click="selectPoem(poem)">
-            <span class="pin-title">{{ poem.title }}</span>
+            <span class="pin-title">{{ pinTitle(poem.title) }}</span>
+            <span class="pin-full-title" aria-hidden="true">{{ poem.title }}</span>
             <span class="pin-stem" />
             <span class="pin-dot" />
           </button>
+          <button v-for="cluster in mapClusters" :key="cluster.key" :ref="(el) => setClusterRef(el, cluster)"
+            class="map-cluster" data-in-view="true" :aria-label="`展开${cluster.label}的${cluster.poems.length}首诗词`"
+            @click="openCluster(cluster)">
+            <span>{{ cluster.label }}</span><b>{{ cluster.poems.length }}</b><small>篇</small>
+          </button>
         </div>
+
+        <button v-if="activeCluster" class="cluster-back" @click="closeCluster">
+          <span>←</span> {{ activeCluster.label }} · {{ activeCluster.poems.length }} 篇 / 返回全国聚合
+        </button>
 
         <button class="reset-view" aria-label="复位地图视角" title="复位视角" @click="terrainController?.reset()">
           <span aria-hidden="true">◎</span>归位
@@ -161,7 +298,12 @@ onUnmounted(() => {
       <aside class="filter-panel" aria-label="诗词筛选">
         <div class="filter-heading">
           <p>沿时代寻诗</p>
-          <span>共 {{ POEMS.length }} 篇 · 当前 {{ visibleCount }} 篇</span>
+          <span v-if="catalogLocatedPoem" class="catalog-location-status">
+            目录定位 · 《{{ catalogLocatedPoem.title }}》
+            <button @click="clearCatalogLocation">恢复筛选地图</button>
+          </span>
+          <span v-else>共 {{ poems.length }} 篇 · 当前 {{ visibleCount }} 篇 · 地图 {{ mapClusters.length ?
+            `${mapClusters.length} 处聚合` : `${mapPoems.length} 篇` }}</span>
         </div>
         <div class="dynasty-timeline" :style="{ '--timeline-progress': timelineProgress }">
           <i class="timeline-track" aria-hidden="true" />
@@ -172,10 +314,45 @@ onUnmounted(() => {
         </div>
         <label class="author-filter">
           <span>诗人</span>
-          <select v-model="author" aria-label="按诗人筛选">
+          <select v-model="author" aria-label="按诗人筛选" @change="catalogLocatedPoemId = null">
             <option v-for="item in authorOptions" :key="item" :value="item">{{ item }}</option>
           </select>
         </label>
+      </aside>
+      <aside class="catalog-panel" :class="{ 'is-open': catalogOpen }" aria-label="诗词搜索目录" :aria-hidden="!catalogOpen">
+        <button class="catalog-close" aria-label="关闭诗词目录" @click="catalogOpen = false">×</button>
+        <header>
+          <span>诗库检索</span>
+          <h2>山河诗词目录</h2>
+          <p>按诗名、作者、诗句或地点搜索，点击作品即可飞行定位。</p>
+        </header>
+        <label class="catalog-search">
+          <span aria-hidden="true">⌕</span>
+          <input v-model="catalogQuery" type="search" placeholder="搜索：春江花月夜、李白、长江……" aria-label="搜索诗词">
+        </label>
+        <div class="curriculum-tabs" aria-label="按学段筛选">
+          <button v-for="stage in CURRICULUM_STAGES" :key="stage" :class="{ 'is-active': curriculumStage === stage }"
+            @click="curriculumStage = stage">{{ stage }}</button>
+        </div>
+        <div class="catalog-summary">
+          <span>找到 {{ catalogFilteredPoems.length }} 首</span>
+          <b v-if="curriculumStage !== '全部学段'">统编课内 · {{ curriculumStage }}</b>
+        </div>
+        <ol class="catalog-list">
+          <li v-for="poem in catalogPagePoems" :key="poem.id">
+            <button @click="selectCatalogPoem(poem)">
+              <span class="catalog-work"><b>{{ poem.title }}</b><small>〔{{ poem.dynasty }}〕{{ poem.author
+                  }}</small></span>
+              <span class="catalog-place">{{ poem.place }}</span>
+              <i v-if="poem.curriculum?.length">{{ poem.curriculum.join('·') }}</i>
+            </button>
+          </li>
+        </ol>
+        <div class="catalog-pagination">
+          <button :disabled="catalogPage <= 1" @click="catalogPage -= 1">上一页</button>
+          <span>{{ catalogPage }} / {{ catalogPageCount }}</span>
+          <button :disabled="catalogPage >= catalogPageCount" @click="catalogPage += 1">下一页</button>
+        </div>
       </aside>
       <div class="coordinate-note" aria-hidden="true">
         <span>东经 73°—135°</span><i /><span>北纬 18°—53°</span>
@@ -240,56 +417,65 @@ onUnmounted(() => {
         <div class="scroll-paper-body">
           <template v-if="selectedPoem">
             <button class="poem-card-close" aria-label="关闭诗词详情" @click="selectedPoem = null">×</button>
-            <div class="poem-card-ornament"><span>{{ selectedPoem.dynasty }}</span></div>
-            <p class="poem-card-place">{{ selectedPoem.place }}</p>
-            <h2>{{ selectedPoem.title }}</h2>
-            <p class="poem-card-author">〔{{ selectedPoem.dynasty }}〕{{ selectedPoem.author }}</p>
-            <div class="poem-body">
-              <p v-for="line in selectedPoem.lines" :key="line">{{ line }}</p>
-            </div>
-            <div class="appreciation"><span>鉴赏</span>
-              <p>{{ selectedPoem.note }}</p>
-            </div>
-            <div v-if="selectedGeography" class="poem-geography">
-              <div class="poem-geo-heading">
-                <div><span>诗词里的地理</span><small>{{ selectedPoem.place }}</small></div>
-                <b>{{ selectedGeography.coordinate }}</b>
-              </div>
-              <dl class="poem-geo-facts">
-                <div>
-                  <dt>自然区</dt>
-                  <dd>{{ selectedGeography.naturalRegion }}</dd>
+            <header class="poem-card-header">
+              <div class="poem-card-ornament"><span>{{ selectedPoem.dynasty }}</span></div>
+              <p class="poem-card-place">{{ selectedPoem.place }}</p>
+              <h2>{{ selectedPoem.title }}</h2>
+              <p class="poem-card-author">〔{{ selectedPoem.dynasty }}〕{{ selectedPoem.author }}</p>
+            </header>
+            <div class="poem-card-columns">
+              <section class="poem-literary-column">
+                <div class="poem-body">
+                  <p v-for="line in selectedPoem.lines" :key="line">{{ line }}</p>
                 </div>
-                <div>
-                  <dt>地形阶梯</dt>
-                  <dd>{{ selectedGeography.terrainStep }}</dd>
+                <div class="appreciation"><span>鉴赏</span>
+                  <p>{{ selectedPoem.note }}</p>
                 </div>
-                <div>
-                  <dt>地貌</dt>
-                  <dd>{{ selectedGeography.landform }}</dd>
+              </section>
+              <div v-if="selectedGeography" class="poem-geography">
+                <div class="poem-geo-heading">
+                  <div><span>诗词里的地理</span><small>{{ selectedPoem.place }}</small></div>
+                  <b>{{ selectedGeography.coordinate }}</b>
                 </div>
-                <div>
-                  <dt>水系</dt>
-                  <dd>{{ selectedGeography.basin }}</dd>
+                <dl class="poem-geo-facts">
+                  <div>
+                    <dt>自然区</dt>
+                    <dd>{{ selectedGeography.naturalRegion }}</dd>
+                  </div>
+                  <div>
+                    <dt>地形阶梯</dt>
+                    <dd>{{ selectedGeography.terrainStep }}</dd>
+                  </div>
+                  <div>
+                    <dt>地貌</dt>
+                    <dd>{{ selectedGeography.landform }}</dd>
+                  </div>
+                  <div>
+                    <dt>水系</dt>
+                    <dd>{{ selectedGeography.basin }}</dd>
+                  </div>
+                  <div>
+                    <dt>气候</dt>
+                    <dd>{{ selectedGeography.climate }}</dd>
+                  </div>
+                </dl>
+                <div class="poem-geo-reading">
+                  <section><span>空间与地形</span>
+                    <p>{{ selectedGeography.spatialReading }}</p>
+                  </section>
+                  <section><span>意象与环境</span>
+                    <p>{{ selectedGeography.imageReading }}</p>
+                  </section>
+                  <section><span>人文与交通</span>
+                    <p>{{ selectedGeography.humanGeography }}</p>
+                  </section>
+                  <section class="poem-geo-deep"><span>诗句地理深析</span>
+                    <p>{{ selectedGeography.deepAnalysis }}</p>
+                  </section>
                 </div>
-                <div>
-                  <dt>气候</dt>
-                  <dd>{{ selectedGeography.climate }}</dd>
+                <div class="poem-geo-inquiry"><span>课堂探究</span>
+                  <p>{{ selectedGeography.inquiry }}</p>
                 </div>
-              </dl>
-              <div class="poem-geo-reading">
-                <section><span>空间与地形</span>
-                  <p>{{ selectedGeography.spatialReading }}</p>
-                </section>
-                <section><span>意象与环境</span>
-                  <p>{{ selectedGeography.imageReading }}</p>
-                </section>
-                <section><span>人文与交通</span>
-                  <p>{{ selectedGeography.humanGeography }}</p>
-                </section>
-              </div>
-              <div class="poem-geo-inquiry"><span>课堂探究</span>
-                <p>{{ selectedGeography.inquiry }}</p>
               </div>
             </div>
             <div class="poem-card-footer"><i /><span>诗因地生 · 地因诗名</span><i /></div>
@@ -323,6 +509,11 @@ onUnmounted(() => {
   --mineral: #2f5c52;
   --cinnabar: #a53d2d;
   --gold: #9d8252;
+  --font-xs: clamp(10px, calc(.52vw + 3px), 12px);
+  --font-sm: clamp(12px, calc(.62vw + 4px), 15px);
+  --font-base: clamp(14px, calc(.68vw + 5px), 18px);
+  --font-reading: clamp(16px, calc(.76vw + 6px), 21px);
+  --font-display: clamp(34px, calc(2.25vw + 5px), 58px);
 }
 
 .experience-shell button,
@@ -336,6 +527,8 @@ b.experience-shell utton {
 
 .experience-shell {
   position: relative;
+  width: 100%;
+  height: 100dvh;
   min-height: 100svh;
   overflow: hidden;
   isolation: isolate;
@@ -388,7 +581,7 @@ b.experience-shell utton {
   border: 1px solid rgba(108, 31, 22, .5);
   box-shadow: inset 0 0 0 3px rgba(244, 225, 201, .22);
   font-family: KaiTi, STKaiti, serif;
-  font-size: 27px;
+  font-size: clamp(23px, calc(.9vw + 13px), 29px);
   transform: rotate(-2deg);
 }
 
@@ -400,14 +593,14 @@ b.experience-shell utton {
 
 .brand-copy strong {
   font-family: KaiTi, STKaiti, serif;
-  font-size: 27px;
+  font-size: clamp(23px, calc(1.15vw + 9px), 30px);
   font-weight: 600;
   letter-spacing: .18em;
 }
 
 .brand-copy small {
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: var(--font-xs);
   letter-spacing: .34em;
 }
 
@@ -416,7 +609,7 @@ b.experience-shell utton {
   align-items: center;
   gap: 18px;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--font-sm);
   letter-spacing: .2em;
 }
 
@@ -432,13 +625,15 @@ b.experience-shell utton {
   color: var(--cinnabar);
 }
 
-.top-nav .geo-nav-button {
+.top-nav .geo-nav-button,
+.top-nav .catalog-nav-button {
   border: 1px solid rgba(57, 78, 71, .18);
   padding: 8px 12px;
   background: rgba(245, 239, 222, .36);
 }
 
-.top-nav .geo-nav-button.is-active {
+.top-nav .geo-nav-button.is-active,
+.top-nav .catalog-nav-button.is-active {
   border-color: rgba(165, 61, 45, .42);
   color: var(--cinnabar);
   background: rgba(165, 61, 45, .06);
@@ -452,8 +647,11 @@ b.experience-shell utton {
 
 .hero {
   position: relative;
+  width: 100%;
+  height: 100dvh;
   min-height: 100svh;
   padding-top: 104px;
+  overflow: hidden;
 }
 
 .map-stage {
@@ -1168,7 +1366,7 @@ b.experience-shell utton {
 
 .poem-labels {
   pointer-events: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .poem-pin {
@@ -1196,19 +1394,100 @@ b.experience-shell utton {
   pointer-events: none;
 }
 
+.map-cluster {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  min-width: 76px;
+  min-height: 58px;
+  padding: 9px 11px 8px;
+  border: 1px solid rgba(219, 183, 121, .8);
+  border-radius: 48% 52% 46% 54%;
+  color: #f7ead2;
+  background: radial-gradient(circle at 33% 27%, #a57449, #69452f 73%);
+  box-shadow: 0 9px 23px rgba(53, 36, 25, .27), inset 0 0 0 3px rgba(242, 217, 169, .1);
+  pointer-events: auto;
+  cursor: pointer;
+  transform-origin: center bottom;
+  transition: filter .22s, opacity .22s;
+}
+
+.map-cluster:hover,
+.map-cluster:focus-visible {
+  filter: brightness(1.12) saturate(1.08);
+  outline: 2px solid rgba(164, 57, 42, .32);
+  outline-offset: 3px;
+}
+
+.map-cluster[data-in-view="false"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.map-cluster span {
+  grid-row: 1 / 3;
+  align-self: center;
+  padding-right: 7px;
+  border-right: 1px solid rgba(244, 220, 176, .32);
+  font: clamp(13px, calc(.36vw + 9px), 16px) KaiTi, STKaiti, serif;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+
+.map-cluster b {
+  align-self: end;
+  font: 600 18px Georgia, serif;
+  line-height: 1;
+}
+
+.map-cluster small {
+  align-self: start;
+  font-size: 9px;
+  line-height: 1;
+  opacity: .72;
+}
+
+.cluster-back {
+  position: absolute;
+  z-index: 9;
+  left: 50%;
+  top: 20px;
+  border: 1px solid rgba(95, 69, 44, .24);
+  padding: 8px 16px;
+  color: #654a35;
+  background: rgba(239, 229, 205, .82);
+  box-shadow: 0 8px 28px rgba(62, 48, 35, .12);
+  backdrop-filter: blur(12px);
+  font: var(--font-sm) KaiTi, STKaiti, serif;
+  letter-spacing: .08em;
+  cursor: pointer;
+  transform: translateX(-50%);
+}
+
+.cluster-back span {
+  color: var(--cinnabar);
+}
+
 .pin-title {
   position: relative;
   writing-mode: vertical-rl;
-  min-height: 76px;
+  min-height: 66px;
+  max-height: 112px;
   padding: 9px 6px;
   background: linear-gradient(180deg, rgba(118, 84, 51, .96), rgba(76, 52, 34, .97));
   color: #f5e9d1;
   border: 1px solid rgba(203, 169, 108, .86);
   box-shadow: 0 10px 22px rgba(58, 39, 25, .28), inset 0 0 0 2px rgba(244, 222, 180, .13);
   font-family: KaiTi, STKaiti, serif;
-  font-size: 15px;
+  font-size: clamp(13px, calc(.42vw + 8px), 16px);
   line-height: 1;
   letter-spacing: .12em;
+  white-space: nowrap;
+  text-overflow: clip;
   transition: .25s;
 }
 
@@ -1222,6 +1501,38 @@ b.experience-shell utton {
   content: "";
   background: #cfa95e;
   transform: translateX(-50%);
+}
+
+.pin-full-title {
+  position: absolute;
+  z-index: 10;
+  left: calc(100% + 11px);
+  top: 4px;
+  width: max-content;
+  max-width: min(300px, 34vw);
+  padding: 8px 12px 7px;
+  border: 1px solid rgba(126, 87, 48, .45);
+  background: rgba(243, 232, 204, .96);
+  box-shadow: 0 10px 24px rgba(45, 31, 20, .22), inset 0 0 0 2px rgba(255, 249, 229, .34);
+  color: #4f3424;
+  font: var(--font-base)/1.45 KaiTi, STKaiti, serif;
+  letter-spacing: .08em;
+  text-align: left;
+  white-space: normal;
+  writing-mode: horizontal-tb;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-5px);
+  transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
+}
+
+.poem-pin:hover .pin-full-title,
+.poem-pin:focus-visible .pin-full-title {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  transition-delay: 0s;
 }
 
 .pin-stem {
@@ -1392,14 +1703,32 @@ b.experience-shell utton {
 .filter-heading p {
   margin: 0;
   color: var(--ink);
-  font: 14px KaiTi, STKaiti, serif;
+  font: var(--font-sm) KaiTi, STKaiti, serif;
   letter-spacing: .32em;
 }
 
 .filter-heading>span {
   color: rgba(52, 69, 64, .58);
-  font-size: 10px;
+  font-size: var(--font-xs);
   letter-spacing: .13em;
+}
+
+.filter-heading .catalog-location-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #884b35;
+}
+
+.catalog-location-status button {
+  border: 0;
+  border-bottom: 1px solid rgba(151, 65, 43, .38);
+  padding: 2px 0;
+  color: var(--cinnabar);
+  background: transparent;
+  font: inherit;
+  letter-spacing: .08em;
+  cursor: pointer;
 }
 
 .dynasty-timeline {
@@ -1440,7 +1769,7 @@ b.experience-shell utton {
   min-width: 34px;
   background: transparent;
   color: rgba(43, 62, 57, .66);
-  font: 14px KaiTi, STKaiti, serif;
+  font: var(--font-sm) KaiTi, STKaiti, serif;
   cursor: pointer;
   transition: color .25s, transform .25s;
 }
@@ -1479,7 +1808,7 @@ b.experience-shell utton {
   gap: 8px;
   height: 34px;
   color: rgba(43, 62, 57, .64);
-  font: 13px KaiTi, STKaiti, serif;
+  font: var(--font-sm) KaiTi, STKaiti, serif;
 }
 
 .author-filter>span {
@@ -1494,7 +1823,7 @@ b.experience-shell utton {
   padding: 0 24px 0 10px;
   color: var(--ink);
   background: rgba(247, 241, 225, .72);
-  font: 14px KaiTi, STKaiti, serif;
+  font: var(--font-sm) KaiTi, STKaiti, serif;
   cursor: pointer;
   outline: none;
 }
@@ -1502,6 +1831,223 @@ b.experience-shell utton {
 .author-filter select:focus {
   border-color: var(--cinnabar);
   box-shadow: 0 0 0 2px rgba(165, 61, 45, .1);
+}
+
+.catalog-panel {
+  position: absolute;
+  z-index: 12;
+  left: clamp(20px, 3.8vw, 62px);
+  top: 126px;
+  display: flex;
+  flex-direction: column;
+  width: min(470px, calc(100vw - 40px));
+  max-height: calc(100dvh - 250px);
+  padding: 25px 24px 18px;
+  border: 1px solid rgba(82, 69, 49, .24);
+  border-top: 3px solid rgba(146, 70, 45, .7);
+  color: var(--ink);
+  background:
+    linear-gradient(rgba(245, 239, 222, .93), rgba(230, 220, 199, .9)),
+    repeating-linear-gradient(90deg, transparent 0 9px, rgba(88, 73, 50, .025) 9px 10px);
+  box-shadow: 0 20px 65px rgba(41, 37, 29, .19), inset 0 0 0 1px rgba(255, 251, 236, .44);
+  backdrop-filter: blur(18px) saturate(.78);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(-100% - 80px));
+  transition: transform .42s cubic-bezier(.2, .76, .25, 1), opacity .25s;
+}
+
+.catalog-panel.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.catalog-close {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  border: 0;
+  padding: 2px 7px;
+  color: rgba(48, 58, 53, .66);
+  background: transparent;
+  font-size: 23px;
+  cursor: pointer;
+}
+
+.catalog-panel header>span {
+  color: var(--cinnabar);
+  font-size: var(--font-xs);
+  letter-spacing: .34em;
+}
+
+.catalog-panel header h2 {
+  margin: 7px 0 5px;
+  font: 500 clamp(24px, calc(1.4vw + 10px), 32px) KaiTi, STKaiti, serif;
+  letter-spacing: .1em;
+}
+
+.catalog-panel header p {
+  margin: 0 0 15px;
+  color: rgba(48, 65, 59, .64);
+  font-size: var(--font-xs);
+  line-height: 1.7;
+}
+
+.catalog-search {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  border-bottom: 1px solid rgba(76, 66, 51, .34);
+  background: rgba(255, 250, 235, .42);
+}
+
+.catalog-search>span {
+  padding: 0 11px;
+  color: var(--cinnabar);
+  font-size: 22px;
+}
+
+.catalog-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0 10px 0 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font: var(--font-sm) KaiTi, STKaiti, serif;
+}
+
+.curriculum-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 13px 0 10px;
+}
+
+.curriculum-tabs button {
+  border: 1px solid rgba(76, 66, 51, .2);
+  padding: 6px 4px;
+  color: rgba(48, 62, 57, .67);
+  background: rgba(249, 244, 229, .45);
+  font: var(--font-xs) KaiTi, STKaiti, serif;
+  cursor: pointer;
+}
+
+.curriculum-tabs button:hover,
+.curriculum-tabs button.is-active {
+  border-color: rgba(157, 61, 44, .52);
+  color: #983d30;
+  background: rgba(165, 61, 45, .07);
+}
+
+.catalog-summary {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 1px 8px;
+  color: rgba(45, 61, 55, .58);
+  font-size: var(--font-xs);
+}
+
+.catalog-summary b {
+  color: #8a5036;
+  font-weight: 500;
+}
+
+.catalog-list {
+  min-height: 0;
+  margin: 0;
+  padding: 0 3px 0 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(112, 78, 48, .34) transparent;
+}
+
+.catalog-list li+li {
+  border-top: 1px solid rgba(68, 63, 49, .1);
+}
+
+.catalog-list li>button {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(90px, .85fr) auto;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  padding: 9px 5px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.catalog-list li>button:hover,
+.catalog-list li>button:focus-visible {
+  outline: 0;
+  background: rgba(156, 67, 45, .065);
+}
+
+.catalog-work {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.catalog-work b {
+  overflow: hidden;
+  font: 500 var(--font-md) KaiTi, STKaiti, serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-work small,
+.catalog-place {
+  overflow: hidden;
+  color: rgba(47, 62, 57, .58);
+  font-size: var(--font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-place {
+  padding: 0 8px;
+}
+
+.catalog-list i {
+  border: 1px solid rgba(151, 70, 46, .3);
+  padding: 2px 4px;
+  color: #8d4935;
+  font-size: 9px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.catalog-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding-top: 12px;
+  color: rgba(49, 63, 58, .62);
+  font-size: var(--font-xs);
+}
+
+.catalog-pagination button {
+  border: 0;
+  border-bottom: 1px solid rgba(145, 70, 47, .36);
+  padding: 4px 2px;
+  color: #7b4c39;
+  background: transparent;
+  font: var(--font-xs) KaiTi, STKaiti, serif;
+  cursor: pointer;
+}
+
+.catalog-pagination button:disabled {
+  opacity: .32;
+  cursor: default;
 }
 
 .coordinate-note {
@@ -1756,7 +2302,7 @@ b.experience-shell utton {
   z-index: 30;
   left: 50%;
   top: calc(52% + 42px);
-  width: min(680px, calc(100vw - 70px));
+  width: min(90vw, 1600px);
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, -50%);
@@ -1791,7 +2337,7 @@ b.experience-shell utton {
   position: relative;
   z-index: 2;
   max-height: calc(100svh - 154px);
-  padding: 52px clamp(38px, 4.4vw, 64px) 43px;
+  padding: 46px clamp(40px, 4vw, 58px) 38px;
   overflow-y: auto;
   scrollbar-color: rgba(104, 78, 47, .38) transparent;
   scrollbar-width: thin;
@@ -1953,28 +2499,45 @@ b.experience-shell utton {
 .poem-card-place {
   margin: 22px 0 7px;
   color: var(--gold);
-  font-size: 12px;
+  font-size: var(--font-xs);
   letter-spacing: .26em;
 }
 
 .poem-card h2 {
   margin: 0;
-  font: 500 clamp(38px, 4.2vw, 52px) KaiTi, STKaiti, serif;
+  font: 500 var(--font-display) KaiTi, STKaiti, serif;
   letter-spacing: .12em;
 }
 
 .poem-card-author {
   margin: 8px 0 0;
   color: var(--ink-soft);
-  font-size: 14px;
+  font-size: var(--font-sm);
   letter-spacing: .2em;
 }
 
+.poem-card-header {
+  padding-right: 46px;
+}
+
+.poem-card-columns {
+  display: grid;
+  grid-template-columns: minmax(260px, .72fr) minmax(0, 1.28fr);
+  align-items: start;
+  gap: clamp(28px, 3.4vw, 48px);
+  margin-top: 24px;
+}
+
+.poem-literary-column {
+  min-width: 0;
+  padding: 4px 6px 4px 0;
+}
+
 .poem-body {
-  margin: 26px 0 28px;
+  margin: 0 0 28px;
   padding: 14px 0 14px 20px;
   border-left: 2px solid rgba(165, 61, 45, .55);
-  font: 20px/1.9 KaiTi, STKaiti, serif;
+  font: var(--font-reading)/1.9 KaiTi, STKaiti, serif;
   letter-spacing: .06em;
 }
 
@@ -1989,21 +2552,22 @@ b.experience-shell utton {
 
 .appreciation span {
   color: var(--cinnabar);
-  font-size: 13px;
+  font-size: var(--font-sm);
   letter-spacing: .38em;
 }
 
 .appreciation p {
   margin: 12px 0 0;
   color: var(--ink-soft);
-  font-size: 15px;
+  font-size: var(--font-base);
   line-height: 2;
   letter-spacing: .08em;
 }
 
 .poem-geography {
   position: relative;
-  margin-top: 26px;
+  min-width: 0;
+  margin-top: 0;
   padding: 21px 20px 19px;
   border: 1px solid rgba(91, 79, 55, .28);
   background: linear-gradient(135deg, rgba(255, 250, 231, .24), rgba(113, 126, 107, .055));
@@ -2036,13 +2600,13 @@ b.experience-shell utton {
 
 .poem-geo-heading span {
   color: var(--mineral);
-  font-size: 15px;
+  font-size: var(--font-base);
   letter-spacing: .28em;
 }
 
 .poem-geo-heading small {
   color: var(--gold);
-  font-size: 11px;
+  font-size: var(--font-xs);
   letter-spacing: .18em;
 }
 
@@ -2050,7 +2614,7 @@ b.experience-shell utton {
   flex: none;
   margin-top: 2px;
   color: var(--gold);
-  font: 11px Arial, sans-serif;
+  font: var(--font-xs) Arial, sans-serif;
   letter-spacing: .04em;
 }
 
@@ -2081,7 +2645,7 @@ b.experience-shell utton {
   margin: 0;
   background: rgba(91, 110, 99, .06);
   color: var(--mineral);
-  font-size: 12px;
+  font-size: var(--font-xs);
   letter-spacing: .14em;
 }
 
@@ -2091,11 +2655,14 @@ b.experience-shell utton {
   margin: 0;
   padding: 8px 10px;
   color: var(--ink);
-  font: 15px/1.55 KaiTi, STKaiti, serif;
+  font: var(--font-base)/1.55 KaiTi, STKaiti, serif;
 }
 
 .poem-geo-reading {
   position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 22px;
   margin-top: 20px;
 }
 
@@ -2108,10 +2675,24 @@ b.experience-shell utton {
   border-top: 0;
 }
 
+.poem-geo-reading .poem-geo-deep {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding: 16px 15px;
+  border-top: 1px solid rgba(165, 61, 45, .22);
+  border-left: 3px solid rgba(165, 61, 45, .48);
+  background: rgba(165, 113, 62, .06);
+}
+
+.poem-geo-deep p {
+  color: var(--ink);
+  line-height: 2;
+}
+
 .poem-geo-reading span,
 .poem-geo-inquiry span {
   color: var(--cinnabar);
-  font-size: 12px;
+  font-size: var(--font-sm);
   letter-spacing: .25em;
 }
 
@@ -2119,7 +2700,7 @@ b.experience-shell utton {
 .poem-geo-inquiry p {
   margin: 7px 0 0;
   color: var(--ink-soft);
-  font: 16px/1.9 KaiTi, STKaiti, serif;
+  font: var(--font-base)/1.9 KaiTi, STKaiti, serif;
   letter-spacing: .035em;
 }
 
@@ -2255,6 +2836,11 @@ b.experience-shell utton {
     max-height: calc(100svh - 250px);
   }
 
+  .catalog-panel {
+    top: 110px;
+    max-height: calc(100dvh - 235px);
+  }
+
   .ancient-pine {
     right: -8%;
     height: min(66vh, 560px);
@@ -2264,6 +2850,18 @@ b.experience-shell utton {
   .near-mountains {
     width: 58%;
     opacity: .16;
+  }
+
+  .poem-card {
+    width: 94vw;
+  }
+
+  .poem-card-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .poem-geography {
+    margin-top: 4px;
   }
 }
 
@@ -2351,7 +2949,7 @@ b.experience-shell utton {
 
   .dynasty-timeline button {
     min-width: 27px;
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .author-filter {
@@ -2390,6 +2988,46 @@ b.experience-shell utton {
     padding: 18px 17px 15px;
   }
 
+  .catalog-panel {
+    left: 12px;
+    top: 88px;
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 225px);
+    padding: 20px 16px 15px;
+  }
+
+  .catalog-panel header p,
+  .catalog-place {
+    display: none;
+  }
+
+  .catalog-list li>button {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .catalog-work {
+    gap: 6px;
+  }
+
+  .catalog-work b {
+    font-size: 15px;
+  }
+
+  .cluster-back {
+    top: 14px;
+    max-width: calc(100vw - 110px);
+    overflow: hidden;
+    padding: 7px 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .map-cluster {
+    min-width: 65px;
+    min-height: 52px;
+    padding: 7px 9px;
+  }
+
   .poem-card-backdrop {
     inset: 76px 0 0;
   }
@@ -2410,6 +3048,14 @@ b.experience-shell utton {
   }
 
   .poem-geo-facts>div:nth-child(3) {
+    grid-column: auto;
+  }
+
+  .poem-geo-reading {
+    grid-template-columns: 1fr;
+  }
+
+  .poem-geo-reading .poem-geo-deep {
     grid-column: auto;
   }
 
