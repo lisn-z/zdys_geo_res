@@ -134,7 +134,10 @@ onMounted(async () => {
     terrainController.value = await mountTerrain(terrainMount.value, poems.value, () => pinRefs, (value) => {
       loadingProgress.value = Math.max(loadingProgress.value, value)
     })
-    requestAnimationFrame(() => { terrainLoading.value = false })
+    requestAnimationFrame(() => {
+      terrainLoading.value = false
+      requestAnimationFrame(() => terrainController.value?.reset())
+    })
   } catch (error) {
     terrainError.value = error instanceof Error ? error.message : '地形加载失败'
     terrainLoading.value = false

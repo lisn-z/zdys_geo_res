@@ -28,6 +28,7 @@ const TARGET_DIR = 'D:\\company\\geography-design-tool'
  *   COPY_WHITELIST = ['apparent-motion-of-the-sun', 'soil-erosion']
  */
 const COPY_WHITELIST = [
+
   // 示例：取消注释即可只复制这几项
   /*   'apparent-motion-of-the-sun',
     'earth-motion',

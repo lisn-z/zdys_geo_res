@@ -265,9 +265,16 @@ export async function mountTerrain(
   const scene = new THREE.Scene()
   scene.fog = new THREE.FogExp2('#e8e2d3', 0.027)
 
-  const initialViewport = mount.getBoundingClientRect()
-  let viewportWidth = Math.max(2, initialViewport.width)
-  let viewportHeight = Math.max(2, initialViewport.height)
+  // WebGL must use the element's layout size. getBoundingClientRect() reports
+  // post-transform visual pixels and can diverge from the CSS canvas size when
+  // Windows DPI or browser page zoom changes.
+  const readViewportSize = () => ({
+    width: Math.max(2, mount.clientWidth || mount.offsetWidth || mount.getBoundingClientRect().width),
+    height: Math.max(2, mount.clientHeight || mount.offsetHeight || mount.getBoundingClientRect().height),
+  })
+  const initialViewport = readViewportSize()
+  let viewportWidth = initialViewport.width
+  let viewportHeight = initialViewport.height
   let renderPixelRatio = Math.min(window.devicePixelRatio || 1, 1.5)
   const baseFieldOfView = 36
   const designAspect = 16 / 9
@@ -279,7 +286,7 @@ export async function mountTerrain(
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
   renderer.setPixelRatio(renderPixelRatio)
-  renderer.setSize(Math.round(viewportWidth), Math.round(viewportHeight), false)
+  renderer.setSize(Math.round(viewportWidth), Math.round(viewportHeight), true)
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFShadowMap
@@ -296,6 +303,14 @@ export async function mountTerrain(
   controls.minPolarAngle = 0
   controls.maxPolarAngle = Math.PI * 0.495
   controls.target.copy(homeTarget)
+
+  // Ctrl/Cmd + wheel belongs to browser page zoom. If OrbitControls receives
+  // the same event, zoomToCursor also pans the camera target toward the pointer,
+  // which makes the whole map drift diagonally after page zoom.
+  const guardBrowserZoom = (event: WheelEvent) => {
+    if (event.ctrlKey || event.metaKey) event.stopImmediatePropagation()
+  }
+  renderer.domElement.addEventListener('wheel', guardBrowserZoom, { capture: true, passive: true })
 
   const terrainGroup = new THREE.Group()
   terrainGroup.rotation.z = -0.025
@@ -320,16 +335,19 @@ export async function mountTerrain(
   // browser zoom levels and different initial viewport sizes.
   terrainGeometry.computeBoundingBox()
   const terrainBounds = terrainGeometry.boundingBox
+  const terrainLocalCenter = new THREE.Vector3()
+  const terrainSize = new THREE.Vector3()
+  const terrainWorldCenter = new THREE.Vector3()
+  const viewDirection = new THREE.Vector3(0, -1, 0.25).normalize()
+  let homeDistance = 20
   if (terrainBounds) {
-    const localCenter = new THREE.Vector3()
-    const terrainSize = new THREE.Vector3()
-    terrainBounds.getCenter(localCenter)
+    terrainBounds.getCenter(terrainLocalCenter)
     terrainBounds.getSize(terrainSize)
-    localCenter.z = THREE.MathUtils.clamp(terrainBounds.min.z + terrainSize.z * 0.22, 0.35, 0.9)
+    terrainLocalCenter.z = THREE.MathUtils.clamp(terrainBounds.min.z + terrainSize.z * 0.22, 0.35, 0.9)
     terrainGroup.updateMatrixWorld(true)
-    homeTarget.copy(localCenter).applyMatrix4(terrainGroup.matrixWorld)
-    const homeDistance = Math.max(20, terrainSize.x * 1.35, terrainSize.y * 2.2)
-    const viewDirection = new THREE.Vector3(0, -1, 0.25).normalize()
+    terrainWorldCenter.copy(terrainLocalCenter).applyMatrix4(terrainGroup.matrixWorld)
+    homeTarget.copy(terrainWorldCenter)
+    homeDistance = Math.max(20, terrainSize.x * 1.35, terrainSize.y * 2.2)
     homePosition.copy(homeTarget).addScaledVector(viewDirection, homeDistance)
     camera.position.copy(homePosition)
     controls.target.copy(homeTarget)
@@ -392,12 +410,21 @@ export async function mountTerrain(
     camera.updateProjectionMatrix()
   }
 
+  const applyHomeView = () => {
+    homeTarget.copy(terrainWorldCenter)
+    homePosition.copy(homeTarget).addScaledVector(viewDirection, homeDistance)
+    camera.position.copy(homePosition)
+    controls.target.copy(homeTarget)
+    controls.update()
+  }
+
   updateResponsiveProjection(viewportWidth, viewportHeight)
+  applyHomeView()
 
   const syncViewport = () => {
-    const mountRect = mount.getBoundingClientRect()
-    const nextWidth = Math.max(2, mountRect.width)
-    const nextHeight = Math.max(2, mountRect.height)
+    const viewport = readViewportSize()
+    const nextWidth = viewport.width
+    const nextHeight = viewport.height
     const nextPixelRatio = Math.min(window.devicePixelRatio || 1, 1.5)
     const sizeChanged = Math.abs(nextWidth - renderWidth) > 0.01 || Math.abs(nextHeight - renderHeight) > 0.01
     const pixelRatioChanged = Math.abs(nextPixelRatio - renderPixelRatio) > 0.001
@@ -410,8 +437,11 @@ export async function mountTerrain(
       renderPixelRatio = nextPixelRatio
       updateResponsiveProjection(nextWidth, nextHeight)
       renderer.setPixelRatio(nextPixelRatio)
-      renderer.setSize(Math.round(nextWidth), Math.round(nextHeight), false)
+      renderer.setSize(Math.round(nextWidth), Math.round(nextHeight), true)
       waterLayer.materials.forEach((material) => material.resolution.set(nextWidth * nextPixelRatio, nextHeight * nextPixelRatio))
+      // Keep the opening composition deterministic after container resize,
+      // browser zoom, OS DPI changes, and moving the window between monitors.
+      applyHomeView()
     }
 
     const canvasRect = renderer.domElement.getBoundingClientRect()
@@ -473,9 +503,9 @@ export async function mountTerrain(
   return {
     reset: () => {
       flight = null
-      camera.position.copy(homePosition)
-      controls.target.copy(homeTarget)
-      controls.update()
+      const currentViewport = readViewportSize()
+      updateResponsiveProjection(currentViewport.width, currentViewport.height)
+      applyHomeView()
     },
     focusPoem: (poemId: string) => {
       const poemPosition = poemVectors.get(poemId)
@@ -496,6 +526,7 @@ export async function mountTerrain(
     },
     dispose: () => {
       cancelAnimationFrame(frame)
+      renderer.domElement.removeEventListener('wheel', guardBrowserZoom, { capture: true })
       controls.dispose()
       renderer.dispose()
       terrainGeometry.dispose()
