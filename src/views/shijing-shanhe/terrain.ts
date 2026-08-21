@@ -26,13 +26,7 @@ type WaterGeoJSON = {
 export type TerrainController = {
   reset: () => void
   focusPoem: (poemId: string) => void
-  focusCoordinate: (longitude: number, latitude: number) => void
   dispose: () => void
-}
-export type TerrainClusterMarker = {
-  element: HTMLButtonElement
-  longitude: number
-  latitude: number
 }
 
 const MAP_SCALE = 0.245
@@ -248,7 +242,6 @@ export async function mountTerrain(
   mount: HTMLElement,
   poems: Poem[],
   getLabels: () => ReadonlyMap<string, HTMLButtonElement>,
-  getClusters: () => ReadonlyMap<string, TerrainClusterMarker>,
   onProgress: (value: number) => void = () => undefined,
 ): Promise<TerrainController> {
   const download = { map: 0, dem: 0, water: 0 }
@@ -383,7 +376,6 @@ export async function mountTerrain(
     const [x, y] = projectCoordinate([poem.longitude, poem.latitude])
     return [poem.id, new THREE.Vector3(x, y, terrainHeight(sampleElevation(x, y)) + 0.27)] as const
   }))
-  const clusterVectors = new Map<string, { longitude: number; latitude: number; position: THREE.Vector3 }>()
   let renderWidth = viewportWidth
   let renderHeight = viewportHeight
 
@@ -424,12 +416,10 @@ export async function mountTerrain(
 
     const canvasRect = renderer.domElement.getBoundingClientRect()
     const labels = getLabels()
-    const clusters = getClusters()
     const firstLabel = labels.values().next().value as HTMLButtonElement | undefined
-    const firstCluster = clusters.values().next().value as TerrainClusterMarker | undefined
-    const labelLayer = firstLabel?.parentElement ?? firstCluster?.element.parentElement
+    const labelLayer = firstLabel?.parentElement
     const labelRect = labelLayer?.getBoundingClientRect() ?? canvasRect
-    return { canvasRect, labelRect, labels, clusters }
+    return { canvasRect, labelRect, labels }
   }
 
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -445,7 +435,7 @@ export async function mountTerrain(
   const projectedPosition = new THREE.Vector3()
   controls.addEventListener('start', () => { flight = null })
   const render = (time = 0) => {
-    const { canvasRect, labelRect, labels, clusters } = syncViewport()
+    const { canvasRect, labelRect, labels } = syncViewport()
     if (flight) {
       const progress = Math.min(1, (time - flight.startedAt) / 1450)
       const eased = progress < 0.5
@@ -472,26 +462,6 @@ export async function mountTerrain(
           && projectedPosition.x > -1.04 && projectedPosition.x < 1.04
           && projectedPosition.y > -1.04 && projectedPosition.y < 1.04 ? 'true' : 'false'
       })
-      clusters.forEach((marker, clusterId) => {
-        let cached = clusterVectors.get(clusterId)
-        if (!cached || cached.longitude !== marker.longitude || cached.latitude !== marker.latitude) {
-          const [x, y] = projectCoordinate([marker.longitude, marker.latitude])
-          cached = {
-            longitude: marker.longitude,
-            latitude: marker.latitude,
-            position: new THREE.Vector3(x, y, terrainHeight(sampleElevation(x, y)) + 0.34),
-          }
-          clusterVectors.set(clusterId, cached)
-        }
-        projectedPosition.copy(cached.position).applyMatrix4(terrainGroup.matrixWorld).project(camera)
-        const x = canvasRect.left - labelRect.left + (projectedPosition.x * 0.5 + 0.5) * canvasRect.width
-        const y = canvasRect.top - labelRect.top + (-projectedPosition.y * 0.5 + 0.5) * canvasRect.height
-        marker.element.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
-        marker.element.dataset.inView = projectedPosition.z > -1 && projectedPosition.z < 1
-          && projectedPosition.x > -1.04 && projectedPosition.x < 1.04
-          && projectedPosition.y > -1.04 && projectedPosition.y < 1.04 ? 'true' : 'false'
-      })
-
       lastLabelUpdate = time
     }
     renderer.render(scene, camera)
@@ -515,22 +485,6 @@ export async function mountTerrain(
       destinationTarget.z = Math.max(0.18, destinationTarget.z - 0.2)
       const direction = camera.position.clone().sub(controls.target).normalize()
       const destinationPosition = destinationTarget.clone().add(direction.multiplyScalar(6.4))
-      destinationPosition.z = Math.max(destinationPosition.z, destinationTarget.z + 1.9)
-      flight = {
-        startedAt: performance.now(),
-        fromPosition: camera.position.clone(),
-        fromTarget: controls.target.clone(),
-        toPosition: destinationPosition,
-        toTarget: destinationTarget,
-      }
-    },
-    focusCoordinate: (longitude: number, latitude: number) => {
-      const [x, y] = projectCoordinate([longitude, latitude])
-      terrainGroup.updateMatrixWorld(true)
-      const destinationTarget = new THREE.Vector3(x, y, terrainHeight(sampleElevation(x, y)) + 0.18)
-        .applyMatrix4(terrainGroup.matrixWorld)
-      const direction = camera.position.clone().sub(controls.target).normalize()
-      const destinationPosition = destinationTarget.clone().add(direction.multiplyScalar(5.2))
       destinationPosition.z = Math.max(destinationPosition.z, destinationTarget.z + 1.9)
       flight = {
         startedAt: performance.now(),

@@ -2,20 +2,13 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { DYNASTIES, loadPoems, type Dynasty, type Poem } from './data'
 import { getGeographyProfile } from './geography'
-import { mountTerrain, type TerrainClusterMarker, type TerrainController } from './terrain'
+import { mountTerrain, type TerrainController } from './terrain'
 
 const OSS_BASE = 'https://cn-sh-digit-teach-geography-tools-mobile.oss-cn-shanghai.aliyuncs.com/geo-resources-folder'
 const cloudImage = `${OSS_BASE}/images/auspicious-cloud.png`
 const pineImage = `${OSS_BASE}/images/pine-ink.png`
 
 type CurriculumStage = '全部学段' | '小学' | '初中' | '高中'
-type MapCluster = {
-  key: string
-  label: string
-  longitude: number
-  latitude: number
-  poems: Poem[]
-}
 
 const terrainMount = ref<HTMLElement | null>(null)
 const dynasty = ref<Dynasty>('全部')
@@ -27,19 +20,17 @@ const catalogOpen = ref(false)
 const catalogQuery = ref('')
 const curriculumStage = ref<CurriculumStage>('全部学段')
 const catalogPage = ref(1)
-const activeClusterKey = ref<string | null>(null)
 const catalogLocatedPoemId = ref<string | null>(null)
 const terrainError = ref('')
 const terrainLoading = ref(true)
 const loadingProgress = ref(0)
 const terrainController = shallowRef<TerrainController | null>(null)
 const pinRefs = new Map<string, HTMLButtonElement>()
-const clusterRefs = new Map<string, TerrainClusterMarker>()
 const poems = ref<Poem[]>([])
-const MAP_PIN_LIMIT = 64
+const MAP_PIN_LIMIT = 48
 const CATALOG_PAGE_SIZE = 36
 const CURRICULUM_STAGES: CurriculumStage[] = ['全部学段', '小学', '初中', '高中']
-const clusterKeyOf = (poem: Poem) => `${Math.floor((poem.longitude - 73) / 5)}:${Math.floor((poem.latitude - 18) / 4)}`
+const regionKeyOf = (poem: Poem) => `${Math.floor((poem.longitude - 73) / 5)}:${Math.floor((poem.latitude - 18) / 4)}`
 
 const authorOptions = computed(() => {
   const candidates = dynasty.value === '全部' ? poems.value : poems.value.filter((poem) => poem.dynasty === dynasty.value)
@@ -50,40 +41,37 @@ const visiblePoems = computed(() => poems.value.filter((poem) => {
   const authorMatches = author.value === '全部诗人' || poem.author === author.value
   return dynastyMatches && authorMatches
 }))
-const clusterBuckets = computed(() => {
-  const buckets = new Map<string, Poem[]>()
-  visiblePoems.value.forEach((poem) => {
-    const key = clusterKeyOf(poem)
-    const bucket = buckets.get(key) ?? []
-    bucket.push(poem)
-    buckets.set(key, bucket)
-  })
-  return buckets
-})
-const mapClusters = computed<MapCluster[]>(() => {
-  if (catalogLocatedPoemId.value || activeClusterKey.value || visiblePoems.value.length <= MAP_PIN_LIMIT) return []
-  return [...clusterBuckets.value.entries()].map(([key, items]) => ({
-    key,
-    label: items[0]?.place.split('·')[0].trim() || '诗意区域',
-    longitude: items.reduce((sum, poem) => sum + poem.longitude, 0) / items.length,
-    latitude: items.reduce((sum, poem) => sum + poem.latitude, 0) / items.length,
-    poems: items,
-  })).sort((a, b) => b.poems.length - a.poems.length)
-})
 const mapPoems = computed(() => {
   if (catalogLocatedPoemId.value) {
     const located = poems.value.find((poem) => poem.id === catalogLocatedPoemId.value)
     return located ? [located] : []
   }
-  if (activeClusterKey.value) return (clusterBuckets.value.get(activeClusterKey.value) ?? []).slice(0, MAP_PIN_LIMIT)
-  return visiblePoems.value.length <= MAP_PIN_LIMIT ? visiblePoems.value : []
+  if (visiblePoems.value.length <= MAP_PIN_LIMIT) return visiblePoems.value
+
+  const regions = new Map<string, Poem[]>()
+  visiblePoems.value.forEach((poem) => {
+    const key = regionKeyOf(poem)
+    const items = regions.get(key) ?? []
+    items.push(poem)
+    regions.set(key, items)
+  })
+  const buckets = [...regions.entries()]
+    .sort(([first], [second]) => first.localeCompare(second))
+    .map(([, items]) => items.sort((first, second) => `${first.author}${first.title}`.localeCompare(`${second.author}${second.title}`, 'zh-CN')))
+  const sampled: Poem[] = []
+  for (let round = 0; sampled.length < MAP_PIN_LIMIT; round += 1) {
+    let added = false
+    for (const bucket of buckets) {
+      const poem = bucket[round]
+      if (!poem) continue
+      sampled.push(poem)
+      added = true
+      if (sampled.length === MAP_PIN_LIMIT) break
+    }
+    if (!added) break
+  }
+  return sampled
 })
-const activeCluster = computed(() => mapClusters.value.find((cluster) => cluster.key === activeClusterKey.value)
-  ?? (activeClusterKey.value ? {
-    key: activeClusterKey.value,
-    label: clusterBuckets.value.get(activeClusterKey.value)?.[0]?.place.split('·')[0].trim() || '当前区域',
-    poems: clusterBuckets.value.get(activeClusterKey.value) ?? [],
-  } : null))
 const catalogLocatedPoem = computed(() => poems.value.find((poem) => poem.id === catalogLocatedPoemId.value) ?? null)
 const catalogFilteredPoems = computed(() => {
   const query = catalogQuery.value.trim().toLocaleLowerCase('zh-CN')
@@ -104,7 +92,7 @@ const selectedGeography = computed(() => selectedPoem.value ? getGeographyProfil
 const timelineProgress = computed(() => `${(DYNASTIES.indexOf(dynasty.value) / (DYNASTIES.length - 1)) * 100}%`)
 const pinTitle = (title: string) => {
   const compact = title.replace(/^杂曲歌辞\s*/, '').replace(/\s+/g, '')
-  return compact.length > 6 ? `${compact.slice(0, 6)}…` : compact
+  return compact.length > 8 ? `${compact.slice(0, 8)}…` : compact
 }
 const selectDynasty = (item: Dynasty) => {
   catalogLocatedPoemId.value = null
@@ -118,18 +106,6 @@ const setPinRef = (element: unknown, poemId: string) => {
   if (element) pinRefs.set(poemId, element as HTMLButtonElement)
   else pinRefs.delete(poemId)
 }
-const setClusterRef = (element: unknown, cluster: MapCluster) => {
-  if (element) clusterRefs.set(cluster.key, {
-    element: element as HTMLButtonElement,
-    longitude: cluster.longitude,
-    latitude: cluster.latitude,
-  })
-  else clusterRefs.delete(cluster.key)
-}
-const openCluster = (cluster: MapCluster) => {
-  activeClusterKey.value = cluster.key
-  terrainController.value?.focusCoordinate(cluster.longitude, cluster.latitude)
-}
 const selectPoem = (poem: Poem) => {
   selectedPoem.value = poem
   geoOpen.value = false
@@ -137,7 +113,6 @@ const selectPoem = (poem: Poem) => {
 }
 const selectCatalogPoem = (poem: Poem) => {
   catalogOpen.value = false
-  activeClusterKey.value = null
   dynasty.value = poem.dynasty
   author.value = poem.author
   catalogLocatedPoemId.value = poem.id
@@ -147,7 +122,6 @@ const clearCatalogLocation = () => { catalogLocatedPoemId.value = null }
 const closeOverlays = () => { selectedPoem.value = null; aboutOpen.value = false; catalogOpen.value = false }
 const onKeydown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeOverlays() }
 
-watch([dynasty, author], () => { activeClusterKey.value = null })
 watch([catalogQuery, curriculumStage], () => { catalogPage.value = 1 })
 watch(catalogPageCount, (count) => { if (catalogPage.value > count) catalogPage.value = count })
 
@@ -157,7 +131,7 @@ onMounted(async () => {
   try {
     poems.value = await loadPoems()
     await nextTick()
-    terrainController.value = await mountTerrain(terrainMount.value, poems.value, () => pinRefs, () => clusterRefs, (value) => {
+    terrainController.value = await mountTerrain(terrainMount.value, poems.value, () => pinRefs, (value) => {
       loadingProgress.value = Math.max(loadingProgress.value, value)
     })
     requestAnimationFrame(() => { terrainLoading.value = false })
@@ -255,16 +229,7 @@ onUnmounted(() => {
             <span class="pin-stem" />
             <span class="pin-dot" />
           </button>
-          <button v-for="cluster in mapClusters" :key="cluster.key" :ref="(el) => setClusterRef(el, cluster)"
-            class="map-cluster" data-in-view="true" :aria-label="`展开${cluster.label}的${cluster.poems.length}首诗词`"
-            @click="openCluster(cluster)">
-            <span>{{ cluster.label }}</span><b>{{ cluster.poems.length }}</b><small>篇</small>
-          </button>
         </div>
-
-        <button v-if="activeCluster" class="cluster-back" @click="activeClusterKey = null">
-          <span>←</span> {{ activeCluster.label }} · {{ activeCluster.poems.length }} 篇 / 返回全国聚合
-        </button>
 
         <button class="reset-view" aria-label="复位地图视角" title="复位视角" @click="terrainController?.reset()">
           <span aria-hidden="true">◎</span>归位
@@ -281,8 +246,7 @@ onUnmounted(() => {
             目录定位 · 《{{ catalogLocatedPoem.title }}》
             <button @click="clearCatalogLocation">恢复筛选地图</button>
           </span>
-          <span v-else>共 {{ poems.length }} 篇 · 当前 {{ visibleCount }} 篇 · 地图 {{ mapClusters.length ?
-            `${mapClusters.length} 处聚合` : `${mapPoems.length} 篇` }}</span>
+          <span v-else>共 {{ poems.length }} 篇 · 当前 {{ visibleCount }} 篇 · 地图精选 {{ mapPoems.length }} 篇</span>
         </div>
         <div class="dynasty-timeline" :style="{ '--timeline-progress': timelineProgress }">
           <i class="timeline-track" aria-hidden="true" />
@@ -1373,89 +1337,11 @@ b.experience-shell utton {
   pointer-events: none;
 }
 
-.map-cluster {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 5;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
-  min-width: 76px;
-  min-height: 58px;
-  padding: 9px 11px 8px;
-  border: 1px solid rgba(219, 183, 121, .8);
-  border-radius: 48% 52% 46% 54%;
-  color: #f7ead2;
-  background: radial-gradient(circle at 33% 27%, #a57449, #69452f 73%);
-  box-shadow: 0 9px 23px rgba(53, 36, 25, .27), inset 0 0 0 3px rgba(242, 217, 169, .1);
-  pointer-events: auto;
-  cursor: pointer;
-  transform-origin: center bottom;
-  transition: filter .22s, opacity .22s;
-}
-
-.map-cluster:hover,
-.map-cluster:focus-visible {
-  filter: brightness(1.12) saturate(1.08);
-  outline: 2px solid rgba(164, 57, 42, .32);
-  outline-offset: 3px;
-}
-
-.map-cluster[data-in-view="false"] {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.map-cluster span {
-  grid-row: 1 / 3;
-  align-self: center;
-  padding-right: 7px;
-  border-right: 1px solid rgba(244, 220, 176, .32);
-  font: clamp(13px, calc(.36vw + 9px), 16px) KaiTi, STKaiti, serif;
-  letter-spacing: .08em;
-  white-space: nowrap;
-}
-
-.map-cluster b {
-  align-self: end;
-  font: 600 18px Georgia, serif;
-  line-height: 1;
-}
-
-.map-cluster small {
-  align-self: start;
-  font-size: 9px;
-  line-height: 1;
-  opacity: .72;
-}
-
-.cluster-back {
-  position: absolute;
-  z-index: 9;
-  left: 50%;
-  top: 20px;
-  border: 1px solid rgba(95, 69, 44, .24);
-  padding: 8px 16px;
-  color: #654a35;
-  background: rgba(239, 229, 205, .82);
-  box-shadow: 0 8px 28px rgba(62, 48, 35, .12);
-  backdrop-filter: blur(12px);
-  font: var(--font-sm) KaiTi, STKaiti, serif;
-  letter-spacing: .08em;
-  cursor: pointer;
-  transform: translateX(-50%);
-}
-
-.cluster-back span {
-  color: var(--cinnabar);
-}
-
 .pin-title {
   position: relative;
   writing-mode: vertical-rl;
   min-height: 66px;
-  max-height: 112px;
+  max-height: 142px;
   padding: 9px 6px;
   background: linear-gradient(180deg, rgba(118, 84, 51, .96), rgba(76, 52, 34, .97));
   color: #f5e9d1;
@@ -2990,21 +2876,6 @@ b.experience-shell utton {
 
   .catalog-work b {
     font-size: 15px;
-  }
-
-  .cluster-back {
-    top: 14px;
-    max-width: calc(100vw - 110px);
-    overflow: hidden;
-    padding: 7px 10px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .map-cluster {
-    min-width: 65px;
-    min-height: 52px;
-    padding: 7px 9px;
   }
 
   .poem-card-backdrop {
