@@ -522,6 +522,10 @@ let renderer: THREE.WebGLRenderer
 let labelRenderer: CSS2DRenderer
 let controls: OrbitControls
 let animationId: number
+let cameraInteractionActive = false
+let lastLabelRenderTime = 0
+const viewCubeCameraOffset = new THREE.Vector3()
+let lastViewCubeTransform = ''
 let heightsData: number[][] = []
 let maxHeightValue = 0
 
@@ -1392,9 +1396,17 @@ function initScene() {
   controls.dampingFactor = 0.08
   controls.minDistance = 1.5
   controls.maxDistance = 14
-  // 允许完全俯视 (0) 和完全仰视 (π)，无角度限制
-  controls.minPolarAngle = 0
-  controls.maxPolarAngle = Math.PI
+  // 避开相机视线与 up 方向完全平行的极点奇异区。
+  // 约 1.15° 的安全余量肉眼仍接近正俯视/仰视，但可防止轨道控制抖动卡死。
+  const polarSafetyMargin = THREE.MathUtils.degToRad(1.15)
+  controls.minPolarAngle = polarSafetyMargin
+  controls.maxPolarAngle = Math.PI - polarSafetyMargin
+  controls.addEventListener('start', () => {
+    cameraInteractionActive = true
+  })
+  controls.addEventListener('end', () => {
+    cameraInteractionActive = false
+  })
   controls.update()
 
   // 创建分组
@@ -1890,9 +1902,9 @@ const VIEW_PRESETS: Record<string, { pos: [number, number, number]; target: [num
   back: { pos: [0, 2.5, -7.0], target: [0, 0.8, 0] },
   left: { pos: [-7.0, 2.5, 0], target: [0, 0.8, 0] },
   right: { pos: [7.0, 2.5, 0], target: [0, 0.8, 0] },
-  // 标准俯视：相机正上方，看向中心，X/Z 严格归零保证完全正交
-  top: { pos: [0, 8.5, 0], target: [0, 0, 0] },
-  bottom: { pos: [0, -7.0, 0], target: [0, 0, 0] },
+  // 顶/底视角保留极小的 Z 偏移，避免视线与 camera.up 完全平行。
+  top: { pos: [0, 8.5, 0.17], target: [0, 0, 0] },
+  bottom: { pos: [0, -7.0, 0.14], target: [0, 0, 0] },
 }
 
 function setView(view: keyof typeof VIEW_PRESETS) {
@@ -1936,17 +1948,20 @@ function updateViewCubeDockPosition() {
 
 function updateViewCube() {
   // 跟随相机实时旋转立方体（与参考图项目一致）
-  updateViewCubeDockPosition()
-
   const el = viewCube.value
   if (!el || !camera) return
   const target = controls?.target ?? new THREE.Vector3(0, 0, 0)
-  const v = camera.position.clone().sub(target)
-  const p = Math.asin(Math.max(-1, Math.min(1, v.y / v.length())))
-  const y = Math.atan2(v.x, v.z)
+  viewCubeCameraOffset.copy(camera.position).sub(target)
+  const distance = Math.max(viewCubeCameraOffset.length(), Number.EPSILON)
+  const p = Math.asin(Math.max(-1, Math.min(1, viewCubeCameraOffset.y / distance)))
+  const y = Math.atan2(viewCubeCameraOffset.x, viewCubeCameraOffset.z)
   // 立方体边长 60px（基础），响应式缩放
   const halfSize = 30 * uiScale.value
-  el.style.transform = `translateZ(${-halfSize}px) rotateX(${-p}rad) rotateY(${-y}rad)`
+  const transform = `translateZ(${-halfSize}px) rotateX(${-p}rad) rotateY(${-y}rad)`
+  if (transform !== lastViewCubeTransform) {
+    el.style.transform = transform
+    lastViewCubeTransform = transform
+  }
 }
 
 function bindViewCube() {
@@ -2651,11 +2666,21 @@ function drawProfileChart() {
 // ============================================================
 // 生命周期
 // ============================================================
-function animate() {
-  controls.update()
+function animate(timestamp = performance.now()) {
+  const cameraChanged = controls.update()
   updateViewCube()
   renderer.render(scene, camera)
-  labelRenderer.render(scene, camera)
+
+  // CSS2D 标签保持可见；相机运动时限制到约 30fps，降低大量 DOM
+  // transform 同步带来的布局压力。静止时低频刷新，兼顾开关状态更新。
+  const labelFrameInterval = cameraInteractionActive || cameraChanged
+    ? 1000 / 30
+    : 200
+  if (timestamp - lastLabelRenderTime >= labelFrameInterval) {
+    labelRenderer.render(scene, camera)
+    lastLabelRenderTime = timestamp
+  }
+
   animationId = requestAnimationFrame(animate)
 }
 
