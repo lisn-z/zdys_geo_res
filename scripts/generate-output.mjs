@@ -4,6 +4,7 @@
  *   - output/astro/<folder>.astro     (Astro 页面)
  *   - output/styles/                  (src/styles/ 的复制)
  *   - output/hooks/                   (src/hooks/ 的复制)
+ *   - output/components/              (src/components/ 的复制)
  *   - output/report.json              (JSON 报告)
  *
  */
@@ -29,6 +30,7 @@ const SRC_DIR = join(root, 'src')
 const VIEWS_DIR = join(SRC_DIR, 'views')
 const STYLES_DIR = join(SRC_DIR, 'styles')
 const HOOKS_DIR = join(SRC_DIR, 'hooks')
+const COMPONENTS_DIR = join(SRC_DIR, 'components')
 const ROUTES_FILE = join(SRC_DIR, 'routes', 'index.ts')
 const OUTPUT_DIR = join(root, 'output')
 const GEO_DIR = join(OUTPUT_DIR, 'geo')
@@ -278,6 +280,18 @@ function main() {
     console.log(`✅ 复制: ${HOOKS_DIR} → ${outputHooksDir}`)
   } else {
     console.warn('⚠️  src/hooks/ 目录不存在，跳过')
+  }
+
+  // 7.5 复制 src/components/ → output/components/
+  const outputComponentsDir = join(OUTPUT_DIR, 'components')
+  if (existsSync(COMPONENTS_DIR)) {
+    if (existsSync(outputComponentsDir)) {
+      rmSync(outputComponentsDir, { recursive: true, force: true })
+    }
+    cpSync(COMPONENTS_DIR, outputComponentsDir, { recursive: true })
+    console.log(`✅ 复制: ${COMPONENTS_DIR} → ${outputComponentsDir}`)
+  } else {
+    console.warn('⚠️  src/components/ 目录不存在，跳过')
   }
 
   // 8. 生成 report.json

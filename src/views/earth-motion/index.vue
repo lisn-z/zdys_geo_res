@@ -2,6 +2,26 @@
   <section ref="rootRef"
     class="earth-orbit-template earth-orbit-template5 geo-template-page geo-page theme-dark layout-floating"
     :class="'layout-' + layoutMode">
+    <Transition name="page-loading-fade">
+      <div v-if="pageLoading" class="page-loading-overlay" role="status" aria-live="polite"
+        aria-label="正在加载地球运动场景">
+        <div class="page-loading-content">
+          <div class="scene-loading-visual" aria-hidden="true">
+            <i class="loading-orbit loading-orbit-outer"></i>
+            <i class="loading-orbit loading-orbit-inner"></i>
+            <span class="loading-earth"></span>
+            <span class="loading-sun"></span>
+          </div>
+          <strong>正在加载地球运动场景</strong>
+          <span>{{ textureLoadingLabel }}</span>
+          <div class="page-loading-progress" aria-hidden="true">
+            <i :style="{ width: `${textureLoadingProgress}%` }"></i>
+          </div>
+          <small>{{ textureLoadingProgress }}%</small>
+        </div>
+      </div>
+    </Transition>
+
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -20,6 +40,16 @@
         <button type="button" class="theme-btn toolbar-btn" :class="{ active: timelineDockVisible }"
           @click="timelineDockVisible = !timelineDockVisible">
           时间轴
+        </button>
+
+        <button type="button" class="theme-btn toolbar-btn" :class="{ active: floatingVisible.data }"
+          :title="floatingVisible.data ? '隐藏数据卡片' : '显示数据卡片'" @click="toggleFloatingVisibility('data')">
+          数据卡片
+        </button>
+
+        <button type="button" class="theme-btn toolbar-btn" :class="{ active: floatingVisible.track }"
+          :title="floatingVisible.track ? '隐藏直射轨迹' : '显示直射轨迹'" @click="toggleFloatingVisibility('track')">
+          直射轨迹
         </button>
 
         <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllControlPanels">
@@ -98,14 +128,17 @@
             </div>
 
             <el-slider v-model="daySpeed" :min="0.05" :max="8" :step="0.05" :show-tooltip="false" />
+          </section>
 
-            <div class="switch-row">
-              <div class="control-copy">
-                <strong>自动演示</strong>
-                <span>自动推进公转与自转时间</span>
-              </div>
+          <section class="geo-card control-section">
+            <h3 class="section-title">主要节气</h3>
 
-              <el-switch v-model="isPlaying" />
+            <div class="solar-term-shortcuts">
+              <button v-for="term in solarTerms" :key="term.name" type="button"
+                class="theme-btn option-btn solar-term-btn" :class="{ active: isSolarTermActive(term) }"
+                @click="setSolarTerm(term.progress)">
+                <strong>{{ term.name }}</strong>
+              </button>
             </div>
           </section>
 
@@ -167,6 +200,18 @@
           </div>
 
           <div class="orbit-overlay-layer">
+            <Transition name="solar-term-feedback">
+              <div v-if="solarTermFeedback" :key="solarTermFeedbackKey" class="solar-term-feedback" role="status"
+                aria-live="polite">
+                <span class="solar-feedback-mark" aria-hidden="true"></span>
+                <strong>{{ solarTermFeedback.name }}</strong>
+                <i aria-hidden="true"></i>
+                <span>{{ solarTermFeedback.date }}</span>
+                <i aria-hidden="true"></i>
+                <span>太阳直射{{ solarTermFeedback.directPoint }}</span>
+              </div>
+            </Transition>
+
             <section v-show="timelineDockVisible" class="timeline-dock orbit-time-dock">
               <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
                 :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
@@ -180,45 +225,32 @@
                 </svg>
               </button>
               <div class="timeline-main orbit-timeline-main">
-                <div class="timeline-row">
-                  <div class="timeline-label between">
-                    <span>公转时间轴</span>
-                    <strong class="accent-value">
-                      {{ currentSolarTerm.name }}
-                    </strong>
+                <div class="timeline-channel orbit-timeline-channel">
+                  <div class="timeline-label timeline-inline-label">
+                    <span>公转</span>
+                    <strong class="accent-value">{{ currentSolarTerm.name }}</strong>
                   </div>
-
-                  <el-slider v-model="yearProgress" :min="0" :max="1" :step="0.001" :show-tooltip="false" />
-                </div>
-
-                <div class="timeline-scale term-scale-row">
-                  <div class="scale-track term-scale">
-                    <button v-for="term in solarTerms" :key="term.name" type="button" :style="{
-                      left: sliderTrackLeft(term.progress)
-                    }" @click="setSolarTerm(term.progress)">
-                      <i></i>
-                      <span>{{ term.name }}</span>
-                    </button>
+                  <div class="timeline-slider-stack">
+                    <el-slider v-model="yearProgress" :min="0" :max="1" :step="0.001" :show-tooltip="false" />
+                    <div class="timeline-term-scale" aria-label="主要节气刻度">
+                      <button v-for="term in solarTerms" :key="term.name" type="button"
+                        :class="{ active: isSolarTermActive(term) }" :style="{ left: sliderTrackLeft(term.progress) }"
+                        :title="`${term.name} ${term.date}`" @click="setSolarTerm(term.progress)">
+                        <i></i>
+                        <span>{{ term.name }}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div class="timeline-row">
-                  <div class="timeline-label between">
-                    <span>自转时间轴</span>
-                    <strong class="accent-value">
-                      {{ observerSolarTime }}
-                    </strong>
-                  </div>
+                <i class="timeline-channel-divider" aria-hidden="true"></i>
 
+                <div class="timeline-channel rotation-timeline-channel">
+                  <div class="timeline-label timeline-inline-label">
+                    <span>自转</span>
+                    <strong class="accent-value">{{ observerSolarTime }}</strong>
+                  </div>
                   <el-slider v-model="observerLocalHour" :min="0" :max="24" :step="0.05" :show-tooltip="false" />
-                </div>
-
-                <div class="hour-scale">
-                  <span>0h</span>
-                  <span>6h</span>
-                  <span>12h</span>
-                  <span>18h</span>
-                  <span>24h</span>
                 </div>
               </div>
             </section>
@@ -226,220 +258,47 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>实时数据</h2>
-              <p>观测点、太阳直射点、昼夜长与季节变化</p>
-            </div>
-
-            <span class="panel-badge">DATA</span>
-          </div>
-
-          <section class="geo-card data-panel-card observation-data-card" :class="{ empty: !selectedObservation }">
-            <header class="obs-head">
-              <span class="obs-title-main">观测点</span>
-              <div class="obs-place-row">
-                <strong>
-                  {{ selectedObservation ? selectedObservation.name : '未选择观测点' }}
-                </strong>
-              </div>
-            </header>
-
-            <div v-if="selectedObservation" class="obs-body">
-              <div class="obs-summary-cards">
-                <article class="obs-summary-card">
-                  <span>直射纬度</span>
-                  <strong class="accent-value">
-                    {{ formatLat(currentDeclinationDeg) }}
-                  </strong>
-                </article>
-
-                <article class="obs-summary-card date-card">
-                  <span>日期 / 日序</span>
-                  <strong>
-                    <em class="date-text">{{ currentMonthDay }}</em>
-                    · 第 {{ currentDayOfYear }} 天
-                  </strong>
-                </article>
-              </div>
-
-              <dl>
-                <div>
-                  <dt>纬度</dt>
-                  <dd>{{ formatLat(selectedObservation.lat) }}</dd>
-                </div>
-                <div>
-                  <dt>经度</dt>
-                  <dd>{{ formatLon(selectedObservation.lon) }}</dd>
-                </div>
-                <div>
-                  <dt>太阳时</dt>
-                  <dd class="accent-value">{{ selectedObservation.solarTime }}</dd>
-                </div>
-                <div>
-                  <dt>太阳高度角</dt>
-                  <dd class="accent-value">{{ formatSignedDeg(selectedObservation.solarAltitude) }}</dd>
-                </div>
-                <div v-if="selectedObservation.polarStatus" class="wide">
-                  <dt>昼夜状态</dt>
-                  <dd class="accent-value">{{ selectedObservation.polarStatus }}</dd>
-                </div>
-                <div v-if="!selectedObservation.polarStatus">
-                  <dt>昼长</dt>
-                  <dd>{{ selectedObservation.dayLength }}</dd>
-                </div>
-                <div v-if="!selectedObservation.polarStatus">
-                  <dt>夜长</dt>
-                  <dd>{{ selectedObservation.nightLength }}</dd>
-                </div>
-                <div>
-                  <dt>日出</dt>
-                  <dd class="accent-value">{{ selectedObservation.sunriseTime }}</dd>
-                </div>
-                <div>
-                  <dt>日落</dt>
-                  <dd class="accent-value">{{ selectedObservation.sunsetTime }}</dd>
-                </div>
-              </dl>
-
-              <section class="geo-card direct-track-card">
-
-
-                <header class="direct-track-head">
-
-
-                  <div>
-
-
-                    <h3>太阳直射点移动</h3>
-
-
-                    <p>南北回归线之间的周年摆动</p>
-
-
-                  </div>
-
-
-                  <span>δ</span>
-
-
-                </header>
-
-
-
-                <section class="obs-track-card earth-section-card">
-                  <svg class="earth-section-svg" viewBox="0 0 280 112" preserveAspectRatio="xMidYMid meet" role="img">
-                    <defs>
-                      <linearGradient id="trackGradientObs" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stop-color="#2ec4b6"></stop>
-                        <stop offset="55%" stop-color="#47a3ff"></stop>
-                        <stop offset="100%" stop-color="#ffd166"></stop>
-                      </linearGradient>
-                    </defs>
-
-                    <g class="ellipse-earth-pair">
-                      <ellipse cx="82" cy="56" rx="58" ry="47" class="earth-ellipse-outline"></ellipse>
-
-                      <ellipse cx="198" cy="56" rx="58" ry="47" class="earth-ellipse-outline"></ellipse>
-
-                      <path d="M24 43 L82 43 L140 43 L198 43 L256 43" class="section-lat-line tropic"></path>
-
-                      <path d="M24 49.5 L82 49.5 L140 49.5 L198 49.5 L256 49.5" class="section-lat-line grid"></path>
-
-                      <path d="M24 56 L82 56 L140 56 L198 56 L256 56" class="section-lat-line equator"></path>
-
-                      <path d="M24 62.5 L82 62.5 L140 62.5 L198 62.5 L256 62.5" class="section-lat-line grid"></path>
-
-                      <path d="M24 69 L82 69 L140 69 L198 69 L256 69" class="section-lat-line tropic"></path>
-
-                      <path d="M48 16 C39 35 39 77 48 96" class="section-lon-line"></path>
-                      <path d="M82 9 C82 31 82 81 82 103" class="section-lon-line main"></path>
-                      <path d="M116 16 C125 35 125 77 116 96" class="section-lon-line"></path>
-
-                      <path d="M164 16 C155 35 155 77 164 96" class="section-lon-line"></path>
-                      <path d="M198 9 C198 31 198 81 198 103" class="section-lon-line main"></path>
-                      <path d="M232 16 C241 35 241 77 232 96" class="section-lon-line"></path>
-
-                      <text x="8" y="46" text-anchor="start" class="latitude-label">
-                        北回归线
-                      </text>
-
-                      <text x="8" y="59" text-anchor="start" class="latitude-label">
-                        赤道
-                      </text>
-
-                      <text x="8" y="72" text-anchor="start" class="latitude-label">
-                        南回归线
-                      </text>
-
-                      <path :d="sunTrackPath" class="earth-track-path"></path>
-
-                      <circle :cx="progressToX(yearProgress)" :cy="latToY(currentDeclinationDeg)" r="4.8"
-                        class="track-dot"></circle>
-
-                      <line :x1="progressToX(yearProgress) - 24" :x2="progressToX(yearProgress) + 24"
-                        :y1="latToY(currentDeclinationDeg)" :y2="latToY(currentDeclinationDeg)" class="sun-direct-ray">
-                      </line>
-
-                      <text :x="progressToX(yearProgress)" :y="Math.max(12, latToY(currentDeclinationDeg) - 9)"
-                        text-anchor="middle" class="direct-label">
-                        直射点
-                      </text>
-                    </g>
-                  </svg>
-                </section>
-
-
-              </section>
-            </div>
-
-            <p v-else class="empty-tip">
-              选择城市后显示太阳高度角、昼夜长等信息。
-            </p>
-          </section>
-        </div>
-
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
-
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
-      </button>
-
       <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
         v-bind="leftEntryAttrs">
         ›
       </button>
     </main>
 
-    <section v-show="subSceneVisible" ref="subSceneRef" class="sub-scene-window scene-float-card" :style="{
-      width: `${subSceneSize.width}px`,
-      height: `${subSceneSize.height}px`,
-      left: subPosX + 'px',
-      top: subPosY + 'px',
-    }">
-      <header class="sub-scene-head" @pointerdown.stop.prevent="onSubDragStart">
+    <ObservationDataCard v-if="floatingVisible.data" v-bind="observationCardData" />
+
+    <SolarTrackCard v-if="floatingVisible.track" :earth-texture="RAW_TEXTURES.earth" :track-path="mapTrackPath"
+      :track-area-path="mapTrackAreaPath" :point-x="mapPointX" :point-y="mapPointY" :current-month-day="currentMonthDay"
+      :current-latitude="formatLat(currentDeclinationDeg)" :solar-term-name="currentSolarTerm.name"
+      :day-of-year="currentDayOfYear" :bottom-inset="timelineDockVisible ? 112 : 10" />
+
+    <section v-show="subSceneVisible" ref="subSceneRef"
+      class="sub-scene-window floating-info-card floating-sub-scene-card scene-float-card"
+      :class="{ collapsed: subSceneCollapsed }" :style="{
+        width: subSceneCollapsed ? '196px' : `${subSceneSize.width}px`,
+        height: subSceneCollapsed ? 'auto' : `${subSceneSize.height}px`,
+        left: subPosX + 'px',
+        top: subPosY + 'px',
+      }">
+      <header class="sub-scene-head floating-card-head" @pointerdown.stop.prevent="onSubDragStart">
         <div class="sub-title">
-          <span>副机位观察</span>
+          <span class="floating-kicker">副机位</span>
           <strong>{{ subViewLabel }}</strong>
         </div>
 
-        <el-select v-model="subViewMode" class="theme-select sub-view-select"
-          popper-class="geo-select-popper geo-select-popper-dark" size="small" :teleported="false">
-          <el-option v-for="view in subViewModes" :key="view.key" :label="view.label" :value="view.key" />
-        </el-select>
+        <div class="sub-head-actions">
+          <el-select v-show="!subSceneCollapsed" v-model="subViewMode" class="theme-select sub-view-select"
+            popper-class="geo-select-popper geo-select-popper-dark" size="small" :teleported="false" @pointerdown.stop>
+            <el-option v-for="view in subViewModes" :key="view.key" :label="view.label" :value="view.key" />
+          </el-select>
+          <button type="button" class="card-collapse-btn" :aria-label="subSceneCollapsed ? '展开副机位' : '收起副机位'"
+            :title="subSceneCollapsed ? '展开副机位' : '收起副机位'" @pointerdown.stop @click.stop="toggleSubSceneCollapsed">{{
+              subSceneCollapsed ? '+' : '−' }}</button>
+        </div>
       </header>
 
-      <canvas ref="subCanvasRef" class="sub-canvas"></canvas>
+      <canvas v-show="!subSceneCollapsed" ref="subCanvasRef" class="sub-canvas"></canvas>
 
-      <button class="sub-resize-handle" type="button" title="拖动调整副机位大小"
+      <button v-show="!subSceneCollapsed" class="sub-resize-handle" type="button" title="拖动调整副机位大小"
         @pointerdown.stop.prevent="onSubResizeStart"></button>
     </section>
   </section>
@@ -448,15 +307,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import '@/styles/geo-page-template.css'
-import { ElButton, ElSlider, ElSwitch, ElSelect, ElOption } from 'element-plus'
+import { ElSlider, ElSwitch, ElSelect, ElOption } from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import ObservationDataCard from './ObservationDataCard.vue'
+import SolarTrackCard from './SolarTrackCard.vue'
 import {
   useGeoPanelLayout,
 } from '@/hooks/useGeoPanelLayout'
 
 type FocusMode = 'sun' | 'earth'
+type FloatingCardKey = 'data' | 'track'
 
 type SubViewMode =
   | 'dawn'
@@ -494,6 +356,7 @@ interface SolarTerm {
   progress: number
   day: number
   date: string
+  directPoint: string
 }
 
 interface CalendarTick {
@@ -517,6 +380,7 @@ interface DisplayToggleMap {
   terminator: boolean
   grid: boolean
   tropics: boolean
+  zones: boolean
   tiltLabels: boolean
   tiltAngle: boolean
   rotationArrow: boolean
@@ -532,6 +396,7 @@ const DEG = Math.PI / 180
 const RAD = 180 / Math.PI
 const EARTH_TILT_DEG = 23.44
 const EARTH_TILT = EARTH_TILT_DEG * DEG
+const POLAR_CIRCLE_DEG = 90 - EARTH_TILT_DEG
 const EARTH_RADIUS = 1.35
 const SUN_RADIUS = 2.45
 const ORBIT_RADIUS = 12.6
@@ -540,10 +405,50 @@ const SPRING_EQUINOX_DAY = 80
 const SPIN_VISUAL_OFFSET = 0
 
 const TEXTURE_BASE = '/geo-resources-folder/images'
+const GALAXY_SKYBOX_URL = `${TEXTURE_BASE}/milky-way-6k.jpg`
 const RAW_TEXTURES = {
   sun: `${TEXTURE_BASE}/sun.png`,
   earth: `${TEXTURE_BASE}/Material.002_diffuse.jpg`,
   night: `${TEXTURE_BASE}/emissive.jpg`
+}
+
+const pageLoading = ref(true)
+const textureLoadingProgress = ref(0)
+const textureLoadingLabel = ref('正在连接纹理资源')
+let pageRevealTimer: number | null = null
+
+const sceneTextureLoadingManager = new THREE.LoadingManager()
+sceneTextureLoadingManager.onStart = (url, itemsLoaded, itemsTotal) => {
+  textureLoadingProgress.value = itemsTotal > 0 ? Math.round((itemsLoaded / itemsTotal) * 100) : 0
+  textureLoadingLabel.value = `正在加载${getTextureDisplayName(url)}`
+}
+sceneTextureLoadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+  textureLoadingProgress.value = itemsTotal > 0 ? Math.round((itemsLoaded / itemsTotal) * 100) : 0
+  textureLoadingLabel.value = itemsLoaded >= itemsTotal
+    ? '纹理加载完成，正在生成场景'
+    : `已加载${getTextureDisplayName(url)}`
+}
+sceneTextureLoadingManager.onError = (url) => {
+  console.warn(`场景纹理加载失败，将使用备用材质：${url}`)
+  textureLoadingLabel.value = '部分纹理不可用，正在启用备用材质'
+}
+sceneTextureLoadingManager.onLoad = () => {
+  textureLoadingProgress.value = 100
+  textureLoadingLabel.value = '场景准备完成'
+  if (pageRevealTimer !== null) window.clearTimeout(pageRevealTimer)
+  pageRevealTimer = window.setTimeout(() => {
+    pageLoading.value = false
+    pageRevealTimer = null
+  }, 180)
+}
+const sceneTextureLoader = new THREE.TextureLoader(sceneTextureLoadingManager)
+
+function getTextureDisplayName(url: string) {
+  if (url.includes('milky-way')) return '银河天空'
+  if (url.includes('Material.002')) return '地球表面'
+  if (url.includes('emissive')) return '夜间灯光'
+  if (url.includes('sun')) return '太阳表面'
+  return '场景纹理'
 }
 
 const viewportRef =
@@ -559,7 +464,7 @@ const subSceneRef =
   ref<HTMLElement | null>(null)
 
 const hasLeftPanel = true
-const hasRightPanel = true
+const hasRightPanel = false
 
 /*
  * 左右面板统一交给公共 Hook：
@@ -576,7 +481,6 @@ const {
   layoutMode,
 
   leftCollapsed,
-  rightCollapsed,
 
   allPanelsCollapsed:
   allSidePanelsCollapsed,
@@ -586,16 +490,12 @@ const {
 
   workspaceAttrs,
   leftPanelAttrs,
-  rightPanelAttrs,
 
   leftResizeAttrs,
-  rightResizeAttrs,
 
   leftCollapseAttrs,
-  rightCollapseAttrs,
 
   leftEntryAttrs,
-  rightEntryAttrs,
 
   setAllCollapsed,
 } = useGeoPanelLayout({
@@ -798,7 +698,7 @@ const daySpeed = ref(1.4)
 const sunLightPower = ref(1.45)
 const nightMapPower = ref(1.75)
 const nightLightPower = ref(2.15)
-const darkSideSurfacePower = ref(0.42)
+const darkSideSurfacePower = ref(0.25)
 const ambientLightPower = ref(1.15)
 const focusMode = ref<FocusMode>('sun')
 const clickAddEnabled = ref(false)
@@ -806,13 +706,70 @@ const sunTrackVisible = ref(true)
 const observationPanelVisible = ref(true)
 const timelineDockVisible = ref(true)
 const subSceneVisible = ref(false)
-const yearProgress = ref(dayOfYearToCalendarProgress(356))
+const yearProgress = ref(dayOfYearToCalendarProgress(SPRING_EQUINOX_DAY))
+const solarTermFeedback = ref<SolarTerm | null>(null)
+const solarTermFeedbackKey = ref(0)
 const subViewMode = ref<SubViewMode>('dawn')
 const subSceneSize = reactive({ width: 360, height: 268 })
 const subPosX = ref(0)
 const subPosY = ref(0)
+const subRelativePosition = reactive({ x: 0.5, y: 0 })
+const subSceneCollapsed = ref(false)
 let subDragState: { startX: number; startY: number; posX: number; posY: number } | null = null
 const referenceSolarHour = ref(3.9)
+const floatingVisible = reactive<Record<FloatingCardKey, boolean>>({
+  data: true,
+  track: true,
+})
+
+function toggleFloatingVisibility(key: FloatingCardKey) {
+  floatingVisible[key] = !floatingVisible[key]
+}
+
+function clampSubScenePosition(x: number, y: number) {
+  const width = subSceneRef.value?.offsetWidth || (subSceneCollapsed.value ? 196 : subSceneSize.width)
+  const height = subSceneRef.value?.offsetHeight || (subSceneCollapsed.value ? 58 : subSceneSize.height)
+  const margin = 10
+  return {
+    x: clamp(x, margin, Math.max(margin, window.innerWidth - width - margin)),
+    y: clamp(y, 62, Math.max(62, window.innerHeight - height - margin)),
+  }
+}
+
+function updateSubSceneRelativePosition() {
+  const width = subSceneRef.value?.offsetWidth || (subSceneCollapsed.value ? 196 : subSceneSize.width)
+  const height = subSceneRef.value?.offsetHeight || (subSceneCollapsed.value ? 58 : subSceneSize.height)
+  const minX = 10
+  const maxX = Math.max(minX, window.innerWidth - width - 10)
+  const minY = 62
+  const maxY = Math.max(minY, window.innerHeight - height - 10)
+  if (maxX > minX) subRelativePosition.x = clamp((subPosX.value - minX) / (maxX - minX), 0, 1)
+  if (maxY > minY) subRelativePosition.y = clamp((subPosY.value - minY) / (maxY - minY), 0, 1)
+}
+
+function applySubSceneRelativePosition() {
+  const width = subSceneRef.value?.offsetWidth || (subSceneCollapsed.value ? 196 : subSceneSize.width)
+  const height = subSceneRef.value?.offsetHeight || (subSceneCollapsed.value ? 58 : subSceneSize.height)
+  const minX = 10
+  const maxX = Math.max(minX, window.innerWidth - width - 10)
+  const minY = 62
+  const maxY = Math.max(minY, window.innerHeight - height - 10)
+  subPosX.value = minX + (maxX - minX) * subRelativePosition.x
+  subPosY.value = minY + (maxY - minY) * subRelativePosition.y
+}
+
+function constrainSubSceneWindow() {
+  if (!subSceneVisible.value) return
+  nextTick(applySubSceneRelativePosition)
+}
+
+function toggleSubSceneCollapsed() {
+  subSceneCollapsed.value = !subSceneCollapsed.value
+  nextTick(() => {
+    applySubSceneRelativePosition()
+    if (!subSceneCollapsed.value) resizeSubRenderer()
+  })
+}
 
 function onSubDragStart(event: PointerEvent) {
   event.stopPropagation()
@@ -823,7 +780,7 @@ function onSubDragStart(event: PointerEvent) {
     posY: subPosY.value,
   }
   document.body.classList.add('geo-panel-resizing')
-  document.body.style.cursor = 'move'
+  document.body.style.cursor = 'grabbing'
   document.body.style.userSelect = 'none'
   window.addEventListener('pointermove', onSubDragMove)
   window.addEventListener('pointerup', onSubDragEnd, { once: true })
@@ -832,12 +789,17 @@ function onSubDragStart(event: PointerEvent) {
 
 function onSubDragMove(event: PointerEvent) {
   if (!subDragState) return
-  subPosX.value = subDragState.posX + (event.clientX - subDragState.startX)
-  subPosY.value = subDragState.posY + (event.clientY - subDragState.startY)
+  const next = clampSubScenePosition(
+    subDragState.posX + (event.clientX - subDragState.startX),
+    subDragState.posY + (event.clientY - subDragState.startY),
+  )
+  subPosX.value = next.x
+  subPosY.value = next.y
 }
 
 function onSubDragEnd() {
   subDragState = null
+  updateSubSceneRelativePosition()
   document.body.classList.remove('geo-panel-resizing')
   document.body.style.cursor = ''
   document.body.style.userSelect = ''
@@ -850,6 +812,7 @@ const toggles = reactive<DisplayToggleMap>({
   terminator: true,
   grid: true,
   tropics: true,
+  zones: false,
   tiltLabels: true,
   tiltAngle: true,
   rotationArrow: true,
@@ -863,6 +826,7 @@ const displayOptions = [
   { key: 'terminator', label: '晨昏线' },
   { key: 'grid', label: '经纬网' },
   { key: 'tropics', label: '南北回归线' },
+  { key: 'zones', label: '五带划分' },
   { key: 'tiltLabels', label: '黄道面/赤道面' },
   { key: 'tiltAngle', label: '黄赤交角标注' },
   { key: 'rotationArrow', label: '自转方向箭头' },
@@ -873,10 +837,10 @@ const displayOptions = [
 ]
 
 const solarTerms: SolarTerm[] = [
-  { name: '春分', progress: dayOfYearToCalendarProgress(80), day: 80, date: '3月21日' },
-  { name: '夏至', progress: dayOfYearToCalendarProgress(172), day: 172, date: '6月21日' },
-  { name: '秋分', progress: dayOfYearToCalendarProgress(266), day: 266, date: '9月23日' },
-  { name: '冬至', progress: dayOfYearToCalendarProgress(356), day: 356, date: '12月22日' }
+  { name: '春分', progress: dayOfYearToCalendarProgress(80), day: 80, date: '3月21日', directPoint: '赤道' },
+  { name: '夏至', progress: dayOfYearToCalendarProgress(172), day: 172, date: '6月21日', directPoint: '北回归线' },
+  { name: '秋分', progress: dayOfYearToCalendarProgress(266), day: 266, date: '9月23日', directPoint: '赤道' },
+  { name: '冬至', progress: dayOfYearToCalendarProgress(356), day: 356, date: '12月22日', directPoint: '南回归线' }
 ]
 
 const calendarTicks: CalendarTick[] = [
@@ -919,10 +883,10 @@ let pointCounter = 1
 const currentDeclinationDeg = computed(() => getDeclination(yearProgress.value) * RAD)
 const currentDayOfYear = computed(() => progressToDayOfYear(yearProgress.value))
 const currentMonthDay = computed(() => dayOfYearToMonthDay(currentDayOfYear.value))
-const currentSolarTerm = computed(() => {
+const currentSolarTerm = computed<SolarTerm>(() => {
   const p = normalize01(yearProgress.value)
   const ordered = [...solarTerms].sort((a, b) => a.progress - b.progress)
-  let active = ordered[ordered.length - 1]
+  let active = ordered[ordered.length - 1]!
   for (const term of ordered) {
     if (p >= term.progress) active = term
   }
@@ -931,6 +895,24 @@ const currentSolarTerm = computed(() => {
 const selectedObservation = computed(() => {
   const point = observationPoints.value.find((p) => p.id === selectedObservationId.value)
   return point ? computeObservation(point) : null
+})
+const observationCardData = computed(() => {
+  const observation = selectedObservation.value
+  return {
+    hasObservation: Boolean(observation),
+    place: observation?.name || '未选择观测点',
+    solarAltitude: observation ? formatSignedDeg(observation.solarAltitude) : '--',
+    solarTime: observation?.solarTime || '--:--',
+    dateLabel: `${currentMonthDay.value} · ${currentSolarTerm.value.name}`,
+    coordinateLabel: observation ? `${formatLat(observation.lat)} · ${formatLon(observation.lon)}` : '--',
+    directLatitude: formatLat(currentDeclinationDeg.value),
+    dayNightLabel: observation?.polarStatus ? '昼夜状态' : '昼长 / 夜长',
+    dayNightValue: observation
+      ? observation.polarStatus || `${observation.dayLength} / ${observation.nightLength}`
+      : '--',
+    sunrise: observation?.sunriseTime || '--:--',
+    sunset: observation?.sunsetTime || '--:--',
+  }
 })
 
 const currentObserverPoint = computed(() => observationPoints.value.find((p) => p.id === selectedObservationId.value) || DEFAULT_OBSERVATION)
@@ -946,49 +928,20 @@ const observerLocalHour = computed({
 })
 const observerSolarTime = computed(() => selectedObservation.value?.solarTime || formatHour(observerLocalHour.value))
 
-const svgWidth = 252
-const svgHeight = 108
-const svgPad = 32
-const svgRightPad = 8
-const svgTopPad = 16
-const svgBottomPad = 20
-const yTicks = [
-  { lat: 23.44, label: '23.44°N' },
-  { lat: 0, label: '0°' },
-  { lat: -23.44, label: '23.44°S' }
-]
-
-const sunTrackPath = computed(() => {
-  const total = 96
+const mapTrackPath = computed(() => {
   const points: string[] = []
-
+  const total = 180
   for (let i = 0; i <= total; i += 1) {
-    const t =
-      i / total
-
-    // 冬至作为左端起点：
-    // t=0   -> 南回归线
-    // t=0.25-> 赤道
-    // t=0.5 -> 北回归线
-    // t=0.75-> 赤道
-    // t=1   -> 南回归线
-    const lat =
-      -EARTH_TILT_DEG *
-      Math.cos(t * Math.PI * 2)
-
-    const x =
-      24 + t * 232
-
-    const y =
-      latToY(lat)
-
-    points.push(
-      `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
-    )
+    const progress = i / total
+    const x = progress * 720
+    const y = mapLatToY(getDeclination(progress) * RAD)
+    points.push(`${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`)
   }
-
   return points.join(' ')
 })
+const mapTrackAreaPath = computed(() => `${mapTrackPath.value} L 720 360 L 0 360 Z`)
+const mapPointX = computed(() => normalize01(yearProgress.value) * 720)
+const mapPointY = computed(() => mapLatToY(currentDeclinationDeg.value))
 
 type DisposableSceneObject =
   THREE.Object3D & {
@@ -1001,6 +954,8 @@ let camera!: THREE.PerspectiveCamera
 let renderer!: THREE.WebGLRenderer
 let subRenderer: THREE.WebGLRenderer | null = null
 let subCamera: THREE.PerspectiveCamera | null = null
+let galaxySkyboxTexture: THREE.Texture | null = null
+let galaxySkyDome: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
 let controls!: OrbitControls
 let resizeObserver: ResizeObserver | null = null
 let animationId = 0
@@ -1019,11 +974,14 @@ let pendingMainResize = false
 let raycaster!: THREE.Raycaster
 let mouse!: THREE.Vector2
 let sunMesh: THREE.Mesh | null = null
+let sunAtmosphere: THREE.Mesh | null = null
+let sunCorona: THREE.Sprite | null = null
 let earthOrbitGroup!: THREE.Group
 let earthRoot!: THREE.Group
 let earthTiltGroup!: THREE.Group
 let earthSpinGroup!: THREE.Group
 let earthMesh!: THREE.Mesh
+let earthAtmosphere: THREE.Mesh | null = null
 let orbitLine: THREE.Line | null = null
 let starField: THREE.Points | null = null
 let nebulaGroup: THREE.Group | null = null
@@ -1032,6 +990,7 @@ let dayArcLine: THREE.Line | null = null
 let nightArcLine: THREE.Line | null = null
 let gridGroup: THREE.Group | null = null
 let tropicsGroup: THREE.Group | null = null
+let zonesGroup: THREE.Group | null = null
 let coordLabelGroup: THREE.Group | null = null
 let axisGroup: THREE.Group | null = null
 let planesGroup: THREE.Group | null = null
@@ -1056,7 +1015,13 @@ const earthUniforms = {
   sunLightPower: { value: 1.45 },
   nightMapPower: { value: 1.75 },
   nightLightPower: { value: 2.15 },
-  darkSideSurfacePower: { value: 0.52 }
+  darkSideSurfacePower: { value: 0.25 }
+}
+
+const earthAtmosphereUniforms = {
+  sunDirection: { value: new THREE.Vector3(0, 0, 1) },
+  atmosphereColor: { value: new THREE.Color(0x51cfff) },
+  nightColor: { value: new THREE.Color(0x285eff) },
 }
 
 onMounted(() => {
@@ -1075,12 +1040,17 @@ onMounted(() => {
       subPosY.value =
         82 + 12
 
+      updateSubSceneRelativePosition()
+
+      window.addEventListener('resize', constrainSubSceneWindow)
+
       /*
        * setupResize() 已在 initScene() 内完成首次同步尺寸。
        * 此处直接启动动画，避免再次延迟初始化画布。
        */
       animate(0)
     } catch (error) {
+      pageLoading.value = false
       console.error(
         'EarthOrbitSimulator 初始化失败：',
         error
@@ -1092,6 +1062,8 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
   cancelAnimationFrame(yearProgressTweenId)
+  if (solarTermFeedbackTimer !== null) window.clearTimeout(solarTermFeedbackTimer)
+  if (pageRevealTimer !== null) window.clearTimeout(pageRevealTimer)
   cancelAnimationFrame(
     resizeFrameId
   )
@@ -1116,7 +1088,10 @@ onUnmounted(() => {
   window.removeEventListener('pointermove', onSubDragMove)
   window.removeEventListener('pointerup', onSubDragEnd)
   window.removeEventListener('pointercancel', onSubDragEnd)
+  window.removeEventListener('resize', constrainSubSceneWindow)
   viewportRef.value?.removeEventListener('pointerdown', onPointerDown)
+  galaxySkyboxTexture?.dispose()
+  galaxySkyboxTexture = null
   renderer?.dispose()
   subRenderer?.dispose()
   scene?.traverse((obj: THREE.Object3D) => {
@@ -1130,13 +1105,19 @@ onUnmounted(() => {
 })
 
 watch(toggles, updateVisibility, { deep: true })
-watch([yearProgress, referenceSolarHour, selectedObservationId], () => {
+watch([yearProgress, referenceSolarHour], () => {
+  updateCelestialState()
+})
+watch(selectedObservationId, () => {
   updateCelestialState()
   updateObservationMarkers()
 })
 watch(focusMode, () => updateFocusTarget())
 watch([sunLightPower, nightMapPower, nightLightPower, darkSideSurfacePower], updateLightUniforms)
 watch(subViewMode, () => updateSubCamera())
+watch(subSceneVisible, (visible) => {
+  if (visible) nextTick(applySubSceneRelativePosition)
+})
 
 function initScene() {
   if (!canvasRef.value || !viewportRef.value) return
@@ -1185,8 +1166,7 @@ function initScene() {
   scene.add(markerGroup)
   scene.add(labelGroup)
 
-  createNebulaBackdrop()
-  createStars()
+  loadGalaxySkybox()
   createSun()
   createOrbit()
   createEarth()
@@ -1204,15 +1184,83 @@ function initScene() {
 
 function createSun() {
   const geo = new THREE.SphereGeometry(SUN_RADIUS, 64, 64)
-  const mat = new THREE.MeshBasicMaterial({ map: createPlaceholderTexture('#ff8a00', '#ffe082') })
+  const mat = new THREE.MeshBasicMaterial({
+    map: createPlaceholderTexture('#ff8a00', '#ffe082'),
+    color: 0xfff1d2,
+    toneMapped: false,
+  })
   sunMesh = new THREE.Mesh(geo, mat)
   scene.add(sunMesh)
 
-  const halo = new THREE.Mesh(
-    new THREE.SphereGeometry(SUN_RADIUS * 1.28, 48, 48),
-    new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false })
+  const atmosphereMaterial = new THREE.ShaderMaterial({
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.BackSide,
+    toneMapped: false,
+    vertexShader: `
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+        float fresnel = pow(1.0 - abs(dot(normalize(vWorldNormal), viewDirection)), 2.3);
+        float innerGlow = smoothstep(0.06, 0.92, fresnel);
+        vec3 coronaColor = mix(vec3(1.0, 0.30, 0.025), vec3(1.0, 0.82, 0.38), innerGlow);
+        gl_FragColor = vec4(coronaColor * (0.55 + innerGlow * 0.8), fresnel * 0.52);
+      }
+    `,
+  })
+  sunAtmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(SUN_RADIUS * 1.12, 64, 64),
+    atmosphereMaterial,
   )
-  scene.add(halo)
+  scene.add(sunAtmosphere)
+
+  const coronaMaterial = new THREE.SpriteMaterial({
+    map: createSunCoronaTexture(),
+    color: 0xffb44c,
+    transparent: true,
+    opacity: 0.58,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    toneMapped: false,
+  })
+  sunCorona = new THREE.Sprite(coronaMaterial)
+  sunCorona.scale.setScalar(SUN_RADIUS * 3.85)
+  scene.add(sunCorona)
+}
+
+function createSunCoronaTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const context = canvas.getContext('2d')
+  if (!context) return createPlaceholderTexture('#ffb347', '#000000')
+
+  const gradient = context.createRadialGradient(256, 256, 76, 256, 256, 252)
+  gradient.addColorStop(0, 'rgba(255,244,206,0.92)')
+  gradient.addColorStop(0.28, 'rgba(255,178,62,0.36)')
+  gradient.addColorStop(0.56, 'rgba(255,111,18,0.12)')
+  gradient.addColorStop(0.78, 'rgba(255,86,8,0.035)')
+  gradient.addColorStop(1, 'rgba(255,72,0,0)')
+  context.fillStyle = gradient
+  context.fillRect(0, 0, 512, 512)
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.needsUpdate = true
+  return texture
 }
 
 function createEarth() {
@@ -1292,9 +1340,51 @@ function createEarth() {
   earthMesh = new THREE.Mesh(geo, mat)
   earthSpinGroup.add(earthMesh)
 
+  const atmosphereMaterial = new THREE.ShaderMaterial({
+    uniforms: earthAtmosphereUniforms,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.BackSide,
+    toneMapped: false,
+    vertexShader: `
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 sunDirection;
+      uniform vec3 atmosphereColor;
+      uniform vec3 nightColor;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec3 normalDirection = normalize(vWorldNormal);
+        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+        float rim = pow(1.0 - abs(dot(normalDirection, viewDirection)), 3.1);
+        float daylight = smoothstep(-0.28, 0.72, dot(normalDirection, normalize(sunDirection)));
+        vec3 glowColor = mix(nightColor, atmosphereColor, daylight);
+        float alpha = rim * mix(0.22, 0.68, daylight);
+        gl_FragColor = vec4(glowColor * (0.48 + rim * 1.15), alpha);
+      }
+    `,
+  })
+  earthAtmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(EARTH_RADIUS * 1.065, 96, 96),
+    atmosphereMaterial,
+  )
+  earthSpinGroup.add(earthAtmosphere)
+
+  zonesGroup = createFiveZones()
   gridGroup = createLatLonGrid()
   tropicsGroup = createTropics()
   coordLabelGroup = createCoordinateLabels()
+  earthSpinGroup.add(zonesGroup)
   earthSpinGroup.add(gridGroup)
   earthSpinGroup.add(tropicsGroup)
   earthSpinGroup.add(coordLabelGroup)
@@ -1392,9 +1482,10 @@ function createHelpers() {
 
   sunRaysGroup = new THREE.Group()
   scene.add(sunRaysGroup)
+  const sunRayColor = 0xffd166
   for (let i = -2; i <= 2; i += 1) {
     const isCenter = i === 0
-    const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 2.1, isCenter ? 0xffd166 : 0x69e7ff, isCenter ? 0.36 : 0.24, isCenter ? 0.16 : 0.1)
+    const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 2.1, sunRayColor, isCenter ? 0.36 : 0.24, isCenter ? 0.16 : 0.1)
     arrow.userData.offsetIndex = i
     sunRaysGroup.add(arrow)
   }
@@ -1508,20 +1599,102 @@ function createStars() {
   scene.add(starField)
 }
 
+function loadGalaxySkybox() {
+  sceneTextureLoader.load(
+    GALAXY_SKYBOX_URL,
+    (texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping
+      texture.colorSpace = THREE.SRGBColorSpace
+      texture.wrapS = THREE.RepeatWrapping
+      texture.wrapT = THREE.ClampToEdgeWrapping
+      texture.generateMipmaps = false
+      texture.minFilter = THREE.LinearFilter
+      texture.magFilter = THREE.LinearFilter
+      texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
+
+      galaxySkyDome?.removeFromParent()
+      galaxySkyDome?.geometry.dispose()
+      galaxySkyDome?.material.dispose()
+      galaxySkyboxTexture?.dispose()
+      galaxySkyboxTexture = texture
+
+      const image = texture.image as HTMLImageElement
+      const textureWidth = Math.max(1, image.naturalWidth || image.width || 6000)
+      const textureHeight = Math.max(1, image.naturalHeight || image.height || 3000)
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          skyMap: { value: texture },
+          texelSize: { value: new THREE.Vector2(1 / textureWidth, 1 / textureHeight) },
+          exposure: { value: 0.105 },
+          sharpness: { value: 1.65 }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+
+          void main() {
+            vUv = uv;
+            mat4 viewRotation = mat4(mat3(viewMatrix));
+            gl_Position = projectionMatrix * viewRotation * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D skyMap;
+          uniform vec2 texelSize;
+          uniform float exposure;
+          uniform float sharpness;
+          varying vec2 vUv;
+
+          void main() {
+            vec2 uv = vec2(1.0 - vUv.x, vUv.y);
+            vec3 center = texture2D(skyMap, uv).rgb;
+            vec3 neighbors = (
+              texture2D(skyMap, uv + vec2(texelSize.x, 0.0)).rgb +
+              texture2D(skyMap, uv - vec2(texelSize.x, 0.0)).rgb +
+              texture2D(skyMap, uv + vec2(0.0, texelSize.y)).rgb +
+              texture2D(skyMap, uv - vec2(0.0, texelSize.y)).rgb
+            ) * 0.25;
+            vec3 color = max(center + (center - neighbors) * sharpness, 0.0) * exposure;
+
+            gl_FragColor = vec4(color, 1.0);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }
+        `,
+        side: THREE.BackSide,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: true
+      })
+
+      galaxySkyDome = new THREE.Mesh(
+        new THREE.SphereGeometry(72, 128, 64),
+        material
+      )
+      galaxySkyDome.rotation.x = -0.4
+      galaxySkyDome.frustumCulled = false
+      galaxySkyDome.renderOrder = -10000
+      scene.add(galaxySkyDome)
+    },
+    undefined,
+    (error) => {
+      console.warn('银河天空盒加载失败，已保留深色背景', error)
+    }
+  )
+}
+
 function loadTexturesAsync() {
-  const loader = new THREE.TextureLoader()
-  loadTexture(loader, RAW_TEXTURES.sun, (texture) => {
+  loadTexture(sceneTextureLoader, RAW_TEXTURES.sun, (texture) => {
     if (sunMesh?.material) {
       texture.colorSpace = THREE.SRGBColorSpace
       sunMesh.material.map = texture
       sunMesh.material.needsUpdate = true
     }
   })
-  loadTexture(loader, RAW_TEXTURES.earth, (texture) => {
+  loadTexture(sceneTextureLoader, RAW_TEXTURES.earth, (texture) => {
     texture.colorSpace = THREE.SRGBColorSpace
     earthUniforms.dayMap.value = texture
   })
-  loadTexture(loader, RAW_TEXTURES.night, (texture) => {
+  loadTexture(sceneTextureLoader, RAW_TEXTURES.night, (texture) => {
     texture.colorSpace = THREE.SRGBColorSpace
     earthUniforms.nightMap.value = texture
   })
@@ -1615,6 +1788,20 @@ function animate(time: number) {
   if (sunMesh) {
     sunMesh.rotation.y += dt * 0.12
   }
+  if (sunCorona?.material) {
+    const pulse = 1 + Math.sin(time * 0.00135) * 0.018
+    sunCorona.scale.setScalar(SUN_RADIUS * 3.85 * pulse)
+    sunCorona.material.opacity = 0.54 + Math.sin(time * 0.0011 + 0.8) * 0.035
+  }
+  markerGroup?.children.forEach((pointGroup: THREE.Object3D) => {
+    const rippleRings = pointGroup.userData.rippleRings as THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>[] | undefined
+    rippleRings?.forEach((ring) => {
+      const progress = (time * 0.00042 + Number(ring.userData.phase || 0)) % 1
+      const scale = 0.82 + progress * 2.35
+      ring.scale.setScalar(scale)
+      ring.material.opacity = Math.pow(1 - progress, 1.55) * 0.46
+    })
+  })
 
   smoothCameraTarget(dt)
   controls?.update()
@@ -1698,6 +1885,7 @@ function updateCelestialState() {
 
   updateLightUniforms()
   earthUniforms.sunDirection.value.copy(sunDir)
+  earthAtmosphereUniforms.sunDirection.value.copy(sunDir)
   const axisWorld = new THREE.Vector3(0, 1, 0).applyQuaternion(earthTiltGroup.getWorldQuaternion(new THREE.Quaternion())).normalize()
   earthUniforms.axisDirection.value.copy(axisWorld)
 
@@ -1755,6 +1943,7 @@ function updateVisibility() {
   if (terminatorLine) terminatorLine.visible = false
   if (gridGroup) gridGroup.visible = toggles.grid
   if (tropicsGroup) tropicsGroup.visible = toggles.tropics
+  if (zonesGroup) zonesGroup.visible = toggles.zones
   if (coordLabelGroup) coordLabelGroup.visible = toggles.coordLabels
   if (planesGroup) planesGroup.visible = toggles.tiltLabels
   if (equatorPlaneGroup) equatorPlaneGroup.visible = toggles.tiltLabels
@@ -1865,7 +2054,7 @@ function onSubResizeMove(event: PointerEvent) {
       ? deltaFromLeft
       : deltaFromBottom
 
-  const minWidth = 180
+  const minWidth = 240
   const maxWidth = 900
 
   let nextWidth =
@@ -1878,7 +2067,7 @@ function onSubResizeMove(event: PointerEvent) {
   let nextHeight =
     nextWidth / aspect
 
-  const minHeight = 120
+  const minHeight = 160
   const maxHeight = 680
 
   if (nextHeight < minHeight) {
@@ -1900,13 +2089,48 @@ function onSubResizeMove(event: PointerEvent) {
 function onSubResizeEnd() {
   subResizeState = null
   window.removeEventListener('pointermove', onSubResizeMove)
-  nextTick(resizeSubRenderer)
+  nextTick(() => {
+    const next = clampSubScenePosition(subPosX.value, subPosY.value)
+    subPosX.value = next.x
+    subPosY.value = next.y
+    updateSubSceneRelativePosition()
+    resizeSubRenderer()
+  })
 }
 
 let yearProgressTweenId = 0
+let solarTermFeedbackTimer: number | null = null
+function isSolarTermActive(term: SolarTerm) {
+  const distance = Math.abs(normalize01(yearProgress.value) - term.progress)
+  return Math.min(distance, 1 - distance) < 0.004
+}
+
 function setSolarTerm(progress: number) {
   isPlaying.value = false
   animateYearProgress(progress)
+  showSolarTermFeedback(progress)
+}
+
+function showSolarTermFeedback(progress: number) {
+  const normalizedProgress = normalize01(progress)
+  const term = solarTerms.reduce((closest, candidate) => {
+    const closestDistance = Math.min(
+      Math.abs(normalizedProgress - closest.progress),
+      1 - Math.abs(normalizedProgress - closest.progress),
+    )
+    const candidateDistance = Math.min(
+      Math.abs(normalizedProgress - candidate.progress),
+      1 - Math.abs(normalizedProgress - candidate.progress),
+    )
+    return candidateDistance < closestDistance ? candidate : closest
+  })
+  solarTermFeedback.value = term
+  solarTermFeedbackKey.value += 1
+  if (solarTermFeedbackTimer !== null) window.clearTimeout(solarTermFeedbackTimer)
+  solarTermFeedbackTimer = window.setTimeout(() => {
+    solarTermFeedback.value = null
+    solarTermFeedbackTimer = null
+  }, 2600)
 }
 
 function animateYearProgress(targetProgress: number) {
@@ -1991,16 +2215,58 @@ function onWindowClick(event: MouseEvent) {
 
 function updateObservationMarkers() {
   if (!markerGroup || !earthSpinGroup) return
+
+  if (markerGroup.parent !== earthSpinGroup) {
+    earthSpinGroup.add(markerGroup)
+  }
+
+  markerGroup.traverse((object: THREE.Object3D) => {
+    if (object === markerGroup) return
+    const disposable = object as DisposableSceneObject
+    disposable.geometry?.dispose()
+    if (Array.isArray(disposable.material)) disposable.material.forEach((material) => material.dispose())
+    else disposable.material?.dispose()
+  })
   markerGroup.clear()
+
   observationPoints.value.forEach((point) => {
+    const selected = point.id === selectedObservationId.value
+    const color = selected ? 0xffd166 : 0x2ec4b6
+    const pointGroup = new THREE.Group()
+    const surfaceNormal = latLonToVector(point.lat, point.lon, 1).normalize()
+    const local = surfaceNormal.clone().multiplyScalar(EARTH_RADIUS * 1.009)
+    pointGroup.position.copy(local)
+    pointGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), surfaceNormal)
+
     const marker = new THREE.Mesh(
-      new THREE.SphereGeometry(0.07, 16, 16),
-      new THREE.MeshBasicMaterial({ color: point.id === selectedObservationId.value ? 0xffd166 : 0x2ec4b6 })
+      new THREE.SphereGeometry(0.038, 18, 18),
+      new THREE.MeshBasicMaterial({ color, toneMapped: false })
     )
-    const local = latLonToVector(point.lat, point.lon, EARTH_RADIUS * 1.035)
-    earthSpinGroup.localToWorld(local)
-    marker.position.copy(local)
-    markerGroup.add(marker)
+    marker.position.z = 0.004
+    pointGroup.add(marker)
+
+    const rippleRings: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>[] = []
+    for (let index = 0; index < 3; index += 1) {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.055, 0.068, 48),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.42,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          toneMapped: false,
+        }),
+      )
+      ring.position.z = 0.002 + index * 0.0006
+      ring.userData.phase = index / 3
+      rippleRings.push(ring)
+      pointGroup.add(ring)
+    }
+
+    pointGroup.userData.rippleRings = rippleRings
+    markerGroup.add(pointGroup)
   })
 }
 
@@ -2081,6 +2347,72 @@ function createTropics() {
       if (lat !== 0) line.computeLineDistances()
       group.add(line)
     })
+  return group
+}
+
+function createFiveZones() {
+  const group = new THREE.Group()
+  const surfaceRadius = EARTH_RADIUS * 1.010
+  const boundaryRadius = EARTH_RADIUS * 1.016
+  const zones = [
+    { name: '北寒带', top: 90, bottom: POLAR_CIRCLE_DEG, color: 0x249dff, opacity: 0.34 },
+    { name: '北温带', top: POLAR_CIRCLE_DEG, bottom: EARTH_TILT_DEG, color: 0x18cf8b, opacity: 0.27 },
+    { name: '热带', top: EARTH_TILT_DEG, bottom: -EARTH_TILT_DEG, color: 0xff962f, opacity: 0.35 },
+    { name: '南温带', top: -EARTH_TILT_DEG, bottom: -POLAR_CIRCLE_DEG, color: 0x18cf8b, opacity: 0.27 },
+    { name: '南寒带', top: -POLAR_CIRCLE_DEG, bottom: -90, color: 0x249dff, opacity: 0.34 },
+  ]
+
+  zones.forEach((zone) => {
+    const thetaStart = (90 - zone.top) * DEG
+    const thetaLength = (zone.top - zone.bottom) * DEG
+    const heightSegments = Math.max(10, Math.round((thetaLength / Math.PI) * 72))
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(
+        surfaceRadius,
+        96,
+        heightSegments,
+        0,
+        Math.PI * 2,
+        thetaStart,
+        thetaLength,
+      ),
+      new THREE.MeshBasicMaterial({
+        color: zone.color,
+        transparent: true,
+        opacity: zone.opacity,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }),
+    )
+    mesh.renderOrder = 1
+    group.add(mesh)
+
+    const labelLatitude = (zone.top + zone.bottom) / 2
+    const label = createTextSprite(zone.name, zone.name === '热带' ? '#ffe394' : '#d8f7ff')
+    label.position.copy(latLonToVector(labelLatitude, -90, EARTH_RADIUS * 1.055))
+    label.scale.set(0.46, 0.17, 1)
+    label.renderOrder = 5
+    group.add(label)
+  })
+
+  const boundaryMaterial = new THREE.LineBasicMaterial({
+    color: 0xf1fbff,
+    transparent: true,
+    opacity: 0.96,
+    depthWrite: false,
+  })
+    ;[-POLAR_CIRCLE_DEG, -EARTH_TILT_DEG, EARTH_TILT_DEG, POLAR_CIRCLE_DEG].forEach((latitude) => {
+      const points: THREE.Vector3[] = []
+      for (let longitude = -180; longitude <= 180; longitude += 2) {
+        points.push(latLonToVector(latitude, longitude, boundaryRadius))
+      }
+      const boundary = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), boundaryMaterial)
+      boundary.renderOrder = 4
+      group.add(boundary)
+    })
+
   return group
 }
 
@@ -2238,36 +2570,12 @@ function dayOfYearToMonthDay(dayOfYear: number) {
   return '12月31日'
 }
 
-
 function sliderTrackLeft(progress: number) {
-  const p = Math.max(0, Math.min(1, progress))
-  return `${p * 100}%`
+  return `${Math.max(0, Math.min(1, progress)) * 100}%`
 }
 
-function progressToX(progress: number) {
-  const winterProgress =
-    dayOfYearToCalendarProgress(356)
-
-  const shifted =
-    normalize01(
-      progress - winterProgress
-    )
-
-  return 24 + shifted * 232
-}
-
-function latToY(lat: number) {
-  const clamped =
-    clamp(
-      lat,
-      -23.44,
-      23.44
-    )
-
-  // 右侧图表的垂向映射：
-  // 让北回归线、赤道、南回归线保持低纬分布，
-  // 更接近课本里“双剖面 + 直射点曲线”的视觉感觉。
-  return 56 - (clamped / 23.44) * 13
+function mapLatToY(lat: number) {
+  return ((90 - clamp(lat, -90, 90)) / 180) * 360
 }
 
 function formatGridLat(lat: number) {
@@ -2390,6 +2698,315 @@ function normalizeLon(value: number) {
     blur(13px) saturate(150%);
   -webkit-backdrop-filter:
     blur(13px) saturate(150%);
+}
+
+.floating-info-card {
+  position: fixed;
+  z-index: 44;
+  overflow: hidden;
+  pointer-events: auto;
+  border-radius: 14px;
+  border-color: rgba(82, 206, 255, 0.28);
+  background:
+    linear-gradient(145deg, rgba(3, 14, 27, 0.91), rgba(5, 23, 38, 0.76));
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(64, 181, 232, 0.05) inset,
+    0 0 34px rgba(18, 118, 169, 0.09);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  touch-action: none;
+}
+
+.floating-data-card {
+  width: clamp(310px, 18vw, 420px);
+}
+
+.floating-track-card {
+  width: min(clamp(540px, 32vw, 760px), calc(100vw - 28px));
+}
+
+.floating-info-card.collapsed .floating-card-head {
+  border-bottom-color: transparent;
+}
+
+.floating-card-head {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 13px;
+  border-bottom: 1px solid rgba(95, 210, 255, 0.15);
+  background:
+    linear-gradient(90deg, rgba(5, 41, 64, 0.72), rgba(4, 23, 39, 0.28));
+  cursor: grab;
+  user-select: none;
+}
+
+.floating-card-head:active {
+  cursor: grabbing;
+}
+
+.floating-card-head>div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.floating-card-head strong {
+  color: rgba(238, 249, 255, 0.92);
+  font-size: clamp(12px, 0.56vw, 15px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-kicker {
+  color: #62d6ff;
+  font-size: clamp(13px, 0.65vw, 18px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.drag-hint {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid rgba(101, 211, 255, 0.18);
+  border-radius: 999px;
+  color: rgba(181, 220, 238, 0.55);
+  font-size: clamp(9px, 0.42vw, 11px);
+  letter-spacing: 0.06em;
+  background: rgba(18, 77, 106, 0.18);
+}
+
+.floating-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.card-collapse-btn {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  border: 1px solid rgba(99, 212, 255, 0.24);
+  border-radius: 8px;
+  color: #8de4ff;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  background: rgba(21, 88, 118, 0.24);
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.card-collapse-btn:hover {
+  border-color: rgba(120, 224, 255, 0.52);
+  background: rgba(33, 121, 156, 0.36);
+}
+
+.card-collapse-btn:active {
+  transform: scale(0.94);
+}
+
+.floating-data-body {
+  padding: 12px;
+}
+
+.data-hero-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.data-hero-row article {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(78, 199, 244, 0.14);
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, rgba(23, 74, 100, 0.26), rgba(5, 25, 39, 0.36));
+}
+
+.data-hero-row span,
+.key-data-grid dt {
+  color: rgba(165, 204, 222, 0.68);
+  font-size: clamp(10px, 0.48vw, 13px);
+  letter-spacing: 0.04em;
+}
+
+.data-hero-row strong {
+  color: #78deff;
+  font-size: clamp(19px, 0.95vw, 27px);
+  font-weight: 700;
+  line-height: 1.15;
+  text-shadow: 0 0 16px rgba(61, 196, 255, 0.24);
+}
+
+.data-meta-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 9px 1px 10px;
+  color: rgba(190, 220, 232, 0.64);
+  font-size: clamp(10px, 0.46vw, 13px);
+  white-space: nowrap;
+}
+
+.key-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(72, 177, 219, 0.10);
+  border-radius: 10px;
+  background: rgba(75, 181, 221, 0.09);
+}
+
+.key-data-grid>div {
+  min-width: 0;
+  padding: 8px 9px;
+  background: rgba(3, 17, 29, 0.76);
+}
+
+.key-data-grid dt {
+  margin-bottom: 3px;
+}
+
+.key-data-grid dd {
+  margin: 0;
+  color: rgba(233, 247, 252, 0.88);
+  font-size: clamp(12px, 0.58vw, 16px);
+  font-weight: 650;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-card-head {
+  min-height: 58px;
+}
+
+.track-head-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(201, 231, 242, 0.76);
+  font-size: clamp(10px, 0.46vw, 13px);
+}
+
+.solar-map-frame {
+  position: relative;
+  padding: 8px 8px 0;
+  background: rgba(1, 8, 17, 0.72);
+}
+
+.solar-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+  border: 1px solid rgba(116, 214, 245, 0.18);
+  border-radius: 8px;
+  background: #03101c;
+}
+
+.map-grid-lines line {
+  stroke: rgba(210, 235, 242, 0.31);
+  stroke-width: 0.8;
+  stroke-dasharray: 5 5;
+}
+
+.map-grid-lines line.major {
+  stroke: rgba(255, 209, 83, 0.62);
+  stroke-width: 1.2;
+  stroke-dasharray: 7 4;
+}
+
+.map-latitude-labels text,
+.map-month-labels text {
+  fill: rgba(229, 243, 247, 0.84);
+  font-size: 10px;
+  font-weight: 650;
+  paint-order: stroke;
+  stroke: rgba(1, 9, 16, 0.86);
+  stroke-width: 2.4px;
+}
+
+.map-month-labels text {
+  fill: rgba(188, 218, 228, 0.72);
+  font-size: 9px;
+}
+
+.map-track-path {
+  fill: none;
+  stroke: #ffd54f;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-track-area {
+  fill: url(#mapTrackAreaGradient);
+  stroke: none;
+  pointer-events: none;
+}
+
+.current-day-guide {
+  stroke: rgba(255, 222, 105, 0.38);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.map-track-pulse {
+  fill: rgba(255, 213, 79, 0.18);
+  stroke: rgba(255, 232, 151, 0.54);
+  stroke-width: 1;
+}
+
+.map-track-dot {
+  fill: #fff4bd;
+  stroke: #ffd54f;
+  stroke-width: 2.5;
+}
+
+.map-current-label {
+  fill: #fff0a4;
+  font-size: 11px;
+  font-weight: 750;
+  paint-order: stroke;
+  stroke: rgba(2, 10, 18, 0.88);
+  stroke-width: 3px;
+}
+
+.track-card-foot {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px 10px;
+  color: rgba(163, 203, 219, 0.62);
+  font-size: clamp(9px, 0.43vw, 12px);
+  background: rgba(2, 12, 21, 0.76);
+}
+
+.track-card-foot strong {
+  color: rgba(255, 221, 108, 0.92);
+  font-size: clamp(10px, 0.48vw, 13px);
+  font-weight: 700;
+}
+
+.track-card-foot span:last-child {
+  text-align: right;
 }
 
 .observation-panel {
@@ -2689,7 +3306,7 @@ function normalizeLon(value: number) {
   display: grid;
   grid-template-rows:
     auto minmax(0, 1fr);
-  border-radius: 16px;
+  border-radius: 14px;
   overflow: hidden;
   pointer-events: auto;
 }
@@ -2699,12 +3316,10 @@ function normalizeLon(value: number) {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding:
-    8px 10px;
-  border-bottom:
-    1px solid rgba(var(--theme-primary-light-rgb), 0.16);
-  background:
-    rgba(8, 20, 34, 0.24);
+  min-height: 56px;
+  padding: 10px 13px;
+  border-bottom: 1px solid rgba(95, 210, 255, 0.15);
+  background: linear-gradient(90deg, rgba(5, 41, 64, 0.72), rgba(4, 23, 39, 0.28));
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -2724,19 +3339,38 @@ function normalizeLon(value: number) {
 }
 
 .sub-title span {
-  color:
-    var(--text-muted);
-  font-size: 10px;
+  color: #62d6ff;
+  font-size: clamp(13px, 0.65vw, 18px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 
 .sub-title strong {
-  color:
-    var(--theme-primary-light);
-  font-size: 12px;
+  color: rgba(238, 249, 255, 0.92);
+  font-size: clamp(12px, 0.56vw, 15px);
+  font-weight: 600;
+}
+
+.sub-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .sub-view-select {
-  width: 112px;
+  width: clamp(142px, 7.2vw, 184px);
+}
+
+.sub-view-select :deep(.el-select__wrapper) {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 10px !important;
+  border-radius: 8px !important;
+}
+
+.sub-view-select :deep(.el-select__selected-item) {
+  font-size: clamp(11px, 0.48vw, 13px) !important;
+  line-height: 30px !important;
 }
 
 .sub-canvas {
@@ -2747,45 +3381,48 @@ function normalizeLon(value: number) {
 
 .sub-resize-handle {
   position: absolute;
-  left: 0;
-  bottom: 0;
+  left: 7px;
+  bottom: 7px;
   z-index: 12;
-  width: 38px;
-  height: 38px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   cursor: nesw-resize;
-  background:
-    linear-gradient(45deg,
-      rgba(var(--theme-primary-light-rgb), 0.82) 0 48%,
-      rgba(var(--theme-primary-light-rgb), 0.36) 49% 56%,
-      transparent 57% 100%);
-  border: 0;
-  border-bottom-left-radius: 16px;
-  clip-path:
-    polygon(0 0,
-      0 100%,
-      100% 100%);
-  opacity: 0.9;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), 0.28);
+  border-radius: 9px;
+  background: rgba(20, 86, 116, 0.52);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-
+.sub-resize-handle::before,
 .sub-resize-handle::after {
   content: "";
   position: absolute;
-  left: 7px;
-  bottom: 7px;
-  width: 18px;
-  height: 18px;
-  border-left:
-    2px solid rgba(255, 255, 255, 0.74);
-  border-bottom:
-    2px solid rgba(255, 255, 255, 0.74);
-  border-bottom-left-radius: 8px;
+  left: 6px;
+  bottom: 6px;
+  border-left: 2px solid var(--theme-primary-light);
+  border-bottom: 2px solid var(--theme-primary-light);
+  border-bottom-left-radius: 3px;
+}
+
+.sub-resize-handle::before {
+  width: 14px;
+  height: 14px;
+}
+
+.sub-resize-handle::after {
+  width: 8px;
+  height: 8px;
 }
 
 .sub-resize-handle:hover {
-  opacity: 1;
-  filter:
-    drop-shadow(0 0 8px rgba(var(--theme-primary-rgb), 0.52));
+  border-color: var(--theme-primary-light);
+  filter: drop-shadow(0 0 7px rgba(var(--theme-primary-rgb), 0.46));
+}
+
+.earth-orbit-template.theme-light .sub-resize-handle {
+  background: rgba(237, 248, 252, 0.90);
+  box-shadow: 0 5px 14px rgba(44, 86, 112, 0.16), inset 0 1px 0 #ffffff;
 }
 
 .orbit-time-dock {
@@ -2940,6 +3577,32 @@ function normalizeLon(value: number) {
   grid-template-columns:
     repeat(2,
       minmax(0, 1fr));
+}
+
+.solar-term-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.solar-term-btn {
+  min-width: 0;
+  min-height: 42px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+}
+
+.solar-term-btn strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.solar-term-btn.active strong {
+  color: #ffffff !important;
 }
 
 .compact-switch-row {
@@ -3577,5 +4240,635 @@ function normalizeLon(value: number) {
 .earth-orbit-template .orbit-scene-host>.three-canvas {
   min-width: 100%;
   min-height: 100%;
+}
+
+@media (min-width: 1800px) and (min-height: 900px) {
+  .floating-card-head {
+    min-height: 66px;
+    padding: 12px 16px;
+  }
+
+  .floating-data-body {
+    padding: 15px;
+  }
+
+  .data-hero-row {
+    gap: 10px;
+  }
+
+  .data-hero-row article {
+    gap: 6px;
+    padding: 13px;
+    border-radius: 12px;
+  }
+
+  .data-meta-line {
+    margin: 12px 2px 13px;
+  }
+
+  .key-data-grid>div {
+    padding: 11px 12px;
+  }
+
+  .key-data-grid dt {
+    margin-bottom: 5px;
+  }
+
+  .card-collapse-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+
+  .solar-map-frame {
+    padding: 11px 11px 0;
+  }
+
+  .track-card-foot {
+    padding: 10px 14px 12px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .floating-data-card {
+    width: 292px;
+  }
+
+  .floating-track-card {
+    width: min(490px, calc(100vw - 22px));
+  }
+
+  .floating-card-head {
+    min-height: 50px;
+    padding: 8px 10px;
+  }
+
+  .floating-data-body {
+    padding: 9px;
+  }
+
+  .data-hero-row article {
+    padding: 8px;
+  }
+
+  .data-hero-row strong {
+    font-size: 16px;
+  }
+
+  .key-data-grid>div {
+    padding: 6px 8px;
+  }
+
+  .track-card-foot {
+    padding: 6px 9px 8px;
+  }
+}
+
+@media (max-width: 720px) {
+  .floating-info-card {
+    border-radius: 11px;
+  }
+
+  .floating-data-card {
+    width: min(278px, calc(100vw - 20px));
+  }
+
+  .floating-track-card {
+    width: calc(100vw - 20px);
+  }
+
+  .track-card-foot span {
+    display: none;
+  }
+
+  .track-card-foot {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .data-meta-line span:last-child {
+    display: none;
+  }
+}
+
+.floating-info-card.collapsed .floating-card-head {
+  min-height: 48px;
+  padding: 8px 10px;
+}
+
+.floating-info-card.collapsed .floating-card-head>div:first-child strong,
+.floating-info-card.collapsed .drag-hint,
+.floating-info-card.collapsed .track-head-status>span {
+  display: none;
+}
+
+.floating-data-card.collapsed {
+  width: 158px;
+}
+
+.floating-track-card.collapsed {
+  width: 224px;
+}
+
+.floating-sub-scene-card.collapsed {
+  grid-template-rows: auto;
+}
+
+@media (min-width: 1800px) and (min-height: 900px) {
+  .floating-data-card.collapsed {
+    width: 188px;
+  }
+
+  .floating-track-card.collapsed {
+    width: 268px;
+  }
+}
+
+/* 底部时间轴：公转与自转合并为单行控制条 */
+.earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
+  width: min(980px, calc(100% - 36px)) !important;
+  min-width: 0 !important;
+  min-height: 76px;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  gap: 13px;
+  padding: 9px 13px;
+  border-radius: 16px;
+}
+
+.earth-orbit-template .orbit-overlay-layer .orbit-timeline-main {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.2fr) 1px minmax(220px, 0.9fr);
+  align-items: center;
+  gap: 15px;
+}
+
+.timeline-channel {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.timeline-inline-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 34px;
+  padding: 4px 9px 4px 5px;
+  border: 1px solid rgba(var(--axis-accent-rgb), 0.22);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(var(--axis-accent-rgb), 0.12), rgba(4, 18, 31, 0.18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 5px 14px rgba(0, 0, 0, 0.10);
+  white-space: nowrap;
+}
+
+.timeline-inline-label span {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 7px;
+  color: var(--axis-accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  background: rgba(var(--axis-accent-rgb), 0.13);
+}
+
+.timeline-inline-label strong {
+  color: var(--axis-accent) !important;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.orbit-timeline-channel {
+  --axis-accent: #ffd36a;
+  --axis-accent-rgb: 255, 211, 106;
+}
+
+.rotation-timeline-channel {
+  --axis-accent: #69dcff;
+  --axis-accent-rgb: 105, 220, 255;
+}
+
+.rotation-timeline-channel .timeline-inline-label strong {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0.01em;
+}
+
+.earth-orbit-template.theme-light .timeline-inline-label {
+  background: linear-gradient(135deg, rgba(var(--axis-accent-rgb), 0.17), rgba(255, 255, 255, 0.54));
+  box-shadow: inset 0 1px 0 #ffffff, 0 4px 12px rgba(34, 85, 108, 0.10);
+}
+
+.timeline-channel-divider {
+  display: block;
+  width: 1px;
+  height: 42px;
+  background: linear-gradient(180deg, transparent, rgba(var(--theme-primary-light-rgb), 0.34), transparent);
+}
+
+:deep(.timeline-channel .el-slider) {
+  min-width: 0;
+  margin: 0;
+}
+
+.timeline-slider-stack {
+  display: grid;
+  grid-template-rows: 28px 20px;
+  min-width: 0;
+}
+
+.timeline-term-scale {
+  position: relative;
+  height: 20px;
+  margin: -2px 7px 0;
+}
+
+.timeline-term-scale button {
+  position: absolute;
+  top: 0;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 34px;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 8px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  transform: translateX(-50%);
+}
+
+.timeline-term-scale button i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(var(--theme-primary-light-rgb), 0.5);
+  box-shadow: 0 0 0 2px rgba(var(--theme-primary-rgb), 0.08);
+}
+
+.timeline-term-scale button:hover,
+.timeline-term-scale button.active {
+  color: var(--theme-primary-light);
+}
+
+.timeline-term-scale button.active i {
+  background: var(--theme-primary-light);
+  box-shadow: 0 0 8px rgba(var(--theme-primary-light-rgb), 0.72);
+}
+
+@media (max-width: 760px) {
+  .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
+    width: calc(100% - 18px) !important;
+    min-height: 70px;
+    gap: 8px;
+    padding: 7px 9px;
+  }
+
+  .earth-orbit-template .orbit-overlay-layer .orbit-timeline-main {
+    grid-template-columns: minmax(0, 1.25fr) 1px minmax(0, 0.75fr);
+    gap: 8px;
+  }
+
+  .timeline-channel {
+    grid-template-columns: auto minmax(44px, 1fr);
+    gap: 6px;
+  }
+
+  .timeline-inline-label {
+    gap: 4px;
+    height: 30px;
+    padding: 3px 6px 3px 3px;
+    border-radius: 8px;
+  }
+
+  .timeline-inline-label span {
+    display: inline-flex;
+    height: 22px;
+    padding: 0 5px;
+    font-size: 7px;
+  }
+
+  .timeline-inline-label strong {
+    font-size: 9px;
+  }
+
+  .timeline-channel-divider {
+    height: 36px;
+  }
+
+  .timeline-term-scale button {
+    min-width: 26px;
+    font-size: 7px;
+  }
+}
+
+@media (max-width: 520px) {
+  .timeline-inline-label span {
+    display: none;
+  }
+
+  .timeline-inline-label {
+    padding-inline: 6px;
+  }
+}
+
+/* 节气切换后的场景教学反馈 */
+.solar-term-feedback {
+  position: absolute;
+  z-index: 34;
+  top: clamp(76px, 10vh, 116px);
+  left: 50%;
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  padding: 8px 16px 8px 10px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+  border: 1px solid rgba(255, 211, 106, 0.34);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(7, 24, 39, 0.90), rgba(10, 38, 54, 0.76));
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.34), 0 0 28px rgba(255, 205, 83, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  transform: translateX(-50%);
+}
+
+.solar-term-feedback strong {
+  color: #ffd36a;
+  font-size: clamp(15px, 0.8vw, 20px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.solar-term-feedback>span:not(.solar-feedback-mark) {
+  color: rgba(232, 247, 255, 0.88);
+  font-size: clamp(11px, 0.56vw, 14px);
+  font-weight: 650;
+}
+
+.solar-term-feedback>i {
+  width: 3px;
+  height: 3px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(151, 221, 245, 0.66);
+}
+
+.solar-feedback-mark {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border: 1px solid rgba(255, 221, 112, 0.54);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6bd 0 18%, #ffd45f 22% 38%, rgba(255, 191, 54, 0.17) 42% 70%, transparent 72%);
+  box-shadow: 0 0 14px rgba(255, 205, 75, 0.42);
+}
+
+.solar-feedback-mark::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px dashed rgba(255, 246, 191, 0.72);
+  border-radius: 50%;
+}
+
+.earth-orbit-template.theme-light .solar-term-feedback {
+  color: #173b52;
+  border-color: rgba(190, 132, 20, 0.30);
+  background: linear-gradient(135deg, rgba(255, 252, 236, 0.94), rgba(235, 248, 252, 0.90));
+  box-shadow: 0 14px 32px rgba(42, 85, 107, 0.18), inset 0 1px 0 #ffffff;
+}
+
+.earth-orbit-template.theme-light .solar-term-feedback>span:not(.solar-feedback-mark) {
+  color: #355b6d;
+}
+
+.solar-term-feedback-enter-active {
+  transition: opacity 260ms ease, transform 320ms cubic-bezier(0.2, 0.9, 0.2, 1.15);
+}
+
+.solar-term-feedback-leave-active {
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+
+.solar-term-feedback-enter-from,
+.solar-term-feedback-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -10px) scale(0.96);
+}
+
+@media (max-width: 600px) {
+  .solar-term-feedback {
+    top: 72px;
+    gap: 6px;
+    min-height: 40px;
+    padding: 6px 10px 6px 7px;
+  }
+
+  .solar-feedback-mark {
+    width: 24px;
+    height: 24px;
+    flex-basis: 24px;
+  }
+
+  .solar-term-feedback strong {
+    font-size: 13px;
+  }
+
+  .solar-term-feedback>span:not(.solar-feedback-mark) {
+    font-size: 9px;
+  }
+}
+
+/* 页面级纹理加载层 */
+.page-loading-overlay {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #eaf8ff;
+  background:
+    radial-gradient(circle at 50% 43%, rgba(22, 101, 143, 0.20), transparent 28%),
+    radial-gradient(circle at 50% 50%, #071424 0, #020812 52%, #01040a 100%);
+  overflow: hidden;
+}
+
+.page-loading-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.28;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 1px, transparent 1.4px),
+    radial-gradient(circle, rgba(105, 220, 255, 0.66) 0 1px, transparent 1.3px);
+  background-position: 0 0, 37px 53px;
+  background-size: 97px 97px, 131px 131px;
+}
+
+.page-loading-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(360px, calc(100vw - 44px));
+  justify-items: center;
+  gap: 9px;
+  padding: 28px 30px 24px;
+  border: 1px solid rgba(92, 205, 246, 0.20);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(5, 19, 34, 0.78), rgba(4, 13, 24, 0.52));
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.page-loading-content>strong {
+  margin-top: 4px;
+  color: #f2fbff;
+  font-size: clamp(15px, 0.85vw, 20px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.page-loading-content>span {
+  min-height: 18px;
+  color: rgba(177, 221, 239, 0.70);
+  font-size: 11px;
+}
+
+.page-loading-content>small {
+  color: #69dcff;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.scene-loading-visual {
+  position: relative;
+  width: 112px;
+  height: 112px;
+}
+
+.loading-orbit {
+  position: absolute;
+  border: 1px solid rgba(105, 220, 255, 0.28);
+  border-radius: 50%;
+}
+
+.loading-orbit-outer {
+  inset: 5px;
+  border-top-color: #69dcff;
+  border-bottom-color: rgba(255, 211, 106, 0.74);
+  transform: rotate(-18deg);
+  animation: loading-orbit-spin 2.8s linear infinite;
+}
+
+.loading-orbit-inner {
+  inset: 20px;
+  border-right-color: rgba(105, 220, 255, 0.82);
+  transform: rotate(26deg);
+  animation: loading-orbit-spin 2s linear infinite reverse;
+}
+
+.loading-earth {
+  position: absolute;
+  inset: 34px;
+  border: 1px solid rgba(132, 232, 255, 0.52);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(154, 241, 255, 0.86), transparent 10%),
+    radial-gradient(circle at 60% 58%, rgba(57, 175, 142, 0.86), transparent 22%),
+    linear-gradient(145deg, #1f8fc2, #082a54 72%);
+  box-shadow: inset -9px -6px 13px rgba(0, 3, 14, 0.58), 0 0 20px rgba(70, 194, 244, 0.30);
+  animation: loading-earth-pulse 1.8s ease-in-out infinite;
+}
+
+.loading-sun {
+  position: absolute;
+  top: 16px;
+  right: 11px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffe49a;
+  box-shadow: 0 0 8px #ffd15c, 0 0 18px rgba(255, 170, 38, 0.72);
+}
+
+.page-loading-progress {
+  width: 100%;
+  height: 4px;
+  margin-top: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(118, 204, 234, 0.10);
+}
+
+.page-loading-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2a91c6, #69dcff 64%, #ffd36a);
+  box-shadow: 0 0 12px rgba(105, 220, 255, 0.48);
+  transition: width 280ms ease;
+}
+
+.earth-orbit-template.theme-light .page-loading-overlay {
+  color: #173b52;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(74, 175, 212, 0.22), transparent 30%),
+    linear-gradient(145deg, #edf8fc, #dceff6);
+}
+
+.earth-orbit-template.theme-light .page-loading-content {
+  border-color: rgba(41, 139, 176, 0.24);
+  background: rgba(249, 253, 255, 0.84);
+  box-shadow: 0 22px 54px rgba(51, 101, 124, 0.18), inset 0 1px 0 #ffffff;
+}
+
+.earth-orbit-template.theme-light .page-loading-content>strong {
+  color: #173b52;
+}
+
+.earth-orbit-template.theme-light .page-loading-content>span {
+  color: rgba(45, 91, 113, 0.72);
+}
+
+.page-loading-fade-leave-active {
+  transition: opacity 420ms ease, visibility 420ms ease;
+}
+
+.page-loading-fade-leave-to {
+  opacity: 0;
+  visibility: hidden;
+}
+
+@keyframes loading-orbit-spin {
+  to {
+    transform: rotate(342deg);
+  }
+}
+
+@keyframes loading-earth-pulse {
+  0%,
+  100% {
+    transform: scale(0.96);
+  }
+
+  50% {
+    transform: scale(1.04);
+  }
 }
 </style>

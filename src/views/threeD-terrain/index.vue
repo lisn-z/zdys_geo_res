@@ -19,7 +19,7 @@
         </button>
 
         <button type="button" class="theme-btn toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+          {{ allPanelsCollapsed ? '展开控制面板' : '收起控制面板' }}
         </button>
       </div>
     </header>
@@ -247,90 +247,70 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>知识解读</h2>
-              <p>结合图例读取地形部位与判读方法</p>
-            </div>
-
-            <span class="panel-badge">KNOWLEDGE</span>
+      <FloatingFeatureCard v-show="!learningMode"
+        class="terrain-stack-floating-card terrain-status-floating-card" title="地形状态"
+        subtitle="当前参数与工具状态" variant="data" :initial-top="148" :initial-right="84" :bottom-inset="12"
+        v-model:collapsed="statusCardCollapsed" :resizable="true" :min-width="330" :min-height="190">
+        <div class="terrain-status-grid">
+          <div class="terrain-status-metric cyan-card">
+            <span>等高距</span>
+            <strong>{{ contourInterval }}m</strong>
           </div>
-
-          <div class="data-grid">
-            <article class="geo-card data-card cyan-card">
-              <span>等高距</span>
-              <strong>{{ contourInterval }}m</strong>
-              <small>相邻等高线海拔差</small>
-            </article>
-
-            <article class="geo-card data-card blue-card">
-              <span>地形类型</span>
-              <strong>{{ terrainGenType }}</strong>
-              <small>当前随机生成目标</small>
-            </article>
-
-            <article class="geo-card data-card purple-card">
-              <span>投影线</span>
-              <strong>{{ showProjectionLines ? '显示' : '隐藏' }}</strong>
-              <small>三维与二维对应关系</small>
-            </article>
-
-            <article class="geo-card data-card orange-card">
-              <span>剖面</span>
-              <strong>{{ profileMode ? '切割中' : '未开启' }}</strong>
-              <small>点击两点生成剖面图</small>
-            </article>
+          <div class="terrain-status-metric blue-card">
+            <span>地形类型</span>
+            <strong>{{ terrainGenType }}</strong>
           </div>
-
-          <el-collapse class="analysis-collapse" :model-value="[
-            'terrain',
-            'rule',
-            'profile',
-          ]">
-            <el-collapse-item title="基本地形部位" name="terrain">
-              <div class="collapse-content terrain-knowledge">
-                <p><strong>山顶：</strong>闭合等高线，内高外低，常标海拔。</p>
-                <p><strong>鞍部：</strong>两峰之间低凹部位，比两侧山顶低。</p>
-                <p><strong>山脊：</strong>分水岭，等高线向低处凸出。</p>
-                <p><strong>山谷：</strong>集水线，等高线向高处凸出，常发育河流。</p>
-              </div>
-            </el-collapse-item>
-
-            <el-collapse-item title="坡度与设色" name="rule">
-              <div class="collapse-content terrain-knowledge">
-                <p><strong>陡崖：</strong>等高线重合或极密，高差变化显著。</p>
-                <p><strong>陡坡：</strong>等高线密集，坡度较大。</p>
-                <p><strong>缓坡：</strong>等高线稀疏，坡度较小。</p>
-                <p><strong>分层设色：</strong>颜色由绿色逐渐过渡到黄褐色和高处浅色。</p>
-              </div>
-            </el-collapse-item>
-
-            <el-collapse-item title="剖面图使用" name="profile">
-              <div class="collapse-content terrain-knowledge">
-                <p>开启剖面切割后，在地形上点击两个点，即可生成两点之间的海拔变化曲线。</p>
-                <p>剖面图可以帮助学生理解地形起伏、坡度变化和等高线疏密之间的关系。</p>
-              </div>
-            </el-collapse-item>
-          </el-collapse>
+          <div class="terrain-status-metric purple-card">
+            <span>投影线</span>
+            <strong>{{ showProjectionLines ? '显示' : '隐藏' }}</strong>
+          </div>
+          <div class="terrain-status-metric orange-card">
+            <span>剖面状态</span>
+            <strong>{{ profileMode ? '切割中' : '未开启' }}</strong>
+          </div>
         </div>
+      </FloatingFeatureCard>
 
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
+      <FloatingFeatureCard v-show="!learningMode"
+        class="terrain-stack-floating-card terrain-default-collapsed-card" title="基本地形部位"
+        subtitle="根据等高线弯曲方向判读" variant="data" :initial-top="368" :initial-right="84"
+        :bottom-inset="12" :collapsed="knowledgeCardCollapsed.terrain" :resizable="true" :min-width="280"
+        :min-height="100" @update:collapsed="onKnowledgeCardCollapsedChange('terrain', $event)">
+        <div class="terrain-floating-copy terrain-knowledge">
+          <p><strong>山顶：</strong>闭合等高线，内高外低，常标海拔。</p>
+          <p><strong>鞍部：</strong>两峰之间低凹部位，比两侧山顶低。</p>
+          <p><strong>山脊：</strong>分水岭，等高线向低处凸出。</p>
+          <p><strong>山谷：</strong>集水线，等高线向高处凸出，常发育河流。</p>
+        </div>
+      </FloatingFeatureCard>
 
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
+      <FloatingFeatureCard v-show="!learningMode"
+        class="terrain-stack-floating-card terrain-default-collapsed-card" title="坡度与设色"
+        subtitle="利用疏密与颜色判断地势" variant="data" :initial-top="436" :initial-right="84"
+        :bottom-inset="12" :collapsed="knowledgeCardCollapsed.slope" :resizable="true" :min-width="280"
+        :min-height="100" @update:collapsed="onKnowledgeCardCollapsedChange('slope', $event)">
+        <div class="terrain-floating-copy terrain-knowledge">
+          <p><strong>陡崖：</strong>等高线重合或极密，高差变化显著。</p>
+          <p><strong>陡坡：</strong>等高线密集，坡度较大。</p>
+          <p><strong>缓坡：</strong>等高线稀疏，坡度较小。</p>
+          <p><strong>分层设色：</strong>颜色由绿色逐渐过渡到黄褐色和高处浅色。</p>
+        </div>
+      </FloatingFeatureCard>
+
+      <FloatingFeatureCard v-show="!learningMode"
+        class="terrain-stack-floating-card terrain-default-collapsed-card" title="剖面图使用"
+        subtitle="观察沿线海拔变化" variant="data" :initial-top="504" :initial-right="84"
+        :bottom-inset="12" :collapsed="knowledgeCardCollapsed.profile" :resizable="true" :min-width="280"
+        :min-height="100" @update:collapsed="onKnowledgeCardCollapsedChange('profile', $event)">
+        <div class="terrain-floating-copy terrain-knowledge">
+          <p>开启剖面切割后，在地形上点击两个点，即可生成两点之间的海拔变化曲线。</p>
+          <p>剖面图可以帮助学生理解地形起伏、坡度变化和等高线疏密之间的关系。</p>
+        </div>
+      </FloatingFeatureCard>
 
       <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
         v-bind="leftEntryAttrs">
         ›
-      </button>
-
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
       </button>
 
     </main>
@@ -379,6 +359,7 @@ import {
  * 公共模板样式已内置悬浮面板、平板宽度与触控拖拽规则。
  */
 import '@/styles/geo-page-template.css'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import {
   useGeoPanelLayout,
 } from '@/hooks/useGeoPanelLayout'
@@ -420,6 +401,23 @@ const profileClicks = ref(0)
 const profileData = ref<{ dist: number; elev: number }[]>([])
 const terrainGenType = ref('all')
 const generatingTerrain = ref(false)
+const statusCardCollapsed = ref(false)
+type KnowledgeCardKey = 'terrain' | 'slope' | 'profile'
+const knowledgeCardCollapsed = ref<Record<KnowledgeCardKey, boolean>>({
+  terrain: true,
+  slope: true,
+  profile: true,
+})
+
+function onKnowledgeCardCollapsedChange(
+  card: KnowledgeCardKey,
+  collapsed: boolean,
+) {
+  knowledgeCardCollapsed.value = {
+    ...knowledgeCardCollapsed.value,
+    [card]: collapsed,
+  }
+}
 
 // ============================================================
 // 地形判读学习模块
@@ -435,7 +433,7 @@ let savedHeightValue = 0
 let savedHeightsData: number[][] = []
 
 const hasLeftPanel = true
-const hasRightPanel = true
+const hasRightPanel = false
 
 let sceneResizeObserver:
   | ResizeObserver
@@ -465,7 +463,6 @@ const {
   layoutMode,
 
   leftCollapsed,
-  rightCollapsed,
   allPanelsCollapsed,
 
   draggingSide,
@@ -473,16 +470,12 @@ const {
 
   workspaceAttrs,
   leftPanelAttrs,
-  rightPanelAttrs,
 
   leftResizeAttrs,
-  rightResizeAttrs,
 
   leftCollapseAttrs,
-  rightCollapseAttrs,
 
   leftEntryAttrs,
-  rightEntryAttrs,
 
   toggleAll:
   toggleAllPanels,
@@ -759,14 +752,16 @@ function sampleTerrainHeightAtSceneXZ(
   const h11 =
     heightsData[z1]?.[x1] ?? h10
 
-  const h0 =
-    h00 * (1 - tx) + h10 * tx
-
-  const h1 =
-    h01 * (1 - tx) + h11 * tx
-
+  /*
+   * 与 generateTerrainData() 中的三角形剖分保持一致：
+   *   左上、右上、左下 / 右上、右下、左下。
+   * 不能使用双线性插值，否则得到的高度会与实际渲染的三角面略有偏差，
+   * 贴在表面的等高线便会局部钻入山体。
+   */
   const realHeight =
-    h0 * (1 - tz) + h1 * tz
+    tx + tz <= 1
+      ? h00 + tx * (h10 - h00) + tz * (h01 - h00)
+      : h11 + (1 - tz) * (h10 - h11) + (1 - tx) * (h01 - h11)
 
   return getDisplayHeight(realHeight)
 }
@@ -930,46 +925,112 @@ function generateTerrainData(): {
 // ============================================================
 interface ContourSegment { ax: number; az: number; bx: number; bz: number; level: number }
 
+interface ContourVertex {
+  x: number
+  z: number
+  height: number
+}
+
+const CONTOUR_POINT_EPSILON = 1e-7
+const CONTOUR_CONNECT_EPSILON = TERRAIN_SIZE / (GRID_SIZE - 1) * 1e-4
+
+function interpolateContourEdge(
+  a: ContourVertex,
+  b: ContourVertex,
+  level: number,
+): { x: number; z: number } | null {
+  const da = a.height - level
+  const db = b.height - level
+
+  // 整条边都处于等高面时交由相邻两条边确定端点，避免重复线段。
+  if (Math.abs(da) <= CONTOUR_POINT_EPSILON && Math.abs(db) <= CONTOUR_POINT_EPSILON) {
+    return null
+  }
+
+  if ((da < 0 && db < 0) || (da > 0 && db > 0)) return null
+
+  const heightDelta = b.height - a.height
+  if (Math.abs(heightDelta) <= CONTOUR_POINT_EPSILON) return null
+
+  const t = Math.max(0, Math.min(1, (level - a.height) / heightDelta))
+  return {
+    x: a.x + (b.x - a.x) * t,
+    z: a.z + (b.z - a.z) * t,
+  }
+}
+
+function addTriangleContourSegment(
+  segments: ContourSegment[],
+  a: ContourVertex,
+  b: ContourVertex,
+  c: ContourVertex,
+  level: number,
+) {
+  const intersections = [
+    interpolateContourEdge(a, b, level),
+    interpolateContourEdge(b, c, level),
+    interpolateContourEdge(c, a, level),
+  ].filter((point): point is { x: number; z: number } => point !== null)
+
+  const unique: { x: number; z: number }[] = []
+  for (const point of intersections) {
+    if (!unique.some(existing =>
+      Math.hypot(existing.x - point.x, existing.z - point.z) <= CONTOUR_POINT_EPSILON
+    )) {
+      unique.push(point)
+    }
+  }
+
+  if (unique.length !== 2) return
+  const first = unique[0]
+  const second = unique[1]
+  if (!first || !second) return
+  if (Math.hypot(first.x - second.x, first.z - second.z) <= CONTOUR_POINT_EPSILON) return
+
+  segments.push({
+    ax: first.x,
+    az: first.z,
+    bx: second.x,
+    bz: second.z,
+    level,
+  })
+}
+
 function generateContourSegments(interval: number): ContourSegment[] {
   const segments: ContourSegment[] = []
+  const sceneX = (index: number) => (index / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
+  const sceneZ = (index: number) => (index / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
+
   for (let level = CONTOUR_START; level <= CONTOUR_END; level += interval) {
     for (let j = 0; j < GRID_SIZE - 1; j++) {
       for (let i = 0; i < GRID_SIZE - 1; i++) {
-        const hTL = heightsData[j][i]
-        const hTR = heightsData[j][i + 1]
-        const hBL = heightsData[j + 1][i]
-        const hBR = heightsData[j + 1][i + 1]
-        const code = ((hTL >= level ? 1 : 0) << 3) | ((hTR >= level ? 1 : 0) << 2) |
-          ((hBL >= level ? 1 : 0) << 1) | (hBR >= level ? 1 : 0)
-        if (code === 0 || code === 15) continue
-        const nx = (idx: number) => (idx / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
-        const nz = (idx: number) => (idx / (GRID_SIZE - 1) - 0.5) * TERRAIN_SIZE
-        const ip = (h1: number, h2: number, p1: number, p2: number) => {
-          const t = (level - h1) / (h2 - h1); return p1 + t * (p2 - p1)
-        }
-        const top = ip(hTL, hTR, nx(i), nx(i + 1))
-        const bot = ip(hBL, hBR, nx(i), nx(i + 1))
-        const lef = ip(hTL, hBL, nz(j), nz(j + 1))
-        const rig = ip(hTR, hBR, nz(j), nz(j + 1))
-        const addSeg = (ax: number, az: number, bx: number, bz: number) => segments.push({ ax, az, bx, bz, level })
-        const ct = top, cb = bot, cl = lef, cr = rig
-        const czT = nz(j), czB = nz(j + 1), cxL = nx(i), cxR = nx(i + 1)
-        switch (code) {
-          case 1: addSeg(cxR, cr, cxR, czB); break
-          case 2: addSeg(cxR, czB, cxL, czB); break
-          case 3: addSeg(cxL, czB, cxR, czB); break
-          case 4: addSeg(ct, czT, cxR, cr); break
-          case 5: addSeg(ct, czT, cxR, czB); break
-          case 6: addSeg(ct, czT, cxL, czB); addSeg(cxR, cr, cxR, czB); break
-          case 7: addSeg(ct, czT, cxL, czB); break
-          case 8: addSeg(cxL, cl, ct, czT); break
-          case 9: addSeg(cxL, cl, cxR, czB); addSeg(ct, czT, cxR, cr); break
-          case 10: addSeg(ct, czT, cxR, czB); break
-          case 11: addSeg(ct, czT, cxR, cr); break
-          case 12: addSeg(cxL, cl, cxR, cr); break
-          case 13: addSeg(cxL, cl, cxR, czB); break
-          case 14: addSeg(cxR, czB, cxR, cr); break
-        }
+        const topRow = heightsData[j]
+        const bottomRow = heightsData[j + 1]
+        if (!topRow || !bottomRow) continue
+
+        const topLeftHeight = topRow[i]
+        const topRightHeight = topRow[i + 1]
+        const bottomLeftHeight = bottomRow[i]
+        const bottomRightHeight = bottomRow[i + 1]
+        if (
+          topLeftHeight === undefined ||
+          topRightHeight === undefined ||
+          bottomLeftHeight === undefined ||
+          bottomRightHeight === undefined
+        ) continue
+
+        const x0 = sceneX(i)
+        const x1 = sceneX(i + 1)
+        const z0 = sceneZ(j)
+        const z1 = sceneZ(j + 1)
+        const topLeft = { x: x0, z: z0, height: topLeftHeight }
+        const topRight = { x: x1, z: z0, height: topRightHeight }
+        const bottomLeft = { x: x0, z: z1, height: bottomLeftHeight }
+        const bottomRight = { x: x1, z: z1, height: bottomRightHeight }
+
+        // 必须与地形网格的 (a,b,c) / (b,d,c) 两个三角面完全一致。
+        addTriangleContourSegment(segments, topLeft, topRight, bottomLeft, level)
+        addTriangleContourSegment(segments, topRight, bottomRight, bottomLeft, level)
       }
     }
   }
@@ -979,36 +1040,74 @@ function generateContourSegments(interval: number): ContourSegment[] {
 function connectContourPolylines(segments: ContourSegment[], level: number, y: number): Float32Array[] {
   const segs = segments.filter(s => s.level === level)
   if (segs.length === 0) return []
+
   const used = new Array(segs.length).fill(false)
   const polylines: Float32Array[] = []
-  const TOL = 0.003
-  const dist = (x1: number, z1: number, x2: number, z2: number) => Math.hypot(x1 - x2, z1 - z2)
-  for (let start = 0; start < segs.length; start++) {
-    if (used[start]) continue
-    used[start] = true
-    const pts: number[] = [segs[start].ax, y, segs[start].az, segs[start].bx, y, segs[start].bz]
-    let hx = segs[start].ax, hz = segs[start].az
-    let tx = segs[start].bx, tz = segs[start].bz
-    let found = true
-    while (found) {
-      found = false
-      for (let j = 0; j < segs.length; j++) {
-        if (used[j]) continue; const s = segs[j]
-        if (dist(tx, tz, s.ax, s.az) < TOL) { pts.push(s.bx, y, s.bz); tx = s.bx; tz = s.bz; used[j] = true; found = true; break }
-        if (dist(tx, tz, s.bx, s.bz) < TOL) { pts.push(s.ax, y, s.az); tx = s.ax; tz = s.az; used[j] = true; found = true; break }
-      }
-    }
-    found = true
-    while (found) {
-      found = false
-      for (let j = 0; j < segs.length; j++) {
-        if (used[j]) continue; const s = segs[j]
-        if (dist(hx, hz, s.ax, s.az) < TOL) { pts.unshift(s.bx, y, s.bz); hx = s.bx; hz = s.bz; used[j] = true; found = true; break }
-        if (dist(hx, hz, s.bx, s.bz) < TOL) { pts.unshift(s.ax, y, s.az); hx = s.ax; hz = s.az; used[j] = true; found = true; break }
-      }
-    }
-    if (pts.length >= 6) polylines.push(new Float32Array(pts))
+
+  type EndpointRef = { segmentIndex: number; endpoint: 'a' | 'b' }
+  const pointKey = (x: number, z: number) =>
+    `${Math.round(x / CONTOUR_CONNECT_EPSILON)},${Math.round(z / CONTOUR_CONNECT_EPSILON)}`
+  const adjacency = new Map<string, EndpointRef[]>()
+
+  const addEndpoint = (key: string, ref: EndpointRef) => {
+    const refs = adjacency.get(key)
+    if (refs) refs.push(ref)
+    else adjacency.set(key, [ref])
   }
+
+  for (let i = 0; i < segs.length; i++) {
+    const segment = segs[i]
+    if (!segment) continue
+    addEndpoint(pointKey(segment.ax, segment.az), { segmentIndex: i, endpoint: 'a' })
+    addEndpoint(pointKey(segment.bx, segment.bz), { segmentIndex: i, endpoint: 'b' })
+  }
+
+  const tracePolyline = (startIndex: number, startEndpoint: 'a' | 'b') => {
+    const startSegment = segs[startIndex]
+    if (!startSegment) return
+    const startAtA = startEndpoint === 'a'
+    const startX = startAtA ? startSegment.ax : startSegment.bx
+    const startZ = startAtA ? startSegment.az : startSegment.bz
+    let currentX = startAtA ? startSegment.bx : startSegment.ax
+    let currentZ = startAtA ? startSegment.bz : startSegment.az
+    const startKey = pointKey(startX, startZ)
+    const points = [startX, y, startZ, currentX, y, currentZ]
+    used[startIndex] = true
+
+    while (true) {
+      const currentKey = pointKey(currentX, currentZ)
+      if (currentKey === startKey) break
+
+      const nextRef = adjacency.get(currentKey)?.find(ref => !used[ref.segmentIndex])
+      if (!nextRef) break
+
+      const nextSegment = segs[nextRef.segmentIndex]
+      if (!nextSegment) break
+      const exitsAtB = nextRef.endpoint === 'a'
+      currentX = exitsAtB ? nextSegment.bx : nextSegment.ax
+      currentZ = exitsAtB ? nextSegment.bz : nextSegment.az
+      points.push(currentX, y, currentZ)
+      used[nextRef.segmentIndex] = true
+    }
+
+    polylines.push(new Float32Array(points))
+  }
+
+  // 优先从度为 1 的端点追踪开放曲线，再处理剩余闭环。
+  for (let i = 0; i < segs.length; i++) {
+    if (used[i]) continue
+    const segment = segs[i]
+    if (!segment) continue
+    const aDegree = adjacency.get(pointKey(segment.ax, segment.az))?.length ?? 0
+    const bDegree = adjacency.get(pointKey(segment.bx, segment.bz))?.length ?? 0
+    if (aDegree === 1) tracePolyline(i, 'a')
+    else if (bDegree === 1) tracePolyline(i, 'b')
+  }
+
+  for (let i = 0; i < segs.length; i++) {
+    if (!used[i]) tracePolyline(i, 'a')
+  }
+
   return polylines
 }
 
@@ -1016,24 +1115,71 @@ function connectContourPolylines(segments: ContourSegment[], level: number, y: n
 // Chaikin 曲线平滑 — 使等高线连续光滑
 // ============================================================
 function chaikinSmooth(points: Float32Array, iterations: number): Float32Array {
-  let pts: number[] = []
+  type Point3 = { x: number; y: number; z: number }
+  let pts: Point3[] = []
   for (let i = 0; i < points.length; i += 3) {
-    pts.push(points[i], points[i + 1], points[i + 2])
+    pts.push({
+      x: points[i] ?? 0,
+      y: points[i + 1] ?? 0,
+      z: points[i + 2] ?? 0,
+    })
   }
-  if (pts.length < 6) return points
+  if (pts.length < 2) return points
+
+  const firstPoint = pts[0]
+  const lastPoint = pts[pts.length - 1]
+  if (!firstPoint || !lastPoint) return points
+  const closed = pts.length >= 3 && Math.hypot(
+    firstPoint.x - lastPoint.x,
+    firstPoint.z - lastPoint.z,
+  ) <= CONTOUR_CONNECT_EPSILON
+
+  // 闭环内部只保留一个首点，完成平滑后再显式闭合。
+  if (closed) pts.pop()
 
   for (let iter = 0; iter < iterations; iter++) {
-    const newPts: number[] = []
-    for (let i = 0; i < pts.length - 3; i += 3) {
-      const x0 = pts[i], y0 = pts[i + 1], z0 = pts[i + 2]
-      const x1 = pts[i + 3], y1 = pts[i + 4], z1 = pts[i + 5]
-      newPts.push(x0 * 0.75 + x1 * 0.25, y0 * 0.75 + y1 * 0.25, z0 * 0.75 + z1 * 0.25)
-      newPts.push(x0 * 0.25 + x1 * 0.75, y0 * 0.25 + y1 * 0.75, z0 * 0.25 + z1 * 0.75)
+    const newPts: Point3[] = []
+    const pointCount = pts.length
+    const currentFirst = pts[0]
+    const currentLast = pts[pointCount - 1]
+    if (!currentFirst || !currentLast) break
+
+    if (!closed) newPts.push(currentFirst)
+
+    const pairCount = closed ? pointCount : pointCount - 1
+    for (let pointIndex = 0; pointIndex < pairCount; pointIndex++) {
+      const nextPointIndex = (pointIndex + 1) % pointCount
+      const current = pts[pointIndex]
+      const next = pts[nextPointIndex]
+      if (!current || !next) continue
+      newPts.push({
+        x: current.x * 0.75 + next.x * 0.25,
+        y: current.y * 0.75 + next.y * 0.25,
+        z: current.z * 0.75 + next.z * 0.25,
+      })
+      newPts.push({
+        x: current.x * 0.25 + next.x * 0.75,
+        y: current.y * 0.25 + next.y * 0.75,
+        z: current.z * 0.25 + next.z * 0.75,
+      })
     }
+
+    if (!closed) newPts.push(currentLast)
+
     pts = newPts
   }
-  const result = new Float32Array(pts.length)
-  result.set(pts)
+
+  if (closed && pts[0]) pts.push({ ...pts[0] })
+
+  const result = new Float32Array(pts.length * 3)
+  for (let i = 0; i < pts.length; i++) {
+    const point = pts[i]
+    if (!point) continue
+    const offset = i * 3
+    result[offset] = point.x
+    result[offset + 1] = point.y
+    result[offset + 2] = point.z
+  }
   return result
 }
 
@@ -1331,10 +1477,6 @@ function buildTerrain() {
     metalness: 0.02,
     side: THREE.DoubleSide,
     flatShading: false,
-    // polygonOffset 让等高线始终在 terrain 前方渲染，背后等高线也可见
-    polygonOffset: true,
-    polygonOffsetFactor: -1.0,
-    polygonOffsetUnits: -1.0,
   })
   terrainMesh = new THREE.Mesh(geo, terrainMaterial)
   terrainMesh.castShadow = true
@@ -1768,23 +1910,9 @@ function updateViewCubeDockPosition() {
   const el =
     viewCube.value
 
-  const page =
-    pageRef.value
-
-  if (
-    !el ||
-    !page
-  ) {
+  if (!el) {
     return
   }
-
-  const rightPanel =
-    page.querySelector<HTMLElement>(
-      '#right-panel'
-    )
-
-  const pageRect =
-    page.getBoundingClientRect()
 
   const gap =
     layoutMode.value === 'small'
@@ -1792,43 +1920,6 @@ function updateViewCubeDockPosition() {
       : layoutMode.value === 'medium'
         ? 10
         : 14
-
-  let rightValue =
-    gap
-
-  /*
-   * 关键：
-   * 不再用 CSS 变量推测右侧面板宽度。
-   * 直接读取右侧面板真实 DOM 位置。
-   *
-   * cube 的右边缘应该在：
-   * rightPanel.left - gap
-   *
-   * 因此 right 值为：
-   * pageRect.right - rightPanel.left + gap
-   */
-  if (
-    rightPanel &&
-    !rightCollapsed.value
-  ) {
-    const panelRect =
-      rightPanel.getBoundingClientRect()
-
-    if (
-      panelRect.width > 0 &&
-      panelRect.left < pageRect.right
-    ) {
-      rightValue =
-        Math.max(
-          gap,
-          Math.round(
-            pageRect.right -
-            panelRect.left +
-            gap
-          )
-        )
-    }
-  }
 
   el.style.setProperty(
     'left',
@@ -1838,7 +1929,7 @@ function updateViewCubeDockPosition() {
 
   el.style.setProperty(
     'right',
-    `${rightValue}px`,
+    `${gap}px`,
     'important'
   )
 }
@@ -2111,9 +2202,8 @@ function startLearning() {
   savedTerrainGenType = terrainGenType.value
   savedHeightValue = maxHeightValue
   savedHeightsData = heightsData.map(row => [...row])
-  // 自动收起左右面板（避免遮挡地形）
+  // 自动收起左侧控制面板；知识卡片由 v-show 暂时隐藏。
   leftCollapsed.value = true
-  rightCollapsed.value = true
   // 立即隐藏现有地形标签（避免泄露答案）
   while (featureLabelGroup.children.length) {
     const c = featureLabelGroup.children[0]
@@ -2128,9 +2218,8 @@ function endLearning() {
   learningMode.value = false
   quizResult.value = null
   lastAnswer.value = null
-  // 恢复原状态，展开面板并切回前视图
+  // 恢复原状态，展开控制面板并切回前视图
   leftCollapsed.value = false
-  rightCollapsed.value = false
   terrainGenType.value = savedTerrainGenType
   heightsData = savedHeightsData
   maxHeightValue = savedHeightValue
@@ -2648,10 +2737,7 @@ function resizeSceneNow() {
     )
   }
 
-  /*
-   * 悬浮面板不一定改变主场景尺寸，
-   * 但 Cube 必须根据右面板真实位置重新停靠。
-   */
+  // 响应式缩放后同步校准视角立方体位置。
   applyResponsiveScale()
   updateViewCubeDockPosition()
 
@@ -2874,13 +2960,6 @@ onUnmounted(() => {
       22px);
 }
 
-.terrain-projection-template .right-panel {
-  right:
-    clamp(14px,
-      1.4vw,
-      22px);
-}
-
 .terrain-projection-template .side-panel.collapsed {
   width: 0 !important;
   min-width: 0 !important;
@@ -2892,11 +2971,6 @@ onUnmounted(() => {
 .terrain-projection-template .left-panel.collapsed {
   transform:
     translateX(calc(-100% - 18px));
-}
-
-.terrain-projection-template .right-panel.collapsed {
-  transform:
-    translateX(calc(100% + 18px));
 }
 
 .terrain-scene-host {
@@ -3280,6 +3354,124 @@ onUnmounted(() => {
     var(--theme-on-primary) !important;
 }
 
+.terrain-stack-floating-card {
+  width:
+    min(310px,
+      calc(100vw - 20px));
+  max-height:
+    calc(100vh - 74px);
+}
+
+.terrain-stack-floating-card.variant-data.collapsed {
+  width: 230px;
+}
+
+.terrain-status-floating-card {
+  width:
+    min(350px,
+      calc(100vw - 20px));
+  transition:
+    transform 0.18s ease;
+}
+
+.terrain-status-floating-card:not(.collapsed) {
+  height: 202px;
+  transform:
+    translateX(-146px);
+}
+
+.terrain-default-collapsed-card.collapsed {
+  height: 50px;
+}
+
+.terrain-default-collapsed-card {
+  transition:
+    transform 0.18s ease;
+}
+
+.terrain-default-collapsed-card:not(.collapsed) {
+  transform:
+    translateX(-246px);
+}
+
+.terrain-stack-floating-card :deep(.feature-card-content) {
+  padding-bottom: 0;
+}
+
+.terrain-status-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2,
+      minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+  background:
+    linear-gradient(145deg,
+      rgba(20, 74, 102, 0.24),
+      rgba(3, 17, 29, 0.54));
+}
+
+.terrain-status-metric {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(92, 204, 245, 0.12);
+  border-radius: 8px;
+  background: rgba(3, 17, 29, 0.48);
+}
+
+.terrain-status-metric span {
+  color:
+    var(--feature-muted);
+  font-size: 10px;
+}
+
+.terrain-status-metric strong {
+  color:
+    var(--feature-title);
+  font-size:
+    clamp(15px,
+      0.78vw,
+      21px);
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terrain-status-metric.cyan-card strong {
+  color: #2ec4b6;
+}
+
+.terrain-status-metric.blue-card strong {
+  color: #45aaf2;
+}
+
+.terrain-status-metric.purple-card strong {
+  color: #a78bfa;
+}
+
+.terrain-status-metric.orange-card strong {
+  color: #fd9644;
+}
+
+.terrain-floating-copy {
+  padding: 12px 16px 14px 13px;
+  color:
+    var(--feature-text);
+  font-size:
+    clamp(12px,
+      0.58vw,
+      15px);
+  line-height: 1.55;
+}
+
+.terrain-floating-copy strong {
+  color:
+    var(--feature-title);
+}
+
 .terrain-knowledge {
   display: grid;
   gap: 6px;
@@ -3290,6 +3482,22 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1280px) {
+  .terrain-stack-floating-card {
+    width:
+      min(300px,
+        calc(100vw - 20px));
+  }
+
+  .terrain-stack-floating-card.variant-data.collapsed {
+    width: 230px;
+  }
+
+  .terrain-status-floating-card {
+    width:
+      min(330px,
+        calc(100vw - 20px));
+  }
+
   .profile-chart canvas {
     width:
       calc(520px * var(--ui-scale));
@@ -3662,13 +3870,6 @@ onUnmounted(() => {
 
 
 
-
-/* ===================== v16: Cube 使用 DOM 实际位置贴右侧面板 =====================
-   这版不再用 CSS 变量猜右侧面板宽度。
-   updateViewCubeDockPosition() 会读取 #right-panel.getBoundingClientRect()，
-   然后直接设置 view-cube 的 right。
-   CSS 只做兜底和尺寸，不再写 transform，避免破坏 JS 旋转。
-*/
 
 /* 左侧面板中的图例卡片 */
 .terrain-projection-template .panel-terrain-legend-card {

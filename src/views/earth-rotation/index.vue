@@ -35,31 +35,7 @@
             </div>
             <span class="panel-badge">CTRL</span>
           </div>
-          <section class="geo-card control-section rotation-time-dock">
-            <div class="ctrl-title">⏱ 自转演示</div>
-            <div class="time-dock-main">
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                <button class="timeline-icon-btn" :class="{ active: isPlaying }" :aria-label="isPlaying ? '暂停' : '播放'"
-                  @click="isPlaying = !isPlaying">
-                  <svg v-if="isPlaying" class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M7 5h4v14H7z"></path>
-                    <path d="M13 5h4v14h-4z"></path>
-                  </svg>
-                  <svg v-else class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M8 5v14l11-7z"></path>
-                  </svg>
-                </button>
-                <span class="time-dock-title">地球自转演示时间轴</span>
-              </div>
-              <div style="padding:0 4px;">
-                <el-slider v-model="rotSpeed" :min="0.1" :max="10" :step="0.1" size="small" :show-tooltip="false" />
-              </div>
-              <div class="time-dock-meta single" style="margin-top:4px;">
-                <span>速度 {{ rotSpeed.toFixed(1) }}×</span>
-              </div>
-            </div>
-          </section>
-          <section class="geo-card control-section brightness-control-section">
+          <section class="geo-card control-section control-card control-card-brightness brightness-control-section">
             <div class="ctrl-title">💡 亮度</div>
 
             <div class="brightness-control-stack">
@@ -94,7 +70,7 @@
             </div>
           </section>
 
-          <section class="geo-card control-section">
+          <section class="geo-card control-section control-card control-card-layers">
             <div class="ctrl-title">🎨 可视图层</div>
             <div class="toggle-list">
               <label v-for="l in layerDefs" :key="l.key" class="toggle-item">
@@ -105,7 +81,28 @@
           </section>
 
 
-          <section class="geo-card control-section panel-rotation-legend-card">
+          <section class="geo-card control-section control-card control-card-view">
+            <div class="ctrl-title">🎥 视角</div>
+            <div class="btn-grid">
+              <button class="theme-btn option-btn" :class="{ active: currentView === 'equator' }"
+                @click="setView('equator')">
+                赤道视角
+              </button>
+              <button class="theme-btn option-btn" :class="{ active: currentView === 'north' }"
+                @click="setView('north')">
+                北极俯视
+              </button>
+              <button class="theme-btn option-btn" :class="{ active: currentView === 'south' }"
+                @click="setView('south')">
+                南极俯视
+              </button>
+              <button class="theme-btn option-btn" @click="setView('reset')">
+                重置
+              </button>
+            </div>
+          </section>
+
+          <section class="geo-card control-section control-card control-card-legend panel-rotation-legend-card">
             <div class="ctrl-title">📖 图例</div>
 
             <div class="panel-rotation-legend-list">
@@ -135,7 +132,7 @@
               </div>
               <div class="panel-rotation-legend-item">
                 <span class="legend-line" style="background:#ef4444"></span>
-                日界线（白令海峡折线）
+                国际日界线（现代制图近似）
               </div>
               <div class="panel-rotation-legend-item">
                 <span class="legend-line" style="background:#2ec4b6"></span>
@@ -148,27 +145,6 @@
             </div>
           </section>
 
-
-          <section class="geo-card control-section">
-            <div class="ctrl-title">🎥 视角</div>
-            <div class="btn-grid">
-              <button class="theme-btn option-btn" :class="{ active: currentView === 'equator' }"
-                @click="setView('equator')">
-                赤道视角
-              </button>
-              <button class="theme-btn option-btn" :class="{ active: currentView === 'north' }"
-                @click="setView('north')">
-                北极俯视
-              </button>
-              <button class="theme-btn option-btn" :class="{ active: currentView === 'south' }"
-                @click="setView('south')">
-                南极俯视
-              </button>
-              <button class="theme-btn option-btn" @click="setView('reset')">
-                重置
-              </button>
-            </div>
-          </section>
 
 
         </div>
@@ -200,67 +176,87 @@
 
             <div class="grid-labels-overlay">
               <div v-for="(t, i) in tzLabelScreenData" :key="'tz' + i" v-show="t.visible" class="grid-label tz-label"
+                :class="{ 'tz-label-with-time': layers.tzTimes }"
                 :style="{ left: t.x + 'px', top: t.y + 'px' }">
-                {{ t.text }}
+                <span class="tz-label-name">{{ t.text }}</span>
+                <strong v-if="layers.tzTimes" class="tz-label-time">{{ t.time }}</strong>
               </div>
             </div>
 
           </div>
 
-          <div v-show="bottomAxisVisible" class="bottom-dock-stack">
-            <!-- 底部经度轴 -->
-            <section v-show="trainingMode === 'learn'" class="longitude-axis ab-axis-dock">
-              <div class="axis-label">🌍 经度轴 · 拖动 A / B 标记</div>
-              <div class="longitude-axis-bar">
-                <!-- 刻度 -->
-                <div class="axis-ticks">
-                  <div v-for="t in [-180, -120, -60, 0, 60, 120, 180]" :key="t" class="axis-tick"
-                    :style="{ left: getAxisPercent(t) + '%' }">
-                    <span class="tick-label">{{ t === 0 ? '0°' : Math.abs(t) + (t > 0 ? '°E' : '°W') }}</span>
+          <div id="earth-bottom-axis-dock" v-show="bottomAxisVisible" class="bottom-dock-stack">
+            <section class="bottom-axis-unified" aria-label="自转与 A/B 经度控制">
+              <div class="rotation-time-dock rotation-dock-bottom">
+                <button class="timeline-icon-btn" :class="{ active: isPlaying }"
+                  :aria-label="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
+                  <svg v-if="isPlaying" class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 5h4v14H7z"></path>
+                    <path d="M13 5h4v14h-4z"></path>
+                  </svg>
+                  <svg v-else class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5v14l11-7z"></path>
+                  </svg>
+                </button>
+                <div class="rotation-control-copy">
+                  <span>地球自转</span>
+                  <strong>{{ isPlaying ? '运行中' : '已暂停' }}</strong>
+                </div>
+                <div class="rotation-speed-wrap">
+                  <div class="rotation-speed-meta">
+                    <span>演示速度</span>
+                    <strong>{{ rotSpeed.toFixed(1) }}×</strong>
+                  </div>
+                  <el-slider v-model="rotSpeed" :min="0.1" :max="10" :step="0.1" size="small"
+                    :show-tooltip="false" />
+                </div>
+              </div>
+
+              <div v-show="trainingMode === 'learn'" class="longitude-axis ab-axis-dock axis-in-unified">
+                <div class="axis-header">
+                  <div class="axis-summary">
+                    <span class="axis-point-summary axis-point-summary-a"><small>A 经度</small><b>{{ formatLon(pointA.lon) }}</b></span>
+                    <span class="axis-point-summary axis-point-summary-b"><small>B 经度</small><b>{{ formatLon(pointB.lon) }}</b></span>
+                    <span><small>经度差</small><b>{{ calcLonDiff(pointA.lon, pointB.lon) }}°</b></span>
+                    <span><small>时差</small><b>{{ formatTimeDiff(calcLonDiff(pointA.lon, pointB.lon) / 15) }}</b></span>
+                    <span class="axis-relation">{{ pointA.lon > pointB.lon ? 'A 在 B 东侧' : pointA.lon < pointB.lon ? 'B 在 A 东侧' : 'A / B 同经度' }}</span>
                   </div>
                 </div>
-                <!-- A 点 -->
-                <div class="axis-point point-a" :class="{ disabled: trainingMode === 'test' }"
-                  :style="{ left: getAxisPercent(pointA.lon) + '%' }"
-                  @pointerdown.stop.prevent="onAxisPointerDown('A', $event)">
-                  <span class="point-badge a">A</span>
-                  <span class="point-lon">{{ formatLon(pointA.lon) }}</span>
+                <div class="axis-scale-wrap">
+                  <div class="longitude-axis-bar">
+                    <div class="axis-track-line"></div>
+                    <div class="axis-ticks">
+                      <div v-for="t in [-180, -120, -60, 0, 60, 120, 180]" :key="t" class="axis-tick"
+                        :class="{ 'axis-tick-zero': t === 0 }" :style="{ left: getAxisPercent(t) + '%' }">
+                        <span class="tick-label">{{ t === 0 ? '0°' : Math.abs(t) + (t > 0 ? '°E' : '°W') }}</span>
+                      </div>
+                    </div>
+                    <div class="axis-point point-a"
+                      :class="{ disabled: trainingMode === 'test', 'axis-point-near': Math.abs(pointA.lon - pointB.lon) <= 15 }"
+                      :style="{ left: getAxisPercent(pointA.lon) + '%' }"
+                      @pointerdown.stop.prevent="onAxisPointerDown('A', $event)">
+                      <span class="point-badge a">A</span>
+                    </div>
+                    <div class="axis-point point-b"
+                      :class="{ disabled: trainingMode === 'test', 'axis-point-near': Math.abs(pointA.lon - pointB.lon) <= 15 }"
+                      :style="{ left: getAxisPercent(pointB.lon) + '%' }"
+                      @pointerdown.stop.prevent="onAxisPointerDown('B', $event)">
+                      <span class="point-badge b">B</span>
+                    </div>
+                  </div>
                 </div>
-                <!-- B 点 -->
-                <div class="axis-point point-b" :class="{ disabled: trainingMode === 'test' }"
-                  :style="{ left: getAxisPercent(pointB.lon) + '%' }"
-                  @pointerdown.stop.prevent="onAxisPointerDown('B', $event)">
-                  <span class="point-badge b">B</span>
-                  <span class="point-lon">{{ formatLon(pointB.lon) }}</span>
-                </div>
-              </div>
-              <div class="axis-info">
-                <span class="axis-info-item">A: <b style="color:#ef4444">{{ formatLon(pointA.lon) }}</b></span>
-                <span class="axis-info-item">B: <b style="color:#247cff">{{ formatLon(pointB.lon) }}</b></span>
-                <span class="axis-info-item">经度差: <b style="color:#fbbf24">{{ calcLonDiff(pointA.lon, pointB.lon)
-                }}°</b></span>
-                <span class="axis-info-item">时差: <b style="color:#2ec4b6">{{ formatTimeDiff(calcLonDiff(pointA.lon,
-                  pointB.lon) / 15) }}</b></span>
-                <span class="axis-info-item">{{ pointA.lon > pointB.lon ? 'A东B西' : 'B东A西' }}</span>
               </div>
             </section>
-
           </div>
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>训练与信息</h2>
-              <p>A/B 对比、城市信息与题目训练</p>
-            </div>
-            <span class="panel-badge">INFO</span>
-          </div>
-
-          <section class="geo-card ab-compare-panel right-info-card">
-            <div class="ab-drag-handle">⏱ A / B 同时刻对比</div>
+      <!-- 卡片一：A/B 同时刻对比 -->
+      <FloatingFeatureCard title="⏱ A / B 同时刻对比" subtitle="两地地方时与昼夜状态" variant="data" :initial-top="76"
+        :initial-right="18" :bottom-inset="12" :min-width="300" :min-height="180"
+        v-model:collapsed="abCardCollapsed">
+        <div class="right-panel floating-card-body">
+          <div class="geo-card ab-compare-panel right-info-card">
             <div class="ab-cards">
               <div class="ab-card ab-a">
                 <div class="ab-badge a">A</div>
@@ -285,15 +281,19 @@
                 </div>
               </div>
             </div>
-          </section>
+          </div>
+        </div>
+      </FloatingFeatureCard>
 
-          <section v-if="selectedCity" class="geo-card city-preview-panel right-info-card">
-            <div class="preview-header">
-              <span class="preview-name">{{ selectedCity.name }}</span>
-              <button class="preview-close" @click="selectedCity = null">
-                ✕
-              </button>
-            </div>
+      <!-- 卡片二：选中城市的信息预览 -->
+      <FloatingFeatureCard v-if="selectedCity" :title="selectedCity.name" subtitle="城市信息预览" variant="data"
+        :initial-top="330" :initial-right="18" :bottom-inset="12" :min-width="300" :min-height="200"
+        v-model:collapsed="cityPreviewCardCollapsed">
+        <div class="right-panel floating-card-body">
+          <div class="geo-card city-preview-panel right-info-card">
+            <button class="preview-close city-preview-close" title="关闭" @click="selectedCity = null">
+              ✕
+            </button>
 
             <div class="preview-body">
               <div class="preview-row">
@@ -326,9 +326,16 @@
                 </span>
               </div>
             </div>
-          </section>
+          </div>
+        </div>
+      </FloatingFeatureCard>
 
-          <section class="geo-card training-card">
+      <!-- 卡片三：训练题目与作答 -->
+      <FloatingFeatureCard class="training-floating-card" title="🎯 训练题目" subtitle="作答与反馈" variant="track" :initial-bottom="184"
+        :initial-right="18" :bottom-inset="12" :initial-collapsed="true" :min-width="400" :min-height="300"
+        v-model:collapsed="trainingCardCollapsed">
+        <div class="right-panel floating-card-body">
+          <div class="geo-card training-card">
             <!-- 训练题目区 -->
             <div class="ctrl-title">🎯 训练题目</div>
             <div class="phase-filters">
@@ -451,8 +458,16 @@
               </div>
             </transition>
 
-            <!-- 城市快捷选择 -->
-            <div class="ctrl-title kp-section-title">🏙 城市快捷</div>
+          </div>
+        </div>
+      </FloatingFeatureCard>
+
+      <!-- 卡片四：城市快捷选择 -->
+      <FloatingFeatureCard class="city-shortcut-floating-card" title="🏙 城市快捷" subtitle="搜索并选择世界城市" variant="data" :initial-bottom="122"
+        :initial-right="18" :bottom-inset="12" :initial-collapsed="true" :min-width="300" :min-height="240"
+        v-model:collapsed="cityShortcutCardCollapsed">
+        <div class="right-panel floating-card-body">
+          <div class="geo-card city-shortcut-card">
             <input v-model="citySearch" class="city-search" placeholder="🔍 搜索城市..." />
             <div class="city-list">
               <div v-for="city in filteredCities" :key="city.name" class="city-item compact"
@@ -462,22 +477,12 @@
                 <span class="city-item-time">{{ formatLocalTime(getCityLocalHour(city)) }}</span>
               </div>
             </div>
-          </section>
+          </div>
         </div>
-
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <button v-if="panelCollapsed" type="button" class="panel-entry-btn entry-left" v-bind="leftEntryAttrs">
         ›
-      </button>
-
-      <button v-if="knowledgeCollapsed" type="button" class="panel-entry-btn entry-right" v-bind="rightEntryAttrs">
-        ‹
       </button>
     </main>
   </section>
@@ -502,6 +507,7 @@ import '@/styles/geo-page-template.css'
 import {
   useGeoPanelLayout,
 } from '@/hooks/useGeoPanelLayout'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
 // ===================== 常量 =====================
 const EARTH_RADIUS = 2
@@ -512,6 +518,7 @@ const RAW_TEXTURES = {
   earth: `${TEXTURE_BASE}/earth.jpg`,
   night: `${TEXTURE_BASE}/emissive.jpg`,
 }
+const GALAXY_SKYBOX_URL = `${TEXTURE_BASE}/milky-way-6k.jpg`
 
 // 世界主要城市
 const cityData = [
@@ -550,9 +557,10 @@ const layerDefs = [
   { key: 'timeZones', label: '时区线' },
   { key: 'timeZoneRanges', label: '时区范围贴图' },
   { key: 'tzLabels', label: '时区名称' },
+  { key: 'tzTimes', label: '各时区时间' },
   { key: 'cities', label: '世界城市' },
   { key: 'rotationArrow', label: '自转方向' },
-  { key: 'stars', label: '星空背景' },
+  { key: 'stars', label: '银河背景' },
 ] as const
 
 // 经纬线标注定义 — 每15°经纬线均标注
@@ -592,6 +600,12 @@ const containerRef =
 const bottomAxisVisible =
   ref(true)
 
+// FloatingFeatureCard 的 collapsed 是受控属性，需要由页面持有状态。
+const abCardCollapsed = ref(false)
+const cityPreviewCardCollapsed = ref(false)
+const trainingCardCollapsed = ref(true)
+const cityShortcutCardCollapsed = ref(true)
+
 let sceneResizeObserver:
   | ResizeObserver
   | null = null
@@ -607,7 +621,8 @@ let lastSceneWidth = 0
 let lastSceneHeight = 0
 
 /*
- * 左右面板的宽度、断点、拖拽、折叠和事件清理由公共 Hook 管理。
+ * 左侧面板的宽度、断点、拖拽、折叠和事件清理由公共 Hook 管理。
+ * 右侧内容改为 FloatingFeatureCard 浮动卡片（见模板），故右侧面板禁用。
  * 底部经度轴属于本课件业务，继续由当前组件管理。
  */
 const {
@@ -617,9 +632,6 @@ const {
   leftCollapsed:
   panelCollapsed,
 
-  rightCollapsed:
-  knowledgeCollapsed,
-
   allPanelsCollapsed:
   allSidePanelsCollapsed,
 
@@ -628,16 +640,12 @@ const {
 
   workspaceAttrs,
   leftPanelAttrs,
-  rightPanelAttrs,
 
   leftResizeAttrs,
-  rightResizeAttrs,
 
   leftCollapseAttrs,
-  rightCollapseAttrs,
 
   leftEntryAttrs,
-  rightEntryAttrs,
 
   setAllCollapsed,
 } = useGeoPanelLayout({
@@ -646,7 +654,7 @@ const {
   },
 
   right: {
-    enabled: true,
+    enabled: false,
   },
 
   onLayoutChange(state) {
@@ -671,7 +679,11 @@ const allPanelsCollapsed =
   computed(() => {
     return (
       allSidePanelsCollapsed.value &&
-      !bottomAxisVisible.value
+      !bottomAxisVisible.value &&
+      abCardCollapsed.value &&
+      trainingCardCollapsed.value &&
+      cityShortcutCardCollapsed.value &&
+      (!selectedCity.value || cityPreviewCardCollapsed.value)
     )
   })
 
@@ -685,6 +697,18 @@ function toggleAllPanels() {
 
   bottomAxisVisible.value =
     shouldExpand
+
+  abCardCollapsed.value =
+    !shouldExpand
+
+  trainingCardCollapsed.value =
+    !shouldExpand
+
+  cityShortcutCardCollapsed.value =
+    !shouldExpand
+
+  cityPreviewCardCollapsed.value =
+    !shouldExpand
 
   nextTick(() => {
     scheduleSceneResize(0)
@@ -821,11 +845,17 @@ const tzLabelDefs = (() => {
     else if (lon === 180) text = '东西十二区'
     else if (tz > 0) text = `东${tz}区`
     else text = `西${Math.abs(tz)}区`
-    labels.push({ text, lat: 0, lon })
+    labels.push({ text, lat: tz % 2 === 0 ? 13 : -13, lon })
   }
   return labels
 })()
-const tzLabelScreenData = ref(tzLabelDefs.map(l => ({ text: l.text, x: 0, y: 0, visible: false })))
+const tzLabelScreenData = ref(tzLabelDefs.map(l => ({
+  text: l.text,
+  time: '00:00',
+  x: 0,
+  y: 0,
+  visible: false,
+})))
 
 const layers = reactive({
   graticule: true,
@@ -836,6 +866,7 @@ const layers = reactive({
   timeZones: false,
   timeZoneRanges: false,
   tzLabels: false,
+  tzTimes: false,
   cities: true,
   coriolis: false,
   rotationArrow: true,
@@ -893,11 +924,14 @@ let terminatorLine: THREE.Group
 let nightArcMesh: THREE.Group | null
 let coriolisGroup: THREE.Group
 let rotationArrowGroup: THREE.Group
-let starsField: THREE.Points
+let galaxySkyboxTexture: THREE.Texture | null = null
+let galaxySkyDome: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
 let axisLine: THREE.Line
 let subsolarMarker: THREE.Mesh
 
 let rotationAngle = 0
+const displayRotationAngle = ref(0)
+let lastTimeDisplayRefresh = 0
 let animationId = 0
 let clock = new THREE.Clock()
 const sunDirection = new THREE.Vector3(1, 0, 0)
@@ -920,14 +954,14 @@ function formatLocalTime(hours: number): string {
 }
 
 function getCityLocalHour(city: typeof cityData[0]): number {
-  const sunLon = -THREE.MathUtils.radToDeg(rotationAngle)
+  const sunLon = -THREE.MathUtils.radToDeg(displayRotationAngle.value)
   let diff = city.lon - sunLon
   diff = ((diff + 540) % 360) - 180
   return (12 + diff / 15 + 24) % 24
 }
 
 function isCityDaytime(city: typeof cityData[0]): boolean {
-  const sunLon = -THREE.MathUtils.radToDeg(rotationAngle)
+  const sunLon = -THREE.MathUtils.radToDeg(displayRotationAngle.value)
   let diff = Math.abs(city.lon - sunLon)
   diff = Math.min(diff, 360 - diff)
   return diff < 90
@@ -948,14 +982,14 @@ function getCityTimezoneInfo(city: typeof cityData[0]): { label: string; beijing
 
 // A/B 点的地方时和昼夜判断
 function getPointLocalHour(lon: number): number {
-  const sunLon = -THREE.MathUtils.radToDeg(rotationAngle)
+  const sunLon = -THREE.MathUtils.radToDeg(displayRotationAngle.value)
   let diff = lon - sunLon
   diff = ((diff + 540) % 360) - 180
   return (12 + diff / 15 + 24) % 24
 }
 
 function isPointDaytime(lon: number): boolean {
-  const sunLon = -THREE.MathUtils.radToDeg(rotationAngle)
+  const sunLon = -THREE.MathUtils.radToDeg(displayRotationAngle.value)
   let diff = Math.abs(lon - sunLon)
   diff = Math.min(diff, 360 - diff)
   return diff < 90
@@ -1093,71 +1127,120 @@ function createGraticule(): THREE.Group {
 // ===================== 日界线 =====================
 function createDateLine(): THREE.Group {
   const group = new THREE.Group()
-  const idlMat = new THREE.LineBasicMaterial({
+
+  type DateLinePoint = readonly [lat: number, lon: number]
+
+  /*
+   * 两个转折点之间补点，让线段始终贴在球面上。
+   * 经度先解包裹到最短方向，避免 180° / -180° 接缝处绕球一周。
+   */
+  function createSurfacePath(path: readonly DateLinePoint[]): THREE.Vector3[] {
+    const points: THREE.Vector3[] = []
+
+    path.forEach((current, index) => {
+      if (index === path.length - 1) return
+
+      const next = path[index + 1]!
+      const [lat1, lon1] = current
+      const [lat2, lon2] = next
+      let lonDelta = lon2 - lon1
+
+      if (lonDelta > 180) lonDelta -= 360
+      if (lonDelta < -180) lonDelta += 360
+
+      const steps = Math.max(
+        1,
+        Math.ceil(Math.max(Math.abs(lat2 - lat1), Math.abs(lonDelta)) / 0.75)
+      )
+
+      for (let step = 0; step < steps; step++) {
+        const ratio = step / steps
+        points.push(latLonToVec3(
+          THREE.MathUtils.lerp(lat1, lat2, ratio),
+          lon1 + lonDelta * ratio,
+          EARTH_RADIUS * 1.009
+        ))
+      }
+    })
+
+    const [lastLat, lastLon] = path[path.length - 1]!
+    points.push(latLonToVec3(lastLat, lastLon, EARTH_RADIUS * 1.009))
+    return points
+  }
+
+  function addDateLineSection(
+    path: readonly DateLinePoint[],
+    material: THREE.LineBasicMaterial | THREE.LineDashedMaterial
+  ) {
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(createSurfacePath(path)),
+      material
+    )
+    if (material instanceof THREE.LineDashedMaterial) line.computeLineDistances()
+    group.add(line)
+  }
+
+  const idlSolidMat = new THREE.LineBasicMaterial({
     color: 0xef4444,
     transparent: true,
     opacity: 0.95,
   })
 
+  const idlAdjustedMat = new THREE.LineDashedMaterial({
+    color: 0xff5a5a,
+    transparent: true,
+    opacity: 1,
+    dashSize: 0.055,
+    gapSize: 0.032,
+  })
+
   /*
-   * 教材式国际日界线：
-   * 基本沿 180° 经线，但在以下位置发生曲折：
-   * 1) 白令海峡附近向东折向 169°W 左右，从大小代奥米德岛之间穿过；
-   * 2) 阿留申群岛西端附近向西弯（约 173°E），使阿留申群岛与美国本土同侧；
-   * 3) 南太平洋汤加、斐济一带向东偏（约 172°W 附近）；
-   * 4) 新西兰查塔姆群岛一带再次向东偏（约 176°W 附近）。
+   * 现代教学制图路径：
+   * - 北太平洋按航海年鉴给出的传统路径，绕开俄罗斯东部和阿留申群岛；
+   * - 2°30′34″S 至 15°S 采用 2012 年更新的 15 个转折点，
+   *   表现基里巴斯向 150°W 的大幅东凸，并在萨摩亚与美属萨摩亚之间穿过；
+   * - 15°S 以南沿 172°30′W 绕过汤加和查塔姆群岛，再回到 180°。
+   * 国际日界线并非条约确定的国界，此处为现代通用制图近似。
    */
-  const idlPath: [number, number][] = [
+  const northPacificPath: readonly DateLinePoint[] = [
     [90, 180],
-    [80, 180],
-    [72, 180],
-    // 白令海峡：向东折
-    [68, -176],
-    [66, -171],
-    [65.8, -168.8],
-    [64, -169.8],
-    [61, -174],
-    // 回到 180°
-    [56, 180],
-    // 阿留申群岛：向西弯
-    [54, 178],
-    [52.5, 173],
-    [51.5, 172],
-    [50.5, 174],
-    [49.5, 177],
-    [48.5, 180],
-    // 沿 180° 南下
-    [45, 180],
-    [30, 180],
-    [15, 180],
-    [0, 180],
-    // 汤加、斐济一带：向东偏
-    [-12, 180],
-    [-15, -177],
-    [-17, -174],
-    [-19, -172],
-    [-21, -175],
-    [-23, -178],
-    [-25, 180],
-    // 沿 180° 南下
-    [-30, 180],
-    [-40, 180],
-    // 查塔姆群岛一带：再次向东偏
-    [-43, -178],
-    [-46, -176],
-    [-48, -177],
-    [-50, 180],
-    // 直到南极
-    [-60, 180],
-    [-70, 180],
-    [-78, 180],
+    [75, 180],
+    [68, -168.972],
+    [65.5, -168.972],
+    [53, 170],
+    [48, 180],
+    [-2.509444, 180],
+  ]
+
+  const kiribatiSamoaPath: readonly DateLinePoint[] = [
+    [-2.509444, 180],
+    [-2.509444, -158.486667],
+    [-0.228056, -158.486667],
+    [1.498056, -160.639722],
+    [4.937222, -160.639722],
+    [4.937222, -155.528611],
+    [-9.909167, -150.000278],
+    [-11.645278, -150.000278],
+    [-11.645278, -154.566111],
+    [-5.842222, -156.080556],
+    [-5.842222, -169.396111],
+    [-9.428333, -170.992778],
+    [-11.057222, -171.293889],
+    [-13.968056, -171.003333],
+    [-14.431111, -171.236667],
+    [-15, -172.5],
+  ]
+
+  const southPacificPath: readonly DateLinePoint[] = [
+    [-15, -172.5],
+    [-45, -172.5],
+    [-51, 180],
     [-90, 180],
   ]
 
-  const idlPts = idlPath.map(([lat, lon]) =>
-    latLonToVec3(lat, lon, EARTH_RADIUS * 1.008)
-  )
-  group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(idlPts), idlMat))
+  addDateLineSection(northPacificPath, idlSolidMat)
+  addDateLineSection(kiribatiSamoaPath, idlAdjustedMat)
+  addDateLineSection(southPacificPath, idlSolidMat)
 
   const pmMat = new THREE.LineBasicMaterial({
     color: 0xfbbf24,
@@ -1634,28 +1717,89 @@ function createRotationArrows(): THREE.Group {
   return group
 }
 
-// ===================== 星空 =====================
-function createStars(): THREE.Points {
-  const count = 3000
-  const positions = new Float32Array(count * 3)
-  const colors = new Float32Array(count * 3)
-  for (let i = 0; i < count; i++) {
-    const r = 80 + Math.random() * 40
-    const theta = Math.random() * Math.PI * 2
-    const phi = Math.acos(2 * Math.random() - 1)
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta)
-    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
-    positions[i * 3 + 2] = r * Math.cos(phi)
-    const c = 0.6 + Math.random() * 0.4
-    colors[i * 3] = c
-    colors[i * 3 + 1] = c
-    colors[i * 3 + 2] = c * (0.8 + Math.random() * 0.2)
-  }
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-  const mat = new THREE.PointsMaterial({ size: 0.3, vertexColors: true, transparent: true, opacity: 0.9 })
-  return new THREE.Points(geo, mat)
+// ===================== 银河天空盒 =====================
+function loadGalaxySkybox() {
+  new THREE.TextureLoader().load(
+    GALAXY_SKYBOX_URL,
+    (texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping
+      texture.colorSpace = THREE.SRGBColorSpace
+      texture.wrapS = THREE.RepeatWrapping
+      texture.wrapT = THREE.ClampToEdgeWrapping
+      texture.generateMipmaps = false
+      texture.minFilter = THREE.LinearFilter
+      texture.magFilter = THREE.LinearFilter
+      texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
+
+      galaxySkyDome?.removeFromParent()
+      galaxySkyDome?.geometry.dispose()
+      galaxySkyDome?.material.dispose()
+      galaxySkyboxTexture?.dispose()
+      galaxySkyboxTexture = texture
+
+      const image = texture.image as HTMLImageElement
+      const textureWidth = Math.max(1, image.naturalWidth || image.width || 6000)
+      const textureHeight = Math.max(1, image.naturalHeight || image.height || 3000)
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          skyMap: { value: texture },
+          texelSize: { value: new THREE.Vector2(1 / textureWidth, 1 / textureHeight) },
+          exposure: { value: 0.105 },
+          sharpness: { value: 1.65 }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+
+          void main() {
+            vUv = uv;
+            mat4 viewRotation = mat4(mat3(viewMatrix));
+            gl_Position = projectionMatrix * viewRotation * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D skyMap;
+          uniform vec2 texelSize;
+          uniform float exposure;
+          uniform float sharpness;
+          varying vec2 vUv;
+
+          void main() {
+            vec2 uv = vec2(1.0 - vUv.x, vUv.y);
+            vec3 center = texture2D(skyMap, uv).rgb;
+            vec3 neighbors = (
+              texture2D(skyMap, uv + vec2(texelSize.x, 0.0)).rgb +
+              texture2D(skyMap, uv - vec2(texelSize.x, 0.0)).rgb +
+              texture2D(skyMap, uv + vec2(0.0, texelSize.y)).rgb +
+              texture2D(skyMap, uv - vec2(0.0, texelSize.y)).rgb
+            ) * 0.25;
+            vec3 color = max(center + (center - neighbors) * sharpness, 0.0) * exposure;
+
+            gl_FragColor = vec4(color, 1.0);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }
+        `,
+        side: THREE.BackSide,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: true
+      })
+
+      galaxySkyDome = new THREE.Mesh(
+        new THREE.SphereGeometry(72, 128, 64),
+        material
+      )
+      galaxySkyDome.rotation.x = -0.4
+      galaxySkyDome.frustumCulled = false
+      galaxySkyDome.renderOrder = -10000
+      galaxySkyDome.visible = layers.stars
+      scene.add(galaxySkyDome)
+    },
+    undefined,
+    (error) => {
+      console.warn('银河天空盒加载失败，已保留深色背景', error)
+    }
+  )
 }
 
 // ===================== 城市标记 =====================
@@ -1968,8 +2112,7 @@ function initThree() {
   rotationArrowGroup = createRotationArrows()
   earthMesh.add(rotationArrowGroup)
 
-  starsField = createStars()
-  scene.add(starsField)
+  loadGalaxySkybox()
 
   // 城市标记
   createCityMarkers()
@@ -2038,10 +2181,18 @@ function updateEarthShaderUniforms() {
 function animate() {
   animationId = requestAnimationFrame(animate)
   const delta = clock.getDelta()
+  const now = performance.now()
 
   if (isPlaying.value) {
     rotationAngle += delta * rotSpeed.value * 0.3
     earthMesh.rotation.y = rotationAngle
+  }
+
+  // Three.js 的 rotationAngle 不是响应式数据；以 100ms 为间隔同步给 Vue，
+  // 让 A/B 时间、城市时间和昼夜状态持续更新，同时避免每帧刷新文字 DOM。
+  if (now - lastTimeDisplayRefresh >= 100) {
+    displayRotationAngle.value = rotationAngle
+    lastTimeDisplayRefresh = now
   }
 
   // 更新直射点位置
@@ -2058,6 +2209,7 @@ function animate() {
   updateCityLabels()
   updateGridLabels()
   updateTzLabels()
+  animateABRipples(now)
 }
 
 // ===================== 时区标注更新 =====================
@@ -2075,11 +2227,17 @@ function updateTzLabels() {
     localPos.applyAxisAngle(rotAxis, rotationAngle)
     localPos.applyAxisAngle(tiltAxis, TILT)
     const dot = localPos.clone().normalize().dot(camDir)
-    const visible = dot > 0.1 && layers.tzLabels
+    const visible = dot > 0.22 && (layers.tzLabels || layers.tzTimes)
     const screenPos = localPos.clone().project(camera)
     const x = (screenPos.x * 0.5 + 0.5) * w
     const y = (-screenPos.y * 0.5 + 0.5) * h
-    return { text: label.text, x, y, visible }
+    return {
+      text: label.text,
+      time: formatLocalTime(getPointLocalHour(label.lon)),
+      x,
+      y,
+      visible,
+    }
   })
 }
 
@@ -2603,6 +2761,30 @@ function nextProblem() {
 let markerA: THREE.Mesh
 let markerB: THREE.Mesh
 let arcLine: THREE.Line
+type PointRipple = {
+  mesh: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>
+  phase: number
+}
+let markerARipples: PointRipple[] = []
+let markerBRipples: PointRipple[] = []
+
+function createPointRipples(color: number): PointRipple[] {
+  return [0, 1 / 3, 2 / 3].map(phase => {
+    const mesh = new THREE.Mesh(
+      new THREE.RingGeometry(0.09, 0.125, 48),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.64,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    )
+    mesh.renderOrder = 8
+    earthMesh.add(mesh)
+    return { mesh, phase }
+  })
+}
 
 function createABMarkers() {
   // A 标记 - 红色
@@ -2611,6 +2793,7 @@ function createABMarkers() {
     new THREE.MeshBasicMaterial({ color: 0xef4444 })
   )
   earthMesh.add(markerA)
+  markerARipples = createPointRipples(0xef4444)
 
   // B 标记 - 蓝色
   markerB = new THREE.Mesh(
@@ -2618,6 +2801,7 @@ function createABMarkers() {
     new THREE.MeshBasicMaterial({ color: 0x247cff })
   )
   earthMesh.add(markerB)
+  markerBRipples = createPointRipples(0x247cff)
 
   // 弧线
   const arcMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7 })
@@ -2631,6 +2815,18 @@ function updateABMarkers() {
   if (!markerA || !markerB) return
   markerA.position.copy(latLonToVec3(20, pointA.lon, EARTH_RADIUS * 1.02))
   markerB.position.copy(latLonToVec3(20, pointB.lon, EARTH_RADIUS * 1.02))
+
+  const rippleAAt = latLonToVec3(20, pointA.lon, EARTH_RADIUS * 1.024)
+  const rippleBAt = latLonToVec3(20, pointB.lon, EARTH_RADIUS * 1.024)
+  const surfaceNormal = new THREE.Vector3(0, 0, 1)
+  markerARipples.forEach(({ mesh }) => {
+    mesh.position.copy(rippleAAt)
+    mesh.quaternion.setFromUnitVectors(surfaceNormal, rippleAAt.clone().normalize())
+  })
+  markerBRipples.forEach(({ mesh }) => {
+    mesh.position.copy(rippleBAt)
+    mesh.quaternion.setFromUnitVectors(surfaceNormal, rippleBAt.clone().normalize())
+  })
 
   // 更新弧线（沿纬线连接 A→B）
   const pts: THREE.Vector3[] = []
@@ -2646,6 +2842,19 @@ function updateABMarkers() {
   }
   arcLine.geometry.dispose()
   arcLine.geometry = new THREE.BufferGeometry().setFromPoints(pts)
+}
+
+function animateABRipples(now: number) {
+  const pulse = (ripples: PointRipple[]) => {
+    ripples.forEach(({ mesh, phase }) => {
+      const progress = (now * 0.00055 + phase) % 1
+      const scale = 0.65 + progress * 2.2
+      mesh.scale.setScalar(scale)
+      mesh.material.opacity = Math.pow(1 - progress, 1.35) * 0.68
+    })
+  }
+  pulse(markerARipples)
+  pulse(markerBRipples)
 }
 
 // 经度轴拖拽
@@ -2731,30 +2940,20 @@ function onAxisPointerUp() {
 }
 
 function getAxisPercent(lon: number): number {
-  const percent =
-    ((lon + 180) / 360) * 100
-
-  // A/B 标记有自身宽度，左右各留一点安全边距，避免 180° 附近超出容器。
-  return Math.min(
-    96,
-    Math.max(
-      4,
-      percent
-    )
-  )
+  return Math.min(100, Math.max(0, ((lon + 180) / 360) * 100))
 }
 
 function applyLayerVisibility() {
   if (graticuleGroup) graticuleGroup.visible = layers.graticule
   if (dateLineGroup) dateLineGroup.visible = layers.dateLine
-  if (timeZoneGroup) timeZoneGroup.visible = layers.timeZones || layers.tzLabels
+  if (timeZoneGroup) timeZoneGroup.visible = layers.timeZones || layers.tzLabels || layers.tzTimes
   if (timeZoneRangeGroup) timeZoneRangeGroup.visible = layers.timeZoneRanges
   if (terminatorLine) terminatorLine.visible = layers.terminator
   earthUniforms.showTerminator.value = layers.terminator ? 1 : 0
   earthUniforms.showNightArc.value = layers.nightArc ? 1 : 0
   if (coriolisGroup) coriolisGroup.visible = layers.coriolis
   if (rotationArrowGroup) rotationArrowGroup.visible = layers.rotationArrow
-  if (starsField) starsField.visible = layers.stars
+  if (galaxySkyDome) galaxySkyDome.visible = layers.stars
   if (sunLight) sunLight.intensity = 3.5 * brightness.value
   if (ambientLight) ambientLight.intensity = 0.9 * brightness.value
   if (axisLine) axisLine.visible = layers.rotationArrow
@@ -2770,6 +2969,9 @@ watch([() => pointA.lon, () => pointB.lon], () => updateABMarkers())
 
 // ===================== 生命周期 =====================
 onMounted(async () => {
+  // 进入页面时两张辅助卡片始终从收起状态开始。
+  trainingCardCollapsed.value = true
+  cityShortcutCardCollapsed.value = true
   await nextTick()
   initThree()
 })
@@ -2820,6 +3022,9 @@ onUnmounted(() => {
 
   controls?.dispose()
   renderer?.dispose()
+  galaxySkyboxTexture?.dispose()
+  galaxySkyboxTexture = null
+  galaxySkyDome = null
   scene?.traverse(obj => {
     if (obj instanceof THREE.Mesh) {
       obj.geometry?.dispose()
@@ -5109,10 +5314,10 @@ body.geo-panel-resizing {
 }
 
 /* 中屏是覆盖式抽屉，底部不再扣侧栏，避免可用宽度过小 */
-@media (max-width: 1280px) {
+@media (min-width: 901px) and (max-width: 1280px) {
   .earth-rotation-template .rotation-stage-content .bottom-dock-stack {
     left:
-      10px !important;
+      calc(var(--left-panel-width, 0px) + var(--rotation-overlay-gap, 16px)) !important;
     right:
       10px !important;
   }
@@ -5141,12 +5346,12 @@ body.geo-panel-resizing {
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 900px) {
   .earth-rotation-template .rotation-stage-content .bottom-dock-stack {
     left:
-      10px !important;
+      calc(var(--left-panel-width, 0px) + 8px) !important;
     right:
-      10px !important;
+      8px !important;
   }
 
   .earth-rotation-template .rotation-stage-content .ab-axis-dock {
@@ -5167,7 +5372,7 @@ body.geo-panel-resizing {
 @media (max-width: 720px) {
   .earth-rotation-template .rotation-stage-content .bottom-dock-stack {
     left:
-      8px !important;
+      calc(var(--left-panel-width, 0px) + 8px) !important;
     right:
       8px !important;
   }
@@ -5594,6 +5799,742 @@ body.geo-panel-resizing {
    - layoutMode 只负责布局形态，不再决定面板宽度。
 */
 
+/* ===================== v23: 底部 A/B 经度控制台 ===================== */
+.earth-rotation-template .rotation-stage-content .bottom-dock-stack {
+  left: 50% !important;
+  right: auto !important;
+  width: min(1040px, calc(100% - 20px)) !important;
+  max-width: none !important;
+  transform: translateX(-50%) !important;
+  align-items: stretch !important;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: minmax(170px, 0.28fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(17, 28, 51, 0.94), rgba(7, 14, 29, 0.92));
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(18px) saturate(130%);
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .rotation-dock-bottom {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(66px, auto) minmax(82px, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 9px 14px !important;
+  border: 0 !important;
+  border-right: 1px solid rgba(125, 211, 252, 0.14) !important;
+  border-radius: 0 !important;
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.09), rgba(36, 124, 255, 0.035)) !important;
+  backdrop-filter: none;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .rotation-dock-bottom .timeline-icon-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(94, 234, 212, 0.4);
+  color: #ccfbf1;
+  background: rgba(45, 212, 191, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .rotation-dock-bottom .timeline-icon-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(45, 212, 191, 0.2);
+  box-shadow: 0 8px 20px rgba(20, 184, 166, 0.16);
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .rotation-dock-bottom .timeline-icon-btn.active {
+  color: #07121f;
+  background: linear-gradient(135deg, #5eead4, #38bdf8);
+  border-color: transparent;
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-control-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-control-copy span,
+.earth-rotation-template .rotation-stage-content .rotation-speed-meta span {
+  color: rgba(186, 230, 253, 0.58);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-control-copy strong {
+  color: #e6fbff;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-speed-wrap {
+  display: grid;
+  gap: 4px;
+  width: auto;
+  min-width: 0;
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-speed-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-speed-meta strong {
+  color: #67e8f9;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-speed-wrap .el-slider {
+  width: 100%;
+  min-width: 0;
+  height: 12px;
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-speed-wrap :deep(.el-slider__runway) {
+  height: 4px;
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-speed-wrap :deep(.el-slider__bar) {
+  height: 4px;
+  background: linear-gradient(90deg, #2dd4bf, #38bdf8);
+}
+
+.earth-rotation-template .rotation-stage-content .rotation-speed-wrap :deep(.el-slider__button) {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #67e8f9;
+  background: #0b1728;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .ab-axis-dock {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 2px;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 7px 14px 5px !important;
+  overflow: visible;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none;
+  align-self: stretch;
+  justify-self: auto !important;
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-heading-badge {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 36px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  border-radius: 8px;
+  color: #a5f3fc;
+  background: rgba(34, 211, 238, 0.08);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-label {
+  margin: 0;
+  transform: none;
+  color: #e6fbff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-caption {
+  margin-top: 2px;
+  color: rgba(186, 230, 253, 0.5);
+  font-size: 9px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-relation {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  border-radius: 999px;
+  color: #fde68a;
+  background: rgba(251, 191, 36, 0.07);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-summary > span:not(.axis-relation) {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 7px;
+  background: rgba(148, 163, 184, 0.055);
+  white-space: nowrap;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-summary small {
+  color: rgba(186, 230, 253, 0.45);
+  font-size: 8px;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-summary b {
+  color: #e6fbff;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-scale-wrap {
+  position: relative;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-hemisphere-label {
+  position: absolute;
+  top: 1px;
+  color: rgba(148, 163, 184, 0.48);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-west {
+  left: 34px;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-east {
+  right: 34px;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .longitude-axis-bar {
+  position: relative;
+  width: auto;
+  height: 40px;
+  min-width: 0 !important;
+  margin: 0 34px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.earth-rotation-template .rotation-stage-content .axis-track-line {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(248, 113, 113, 0.14), rgba(148, 163, 184, 0.08) 50%, rgba(96, 165, 250, 0.14)),
+    repeating-linear-gradient(90deg, transparent 0, transparent calc(8.333% - 1px), rgba(186, 230, 253, 0.1) calc(8.333% - 1px), rgba(186, 230, 253, 0.1) 8.333%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-ticks {
+  position: absolute;
+  inset: 0;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-tick {
+  position: absolute;
+  top: 11px;
+  bottom: auto;
+  width: 1px;
+  height: 13px;
+  border: 0;
+  background: rgba(186, 230, 253, 0.32);
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-tick-zero {
+  width: 2px;
+  background: rgba(94, 234, 212, 0.75);
+  box-shadow: 0 0 8px rgba(45, 212, 191, 0.32);
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .tick-label {
+  top: 18px;
+  bottom: auto;
+  color: rgba(186, 230, 253, 0.58);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-point {
+  top: 18px !important;
+  display: block;
+  width: 24px;
+  height: 24px;
+  max-width: none;
+  transform: translate(-50%, -50%) !important;
+  cursor: grab;
+  touch-action: none;
+  z-index: 6;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-point:active {
+  cursor: grabbing;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-a.axis-point-near {
+  transform: translate(-50%, -100%) !important;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-b.axis-point-near {
+  transform: translate(-50%, 0) !important;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-badge {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.38);
+  transform: none !important;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-point:hover .point-badge {
+  transform: scale(1.08) !important;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-badge.a {
+  background: linear-gradient(135deg, #fb7185, #dc2626);
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.38);
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-badge.b {
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.38);
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-lon {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 5px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  background: rgba(7, 14, 29, 0.94);
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.92;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-a .point-lon {
+  color: #fda4af;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-b .point-lon {
+  color: #93c5fd;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-info {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(76px, 1fr));
+  gap: 6px;
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-info-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.045);
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-info-item small {
+  color: rgba(186, 230, 253, 0.48);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-info-item b {
+  overflow: hidden;
+  color: #e6fbff;
+  font-size: 10px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-info-a b {
+  color: #fda4af;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-info-b b {
+  color: #93c5fd;
+}
+
+@media (max-width: 1280px) {
+  .earth-rotation-template .rotation-stage-content .bottom-dock-stack {
+    width: min(820px, calc(100% - 20px)) !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified {
+    grid-template-columns: 192px minmax(0, 1fr);
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .rotation-dock-bottom {
+    grid-template-columns: 34px minmax(58px, auto) minmax(72px, 1fr);
+    gap: 7px;
+    padding: 8px 11px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .rotation-dock-bottom .timeline-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .ab-axis-dock {
+    padding-inline: 14px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .longitude-axis-bar {
+    margin-inline: 30px;
+  }
+}
+
+@media (max-width: 900px) {
+  .earth-rotation-template .rotation-stage-content .bottom-dock-stack {
+    width: min(700px, calc(100% - 16px)) !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified {
+    grid-template-columns: 128px minmax(0, 1fr);
+    width: 100% !important;
+    max-width: none !important;
+    overflow: hidden;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .rotation-dock-bottom {
+    grid-template-columns: 34px minmax(70px, 1fr);
+    justify-content: stretch;
+    padding: 8px 10px !important;
+    border-right: 1px solid rgba(125, 211, 252, 0.14) !important;
+    border-bottom: 0 !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .rotation-control-copy {
+    display: none;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .ab-axis-dock {
+    padding: 6px 10px 4px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .axis-caption {
+    display: none;
+  }
+
+  .earth-rotation-template .city-shortcut-floating-card {
+    top: auto !important;
+    bottom: 122px !important;
+  }
+
+  .earth-rotation-template .training-floating-card {
+    top: auto !important;
+    bottom: 184px !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .earth-rotation-template .rotation-stage-content .bottom-dock-stack {
+    width: calc(100% - 16px) !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified {
+    grid-template-columns: 102px minmax(0, 1fr);
+    border-radius: 14px;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .rotation-dock-bottom {
+    grid-template-columns: 32px minmax(48px, 1fr);
+    gap: 6px;
+    padding-inline: 7px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .rotation-dock-bottom .timeline-icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .earth-rotation-template .rotation-stage-content .axis-relation {
+    display: none;
+  }
+
+  .earth-rotation-template .rotation-stage-content .axis-heading > div {
+    display: none;
+  }
+
+  .earth-rotation-template .rotation-stage-content .axis-heading-badge {
+    min-width: 32px;
+    height: 22px;
+    padding-inline: 5px;
+  }
+
+  .earth-rotation-template .rotation-stage-content .axis-summary {
+    gap: 3px;
+  }
+
+  .earth-rotation-template .rotation-stage-content .axis-summary > span:not(.axis-relation) {
+    padding-inline: 4px;
+  }
+
+  .earth-rotation-template .rotation-stage-content .axis-summary small {
+    display: none;
+  }
+
+  .earth-rotation-template .rotation-stage-content .rotation-speed-meta span {
+    display: none;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .ab-axis-dock {
+    padding-inline: 7px !important;
+  }
+
+  .earth-rotation-template .rotation-stage-content .bottom-axis-unified .longitude-axis-bar {
+    margin-inline: 25px;
+  }
+
+  .earth-rotation-template .city-shortcut-floating-card {
+    bottom: 122px !important;
+  }
+
+  .earth-rotation-template .training-floating-card {
+    bottom: 184px !important;
+  }
+}
+
+/* ===================== v24: 右侧内容改为 FloatingFeatureCard 浮动卡片 ===================== */
+/*
+ * 卡片内容包裹层保留 .right-panel 类，以继承页面里大量 ".right-panel .xxx" 选择器；
+ * 但公共模板对 .layout-floating.layout-large/medium/small 下的 .right-panel
+ * 有多条 "width: var(--right-panel-width) !important" 的全局规则（0,4,0 优先级），
+ * 右侧面板禁用后该变量为 0，会把包裹层压成 0 宽并绝对定位。
+ * 因此这里用 (0,5,0) + !important 强制还原为普通流式块。
+ */
+.earth-rotation-container.geo-template-page.layout-floating .floating-card-body.right-panel {
+  position:
+    static !important;
+  left:
+    auto !important;
+  right:
+    auto !important;
+  top:
+    auto !important;
+  bottom:
+    auto !important;
+  width:
+    auto !important;
+  height:
+    auto !important;
+  max-width:
+    none !important;
+  transform:
+    none !important;
+  background:
+    transparent !important;
+  border:
+    none !important;
+  box-shadow:
+    none !important;
+  backdrop-filter:
+    none !important;
+  -webkit-backdrop-filter:
+    none !important;
+}
+
+/* 卡片内容包裹层：补内边距与纵向节奏（块内 .geo-card 保留原有外观） */
+.earth-rotation-template .floating-card-body {
+  display:
+    grid;
+  gap:
+    12px;
+  align-content:
+    start;
+  padding:
+    12px;
+  box-sizing:
+    border-box;
+  min-width:
+    0;
+}
+
+/* 浮动卡片内只有一个内容块时，去掉原侧栏里为多块堆叠预留的外边距 */
+.earth-rotation-template .floating-card-body > * {
+  margin-bottom:
+    0 !important;
+}
+
+/* 城市预览关闭按钮：原标题栏已并入卡片标题，关闭按钮悬浮在右上角 */
+.earth-rotation-template .floating-card-body .city-preview-panel {
+  position:
+    relative;
+}
+
+.earth-rotation-template .floating-card-body .city-preview-close {
+  position:
+    absolute;
+  top:
+    8px;
+  right:
+    10px;
+  z-index:
+    2;
+  width:
+    24px;
+  height:
+    24px;
+  display:
+    grid;
+  place-items:
+    center;
+  border-radius:
+    8px;
+  font-size:
+    13px;
+  color:
+    rgba(226, 246, 250, 0.7);
+  background:
+    rgba(255, 255, 255, 0.06);
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.earth-rotation-template .floating-card-body .city-preview-close:hover {
+  color:
+    #ef4444;
+  background:
+    rgba(239, 68, 68, 0.12);
+}
+
+/* 城市列表在浮动卡片里适当限高，避免撑爆卡片 */
+.earth-rotation-template .floating-card-body .city-list {
+  max-height:
+    200px;
+}
+
+/* 城市快捷拆分为独立卡片后，给列表更完整的可视区域。 */
+.earth-rotation-template .floating-card-body .city-shortcut-card {
+  min-width:
+    0;
+  padding:
+    12px;
+}
+
+.earth-rotation-template .floating-card-body .city-shortcut-card .city-list {
+  max-height:
+    clamp(150px, 24vh, 260px);
+}
+
+.earth-rotation-template .city-shortcut-floating-card :deep(.feature-card-content) {
+  padding-bottom:
+    10px;
+}
+
+.earth-rotation-template .city-shortcut-floating-card .floating-card-body,
+.earth-rotation-template .city-shortcut-floating-card .city-shortcut-card {
+  padding:
+    10px;
+}
+
+@media (max-height: 800px) {
+  .earth-rotation-template .floating-card-body .city-shortcut-card .city-list {
+    max-height:
+      96px;
+  }
+}
+
 /* ===================== 公共面板 Hook 与防闪烁 ===================== */
 .earth-rotation-container .workspace.panel-resizing,
 .earth-rotation-container .workspace.layout-resizing,
@@ -5614,5 +6555,243 @@ body.geo-panel-resizing {
   height: 100% !important;
   min-width: 100%;
   min-height: 100%;
+}
+
+/* 最终定位兜底：公共模板在超宽屏会重新写入 left / right 面板避让值。
+   这里直接以视口中心定位，避免 2560px 以上被侧栏变量推到左侧。 */
+#earth-bottom-axis-dock {
+  left: 50vw !important;
+  right: auto !important;
+  inset-inline-start: 50vw !important;
+  inset-inline-end: auto !important;
+  width: min(1040px, calc(100vw - 20px)) !important;
+  transform: translateX(-50%) !important;
+}
+
+@media (min-width: 2200px) {
+  #earth-bottom-axis-dock {
+    width: min(1440px, calc(100vw - 120px)) !important;
+  }
+
+  #earth-bottom-axis-dock .bottom-axis-unified {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  #earth-bottom-axis-dock .rotation-dock-bottom {
+    grid-template-columns: 38px minmax(70px, auto) minmax(90px, 1fr);
+    gap: 10px;
+    padding: 10px 16px !important;
+  }
+
+  #earth-bottom-axis-dock .rotation-dock-bottom .timeline-icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  #earth-bottom-axis-dock .ab-axis-dock {
+    padding: 8px 20px 6px !important;
+  }
+
+  #earth-bottom-axis-dock .axis-heading {
+    gap: 12px;
+  }
+
+  #earth-bottom-axis-dock .axis-label {
+    font-size: 13px;
+  }
+
+  #earth-bottom-axis-dock .axis-caption {
+    font-size: 10px;
+  }
+
+  #earth-bottom-axis-dock .axis-summary {
+    gap: 10px;
+  }
+
+  #earth-bottom-axis-dock .axis-summary > span:not(.axis-relation) {
+    gap: 6px;
+    padding: 4px 8px;
+  }
+
+  #earth-bottom-axis-dock .longitude-axis-bar {
+    margin-inline: 42px;
+  }
+}
+
+@media (max-width: 1280px) {
+  #earth-bottom-axis-dock {
+    width: min(820px, calc(100vw - 20px)) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #earth-bottom-axis-dock {
+    width: min(700px, calc(100vw - 16px)) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  #earth-bottom-axis-dock {
+    width: calc(100vw - 16px) !important;
+  }
+}
+
+/* ===================== v26: 左侧控制卡片视觉重构 ===================== */
+.earth-rotation-template .left-panel .control-card {
+  --card-accent: #5eead4;
+  --card-accent-rgb: 94, 234, 212;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-bottom: 14px;
+  padding: 14px 14px 15px;
+  border: 1px solid rgba(var(--card-accent-rgb), 0.2);
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--card-accent-rgb), 0.12), transparent 42%),
+    linear-gradient(145deg, rgba(13, 25, 47, 0.9), rgba(6, 13, 29, 0.94));
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.earth-rotation-template .left-panel .control-card::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 13px;
+  bottom: 13px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, var(--card-accent), transparent 88%);
+  box-shadow: 0 0 16px rgba(var(--card-accent-rgb), 0.34);
+}
+
+.earth-rotation-template .left-panel .control-card:hover {
+  border-color: rgba(var(--card-accent-rgb), 0.34);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  transform: translateY(-1px);
+}
+
+.earth-rotation-template .left-panel .control-card-brightness {
+  --card-accent: #fbbf24;
+  --card-accent-rgb: 251, 191, 36;
+}
+
+.earth-rotation-template .left-panel .control-card-layers {
+  --card-accent: #2dd4bf;
+  --card-accent-rgb: 45, 212, 191;
+}
+
+.earth-rotation-template .left-panel .control-card-view {
+  --card-accent: #60a5fa;
+  --card-accent-rgb: 96, 165, 250;
+}
+
+.earth-rotation-template .left-panel .control-card-legend {
+  --card-accent: #c084fc;
+  --card-accent-rgb: 192, 132, 252;
+}
+
+.earth-rotation-template .left-panel .control-card > .ctrl-title {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  margin: -2px 0 12px;
+  padding: 0 0 10px 2px;
+  border: 0;
+  border-bottom: 1px solid rgba(var(--card-accent-rgb), 0.18);
+  color: #edfaff;
+  background: none;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.025em;
+  -webkit-text-fill-color: currentColor;
+}
+
+.earth-rotation-template .left-panel .control-card > .ctrl-title::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 2px;
+  width: 46px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--card-accent), transparent);
+}
+
+.earth-rotation-template .left-panel .control-card .toggle-list {
+  gap: 5px;
+}
+
+.earth-rotation-template .left-panel .control-card .toggle-item {
+  min-height: 30px;
+  padding: 3px 7px 3px 9px;
+  border-radius: 8px;
+  color: rgba(226, 242, 255, 0.76);
+  background: rgba(148, 163, 184, 0.035);
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+.earth-rotation-template .left-panel .control-card .toggle-item:hover {
+  color: #effcff;
+  background: rgba(var(--card-accent-rgb), 0.075);
+}
+
+/* ===================== v27: 时区名称与时间合并标注 ===================== */
+.earth-rotation-template .grid-label.tz-label {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  min-width: 62px;
+  padding: 4px 7px;
+  border: 1px solid rgba(46, 196, 182, 0.35);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(6, 20, 39, 0.92), rgba(10, 34, 52, 0.88));
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(7px);
+}
+
+.earth-rotation-template .grid-label.tz-label .tz-label-name {
+  color: #67e8f9;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.earth-rotation-template .grid-label.tz-label .tz-label-time {
+  color: #fef3c7;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
+
+.earth-rotation-template .grid-label.tz-label:not(.tz-label-with-time) {
+  min-width: 0;
+  padding-block: 3px;
+}
+
+/* ===================== v28: A/B 经度并入顶部文字行 ===================== */
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-point-summary-a b {
+  color: #fda4af;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .axis-point-summary-b b {
+  color: #93c5fd;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-a.axis-point-near {
+  transform: translate(calc(-50% - 13px), -50%) !important;
+}
+
+.earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-b.axis-point-near {
+  transform: translate(calc(-50% + 13px), -50%) !important;
 }
 </style>

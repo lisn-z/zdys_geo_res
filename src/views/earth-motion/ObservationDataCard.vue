@@ -1,0 +1,180 @@
+<template>
+  <FloatingFeatureCard title="实时数据" :subtitle="place" variant="data" :initial-top="76" :initial-right="18">
+    <div v-if="hasObservation" class="data-card-content">
+      <div class="data-hero-row">
+        <article>
+          <span>太阳高度角</span>
+          <strong>{{ solarAltitude }}</strong>
+        </article>
+        <article>
+          <span>太阳时</span>
+          <strong>{{ solarTime }}</strong>
+        </article>
+      </div>
+
+      <div class="data-meta-line">
+        <span>{{ dateLabel }}</span>
+        <span>{{ coordinateLabel }}</span>
+      </div>
+
+      <dl class="key-data-grid">
+        <div>
+          <dt>直射纬度</dt>
+          <dd>{{ directLatitude }}</dd>
+        </div>
+        <div>
+          <dt>{{ dayNightLabel }}</dt>
+          <dd>{{ dayNightValue }}</dd>
+        </div>
+        <div>
+          <dt>日出</dt>
+          <dd>{{ sunrise }}</dd>
+        </div>
+        <div>
+          <dt>日落</dt>
+          <dd>{{ sunset }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <p v-else class="empty-tip">选择城市后显示关键观测数据。</p>
+  </FloatingFeatureCard>
+</template>
+
+<script setup lang="ts">
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+
+defineProps<{
+  hasObservation: boolean
+  place: string
+  solarAltitude: string
+  solarTime: string
+  dateLabel: string
+  coordinateLabel: string
+  directLatitude: string
+  dayNightLabel: string
+  dayNightValue: string
+  sunrise: string
+  sunset: string
+}>()
+</script>
+
+<style scoped>
+.data-card-content {
+  --metric-bg: linear-gradient(145deg, rgba(23, 74, 100, 0.26), rgba(5, 25, 39, 0.36));
+  --metric-border: rgba(78, 199, 244, 0.14);
+  --grid-bg: rgba(75, 181, 221, 0.09);
+  --grid-cell-bg: rgba(3, 17, 29, 0.76);
+  padding: 12px;
+}
+
+:global(.theme-light) .data-card-content {
+  --metric-bg: linear-gradient(145deg, rgba(213, 240, 248, 0.72), rgba(246, 251, 253, 0.80));
+  --metric-border: rgba(35, 141, 180, 0.18);
+  --grid-bg: rgba(44, 139, 174, 0.12);
+  --grid-cell-bg: rgba(247, 252, 254, 0.86);
+}
+
+.data-hero-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.data-hero-row article {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--metric-border);
+  border-radius: 10px;
+  background: var(--metric-bg);
+}
+
+.data-hero-row span,
+.key-data-grid dt {
+  color: var(--feature-muted);
+  font-size: clamp(10px, 0.48vw, 13px);
+  letter-spacing: 0.04em;
+}
+
+.data-hero-row strong {
+  color: var(--feature-title);
+  font-size: clamp(19px, 0.95vw, 27px);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.data-meta-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 9px 1px 10px;
+  color: var(--feature-muted);
+  font-size: clamp(10px, 0.46vw, 13px);
+  white-space: nowrap;
+}
+
+.key-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--metric-border);
+  border-radius: 10px;
+  background: var(--grid-bg);
+}
+
+.key-data-grid>div {
+  min-width: 0;
+  padding: 8px 9px;
+  background: var(--grid-cell-bg);
+}
+
+.key-data-grid dt {
+  margin-bottom: 3px;
+}
+
+.key-data-grid dd {
+  margin: 0;
+  color: var(--feature-text);
+  font-size: clamp(12px, 0.58vw, 16px);
+  font-weight: 650;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-tip {
+  margin: 0;
+  padding: 16px;
+  color: var(--feature-muted);
+  font-size: 12px;
+}
+
+@media (min-width: 1800px) and (min-height: 900px) {
+  .data-card-content {
+    padding: 15px;
+  }
+
+  .data-hero-row {
+    gap: 10px;
+  }
+
+  .data-hero-row article {
+    gap: 6px;
+    padding: 13px;
+    border-radius: 12px;
+  }
+
+  .data-meta-line {
+    margin: 12px 2px 13px;
+  }
+
+  .key-data-grid>div {
+    padding: 11px 12px;
+  }
+}
+</style>
