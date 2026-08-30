@@ -204,7 +204,7 @@
             @touchend="onTerrainTouchEnd"></div>
 
           <div class="terrain-scene-overlay">
-            <div ref="viewCube" class="view-cube">
+            <!--             <div ref="viewCube" class="view-cube">
               <div class="vc-face vc-face-front" data-view="front" title="前视图">
                 前
               </div>
@@ -223,7 +223,7 @@
               <div class="vc-face vc-face-bottom" data-view="bottom" title="底视图">
                 底
               </div>
-            </div>
+            </div> -->
 
 
             <div v-if="profileMode && profileClicks < 2" class="profile-hint">
@@ -247,9 +247,8 @@
         </div>
       </section>
 
-      <FloatingFeatureCard v-show="!learningMode"
-        class="terrain-stack-floating-card terrain-status-floating-card" title="地形状态"
-        subtitle="当前参数与工具状态" variant="data" :initial-top="148" :initial-right="84" :bottom-inset="12"
+      <FloatingFeatureCard v-show="!learningMode" class="terrain-stack-floating-card terrain-status-floating-card"
+        title="地形状态" subtitle="当前参数与工具状态" variant="data" :initial-top="148" :initial-right="84" :bottom-inset="12"
         v-model:collapsed="statusCardCollapsed" :resizable="true" :min-width="330" :min-height="190">
         <div class="terrain-status-grid">
           <div class="terrain-status-metric cyan-card">
@@ -271,11 +270,10 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="!learningMode"
-        class="terrain-stack-floating-card terrain-default-collapsed-card" title="基本地形部位"
-        subtitle="根据等高线弯曲方向判读" variant="data" :initial-top="368" :initial-right="84"
-        :bottom-inset="12" :collapsed="knowledgeCardCollapsed.terrain" :resizable="true" :min-width="280"
-        :min-height="100" @update:collapsed="onKnowledgeCardCollapsedChange('terrain', $event)">
+      <FloatingFeatureCard v-show="!learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
+        title="基本地形部位" subtitle="根据等高线弯曲方向判读" variant="data" :initial-top="368" :initial-right="84" :bottom-inset="12"
+        :collapsed="knowledgeCardCollapsed.terrain" :resizable="true" :min-width="280" :min-height="100"
+        @update:collapsed="onKnowledgeCardCollapsedChange('terrain', $event)">
         <div class="terrain-floating-copy terrain-knowledge">
           <p><strong>山顶：</strong>闭合等高线，内高外低，常标海拔。</p>
           <p><strong>鞍部：</strong>两峰之间低凹部位，比两侧山顶低。</p>
@@ -284,11 +282,10 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="!learningMode"
-        class="terrain-stack-floating-card terrain-default-collapsed-card" title="坡度与设色"
-        subtitle="利用疏密与颜色判断地势" variant="data" :initial-top="436" :initial-right="84"
-        :bottom-inset="12" :collapsed="knowledgeCardCollapsed.slope" :resizable="true" :min-width="280"
-        :min-height="100" @update:collapsed="onKnowledgeCardCollapsedChange('slope', $event)">
+      <FloatingFeatureCard v-show="!learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
+        title="坡度与设色" subtitle="利用疏密与颜色判断地势" variant="data" :initial-top="436" :initial-right="84" :bottom-inset="12"
+        :collapsed="knowledgeCardCollapsed.slope" :resizable="true" :min-width="280" :min-height="100"
+        @update:collapsed="onKnowledgeCardCollapsedChange('slope', $event)">
         <div class="terrain-floating-copy terrain-knowledge">
           <p><strong>陡崖：</strong>等高线重合或极密，高差变化显著。</p>
           <p><strong>陡坡：</strong>等高线密集，坡度较大。</p>
@@ -297,11 +294,10 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="!learningMode"
-        class="terrain-stack-floating-card terrain-default-collapsed-card" title="剖面图使用"
-        subtitle="观察沿线海拔变化" variant="data" :initial-top="504" :initial-right="84"
-        :bottom-inset="12" :collapsed="knowledgeCardCollapsed.profile" :resizable="true" :min-width="280"
-        :min-height="100" @update:collapsed="onKnowledgeCardCollapsedChange('profile', $event)">
+      <FloatingFeatureCard v-show="!learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
+        title="剖面图使用" subtitle="观察沿线海拔变化" variant="data" :initial-top="504" :initial-right="84" :bottom-inset="12"
+        :collapsed="knowledgeCardCollapsed.profile" :resizable="true" :min-width="280" :min-height="100"
+        @update:collapsed="onKnowledgeCardCollapsedChange('profile', $event)">
         <div class="terrain-floating-copy terrain-knowledge">
           <p>开启剖面切割后，在地形上点击两个点，即可生成两点之间的海拔变化曲线。</p>
           <p>剖面图可以帮助学生理解地形起伏、坡度变化和等高线疏密之间的关系。</p>
@@ -366,14 +362,16 @@ import {
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import { Line2 } from 'three/addons/lines/Line2.js'
-import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
-import { LineGeometry } from 'three/addons/lines/LineGeometry.js'
 
 // ============================================================
 // 配置参数
 // ============================================================
-const GRID_SIZE = 160
+// 80×80 配合平滑法线、带限噪声和等高线平滑保持连续外观，同时将
+// 山体与投影网格的三角形总量进一步降至约 2.5 万。
+const GRID_SIZE = 80
+const MAX_RENDER_DPR = 1.5
+const PROJECTION_LINE_SAMPLE_STEP = 96
+const VERTICAL_RENDER_COSINE = Math.cos(THREE.MathUtils.degToRad(18))
 const BASE_ELEVATION = 40          // 基准面海拔（米），与图中最外圈 50m 等高线匹配
 const MAX_RELIEF = 110             // 最大起伏，最高峰值约 150m
 const HEIGHT_SCALE = 1 / 70        // 真实米数 → 3D 显示单位
@@ -431,6 +429,22 @@ const QUIZ_TYPES = ['peak', 'basin', 'valley', 'ridge', 'cliff', 'saddle']
 let savedTerrainGenType = ''  // 进入学习前保存原类型
 let savedHeightValue = 0
 let savedHeightsData: number[][] = []
+type TerrainFeaturePosition = { x: number; z: number }
+const DEFAULT_FEATURE_POSITIONS: Record<string, TerrainFeaturePosition> = {
+  peak: { x: 0.78, z: 0.78 },
+  saddle: { x: 0.50, z: 0.52 },
+  ridge: { x: 0.48, z: 0.58 },
+  valley: { x: 0.58, z: 0.38 },
+  cliff: { x: 0.32, z: 0.26 },
+  steep: { x: 0.28, z: 0.40 },
+  gentle: { x: 0.12, z: 0.50 },
+  basin: { x: 0.18, z: 0.18 },
+}
+let currentFeaturePositions: Record<string, TerrainFeaturePosition> =
+  Object.fromEntries(
+    Object.entries(DEFAULT_FEATURE_POSITIONS).map(([type, position]) => [type, { ...position }])
+  )
+let savedFeaturePositions: Record<string, TerrainFeaturePosition> = {}
 
 const hasLeftPanel = true
 const hasRightPanel = false
@@ -523,11 +537,21 @@ let labelRenderer: CSS2DRenderer
 let controls: OrbitControls
 let animationId: number
 let cameraInteractionActive = false
-let lastLabelRenderTime = 0
+let sceneRenderDirty = true
+let lastSceneRenderTime = 0
 const viewCubeCameraOffset = new THREE.Vector3()
 let lastViewCubeTransform = ''
 let heightsData: number[][] = []
 let maxHeightValue = 0
+
+function invalidateTerrainShadow() {
+  if (renderer?.shadowMap) renderer.shadowMap.needsUpdate = true
+  invalidateSceneRender()
+}
+
+function invalidateSceneRender() {
+  sceneRenderDirty = true
+}
 
 // 场景分组
 let terrainGroup: THREE.Group
@@ -537,7 +561,6 @@ let projectionLineGroup: THREE.Group
 let projectionColoringGroup: THREE.Group
 let terrainLabelGroup: THREE.Group
 let featureLabelGroup: THREE.Group
-let ridgeGroup: THREE.Group
 let profileGroup: THREE.Group
 
 // 地形材质引用
@@ -551,7 +574,6 @@ let profileLineMesh: THREE.Line | null = null
 let profileEndpoints: THREE.Mesh[] = []
 const raycaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2()
-const contourRes = new THREE.Vector2(window.innerWidth, window.innerHeight)
 let contourDebounceTimer: number | null = null
 
 // ============================================================
@@ -625,11 +647,10 @@ function getNormalizedHeight(x: number, z: number): number {
     0.07 * gauss2d(x, z, 0.35, 0.75, 0.12, 0.12) +
     0.06 * gauss2d(x, z, 0.65, 0.15, 0.11, 0.11)
 
-  // 分形噪声 — 微地表细节（增强复杂度使地形更自然）
-  const noiseScale = 5.5
-  const noiseVal = fbm(x * noiseScale, z * noiseScale, 6) * 0.25 +
-    fbm(x * noiseScale * 2.3, z * noiseScale * 2.3, 4) * 0.08 +
-    fbm(x * noiseScale * 4.7, z * noiseScale * 4.7, 3) * 0.04
+  // 带限分形噪声：最高频率控制在网格奈奎斯特频率以内，避免降采样后
+  // 出现规则的三角形鱼骨纹，同时保留足够的自然地表起伏。
+  const noiseVal = fbm(x * 4.5, z * 4.5, 4) * 0.14 +
+    fbm(x * 9.0, z * 9.0, 3) * 0.045
 
   const cliffFactor = Math.exp(-((x - 0.32) ** 2) / (2 * 0.08 ** 2))
   let cliffDrop = 0
@@ -678,7 +699,6 @@ function getDisplayHeight(realHeight: number): number {
  * 这里重新按 X/Z 采样地形表面高度，再向上抬一点点。
  */
 const CONTOUR_SURFACE_OFFSET = 0.024
-const FEATURE_LINE_SURFACE_OFFSET = 0.032
 
 function sampleTerrainHeightAtSceneXZ(
   sceneX: number,
@@ -800,43 +820,44 @@ function liftContourToTerrainSurface(
   return lifted
 }
 
-function createSurfaceContourLine(
-  points: Float32Array,
+function createMergedContourSegments(
+  polylines: Float32Array[],
   color: number,
   opacity = 0.9,
-  renderOrder = 10
-): THREE.Line {
-  const lineGeo =
-    new THREE.BufferGeometry()
+  renderOrder = 10,
+): THREE.LineSegments | null {
+  let segmentCount = 0
+  for (const points of polylines) {
+    segmentCount += Math.max(0, points.length / 3 - 1)
+  }
+  if (segmentCount === 0) return null
 
+  const mergedPositions = new Float32Array(segmentCount * 6)
+  let targetOffset = 0
+  for (const points of polylines) {
+    for (let pointOffset = 0; pointOffset + 5 < points.length; pointOffset += 3) {
+      mergedPositions.set(points.subarray(pointOffset, pointOffset + 6), targetOffset)
+      targetOffset += 6
+    }
+  }
+
+  const lineGeo = new THREE.BufferGeometry()
   lineGeo.setAttribute(
     'position',
-    new THREE.BufferAttribute(
-      points,
-      3
-    )
+    new THREE.BufferAttribute(mergedPositions, 3)
   )
 
-  const lineMat =
-    new THREE.LineBasicMaterial({
-      color,
-      transparent: true,
-      opacity,
-      depthTest: true,
-      depthWrite: false,
-    })
+  const lineMat = new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    depthTest: true,
+    depthWrite: false,
+  })
+  const line = new THREE.LineSegments(lineGeo, lineMat)
 
-  const line =
-    new THREE.Line(
-      lineGeo,
-      lineMat
-    )
-
-  line.renderOrder =
-    renderOrder
-
-  line.frustumCulled =
-    false
+  line.renderOrder = renderOrder
+  line.frustumCulled = false
 
   return line
 }
@@ -1188,99 +1209,6 @@ function chaikinSmooth(points: Float32Array, iterations: number): Float32Array {
 }
 
 // ============================================================
-// 加粗等高线辅助 — 使用 Line2 支持 linewidth
-// ============================================================
-function createThickContourLine(
-  pts: Float32Array,
-  color: number,
-  width: number,
-  opacity: number,
-): Line2 {
-  const geo = new LineGeometry()
-  geo.setPositions(Array.from(pts))
-  const mat = new LineMaterial({
-    color,
-    linewidth: width,
-    resolution: contourRes,
-    transparent: true,
-    opacity,
-    depthTest: true,
-    worldUnits: false,
-    // 等高线略微前置，避免被地形遮挡
-    polygonOffset: true,
-    polygonOffsetFactor: 1.0,
-    polygonOffsetUnits: 1.0,
-  })
-  return new Line2(geo, mat)
-}
-
-function findNearestContourLevel(height: number, interval: number): number {
-  const rounded = Math.round((height - CONTOUR_START) / interval) * interval + CONTOUR_START
-  return Math.max(CONTOUR_START, Math.min(CONTOUR_END, rounded))
-}
-
-function extractContourSegmentNearFeature(
-  segments: ContourSegment[],
-  level: number,
-  centerX3D: number,
-  centerZ3D: number,
-  pointWindow: number,
-): Float32Array | null {
-  const y = getDisplayHeight(level)
-  const polylines = connectContourPolylines(segments, level, y)
-  if (polylines.length === 0) return null
-
-  let bestPolyline: Float32Array | null = null
-  let bestIndex = -1
-  let bestDist = Infinity
-
-  for (const pts of polylines) {
-    for (let i = 0; i < pts.length; i += 3) {
-      const dx = pts[i] - centerX3D
-      const dz = pts[i + 2] - centerZ3D
-      const d = Math.hypot(dx, dz)
-      if (d < bestDist) {
-        bestDist = d
-        bestPolyline = pts
-        bestIndex = i
-      }
-    }
-  }
-
-  if (!bestPolyline || bestPolyline.length < 9) return null
-
-  // 取以最近点为中心的一小段窗口
-  const half = pointWindow * 3
-  const start = Math.max(0, bestIndex - half)
-  const end = Math.min(bestPolyline.length, bestIndex + half + 3)
-  const segment = new Float32Array(end - start)
-  segment.set(bestPolyline.subarray(start, end))
-  return segment
-}
-
-function traceRidgeLine(segments: ContourSegment[]): Float32Array | null {
-  // 山脊：取经过 ridge1 中心 (0.48, 0.58) 附近的那一段等高线，凸向低处
-  const cx = 0.48, cz = 0.58
-  const level = findNearestContourLevel(getRealHeight(cx, cz), contourInterval.value)
-  return extractContourSegmentNearFeature(
-    segments, level,
-    (cx - 0.5) * TERRAIN_SIZE, (cz - 0.5) * TERRAIN_SIZE,
-    12, // 窗口点数
-  )
-}
-
-function traceValleyLine(segments: ContourSegment[]): Float32Array | null {
-  // 山谷：取经过 valley1 中心 (0.58, 0.38) 附近的那一段等高线，凸向高处
-  const cx = 0.58, cz = 0.38
-  const level = findNearestContourLevel(getRealHeight(cx, cz), contourInterval.value)
-  return extractContourSegmentNearFeature(
-    segments, level,
-    (cx - 0.5) * TERRAIN_SIZE, (cz - 0.5) * TERRAIN_SIZE,
-    10,
-  )
-}
-
-// ============================================================
 // 场景初始化 — 更亮的灯光
 // ============================================================
 function initScene() {
@@ -1307,7 +1235,7 @@ function initScene() {
 
   const dpr = Math.min(
     window.devicePixelRatio || 1,
-    2
+    MAX_RENDER_DPR
   )
 
   scene = new THREE.Scene()
@@ -1362,13 +1290,11 @@ function initScene() {
   lastSceneHeight = height
   lastSceneDpr = dpr
 
-  contourRes.set(
-    width,
-    height
-  )
-
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  // 灯光和场景平时均为静态，阴影只在地形几何变化后重绘。
+  renderer.shadowMap.autoUpdate = false
+  renderer.shadowMap.needsUpdate = true
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.4
   container.appendChild(
@@ -1396,17 +1322,20 @@ function initScene() {
   controls.dampingFactor = 0.08
   controls.minDistance = 1.5
   controls.maxDistance = 14
-  // 避开相机视线与 up 方向完全平行的极点奇异区。
-  // 约 1.15° 的安全余量肉眼仍接近正俯视/仰视，但可防止轨道控制抖动卡死。
-  const polarSafetyMargin = THREE.MathUtils.degToRad(1.15)
+  // 限制相机进入完全俯视/仰视区域，既避开极点奇异，也降低整张地形与
+  // 投影同时铺满视口时的渲染压力。
+  const polarSafetyMargin = THREE.MathUtils.degToRad(8)
   controls.minPolarAngle = polarSafetyMargin
   controls.maxPolarAngle = Math.PI - polarSafetyMargin
   controls.addEventListener('start', () => {
     cameraInteractionActive = true
+    invalidateSceneRender()
   })
   controls.addEventListener('end', () => {
     cameraInteractionActive = false
+    invalidateSceneRender()
   })
+  controls.addEventListener('change', invalidateSceneRender)
   controls.update()
 
   // 创建分组
@@ -1424,8 +1353,6 @@ function initScene() {
   terrainLabelGroup.name = 'terrainLabelGroup'
   featureLabelGroup = new THREE.Group()
   featureLabelGroup.name = 'featureLabelGroup'
-  ridgeGroup = new THREE.Group()
-  ridgeGroup.name = 'ridgeGroup'
   profileGroup = new THREE.Group()
   profileGroup.name = 'profileGroup'
 
@@ -1436,7 +1363,6 @@ function initScene() {
   scene.add(projectionColoringGroup)
   scene.add(terrainLabelGroup)
   scene.add(featureLabelGroup)
-  scene.add(ridgeGroup)
   scene.add(profileGroup)
 }
 
@@ -1453,6 +1379,8 @@ function setupLights() {
   sun.position.set(4, 8, 3)
   sun.castShadow = true
   sun.shadow.mapSize.set(1024, 1024)
+  sun.shadow.bias = -0.0003
+  sun.shadow.normalBias = 0.025
   scene.add(sun)
 
   const fill = new THREE.DirectionalLight(0x4488cc, 0.5)
@@ -1495,7 +1423,7 @@ function buildTerrain() {
   terrainMesh.receiveShadow = true
   terrainMesh.name = 'terrainMesh'
   terrainGroup.add(terrainMesh)
-
+  invalidateTerrainShadow()
 }
 
 // ============================================================
@@ -1503,7 +1431,7 @@ function buildTerrain() {
 // ============================================================
 function buildContoursAndProjection() {
   // 清空分组
-  ;[contourGroup3D, projectionGroup, projectionLineGroup, projectionColoringGroup, ridgeGroup].forEach(g => {
+  ;[contourGroup3D, projectionGroup, projectionLineGroup, projectionColoringGroup].forEach(g => {
     while (g.children.length) {
       const c = g.children[0]
       c.parent?.remove(c)
@@ -1520,6 +1448,7 @@ function buildContoursAndProjection() {
   const SMOOTH_ITER = 2
 
   // 1. 3D 地形表面等高线 — 先平滑，再重新采样山体表面并抬升，避免卡进山体
+  const surfaceContourPolylines: Float32Array[] = []
   for (const level of levels) {
     const y = getDisplayHeight(level)
     const rawPolylines = connectContourPolylines(segments, level, y)
@@ -1534,21 +1463,16 @@ function buildContoursAndProjection() {
         liftContourToTerrainSurface(
           smoothPts
         )
-
-      const line =
-        createSurfaceContourLine(
-          liftedPts,
-          0x5a0d9a,
-          0.92,
-          10
-        )
-
-      contourGroup3D.add(line)
+      surfaceContourPolylines.push(liftedPts)
     }
   }
-
-  // 2. 山脊线
-  buildRidges(segments)
+  const surfaceContours = createMergedContourSegments(
+    surfaceContourPolylines,
+    0x5a0d9a,
+    0.92,
+    10,
+  )
+  if (surfaceContours) contourGroup3D.add(surfaceContours)
 
   // 2. 地形底部基准面（已移除）
 
@@ -1566,78 +1490,26 @@ function buildContoursAndProjection() {
   projectionGroup.add(gridHelper)
 
   // 4. 2D 投影等高线 — 紫红色
+  const projectionContourPolylines: Float32Array[] = []
   for (const level of levels) {
     const rawPolylines = connectContourPolylines(segments, level, BASE_PLANE_Y + 0.005)
     for (const pts of rawPolylines) {
-      const smoothPts = chaikinSmooth(pts, SMOOTH_ITER)
-      const lineGeo = new THREE.BufferGeometry()
-      lineGeo.setAttribute('position', new THREE.BufferAttribute(smoothPts, 3))
-      const lineMat = new THREE.LineBasicMaterial({ color: 0x8833aa, transparent: true, opacity: 0.9 })
-      const line = new THREE.Line(lineGeo, lineMat)
-      projectionGroup.add(line)
+      projectionContourPolylines.push(chaikinSmooth(pts, SMOOTH_ITER))
     }
   }
+  const projectionContours = createMergedContourSegments(
+    projectionContourPolylines,
+    0x8833aa,
+    0.9,
+    10,
+  )
+  if (projectionContours) projectionGroup.add(projectionContours)
 
   // 5. 垂直投影虚线
   buildProjectionLines(segments)
 
   // 6. 投影分层设色
   buildProjectionColoring(segments)
-}
-
-// ============================================================
-// 山脊线 & 山谷线绘制 — 紧贴地形表面
-// ============================================================
-function buildRidges(segments: ContourSegment[]) {
-  // ---- 山脊线（红色） ----
-  const ridgePts = traceRidgeLine(segments)
-  if (ridgePts) {
-    const liftedRidgePts =
-      liftContourToTerrainSurface(
-        ridgePts,
-        FEATURE_LINE_SURFACE_OFFSET
-      )
-
-    ridgeGroup.add(
-      createSurfaceContourLine(
-        liftedRidgePts,
-        0xff2222,
-        0.95,
-        12
-      )
-    )
-
-    const proj = new Float32Array(ridgePts.length)
-    for (let k = 0; k < ridgePts.length; k += 3) { proj[k] = ridgePts[k]; proj[k + 1] = BASE_PLANE_Y + 0.006; proj[k + 2] = ridgePts[k + 2] }
-    const pGeo = new THREE.BufferGeometry()
-    pGeo.setAttribute('position', new THREE.BufferAttribute(proj, 3))
-    projectionGroup.add(new THREE.Line(pGeo, new THREE.LineBasicMaterial({ color: 0xff4444 })))
-  }
-
-  // ---- 山谷线（蓝色） ----
-  const valleyPts = traceValleyLine(segments)
-  if (valleyPts) {
-    const liftedValleyPts =
-      liftContourToTerrainSurface(
-        valleyPts,
-        FEATURE_LINE_SURFACE_OFFSET
-      )
-
-    ridgeGroup.add(
-      createSurfaceContourLine(
-        liftedValleyPts,
-        0x2266ff,
-        0.95,
-        12
-      )
-    )
-
-    const proj = new Float32Array(valleyPts.length)
-    for (let k = 0; k < valleyPts.length; k += 3) { proj[k] = valleyPts[k]; proj[k + 1] = BASE_PLANE_Y + 0.006; proj[k + 2] = valleyPts[k + 2] }
-    const pGeo = new THREE.BufferGeometry()
-    pGeo.setAttribute('position', new THREE.BufferAttribute(proj, 3))
-    projectionGroup.add(new THREE.Line(pGeo, new THREE.LineBasicMaterial({ color: 0x4488ff })))
-  }
 }
 
 // ============================================================
@@ -1650,10 +1522,9 @@ function buildProjectionLines(segments: ContourSegment[]) {
     if (!levelMap.has(s.level)) levelMap.set(s.level, [])
     levelMap.get(s.level)!.push(s)
   }
-  const step = 24
   for (const [level, segs] of levelMap) {
     const y3D = getDisplayHeight(level)
-    for (let i = 0; i < segs.length; i += step) {
+    for (let i = 0; i < segs.length; i += PROJECTION_LINE_SAMPLE_STEP) {
       const s = segs[i]
       projected.push(s.ax, y3D, s.az, s.ax, BASE_PLANE_Y, s.az)
     }
@@ -1745,6 +1616,7 @@ function buildLabels() {
   addElevationLabels()
   // 地形特征标注（受"地形标签"开关控制，同时跟随"地形显示"）
   addFeatureLabels()
+  invalidateSceneRender()
 }
 
 function addElevationLabels() {
@@ -1801,10 +1673,8 @@ function addElevationLabels() {
     }
     all.sort((a, b) => a.x - b.x)
     if (all.length > 0) {
-      markers.push({ level, x: all[Math.floor(all.length * 0.2)].x, z: all[Math.floor(all.length * 0.2)].z })
-      if (all.length > 10) {
-        markers.push({ level, x: all[Math.floor(all.length * 0.6)].x, z: all[Math.floor(all.length * 0.6)].z })
-      }
+      const marker = all[Math.floor(all.length * 0.35)]
+      if (marker) markers.push({ level, x: marker.x, z: marker.z })
     }
   }
   for (const m of markers) {
@@ -1828,14 +1698,14 @@ function addFeatureLabels() {
   if (learningMode.value) return
   // 根据当前地形生成类型，只显示对应标签
   const allFeatures = [
-    { type: 'peak', text: '山顶', x: 0.78, z: 0.78, color: '#ff6b6b' },
-    { type: 'saddle', text: '鞍部', x: 0.50, z: 0.52, color: '#f9ca24' },
-    { type: 'ridge', text: '山脊', x: 0.48, z: 0.58, color: '#2bcbba' },
-    { type: 'valley', text: '山谷', x: 0.58, z: 0.38, color: '#45aaf2' },
-    { type: 'cliff', text: '陡崖', x: 0.32, z: 0.26, color: '#fd7944' },
-    { type: 'steep', text: '陡坡', x: 0.28, z: 0.40, color: '#e67e22' },
-    { type: 'gentle', text: '缓坡', x: 0.12, z: 0.50, color: '#778ca3' },
-    { type: 'basin', text: '盆地', x: 0.18, z: 0.18, color: '#a78bfa' },
+    { type: 'peak', text: '山顶', color: '#ff6b6b' },
+    { type: 'saddle', text: '鞍部', color: '#f9ca24' },
+    { type: 'ridge', text: '山脊', color: '#2bcbba' },
+    { type: 'valley', text: '山谷', color: '#45aaf2' },
+    { type: 'cliff', text: '陡崖', color: '#fd7944' },
+    { type: 'steep', text: '陡坡', color: '#e67e22' },
+    { type: 'gentle', text: '缓坡', color: '#778ca3' },
+    { type: 'basin', text: '盆地', color: '#a78bfa' },
   ]
   const currentType = terrainGenType.value
   // "全部"显示所有标签，否则只显示对应的那一个
@@ -1846,11 +1716,12 @@ function addFeatureLabels() {
   const baseFont = 16 * uiScale.value
   for (const f of allFeatures) {
     if (!showTypes.includes(f.type)) continue
-    const realH = getRealHeight(f.x, f.z)
-    const displayH = getDisplayHeight(realH)
-    const labelX = (f.x - 0.5) * TERRAIN_SIZE
-    const labelY = displayH + 0.08
-    const labelZ = (f.z - 0.5) * TERRAIN_SIZE
+    const position = currentFeaturePositions[f.type] ?? DEFAULT_FEATURE_POSITIONS[f.type]
+    if (!position) continue
+    const labelX = (position.x - 0.5) * TERRAIN_SIZE
+    // 高度数据的行坐标使用 z = 1 - row；转换到场景时必须反转 Z 轴。
+    const labelZ = (0.5 - position.z) * TERRAIN_SIZE
+    const labelY = sampleTerrainHeightAtSceneXZ(labelX, labelZ) + 0.08
 
     const div = document.createElement('div')
     div.textContent = f.text
@@ -1882,16 +1753,17 @@ function onContourIntervalChange() {
 
 function onToggleFeatureLabels() {
   featureLabelGroup.visible = showFeatureLabels.value && showTerrain.value
+  invalidateSceneRender()
 }
 
 function onToggleTerrain() {
   const visible = showTerrain.value
   terrainGroup.visible = visible
   contourGroup3D.visible = visible
-  ridgeGroup.visible = visible
   terrainLabelGroup.visible = visible
   // 特征标签也跟随地形显示：地形关闭时隐藏，地形开启时由开关决定
   featureLabelGroup.visible = visible && showFeatureLabels.value
+  invalidateSceneRender()
 }
 
 // ============================================================
@@ -1902,9 +1774,9 @@ const VIEW_PRESETS: Record<string, { pos: [number, number, number]; target: [num
   back: { pos: [0, 2.5, -7.0], target: [0, 0.8, 0] },
   left: { pos: [-7.0, 2.5, 0], target: [0, 0.8, 0] },
   right: { pos: [7.0, 2.5, 0], target: [0, 0.8, 0] },
-  // 顶/底视角保留极小的 Z 偏移，避免视线与 camera.up 完全平行。
-  top: { pos: [0, 8.5, 0.17], target: [0, 0, 0] },
-  bottom: { pos: [0, -7.0, 0.14], target: [0, 0, 0] },
+  // 顶/底预设与 OrbitControls 的 8° 安全角保持一致。
+  top: { pos: [0, 8.5, 1.2], target: [0, 0, 0] },
+  bottom: { pos: [0, -7.0, 1.0], target: [0, 0, 0] },
 }
 
 function setView(view: keyof typeof VIEW_PRESETS) {
@@ -1915,6 +1787,7 @@ function setView(view: keyof typeof VIEW_PRESETS) {
   controls.target.set(preset.target[0], preset.target[1], preset.target[2])
   camera.lookAt(preset.target[0], preset.target[1], preset.target[2])
   controls.update()
+  invalidateSceneRender()
 }
 
 
@@ -2032,20 +1905,24 @@ function onToggleTransparent() {
     terrainMesh.geometry = newGeo
   }
   terrainMaterial.needsUpdate = true
+  invalidateTerrainShadow()
 }
 
 function onToggleProjection() {
   projectionGroup.visible = showProjection.value
   projectionLineGroup.visible = showProjection.value && showProjectionLines.value
   projectionColoringGroup.visible = showProjection.value && showProjectionColoring.value
+  invalidateSceneRender()
 }
 
 function onToggleProjectionLines() {
   projectionLineGroup.visible = showProjectionLines.value && showProjection.value
+  invalidateSceneRender()
 }
 
 function onToggleProjectionColoring() {
   projectionColoringGroup.visible = showProjectionColoring.value && showProjection.value
+  invalidateSceneRender()
 }
 
 
@@ -2128,6 +2005,15 @@ function generateRandomTerrain() {
       const shiftX = Math.random() * 0.2 - 0.1
       const shiftZ = Math.random() * 0.2 - 0.1
       const scale = 0.7 + Math.random() * 0.6
+      currentFeaturePositions = Object.fromEntries(
+        Object.entries(DEFAULT_FEATURE_POSITIONS).map(([featureType, position]) => [
+          featureType,
+          {
+            x: Math.max(0, Math.min(1, position.x - shiftX)),
+            z: Math.max(0, Math.min(1, position.z - shiftZ)),
+          },
+        ])
+      )
       for (let j = 0; j < GRID_SIZE; j++) {
         newHeights[j] = []
         for (let i = 0; i < GRID_SIZE; i++) {
@@ -2143,6 +2029,10 @@ function generateRandomTerrain() {
       // 单类型：随机位置 + TERRAIN_SEEDS 函数，每次不同
       const cx = 0.15 + Math.random() * 0.70
       const cz = 0.15 + Math.random() * 0.70
+      currentFeaturePositions = {
+        ...currentFeaturePositions,
+        [type]: { x: cx, z: cz },
+      }
       for (let j = 0; j < GRID_SIZE; j++) {
         newHeights[j] = []
         for (let i = 0; i < GRID_SIZE; i++) {
@@ -2200,6 +2090,7 @@ function generateRandomTerrain() {
     newGeo.setIndex(indices)
     newGeo.computeVertexNormals()
     terrainMesh.geometry = newGeo
+    invalidateTerrainShadow()
 
     // 重建等高线和标签
     buildContoursAndProjection()
@@ -2217,6 +2108,9 @@ function startLearning() {
   savedTerrainGenType = terrainGenType.value
   savedHeightValue = maxHeightValue
   savedHeightsData = heightsData.map(row => [...row])
+  savedFeaturePositions = Object.fromEntries(
+    Object.entries(currentFeaturePositions).map(([type, position]) => [type, { ...position }])
+  )
   // 自动收起左侧控制面板；知识卡片由 v-show 暂时隐藏。
   leftCollapsed.value = true
   // 立即隐藏现有地形标签（避免泄露答案）
@@ -2238,6 +2132,9 @@ function endLearning() {
   terrainGenType.value = savedTerrainGenType
   heightsData = savedHeightsData
   maxHeightValue = savedHeightValue
+  currentFeaturePositions = Object.fromEntries(
+    Object.entries(savedFeaturePositions).map(([type, position]) => [type, { ...position }])
+  )
   if (savedHeightValue > 0) {
     // 重新构建原地形
     const positions = new Float32Array(GRID_SIZE * GRID_SIZE * 3)
@@ -2277,6 +2174,7 @@ function endLearning() {
     newGeo.setIndex(indices)
     newGeo.computeVertexNormals()
     terrainMesh.geometry = newGeo
+    invalidateTerrainShadow()
     buildContoursAndProjection()
     buildLabels()
   }
@@ -2342,6 +2240,7 @@ function clearProfile() {
   }
   profileLineMesh = null
   profileEndpoints = []
+  invalidateSceneRender()
 }
 
 // ============================================================
@@ -2394,6 +2293,7 @@ function onTerrainClick(event: MouseEvent) {
     // Compute and display profile data
     computeProfile()
   }
+  invalidateSceneRender()
 }
 
 function addProfileEndpoint(point: THREE.Vector3, color: number) {
@@ -2668,17 +2568,26 @@ function drawProfileChart() {
 // ============================================================
 function animate(timestamp = performance.now()) {
   const cameraChanged = controls.update()
-  updateViewCube()
-  renderer.render(scene, camera)
+  if (cameraChanged) invalidateSceneRender()
 
-  // CSS2D 标签保持可见；相机运动时限制到约 30fps，降低大量 DOM
-  // transform 同步带来的布局压力。静止时低频刷新，兼顾开关状态更新。
-  const labelFrameInterval = cameraInteractionActive || cameraChanged
-    ? 1000 / 30
-    : 200
-  if (timestamp - lastLabelRenderTime >= labelFrameInterval) {
-    labelRenderer.render(scene, camera)
-    lastLabelRenderTime = timestamp
+  if (sceneRenderDirty) {
+    const dx = camera.position.x - controls.target.x
+    const dy = camera.position.y - controls.target.y
+    const dz = camera.position.z - controls.target.z
+    const distance = Math.max(Math.hypot(dx, dy, dz), Number.EPSILON)
+    const nearVertical = Math.abs(dy) / distance >= VERTICAL_RENDER_COSINE
+    const frameInterval = nearVertical && (cameraInteractionActive || cameraChanged)
+      ? 1000 / 30
+      : 0
+
+    if (timestamp - lastSceneRenderTime >= frameInterval) {
+      updateViewCube()
+      renderer.render(scene, camera)
+      // 标签与 WebGL 使用同一帧更新，不隐藏也不产生额外空转。
+      labelRenderer.render(scene, camera)
+      lastSceneRenderTime = timestamp
+      sceneRenderDirty = false
+    }
   }
 
   animationId = requestAnimationFrame(animate)
@@ -2721,7 +2630,7 @@ function resizeSceneNow() {
 
   const dpr = Math.min(
     window.devicePixelRatio || 1,
-    2
+    MAX_RENDER_DPR
   )
 
   const sizeChanged =
@@ -2756,10 +2665,6 @@ function resizeSceneNow() {
       height
     )
 
-    contourRes.set(
-      width,
-      height
-    )
   }
 
   // 响应式缩放后同步校准视角立方体位置。

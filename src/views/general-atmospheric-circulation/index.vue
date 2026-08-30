@@ -17,8 +17,8 @@
           <span class="replay-text">{{ isAutoDemo ? '关闭自动演示' : '自动演示' }}</span>
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn header-action-btn circulation-view-header-btn"
-          @click="toggleCloseView">
+        <button v-if="currentStage < 3" type="button"
+          class="theme-btn toolbar-btn header-action-btn circulation-view-header-btn" @click="handleViewModeToggle">
           <span class="circulation-view-icon">◎</span>
           <span>{{ isCloseView ? '恢复视角' : '展开环流' }}</span>
         </button>
@@ -41,9 +41,9 @@
           </div>
 
           <!-- 三圈环流 -->
-          <section class="geo-card control-section">
+          <section v-if="visibleCellLayerDefs.length" class="geo-card control-section">
             <h3 class="section-title">🌀 三圈环流</h3>
-            <div class="switch-row" v-for="l in cellLayerDefs" :key="l.key"
+            <div class="switch-row" v-for="l in visibleCellLayerDefs" :key="l.key"
               :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
               <div class="control-copy">
                 <strong>{{ l.label }}</strong>
@@ -54,9 +54,9 @@
           </section>
 
           <!-- 风向 -->
-          <section class="geo-card control-section">
+          <section v-if="visibleWindLayerDefs.length" class="geo-card control-section">
             <h3 class="section-title">💨 风向</h3>
-            <div class="switch-row" v-for="l in windLayerDefs" :key="l.key"
+            <div class="switch-row" v-for="l in visibleWindLayerDefs" :key="l.key"
               :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
               <div class="control-copy">
                 <strong>{{ l.label }}</strong>
@@ -67,9 +67,9 @@
           </section>
 
           <!-- 气压带 -->
-          <section class="geo-card control-section">
+          <section v-if="visiblePressureLayerDefs.length" class="geo-card control-section">
             <h3 class="section-title">📊 气压带</h3>
-            <div class="switch-row" v-for="l in pressureLayerDefs" :key="l.key"
+            <div class="switch-row" v-for="l in visiblePressureLayerDefs" :key="l.key"
               :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
               <div class="control-copy">
                 <strong>{{ l.label }}</strong>
@@ -80,9 +80,9 @@
           </section>
 
           <!-- 其他 -->
-          <section class="geo-card control-section">
+          <section v-if="visibleOtherLayerDefs.length" class="geo-card control-section">
             <h3 class="section-title">🎨 其他</h3>
-            <div class="switch-row" v-for="l in otherLayerDefs" :key="l.key"
+            <div class="switch-row" v-for="l in visibleOtherLayerDefs" :key="l.key"
               :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
               <div class="control-copy">
                 <strong>{{ l.label }}</strong>
@@ -94,24 +94,18 @@
 
           <!-- 图例 -->
           <section class="geo-card control-section">
-            <h3 class="section-title">📖 图例</h3>
-            <div class="legend-list">
-              <div class="legend-item"><span class="legend-line" style="background:#ef4444"></span>低纬环流·哈德莱</div>
-              <div class="legend-item"><span class="legend-line" style="background:#2ec4b6"></span>中纬环流·费雷尔</div>
-              <div class="legend-item"><span class="legend-line" style="background:#247cff"></span>高纬环流·极地</div>
-              <div class="legend-item"><span class="legend-ribbon"></span>着色器烟流气流</div>
-              <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>信风带</div>
-              <div class="legend-item"><span class="legend-dot" style="background:#b91c1c"></span>西风带</div>
-              <div class="legend-item"><span class="legend-dot" style="background:#fbbf24"></span>极地东风带</div>
-              <div class="legend-item"><span class="legend-band" style="background:#ff8800"></span>低压带（L）</div>
-              <div class="legend-item"><span class="legend-band" style="background:#ef4444"></span>高压带（H）</div>
-              <div class="legend-item"><span class="legend-dot"
-                  style="background:#52b7ff;box-shadow:0 0 8px #52b7ff"></span>海陆高压中心</div>
-              <div class="legend-item"><span class="legend-dot"
-                  style="background:#ff667f;box-shadow:0 0 8px #ff667f"></span>海陆低压中心</div>
-              <div class="legend-item"><span class="legend-ribbon monsoon-legend-ribbon"></span>季风动态箭头</div>
-              <div class="legend-item"><span class="legend-line" style="background:#2ec4b6"></span>0°经线</div>
-              <div class="legend-item"><span class="legend-line" style="background:#ff5f9e"></span>180°经线</div>
+            <h3 class="section-title">📖 当前图例</h3>
+            <div class="legend-groups">
+              <div v-for="group in visibleLegendGroups" :key="group.title" class="legend-group">
+                <div class="legend-group-title">{{ group.title }}</div>
+                <div class="legend-list">
+                  <div v-for="item in group.items" :key="item.label" class="legend-item">
+                    <span class="legend-symbol" :class="`legend-${item.symbol}`"
+                      :style="{ background: item.background, boxShadow: item.glow ? `0 0 9px ${item.glow}` : undefined }"></span>
+                    <span>{{ item.label }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         </div>
@@ -126,10 +120,31 @@
       <!-- ===== 中心舞台 ===== -->
       <section class="center-stage">
         <div class="stage-content">
-          <div ref="threeContainerRef" class="scene-host three-host"></div>
-          <div class="labels-overlay" ref="labelsOverlayRef">
+          <div v-show="!isWorldMapView" ref="threeContainerRef" class="scene-host three-host"></div>
+          <div v-show="!isWorldMapView" class="labels-overlay" ref="labelsOverlayRef">
             <div v-for="(l, i) in labelScreenData" :key="i" v-show="l.visible" class="scene-label" :class="l.cls"
               :style="{ left: l.x + 'px', top: l.y + 'px' }">{{ l.text }}</div>
+          </div>
+
+          <div v-show="isWorldMapView" ref="worldMapHostRef" class="world-map-stage"
+            :class="{ 'map-expanded': isMapExpanded }">
+            <div class="world-map-frame">
+              <div class="world-map-viewport" :class="{ dragging: isMapDragging }">
+                <canvas ref="worldMapCanvasRef" class="world-map-canvas" aria-label="Three.js 全球气压、等压线与风场动态地图"></canvas>
+              </div>
+              <div class="world-map-state-badge">
+                <span>{{ currentStage === 3 ? '海陆气压中心' : '全球风场 · 气压驱动' }}</span>
+                <strong>{{ monthNames[month] }}</strong>
+              </div>
+              <div class="world-map-interaction-hint">拖拽平移 · 滚轮缩放</div>
+            </div>
+
+            <div class="world-map-legend" aria-label="海平面气压图例">
+              <span class="legend-title">海平面气压 / 百帕</span>
+              <span class="pressure-scale"></span>
+              <span class="legend-values">980　988　996　1004　1012　1020　1028　1036　1044</span>
+              <span class="legend-source">NOAA/NCEP · {{ ncepSlpMetadata.climatology }}</span>
+            </div>
           </div>
         </div>
 
@@ -143,6 +158,15 @@
             </el-icon>
           </button>
           <div class="timeline-spacer" aria-hidden="true"></div>
+          <div class="month-control-group" :class="{ disabled: currentStage < 2 }">
+            <span class="month-control-label">季节月份</span>
+            <div class="month-options" role="group" aria-label="选择季节代表月份">
+              <button type="button" class="theme-btn month-btn" :class="{ active: month === 0 }"
+                :disabled="currentStage < 2" @click="setRepresentativeMonth(0)">1月</button>
+              <button type="button" class="theme-btn month-btn" :class="{ active: month === 6 }"
+                :disabled="currentStage < 2" @click="setRepresentativeMonth(6)">7月</button>
+            </div>
+          </div>
           <div class="speed-control-group">
             <span class="speed-control-label">动画倍数</span>
             <div class="speed-options">
@@ -152,103 +176,49 @@
           </div>
         </div>
       </section>
+    </main>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>教学流程</h2>
-              <p>从单圈环流到三圈环流</p>
-            </div>
-            <span class="panel-badge">TEACH</span>
-          </div>
-
-          <!-- 阶段导航 -->
-          <div class="stage-nav">
-            <div v-for="(stage, i) in stages" :key="stage.id" class="stage-nav-item" :class="{
-              active: currentStage === i,
-              done: currentStage > i
-            }" @click="goToStage(i)">
-              <span class="stage-num">{{ i + 1 }}</span>
-              <span class="stage-name">{{ stage.shortName }}</span>
-            </div>
-          </div>
-
-          <section class="geo-card stage-card" v-if="currentStageData">
-            <div class="stage-header">
-              <span class="stage-badge">阶段 {{ currentStage + 1 }}</span>
-              <h3 class="section-title">{{ currentStageData.title }}</h3>
-            </div>
-            <p class="stage-desc">{{ currentStageData.desc }}</p>
-            <div class="stage-points">
-              <div v-for="(p, idx) in currentStageData.points" :key="idx" class="step-point"
-                :class="{ done: stepDone[idx] }" @click="toggleStep(idx)">
-                <span class="step-num">{{ idx + 1 }}</span>
-                <span class="step-text">{{ p }}</span>
-              </div>
-            </div>
-            <div class="stage-nav-buttons">
-              <button class="theme-btn option-btn" :disabled="currentStage === 0" @click="prevStage">← 上一步</button>
-              <button class="theme-btn primary" @click="nextStage">
-                {{ currentStage < stages.length - 1 ? '下一步 →' : '从头演示' }} </button>
-            </div>
-          </section>
-
-          <section v-if="currentStage >= 1" class="geo-card season-stage-card">
-            <div class="season-stage-head">
-              <div>
-                <h3 class="section-title">☀ 月份与季节位移</h3>
-                <p>从阶段二开始，三圈环流、气压带和风带随月份同步南北移动。</p>
-              </div>
-              <strong>{{ monthNames[month] }}</strong>
-            </div>
-
-            <el-slider v-model="month" :min="0" :max="11" :step="1" :show-tooltip="false" show-stops />
-
-            <div class="season-month-row season-stage-month-row">
-              <span>1月</span>
-              <span>{{ seasonalShiftDescription }}</span>
-              <span>12月</span>
-            </div>
-          </section>
-
-          <section class="geo-card knowledge-card" v-if="currentStageData">
-            <h3 class="section-title">📚 高亮知识</h3>
-            <div class="kp-content" v-html="currentStageData.knowledge"></div>
-          </section>
-
-          <section class="geo-card knowledge-card">
-            <h3 class="section-title">🌬 六个风带</h3>
-            <div class="wind-list">
-              <div v-for="w in windBelts" :key="w.name + w.range" class="wind-item" :class="w.type">
-                <span class="wind-icon">{{ w.icon }}</span>
-                <div class="wind-info">
-                  <span class="wind-name">{{ w.name }}</span>
-                  <span class="wind-range">{{ w.range }}</span>
-                </div>
-                <span class="wind-dir">{{ w.direction }}</span>
-              </div>
-            </div>
-          </section>
+    <FloatingFeatureCard v-model:collapsed="teachingCardCollapsed" title="教学流程"
+      :subtitle="currentStageData?.title ?? ''" variant="data" :initial-top="76" :initial-right="16" :bottom-inset="82"
+      :min-width="360" :min-height="360">
+      <div class="floating-teaching-content">
+        <div class="stage-nav floating-stage-nav">
+          <button v-for="(stage, i) in stages" :key="stage.id" type="button" class="stage-nav-item" :class="{
+            active: currentStage === i,
+            done: currentStage > i
+          }" @click="goToStage(i)">
+            <span class="stage-num">{{ i + 1 }}</span>
+            <span class="stage-name">{{ stage.shortName }}</span>
+          </button>
         </div>
 
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
-    </main>
+        <section v-if="currentStageData" class="floating-stage-card">
+          <div class="stage-header">
+            <span class="stage-badge">阶段 {{ currentStage + 1 }}</span>
+            <h3 class="section-title">{{ currentStageData.title }}</h3>
+          </div>
+          <p class="stage-desc">{{ currentStageData.desc }}</p>
+          <div class="stage-points">
+            <button v-for="(p, idx) in currentStageData.points" :key="idx" type="button" class="step-point"
+              :class="{ done: stepDone[idx] }" @click="toggleStep(idx)">
+              <span class="step-num">{{ idx + 1 }}</span>
+              <span class="step-text">{{ p }}</span>
+            </button>
+          </div>
+          <div class="stage-nav-buttons">
+            <button class="theme-btn option-btn" :disabled="currentStage === 0" @click="prevStage">← 上一步</button>
+            <button class="theme-btn primary" @click="nextStage">
+              {{ currentStage < stages.length - 1 ? '下一步 →' : '从头演示' }} </button>
+          </div>
+        </section>
+      </div>
+    </FloatingFeatureCard>
 
     <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
       v-bind="leftEntryAttrs">
       ›
     </button>
 
-    <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-      v-bind="rightEntryAttrs">
-      ‹
-    </button>
   </div>
 </template>
 
@@ -259,11 +229,28 @@ import '@/styles/geo-page-template.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+import { ncepSlpMetadata, sampleNcepSlp, type NcepSlpMonth } from './ncep-slp-climatology'
+
+const atmosphericSpaceBackgroundUrl = '/geo-resources-folder/images/atmospheric-space-bg.png'
 
 // ==================== 常量 ====================
 const EARTH_RADIUS = 2.5
 const TILT = 0
-const CIRCULATION_CENTER_LON = -90
+const CIRCULATION_CENTER_LON = -58
+const CIRCULATION_SECTIONS = [
+  { longitude: CIRCULATION_CENTER_LON, fullEffect: true },
+  { longitude: normalizeLon(CIRCULATION_CENTER_LON + 180), fullEffect: true },
+  { longitude: normalizeLon(CIRCULATION_CENTER_LON + 90), fullEffect: false },
+  { longitude: normalizeLon(CIRCULATION_CENTER_LON - 90), fullEffect: false },
+]
+const SINGLE_CELL_SURFACE_ARROW_LONGITUDES = Array.from(
+  { length: 4 },
+  (_, intervalIndex) => normalizeLon(
+    CIRCULATION_CENTER_LON + 45 + intervalIndex * 90,
+  ),
+)
+const earthTextureUrl = '/geo-resources-folder/images/Material.003_diffuse.jpg'
 
 type SimMode = 'single' | 'three' | 'seasonal'
 type Hemisphere = 'north' | 'south'
@@ -500,13 +487,13 @@ const threeCellDefinitions: ThreeCellDefinition[] = [
 ]
 
 const pressureBandDefinitions: PressureBandDefinition[] = [
-  { id: 'polar-high-north', name: '极地高气压带', lat: 88, type: 'high', halfWidth: 7, color: 0xef4444 },
-  { id: 'subpolar-low-north', name: '副极地低气压带', lat: 60, type: 'low', halfWidth: 4.5, color: 0x6366f1 },
-  { id: 'subtropical-high-north', name: '副热带高气压带', lat: 30, type: 'high', halfWidth: 4.5, color: 0xef4444 },
-  { id: 'equatorial-low', name: '赤道低气压带', lat: 0, type: 'low', halfWidth: 6, color: 0xff8800 },
-  { id: 'subtropical-high-south', name: '副热带高气压带', lat: -30, type: 'high', halfWidth: 4.5, color: 0xef4444 },
-  { id: 'subpolar-low-south', name: '副极地低气压带', lat: -60, type: 'low', halfWidth: 4.5, color: 0x6366f1 },
-  { id: 'polar-high-south', name: '极地高气压带', lat: -88, type: 'high', halfWidth: 7, color: 0xef4444 },
+  { id: 'polar-high-north', name: '极地高气压带', lat: 88, type: 'high', halfWidth: 7, color: 0xa6ead8 },
+  { id: 'subpolar-low-north', name: '副极地低气压带', lat: 60, type: 'low', halfWidth: 5.5, color: 0xc6b8ff },
+  { id: 'subtropical-high-north', name: '副热带高气压带', lat: 30, type: 'high', halfWidth: 5.5, color: 0xa6ead8 },
+  { id: 'equatorial-low', name: '赤道低气压带', lat: 0, type: 'low', halfWidth: 7, color: 0xc6b8ff },
+  { id: 'subtropical-high-south', name: '副热带高气压带', lat: -30, type: 'high', halfWidth: 5.5, color: 0xa6ead8 },
+  { id: 'subpolar-low-south', name: '副极地低气压带', lat: -60, type: 'low', halfWidth: 5.5, color: 0xc6b8ff },
+  { id: 'polar-high-south', name: '极地高气压带', lat: -88, type: 'high', halfWidth: 7, color: 0xa6ead8 },
 ]
 
 const windBandDefinitions: WindBandDefinition[] = [
@@ -519,7 +506,7 @@ const windBandDefinitions: WindBandDefinition[] = [
     endLat: 5,
     startLonOffset: 14,
     endLonOffset: -14,
-    color: 0xef4444,
+    color: 0x2ed9c3,
   },
   {
     id: 'trade-south',
@@ -530,7 +517,7 @@ const windBandDefinitions: WindBandDefinition[] = [
     endLat: -5,
     startLonOffset: 14,
     endLonOffset: -14,
-    color: 0xef4444,
+    color: 0x2ed9c3,
   },
   {
     id: 'westerly-north',
@@ -541,7 +528,7 @@ const windBandDefinitions: WindBandDefinition[] = [
     endLat: 58,
     startLonOffset: -14,
     endLonOffset: 14,
-    color: 0xb91c1c,
+    color: 0xffb84d,
   },
   {
     id: 'westerly-south',
@@ -552,7 +539,7 @@ const windBandDefinitions: WindBandDefinition[] = [
     endLat: -58,
     startLonOffset: -14,
     endLonOffset: 14,
-    color: 0xb91c1c,
+    color: 0xffb84d,
   },
   {
     id: 'polar-east-north',
@@ -563,7 +550,7 @@ const windBandDefinitions: WindBandDefinition[] = [
     endLat: 62,
     startLonOffset: 13,
     endLonOffset: -13,
-    color: 0xfbbf24,
+    color: 0x75a7ff,
   },
   {
     id: 'polar-east-south',
@@ -574,7 +561,7 @@ const windBandDefinitions: WindBandDefinition[] = [
     endLat: -62,
     startLonOffset: 13,
     endLonOffset: -13,
-    color: 0xfbbf24,
+    color: 0x75a7ff,
   },
 ]
 
@@ -641,8 +628,8 @@ const monsoonDefinitions: MonsoonDefinition[] = [
     startLon: 142,
     endLat: 35,
     endLon: 116,
-    colorStart: 0xffb347,
-    colorEnd: 0xff5f6d,
+    colorStart: 0xff4f9a,
+    colorEnd: 0xff3158,
   },
   {
     id: 'south-asia-summer',
@@ -652,8 +639,8 @@ const monsoonDefinitions: MonsoonDefinition[] = [
     startLon: 62,
     endLat: 25,
     endLon: 84,
-    colorStart: 0xffd166,
-    colorEnd: 0xf72585,
+    colorStart: 0xc166ff,
+    colorEnd: 0x7446ff,
   },
   {
     id: 'east-asia-winter',
@@ -663,8 +650,8 @@ const monsoonDefinitions: MonsoonDefinition[] = [
     startLon: 96,
     endLat: 25,
     endLon: 126,
-    colorStart: 0x4fc3ff,
-    colorEnd: 0x6fe28f,
+    colorStart: 0xd6ff61,
+    colorEnd: 0x66e37a,
   },
 ]
 
@@ -686,14 +673,14 @@ const cellLayerDefs = [
 ]
 
 const windLayerDefs = [
-  { key: 'surfaceWinds', label: '地面风向箭头', desc: '六个近地面风带' },
-  { key: 'monsoonWinds', label: '季风动态箭头', desc: '阶段四海陆季风' },
+  { key: 'surfaceWinds', label: '地面风向箭头', desc: '气压梯度·半球偏转·盛行风' },
+  { key: 'monsoonWinds', label: '季风动态箭头', desc: '季节性海陆季风路径' },
 ]
 
 const pressureLayerDefs = [
-  { key: 'pressureBands', label: '气压带纬线圈', desc: '七个气压带与球面文字纹理' },
+  { key: 'pressureBands', label: '气压带 / 等压线', desc: '球面气压带·平面连续等值线' },
   { key: 'pressureArrows', label: '垂直烟流气流', desc: '上升暖色·下沉冷色' },
-  { key: 'regionalPressureCenters', label: '海陆气压中心', desc: '阶段四块状高低压' },
+  { key: 'regionalPressureCenters', label: '海陆气压中心', desc: '海陆热力差异形成的高低压' },
 ]
 
 const otherLayerDefs = [
@@ -810,11 +797,11 @@ const stages: Stage[] = [
       hadleyCell: true,
       ferrelCell: true,
       polarCell: true,
-      surfaceWinds: true,
+      surfaceWinds: false,
       pressureBands: true,
       pressureArrows: false,
       regionalPressureCenters: true,
-      monsoonWinds: true,
+      monsoonWinds: false,
       latLines: true,
       subsolarLine: true,
       textAnnotations: true,
@@ -822,9 +809,9 @@ const stages: Stage[] = [
   },
   {
     id: 'climate',
-    shortName: '气候联系',
-    title: '阶段五：气压带风带与气候',
-    desc: '气压带、风带及其季节移动共同影响全球降水和气候类型的分布。',
+    shortName: '季风与气候',
+    title: '阶段五：季风环流与气候',
+    desc: '在平面世界地图上叠加全球风带与季风环流，观察它们对降水和气候类型的共同影响。',
     points: [
       '低压控制区以上升气流为主，通常较湿润',
       '高压控制区以下沉气流为主，通常较干燥',
@@ -841,8 +828,8 @@ const stages: Stage[] = [
       surfaceWinds: true,
       pressureBands: true,
       pressureArrows: true,
-      regionalPressureCenters: false,
-      monsoonWinds: false,
+      regionalPressureCenters: true,
+      monsoonWinds: true,
       latLines: true,
       subsolarLine: true,
       textAnnotations: true,
@@ -852,7 +839,7 @@ const stages: Stage[] = [
 
 // ==================== 布局状态 ====================
 const hasLeftPanel = true
-const hasRightPanel = true
+const hasRightPanel = false
 
 const {
   rootRef: pageRef,
@@ -918,13 +905,29 @@ const {
 
 const isPlaying = ref(true)
 const isAutoDemo = ref(false)
-const playbackSpeed = ref(1)
-const speedOptions = [0.5, 1, 2, 5]
+const playbackSpeed = ref(1.5)
+const speedOptions = [0.5, 1, 1.5, 2, 5]
 const isCloseView = ref(false)
 
 // ==================== 业务状态 ====================
 const threeContainerRef = ref<HTMLElement | null>(null)
 const labelsOverlayRef = ref<HTMLElement | null>(null)
+const worldMapHostRef = ref<HTMLElement | null>(null)
+const worldMapCanvasRef = ref<HTMLCanvasElement | null>(null)
+let worldMapRenderer: THREE.WebGLRenderer | null = null
+let worldMapScene: THREE.Scene | null = null
+let worldMapCamera: THREE.OrthographicCamera | null = null
+let worldMapControls: OrbitControls | null = null
+let worldMapBaseMesh: THREE.Mesh | null = null
+let worldMapStaticMesh: THREE.Mesh | null = null
+let worldMapDynamicMesh: THREE.Mesh | null = null
+let worldMapStaticCanvas: HTMLCanvasElement | null = null
+let worldMapDynamicCanvas: HTMLCanvasElement | null = null
+let worldMapStaticTexture: THREE.CanvasTexture | null = null
+let worldMapDynamicTexture: THREE.CanvasTexture | null = null
+const mapZoom = ref(1)
+const isMapDragging = ref(false)
+const isMapExpanded = ref(false)
 const simMode = ref<SimMode>('single')
 const month = ref(6) // 0=1月，11=12月
 const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
@@ -956,12 +959,128 @@ const layers = reactive<Record<string, boolean>>({
   regionalPressureCenters: true,
   monsoonWinds: true,
   latLines: true,
+  subsolarLine: false,
   textAnnotations: true,
 })
 
 const currentStage = ref(0)
+const isWorldMapView = ref(false)
 const stepDone = ref<Record<number, boolean>>({})
+const teachingCardCollapsed = ref(false)
 const currentStageData = computed(() => stages[currentStage.value])
+const visibleCellLayerDefs = computed(() => (
+  isWorldMapView.value ? [] : cellLayerDefs
+))
+const visibleWindLayerDefs = computed(() => {
+  if (!isWorldMapView.value) return windLayerDefs
+  return currentStage.value === 4 ? windLayerDefs : []
+})
+const visiblePressureLayerDefs = computed(() => (
+  isWorldMapView.value
+    ? pressureLayerDefs.filter(layer => layer.key !== 'pressureArrows')
+    : pressureLayerDefs
+))
+const visibleOtherLayerDefs = computed(() => otherLayerDefs)
+
+type LegendSymbol = 'dot' | 'line' | 'band' | 'ribbon'
+type LegendGroup = {
+  title: string
+  items: Array<{
+    label: string
+    symbol: LegendSymbol
+    background: string
+    glow?: string
+  }>
+}
+
+const visibleLegendGroups = computed<LegendGroup[]>(() => {
+  if (currentStage.value === 0) {
+    return [
+      {
+        title: '理想单圈气流',
+        items: [
+          { label: '高空：赤道向两极', symbol: 'ribbon', background: 'linear-gradient(90deg, #ff5a47, #ff98c8)', glow: 'rgba(255, 83, 91, 0.62)' },
+          { label: '近地面：两极向赤道', symbol: 'ribbon', background: 'linear-gradient(90deg, #72b8ff, #9474ff)', glow: 'rgba(104, 175, 255, 0.62)' },
+          { label: '环流透明包络面', symbol: 'band', background: 'linear-gradient(90deg, rgba(122,206,255,.30), rgba(202,178,255,.68))' },
+        ],
+      },
+    ]
+  }
+
+  if (currentStage.value < 3) {
+    const groups: LegendGroup[] = [
+      {
+        title: '三圈环流',
+        items: [
+          { label: '低纬·哈德莱环流', symbol: 'line', background: '#ef4444', glow: 'rgba(239,68,68,.55)' },
+          { label: '中纬·费雷尔环流', symbol: 'line', background: '#2ec4b6', glow: 'rgba(46,196,182,.55)' },
+          { label: '高纬·极地环流', symbol: 'line', background: '#247cff', glow: 'rgba(36,124,255,.55)' },
+          { label: '动态烟流', symbol: 'ribbon', background: 'linear-gradient(90deg, #ff6a58, #bd8cff, #76c7ff)', glow: 'rgba(126,199,255,.48)' },
+        ],
+      },
+    ]
+    if (currentStage.value === 2) {
+      groups.push({
+        title: '风带与气压带',
+        items: [
+          { label: '信风带', symbol: 'dot', background: '#2ed9c3', glow: 'rgba(46,217,195,.58)' },
+          { label: '盛行西风带', symbol: 'dot', background: '#ffb84d', glow: 'rgba(255,184,77,.58)' },
+          { label: '极地东风带', symbol: 'dot', background: '#75a7ff', glow: 'rgba(117,167,255,.58)' },
+          { label: '低压带', symbol: 'band', background: 'linear-gradient(90deg, #7fa8ff, #4f6fff)' },
+          { label: '高压带', symbol: 'band', background: 'linear-gradient(90deg, #ffc067, #ff704d)' },
+        ],
+      })
+    }
+    return groups
+  }
+
+  const pressureGroups: LegendGroup[] = [
+    {
+      title: '海平面气压',
+      items: [
+        { label: '低压等压面', symbol: 'band', background: 'linear-gradient(90deg, #455ce7, #a8ddff)', glow: 'rgba(100,143,255,.42)' },
+        { label: '高压等压面', symbol: 'band', background: 'linear-gradient(90deg, #ffc578, #ff5d35)', glow: 'rgba(255,112,58,.42)' },
+        { label: '等压线', symbol: 'line', background: '#edf7ff', glow: 'rgba(220,241,255,.42)' },
+        { label: '高压中心 H', symbol: 'dot', background: '#ff884f', glow: 'rgba(255,112,58,.72)' },
+        { label: '低压中心 L', symbol: 'dot', background: '#5f8fff', glow: 'rgba(82,151,255,.72)' },
+      ],
+    },
+    {
+      title: '地图参考线',
+      items: [
+        { label: '经纬网', symbol: 'line', background: 'linear-gradient(90deg, #2ec4b6, #d3edff)' },
+        { label: '太阳直射纬线', symbol: 'line', background: '#ffd654', glow: 'rgba(255,190,38,.60)' },
+      ],
+    },
+  ]
+
+  if (currentStage.value === 3) return pressureGroups
+
+  const summer = month.value >= 4 && month.value <= 8
+  return [
+    {
+      title: '全球盛行风',
+      items: [
+        { label: '信风', symbol: 'ribbon', background: 'linear-gradient(90deg, #5af0d2, #16b8d4)', glow: 'rgba(46,217,195,.58)' },
+        { label: '盛行西风', symbol: 'ribbon', background: 'linear-gradient(90deg, #ffe066, #ff8c42)', glow: 'rgba(255,184,77,.58)' },
+        { label: '极地东风', symbol: 'ribbon', background: 'linear-gradient(90deg, #d0f7ff, #4c6fff)', glow: 'rgba(117,167,255,.58)' },
+      ],
+    },
+    {
+      title: summer ? '7月季风' : '1月季风',
+      items: summer
+        ? [
+          { label: '东亚东南季风', symbol: 'ribbon', background: 'linear-gradient(90deg, #ff9fcb, #ff315f)', glow: 'rgba(255,79,135,.60)' },
+          { label: '南亚西南季风', symbol: 'ribbon', background: 'linear-gradient(90deg, #d8b9ff, #7446ff)', glow: 'rgba(168,117,255,.60)' },
+        ]
+        : [
+          { label: '东亚西北季风', symbol: 'ribbon', background: 'linear-gradient(90deg, #dfff8b, #66e37a)', glow: 'rgba(145,236,109,.60)' },
+          { label: '南亚东北季风', symbol: 'ribbon', background: 'linear-gradient(90deg, #b7ffd9, #35c79a)', glow: 'rgba(88,229,178,.60)' },
+        ],
+    },
+    ...pressureGroups,
+  ]
+})
 
 // ==================== 标签 ====================
 const singleLabels: SceneLabel[] = [
@@ -1028,7 +1147,7 @@ const verticalLabels: SceneLabel[] = [
 
 const allLabels = computed<SceneLabel[]>(() => {
   if (simMode.value === 'single') return singleLabels
-  return [...windLabels, ...cellLabels, ...verticalLabels]
+  return [...pressureLabels, ...windLabels, ...cellLabels, ...verticalLabels]
 })
 
 const labelScreenData = ref<ScreenLabel[]>([])
@@ -1040,7 +1159,7 @@ let renderer: THREE.WebGLRenderer | null = null
 let orbitControls: OrbitControls | null = null
 let earthGroup: THREE.Group | null = null
 let earthMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
-let atmosphereMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
+let atmosphereMesh: THREE.Group | null = null
 let earthWireframe: THREE.LineSegments | null = null
 
 let singleCellRoot: THREE.Group | null = null
@@ -1052,6 +1171,8 @@ let smokeStreams: SmokeStream[] = []
 let circulationDirectionArrows: MovingArrow[] = []
 let windDirectionArrows: MovingArrow[] = []
 let windFlowMaterials: THREE.ShaderMaterial[] = []
+let singleCellArrowMaterials: THREE.ShaderMaterial[] = []
+let monsoonFlowMaterials: THREE.ShaderMaterial[] = []
 let regionalPressureMaterials: THREE.ShaderMaterial[] = []
 let verticalSmokeMaterials: THREE.ShaderMaterial[] = []
 let monsoonDirectionArrows: MovingArrow[] = []
@@ -1063,7 +1184,6 @@ let pressureBeltGroup: THREE.Group | null = null
 let pressureArrowGroup: THREE.Group | null = null
 let latLineGroup: THREE.Group | null = null
 let subsolarLineGroup: THREE.Group | null = null
-let pressureBandTextMesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial> | null = null
 let regionalPressureRoot: THREE.Group | null = null
 let regionalPressureSummerGroup: THREE.Group | null = null
 let regionalPressureWinterGroup: THREE.Group | null = null
@@ -1079,21 +1199,38 @@ let animationId = 0
 const clock = new THREE.Clock()
 let timeAccum = 0
 let lastAppliedSeasonalOffset = Number.NaN
+let mapAnimTime = 0 // 2D 地图风向/季风箭头计时器，统一受播放状态与动画倍速控制
+
+// 阶段四、五二维地图统一使用固定的 2:1 地理纹理坐标系。
+// 离屏等压面/风场纹理不再跟随网页缩放、侧栏宽度或 DPR 反复改变尺寸，
+// 从根源上避免 CanvasTexture 重分配后出现图层漂移或动态箭头暂时丢失。
+const WORLD_MAP_TEXTURE_WIDTH = 1600
+const WORLD_MAP_TEXTURE_HEIGHT = 800
 
 let threeResizeObserver: ResizeObserver | null = null
+let worldMapResizeObserver: ResizeObserver | null = null
 let sceneResizeTimer: ReturnType<typeof setTimeout> | null = null
 let sceneResizeFrame = 0
 let sceneResizeSettleFrame = 0
+let threeSceneRevealFrame = 0
 let lastSceneWidth = 0
 let lastSceneHeight = 0
+// WebGL 最终显示画布仍需跟踪 CSS 尺寸和 DPR；
+// 但地理图层自身已经固定在 WORLD_MAP_TEXTURE_WIDTH × WORLD_MAP_TEXTURE_HEIGHT，
+// 显示尺寸变化不会再改变亚洲低压、等压线、季风箭头等的纹理坐标。
+let lastWorldMapWidth = 0
+let lastWorldMapHeight = 0
+let lastWorldMapDpr = 0
 let replayTimers: ReturnType<typeof setTimeout>[] = []
 let circulationRevealProgress = 0
 const defaultCameraPosition = new THREE.Vector3(0, 3.05, 10.25)
-const closeCameraPosition = new THREE.Vector3(0, 2.25, 7.95)
-const mediumCloseCameraPosition = new THREE.Vector3(0, 2.55, 9.05)
-const smallCloseCameraPosition = new THREE.Vector3(0, 2.8, 10.05)
+// “展开环流”使用与参考图一致的正视镜头：摄像机与目标同高，
+// 避免俯视透视，并留足底部空间完整显示南半球包络与控制条。
+const closeCameraPosition = new THREE.Vector3(0, 0.12, 9.05)
+const mediumCloseCameraPosition = new THREE.Vector3(0, 0.12, 9.8)
+const smallCloseCameraPosition = new THREE.Vector3(0, 0.12, 10.7)
 const defaultOrbitTarget = new THREE.Vector3(0, 0, 0)
-const closeOrbitTarget = new THREE.Vector3(0, 0.38, 0)
+const closeOrbitTarget = new THREE.Vector3(0, 0.12, 0)
 let rotationBeforeCloseView = 0
 let viewTransitionActive = false
 let viewTransitionElapsed = 0
@@ -1172,21 +1309,9 @@ function shiftLatitude(lat: number, offset: number) {
   return clamp(lat + offset * taper, -88, 88)
 }
 
-function getCellCenterLon(definition: CirculationDefinition) {
-  if (definition.type === 'single') {
-    return definition.hemisphere === 'north'
-      ? CIRCULATION_CENTER_LON - 2.2
-      : CIRCULATION_CENTER_LON + 2.2
-  }
-
-  const typeOffset: Record<ThreeCellType, number> = {
-    hadley: -4.2,
-    ferrel: 0,
-    polar: 4.2,
-  }
-
-  const hemisphereOffset = definition.hemisphere === 'north' ? -0.8 : 0.8
-  return CIRCULATION_CENTER_LON + typeOffset[definition.type] + hemisphereOffset
+function getCellCenterLon(_definition: CirculationDefinition) {
+  // 所有环流圈共用同一经向剖面，避免不同圈层在视觉上前后错开。
+  return CIRCULATION_CENTER_LON
 }
 
 function resetCirculationFormation() {
@@ -1242,8 +1367,8 @@ function startCloseViewTransition() {
     viewTargetCameraPosition.copy(getResponsiveCloseCameraPosition())
     viewTargetOrbitTarget.copy(closeOrbitTarget)
 
-    // 先把经线剖面从侧面转到正对摄像机，再沿屏幕Z轴旋转90°。
-    // 这样南北半球环流会分别展开到地球上方左右两侧。
+    // 先把经线剖面从侧面转到正对摄像机，再沿屏幕 Z 轴旋转 90°。
+    // 极轴因此水平展开：北极在左、南极在右、赤道上升支位于正上方。
     viewTargetEarthMeshY = Math.PI / 2
     viewTargetEarthGroupZ = Math.PI / 2
   } else {
@@ -1256,6 +1381,17 @@ function startCloseViewTransition() {
 
 function toggleCloseView() {
   setCloseViewState(!isCloseView.value)
+}
+
+function handleViewModeToggle() {
+  if (currentStage.value >= 3) {
+    // 阶段四、五始终使用二维 PlaneGeometry，不提供三维回切入口。
+    isWorldMapView.value = true
+    scheduleFlatMapDraw()
+    return
+  }
+
+  toggleCloseView()
 }
 
 // ==================== 地球纹理 ====================
@@ -1316,9 +1452,10 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uMap: { value: texture },
-      uBrightness: { value: 1.07 },
-      uSaturation: { value: 1.10 },
-      uContrast: { value: 1.05 },
+      uBrightness: { value: 0.42 },
+      uSaturation: { value: 0.72 },
+      uContrast: { value: 1.04 },
+      uCoolTint: { value: new THREE.Color(0x8cc9e8) },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -1333,6 +1470,7 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
       uniform float uBrightness;
       uniform float uSaturation;
       uniform float uContrast;
+      uniform vec3 uCoolTint;
 
       varying vec2 vUv;
 
@@ -1341,6 +1479,7 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
         float luminance = dot(textureColor, vec3(0.2126, 0.7152, 0.0722));
         vec3 color = mix(vec3(luminance), textureColor, uSaturation);
         color = (color - 0.5) * uContrast + 0.5;
+        color = mix(color, color * uCoolTint, 0.24);
         color *= uBrightness;
         gl_FragColor = vec4(color, 1.0);
         #include <tonemapping_fragment>
@@ -1354,77 +1493,123 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
 }
 
 /**
- * 参考 Three.js 官方大气辉光案例的思路：
- * 使用略大于地球的背面球体，通过视线与法线夹角计算 Fresnel 辉光。
- * 中央区域由地球深度遮挡，只在轮廓边缘形成柔和蓝色大气层。
+ * 两层贴地大气：柔和表面薄雾与明亮青蓝内缘。
+ * 不再使用包住整颗地球的深蓝透明外球。
  */
 function createAtmosphereMesh() {
-  const geometry = new THREE.SphereGeometry(
-    EARTH_RADIUS * 1.055,
-    128,
-    96,
-  )
+  const group = new THREE.Group()
+  group.name = 'earth-atmosphere-layers'
 
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      uWhiteColor: { value: new THREE.Color(0xf7fbff) },
-      uBlueColor: { value: new THREE.Color(0x55b7ff) },
-      uOuterColor: { value: new THREE.Color(0x2f7dd8) },
-      uOpacity: { value: 0.58 },
-    },
-    vertexShader: `
-      varying vec3 vWorldNormal;
-      varying vec3 vWorldPosition;
+  const createShell = (options: {
+    radiusScale: number
+    innerColor: number
+    outerColor: number
+    opacity: number
+    power: number
+    rimStart: number
+    baseHaze: number
+    capHaze: number
+    upperBias: number
+    side: THREE.Side
+    blending: THREE.Blending
+  }) => {
+    const geometry = new THREE.SphereGeometry(EARTH_RADIUS * options.radiusScale, 128, 96)
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uInnerColor: { value: new THREE.Color(options.innerColor) },
+        uOuterColor: { value: new THREE.Color(options.outerColor) },
+        uOpacity: { value: options.opacity },
+        uPower: { value: options.power },
+        uRimStart: { value: options.rimStart },
+        uBaseHaze: { value: options.baseHaze },
+        uCapHaze: { value: options.capHaze },
+        uUpperBias: { value: options.upperBias },
+      },
+      vertexShader: `
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
 
-      void main() {
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vWorldPosition = worldPosition.xyz;
-        vWorldNormal = normalize(mat3(modelMatrix) * normal);
-        gl_Position = projectionMatrix * viewMatrix * worldPosition;
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 uWhiteColor;
-      uniform vec3 uBlueColor;
-      uniform vec3 uOuterColor;
-      uniform float uOpacity;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uInnerColor;
+        uniform vec3 uOuterColor;
+        uniform float uOpacity;
+        uniform float uPower;
+        uniform float uRimStart;
+        uniform float uBaseHaze;
+        uniform float uCapHaze;
+        uniform float uUpperBias;
 
-      varying vec3 vWorldNormal;
-      varying vec3 vWorldPosition;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
 
-      void main() {
-        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-        float viewDot = abs(dot(normalize(vWorldNormal), viewDirection));
-        float rim = clamp(1.0 - viewDot, 0.0, 1.0);
+        void main() {
+          vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+          float rim = clamp(1.0 - abs(dot(normalize(vWorldNormal), viewDirection)), 0.0, 1.0);
+          float glow = pow(smoothstep(uRimStart, 1.0, rim), uPower);
+          float haze = smoothstep(0.02, 0.72, rim) * uBaseHaze;
+          float capHaze = smoothstep(-0.18, 0.88, normalize(vWorldNormal).y) * uCapHaze;
+          float upperLight = mix(
+            1.0,
+            0.72 + 0.28 * smoothstep(-0.35, 0.90, normalize(vWorldNormal).y),
+            uUpperBias
+          );
+          vec3 color = mix(uInnerColor, uOuterColor, smoothstep(0.35, 0.96, rim));
+          float alpha = (glow + haze + capHaze) * uOpacity * upperLight;
+          if (alpha < 0.004) discard;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      blending: options.blending,
+      side: options.side,
+    })
 
-        float innerGlow = smoothstep(0.10, 0.58, rim);
-        float middleGlow = smoothstep(0.32, 0.82, rim);
-        float outerGlow = pow(rim, 3.4);
+    return new THREE.Mesh(geometry, material)
+  }
 
-        vec3 color = mix(uWhiteColor, uBlueColor, middleGlow);
-        color = mix(color, uOuterColor, outerGlow * 0.72);
-
-        float alpha =
-          innerGlow * 0.14 +
-          middleGlow * 0.22 +
-          outerGlow * 0.34;
-        alpha *= uOpacity;
-
-        if (alpha < 0.006) discard;
-        gl_FragColor = vec4(color, alpha);
-      }
-    `,
-    transparent: true,
-    depthWrite: false,
-    depthTest: true,
+  const surfaceHaze = createShell({
+    radiusScale: 1.016,
+    innerColor: 0x143c76,
+    outerColor: 0x55b9ff,
+    opacity: 0.42,
+    power: 0.88,
+    rimStart: 0.0,
+    baseHaze: 0.34,
+    capHaze: 0.24,
+    upperBias: 0.72,
+    side: THREE.FrontSide,
     blending: THREE.NormalBlending,
-    side: THREE.BackSide,
   })
+  surfaceHaze.name = 'earth-atmosphere-surface-haze'
+  surfaceHaze.renderOrder = 1
 
-  const mesh = new THREE.Mesh(geometry, material)
-  mesh.name = 'earth-atmosphere-glow'
-  mesh.renderOrder = 1
-  return mesh
+  const innerRim = createShell({
+    radiusScale: 1.028,
+    innerColor: 0xe9fbff,
+    outerColor: 0x46c8ff,
+    opacity: 0.94,
+    power: 1.72,
+    rimStart: 0.06,
+    baseHaze: 0.06,
+    capHaze: 0.0,
+    upperBias: 0.45,
+    side: THREE.BackSide,
+    blending: THREE.AdditiveBlending,
+  })
+  innerRim.name = 'earth-atmosphere-inner-rim'
+  innerRim.renderOrder = 1
+
+  group.add(surfaceHaze, innerRim)
+  return group
 }
 
 // ==================== 环流闭合曲线 ====================
@@ -1451,7 +1636,7 @@ class AtmosphericCellCurve extends THREE.Curve<THREE.Vector3> {
       single: 0.95,
       hadley: 0.78,
       ferrel: 0.68,
-      polar: 0.56,
+      polar: 0.76,
     }
 
     const upperRadius = EARTH_RADIUS + upperHeightByType[definition.type]
@@ -1505,6 +1690,7 @@ class AtmosphericCellCurve extends THREE.Curve<THREE.Vector3> {
 }
 
 class SurfaceWindCurve extends THREE.Curve<THREE.Vector3> {
+  private readonly windType: WindType
   private readonly startLat: number
   private readonly endLat: number
   private readonly startLon: number
@@ -1517,10 +1703,11 @@ class SurfaceWindCurve extends THREE.Curve<THREE.Vector3> {
     latitudeOffset = 0,
   ) {
     super()
+    this.windType = definition.type
 
-    // 只截取风带方向路径的中部，箭头更短、更小，仍保持真实风向。
-    const startRatio = 0.28
-    const endRatio = 0.72
+    // 保留风带代表路径的大部分长度，让箭头在地球上形成清晰的弧形流线。
+    const startRatio = 0.08
+    const endRatio = 0.92
 
     this.startLat = shiftLatitude(
       lerpValue(definition.startLat, definition.endLat, startRatio),
@@ -1532,29 +1719,48 @@ class SurfaceWindCurve extends THREE.Curve<THREE.Vector3> {
     )
 
     this.startLon = normalizeLon(
-      baseLon + lerpValue(definition.startLonOffset, definition.endLonOffset, startRatio),
+      definition.type === 'polar'
+        ? baseLon + 24
+        : baseLon + lerpValue(definition.startLonOffset, definition.endLonOffset, startRatio),
     )
     this.endLon = normalizeLon(
-      baseLon + lerpValue(definition.startLonOffset, definition.endLonOffset, endRatio),
+      definition.type === 'polar'
+        ? baseLon - 24
+        : baseLon + lerpValue(definition.startLonOffset, definition.endLonOffset, endRatio),
     )
 
-    this.radius = EARTH_RADIUS + 0.032
+    this.radius = EARTH_RADIUS + 0.070
     this.arcLengthDivisions = 100
   }
 
   getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
     const progress = smoothstep01(t)
+    const deltaLat = this.endLat - this.startLat
+    const deltaLon = THREE.MathUtils.euclideanModulo(
+      this.endLon - this.startLon + 180,
+      360,
+    ) - 180
+    const directionLength = Math.hypot(deltaLat, deltaLon) || 1
+    const curveOffset = Math.sin(progress * Math.PI) * (this.windType === 'polar' ? 2.2 : 4.6)
     const lat = lerpValue(this.startLat, this.endLat, progress)
-    const lon = lerpLongitude(this.startLon, this.endLon, progress)
-    return target.copy(latLonToVec3(lat, lon, this.radius))
+      + (-deltaLon / directionLength) * curveOffset
+    const lon = normalizeLon(
+      this.startLon
+      + deltaLon * progress
+      + (deltaLat / directionLength) * curveOffset,
+    )
+    const radialExpansion = this.windType === 'polar'
+      ? Math.sin(progress * Math.PI) * 0.075
+      : 0
+    return target.copy(latLonToVec3(lat, lon, this.radius + radialExpansion))
   }
 }
 
 function getCirculationArrowPalette(definition: CirculationDefinition) {
   if (definition.type === 'single') {
     return {
-      start: new THREE.Color(0xd6c8ff),
-      end: new THREE.Color(0x9ca8ff),
+      start: new THREE.Color(0xe9f8ff),
+      end: new THREE.Color(0xff936e),
     }
   }
 
@@ -1590,8 +1796,9 @@ function createCurveDirectionArrow(
   const palette = getCirculationArrowPalette(definition)
   const arrow = new THREE.Group()
 
-  const shaftLength = 0.072 * scale
-  const shaftRadius = 0.0065 * scale
+  const singleBoost = mode === 'single' ? 1.82 : 1
+  const shaftLength = 0.072 * scale * singleBoost
+  const shaftRadius = 0.0065 * scale * singleBoost
   const segmentCount = 3
 
   for (let index = 0; index < segmentCount; index++) {
@@ -1611,8 +1818,9 @@ function createCurveDirectionArrow(
       new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.62,
+        opacity: mode === 'single' ? 0.94 : 0.84,
         depthWrite: false,
+        depthTest: true,
         blending: THREE.AdditiveBlending,
       }),
     )
@@ -1622,26 +1830,32 @@ function createCurveDirectionArrow(
   }
 
   const head = new THREE.Mesh(
-    new THREE.ConeGeometry(0.019 * scale, 0.046 * scale, 12),
+    new THREE.ConeGeometry(
+      0.019 * scale * singleBoost,
+      0.046 * scale * singleBoost,
+      12,
+    ),
     new THREE.MeshBasicMaterial({
       color: palette.end,
       transparent: true,
-      opacity: 0.76,
+      opacity: mode === 'single' ? 0.98 : 0.94,
       depthWrite: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
     }),
   )
 
-  head.position.y = shaftLength / 2 + 0.018 * scale
+  head.position.y = shaftLength / 2 + 0.018 * scale * singleBoost
   arrow.add(head)
 
   const tailGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(0.010 * scale, 10, 8),
+    new THREE.SphereGeometry(0.010 * scale * singleBoost, 10, 8),
     new THREE.MeshBasicMaterial({
       color: palette.start,
       transparent: true,
-      opacity: 0.26,
+      opacity: mode === 'single' ? 0.50 : 0.38,
       depthWrite: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
     }),
   )
@@ -1650,19 +1864,497 @@ function createCurveDirectionArrow(
 
   arrow.position.copy(position)
   arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent)
-  arrow.renderOrder = 7
+  arrow.renderOrder = mode === 'single' ? 20 : 7
 
   circulationDirectionArrows.push({
     mesh: arrow,
     curve,
     progress,
-    speed: mode === 'single' ? 0.015 : 0.019,
+    speed: mode === 'single' ? 0.027 : 0.019,
     loopStart: 0,
     loopEnd: 1,
     mode,
   })
 
   return arrow
+}
+
+function getInsetCirculationArrowSize(definition: CirculationDefinition) {
+  if (definition.type === 'single') {
+    return {
+      span: 0.22,
+      shaftHalfWidth: 0.050,
+      headHalfWidth: 0.135,
+      insetScale: 0.66,
+      speed: 0.060,
+    }
+  }
+
+  if (definition.type === 'hadley') {
+    return {
+      span: 0.28,
+      shaftHalfWidth: 0.032,
+      headHalfWidth: 0.088,
+      insetScale: 0.56,
+      speed: 0.072,
+    }
+  }
+
+  if (definition.type === 'ferrel') {
+    return {
+      span: 0.29,
+      shaftHalfWidth: 0.030,
+      headHalfWidth: 0.082,
+      insetScale: 0.54,
+      speed: 0.075,
+    }
+  }
+
+  return {
+    span: 0.30,
+    shaftHalfWidth: 0.028,
+    headHalfWidth: 0.076,
+    insetScale: 0.52,
+    speed: 0.078,
+  }
+}
+
+/**
+ * 左右侧剖面专用的大型平面箭头。
+ * 箭头沿内缩后的闭合曲线运动，并始终平躺在经向剖面内，避免贴在包络边缘。
+ */
+function createMovingInsetCirculationArrow(
+  baseCurve: THREE.Curve<THREE.Vector3>,
+  definition: CirculationDefinition,
+  progress: number,
+  phase: number,
+  mode: 'single' | 'three',
+) {
+  const sizing = getInsetCirculationArrowSize(definition)
+  const curve = createInsetCirculationCurve(baseCurve, sizing.insetScale)
+  const isSurfaceBranch = progress < 0.4
+  const arrow = createMovingCurvePlaneArrow(curve, progress, {
+    colorStart: new THREE.Color(isSurfaceBranch ? 0xffa06f : 0xc3b2ff),
+    colorEnd: new THREE.Color(isSurfaceBranch ? 0xff4f43 : 0x69adff),
+    phase,
+    opacity: mode === 'single' ? 0.98 : 0.96,
+    span: sizing.span,
+    shaftHalfWidth: sizing.shaftHalfWidth,
+    headHalfWidth: sizing.headHalfWidth,
+    speed: sizing.speed,
+    mode,
+    renderOrder: 9,
+    registry: singleCellArrowMaterials,
+  })
+
+  arrow.arrow.name = `${definition.id}-inset-moving-plane-arrow`
+  arrow.arrow.traverse(child => {
+    child.frustumCulled = false
+  })
+  circulationDirectionArrows.push(arrow.item)
+  return arrow.arrow
+}
+
+class SingleCellSurfaceArrowCurve extends THREE.Curve<THREE.Vector3> {
+  private readonly hemisphere: Hemisphere
+  private readonly longitude: number
+
+  constructor(hemisphere: Hemisphere, longitude: number) {
+    super()
+    this.hemisphere = hemisphere
+    this.longitude = longitude
+    this.arcLengthDivisions = 180
+  }
+
+  getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
+    const progress = smoothstep01(t)
+    const sign = this.hemisphere === 'north' ? 1 : -1
+    const latitude = sign * lerpValue(80, 5, progress)
+    const longitude = this.longitude + Math.sin(progress * Math.PI) * sign * 1.8
+    const radius = EARTH_RADIUS + 0.115 + Math.sin(progress * Math.PI) * 0.035
+    return target.copy(latLonToVec3(latitude, longitude, radius))
+  }
+}
+
+function createMovingSingleCellSurfaceArrow(
+  curve: THREE.Curve<THREE.Vector3>,
+  progress: number,
+  phase: number,
+) {
+  const result = createMovingSphericalSurfaceArrow(curve, progress, {
+    colorStart: new THREE.Color(0x6fbcff),
+    colorEnd: new THREE.Color(0xe9f8ff),
+    phase,
+    opacity: 0.96,
+    span: 0.36,
+    shaftHalfWidth: 0.058,
+    headHalfWidth: 0.155,
+    speed: 0.098,
+    loopStart: 0.015,
+    loopEnd: 0.965,
+    mode: 'single',
+    renderOrder: 20,
+    registry: singleCellArrowMaterials,
+  })
+  circulationDirectionArrows.push(result.item)
+  return result.arrow
+}
+
+function createMovingSphericalSurfaceArrow(
+  curve: THREE.Curve<THREE.Vector3>,
+  progress: number,
+  options: {
+    colorStart: THREE.Color
+    colorEnd: THREE.Color
+    phase: number
+    opacity: number
+    span: number
+    shaftHalfWidth: number
+    headHalfWidth: number
+    speed: number
+    loopStart: number
+    loopEnd: number
+    mode: MovingArrow['mode']
+    renderOrder: number
+    registry: THREE.ShaderMaterial[]
+  },
+) {
+  const shaftSamples = 13
+  const vertexCount = shaftSamples * 2 + 3
+  const positions = new Float32Array(vertexCount * 3)
+  const along = new Float32Array(vertexCount)
+  const indices: number[] = []
+  for (let index = 0; index < shaftSamples - 1; index += 1) {
+    const left = index * 2
+    const right = left + 1
+    const nextLeft = left + 2
+    const nextRight = left + 3
+    indices.push(left, right, nextLeft, right, nextRight, nextLeft)
+    along[left] = along[right] = (index / (shaftSamples - 1)) * 0.74
+  }
+  along[(shaftSamples - 1) * 2] = 0.74
+  along[(shaftSamples - 1) * 2 + 1] = 0.74
+  const headStart = shaftSamples * 2
+  along[headStart] = 0.72
+  along[headStart + 1] = 0.72
+  along[headStart + 2] = 1
+  indices.push(headStart, headStart + 1, headStart + 2)
+
+  const geometry = new THREE.BufferGeometry()
+  const positionAttribute = new THREE.BufferAttribute(positions, 3)
+  positionAttribute.setUsage(THREE.DynamicDrawUsage)
+  geometry.setAttribute('position', positionAttribute)
+  geometry.setAttribute('aAlong', new THREE.BufferAttribute(along, 1))
+  geometry.setIndex(indices)
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uColorStart: { value: options.colorStart },
+      uColorEnd: { value: options.colorEnd },
+      uTime: { value: 0 },
+      uPhase: { value: options.phase },
+      uOpacity: { value: options.opacity },
+    },
+    vertexShader: `
+      attribute float aAlong;
+      varying float vAlong;
+      void main() {
+        vAlong = aAlong;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColorStart;
+      uniform vec3 uColorEnd;
+      uniform float uTime;
+      uniform float uPhase;
+      uniform float uOpacity;
+      varying float vAlong;
+      void main() {
+        vec3 color = mix(uColorStart, uColorEnd, smoothstep(0.0, 1.0, vAlong));
+        float sweep = fract(uTime * 0.32 + uPhase);
+        float highlight = exp(-pow((vAlong - sweep) * 11.0, 2.0));
+        color = mix(color, vec3(1.0), highlight * 0.36);
+        gl_FragColor = vec4(color, uOpacity * (0.92 + highlight * 0.08));
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    blending: THREE.NormalBlending,
+  })
+  options.registry.push(material)
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.renderOrder = options.renderOrder
+  mesh.frustumCulled = false
+
+  const arrow = new THREE.Group()
+  arrow.add(mesh)
+  arrow.renderOrder = options.renderOrder
+  arrow.userData.sphericalSurfaceArrow = true
+  arrow.userData.surfaceArrowMesh = mesh
+  arrow.userData.surfaceArrowSpan = options.span
+  arrow.userData.surfaceArrowSamples = shaftSamples
+  arrow.userData.surfaceArrowShaftHalfWidth = options.shaftHalfWidth
+  arrow.userData.surfaceArrowHeadHalfWidth = options.headHalfWidth
+  arrow.userData.surfaceArrowOpacity = options.opacity
+
+  const item: MovingArrow = {
+    mesh: arrow,
+    curve,
+    progress,
+    speed: options.speed,
+    loopStart: options.loopStart,
+    loopEnd: options.loopEnd,
+    mode: options.mode,
+  }
+  updateSphericalSurfaceArrow(item)
+
+  return { arrow, item }
+}
+
+function updateSphericalSurfaceArrow(item: MovingArrow) {
+  const mesh = item.mesh.userData.surfaceArrowMesh as THREE.Mesh<
+    THREE.BufferGeometry,
+    THREE.ShaderMaterial
+  > | undefined
+  if (!mesh) return
+
+  const span = item.mesh.userData.surfaceArrowSpan as number
+  const shaftSamples = item.mesh.userData.surfaceArrowSamples as number
+  const shaftHalfWidth = item.mesh.userData.surfaceArrowShaftHalfWidth as number
+  const headHalfWidth = item.mesh.userData.surfaceArrowHeadHalfWidth as number
+  const opacity = item.mesh.userData.surfaceArrowOpacity as number
+  const headProgress = item.progress
+  const tailProgress = Math.max(item.loopStart, headProgress - span)
+  const activeSpan = Math.max(0.0001, headProgress - tailProgress)
+  const shoulderProgress = headProgress - activeSpan * 0.27
+  const positionAttribute = mesh.geometry.getAttribute('position') as THREE.BufferAttribute
+
+  const setSurfacePoint = (
+    vertexIndex: number,
+    progress: number,
+    halfWidth: number,
+    sideSign: number,
+  ) => {
+    const source = item.curve.getPointAt(progress)
+    const surfaceNormal = source.clone().normalize()
+    const tangent = item.curve.getTangentAt(progress)
+    tangent.addScaledVector(surfaceNormal, -tangent.dot(surfaceNormal)).normalize()
+    const side = surfaceNormal.clone().cross(tangent).normalize()
+    const surface = surfaceNormal.multiplyScalar(Math.max(source.length(), EARTH_RADIUS + 0.092))
+    surface.addScaledVector(side, halfWidth * sideSign)
+    surface.addScaledVector(surface.clone().normalize(), 0.006)
+    positionAttribute.setXYZ(vertexIndex, surface.x, surface.y, surface.z)
+  }
+
+  for (let index = 0; index < shaftSamples; index += 1) {
+    const sampleProgress = lerpValue(
+      tailProgress,
+      shoulderProgress,
+      index / (shaftSamples - 1),
+    )
+    setSurfacePoint(index * 2, sampleProgress, shaftHalfWidth, 1)
+    setSurfacePoint(index * 2 + 1, sampleProgress, shaftHalfWidth, -1)
+  }
+
+  const headStart = shaftSamples * 2
+  setSurfacePoint(headStart, shoulderProgress, headHalfWidth, 1)
+  setSurfacePoint(headStart + 1, shoulderProgress, headHalfWidth, -1)
+  setSurfacePoint(headStart + 2, headProgress, 0, 0)
+  positionAttribute.needsUpdate = true
+  mesh.geometry.computeBoundingSphere()
+
+  const grown = smoothstep01((activeSpan / span) / 0.24)
+  const endFade = smoothstep01((item.loopEnd - headProgress) / 0.06)
+  mesh.material.uniforms.uOpacity.value = opacity * Math.min(grown, endFade)
+  mesh.visible = mesh.material.uniforms.uOpacity.value > 0.015
+}
+
+function createMovingCurvePlaneArrow(
+  curve: THREE.Curve<THREE.Vector3>,
+  progress: number,
+  options: {
+    colorStart: THREE.Color
+    colorEnd: THREE.Color
+    phase: number
+    opacity: number
+    span: number
+    shaftHalfWidth: number
+    headHalfWidth: number
+    speed: number
+    mode: 'single' | 'three'
+    renderOrder: number
+    registry: THREE.ShaderMaterial[]
+  },
+) {
+  const shaftSamples = 17
+  const vertexCount = shaftSamples * 2 + 3
+  const positions = new Float32Array(vertexCount * 3)
+  const along = new Float32Array(vertexCount)
+  const indices: number[] = []
+
+  for (let index = 0; index < shaftSamples - 1; index += 1) {
+    const left = index * 2
+    const right = left + 1
+    const nextLeft = left + 2
+    const nextRight = left + 3
+    indices.push(left, right, nextLeft, right, nextRight, nextLeft)
+    along[left] = along[right] = (index / (shaftSamples - 1)) * 0.74
+  }
+
+  const headStart = shaftSamples * 2
+  along[(shaftSamples - 1) * 2] = 0.74
+  along[(shaftSamples - 1) * 2 + 1] = 0.74
+  along[headStart] = 0.72
+  along[headStart + 1] = 0.72
+  along[headStart + 2] = 1
+  indices.push(headStart, headStart + 1, headStart + 2)
+
+  const geometry = new THREE.BufferGeometry()
+  const positionAttribute = new THREE.BufferAttribute(positions, 3)
+  positionAttribute.setUsage(THREE.DynamicDrawUsage)
+  geometry.setAttribute('position', positionAttribute)
+  geometry.setAttribute('aAlong', new THREE.BufferAttribute(along, 1))
+  geometry.setIndex(indices)
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uColorStart: { value: options.colorStart },
+      uColorEnd: { value: options.colorEnd },
+      uTime: { value: 0 },
+      uPhase: { value: options.phase },
+      uOpacity: { value: options.opacity },
+    },
+    vertexShader: `
+      attribute float aAlong;
+      varying float vAlong;
+      void main() {
+        vAlong = aAlong;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColorStart;
+      uniform vec3 uColorEnd;
+      uniform float uTime;
+      uniform float uPhase;
+      uniform float uOpacity;
+      varying float vAlong;
+      void main() {
+        vec3 color = mix(uColorStart, uColorEnd, smoothstep(0.0, 1.0, vAlong));
+        float sweep = fract(uTime * 0.36 + uPhase);
+        float highlight = exp(-pow((vAlong - sweep) * 10.0, 2.0));
+        color = mix(color, vec3(1.0), highlight * 0.34);
+        float tailFeather = smoothstep(0.0, 0.10, vAlong);
+        gl_FragColor = vec4(color, uOpacity * tailFeather * (0.94 + highlight * 0.06));
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    blending: THREE.NormalBlending,
+  })
+  options.registry.push(material)
+
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.renderOrder = options.renderOrder
+  mesh.frustumCulled = false
+
+  const arrow = new THREE.Group()
+  arrow.add(mesh)
+  arrow.renderOrder = options.renderOrder
+  arrow.userData.curvePlaneArrow = true
+  arrow.userData.curvePlaneArrowMesh = mesh
+  arrow.userData.curvePlaneArrowSpan = options.span
+  arrow.userData.curvePlaneArrowSamples = shaftSamples
+  arrow.userData.curvePlaneArrowShaftHalfWidth = options.shaftHalfWidth
+  arrow.userData.curvePlaneArrowHeadHalfWidth = options.headHalfWidth
+
+  const item: MovingArrow = {
+    mesh: arrow,
+    curve,
+    progress,
+    speed: options.speed,
+    loopStart: 0,
+    loopEnd: 1,
+    mode: options.mode,
+  }
+  updateCurvePlaneArrow(item)
+  return { arrow, item }
+}
+
+function updateCurvePlaneArrow(item: MovingArrow) {
+  const mesh = item.mesh.userData.curvePlaneArrowMesh as THREE.Mesh<
+    THREE.BufferGeometry,
+    THREE.ShaderMaterial
+  > | undefined
+  if (!mesh) return
+
+  const span = item.mesh.userData.curvePlaneArrowSpan as number
+  const shaftSamples = item.mesh.userData.curvePlaneArrowSamples as number
+  const shaftHalfWidth = item.mesh.userData.curvePlaneArrowShaftHalfWidth as number
+  const headHalfWidth = item.mesh.userData.curvePlaneArrowHeadHalfWidth as number
+  const headProgress = item.progress
+  const tailProgress = headProgress - span
+  const shoulderProgress = headProgress - span * 0.27
+  const positionAttribute = mesh.geometry.getAttribute('position') as THREE.BufferAttribute
+  let localCameraPosition = camera
+    ? camera.position.clone()
+    : new THREE.Vector3(0, 0, 4)
+
+  if (camera && earthMesh) {
+    earthMesh.updateWorldMatrix(true, false)
+    localCameraPosition = earthMesh.worldToLocal(localCameraPosition)
+  }
+
+  const wrapProgress = (value: number) => THREE.MathUtils.euclideanModulo(value, 1)
+  const setPlanePoint = (
+    vertexIndex: number,
+    progress: number,
+    halfWidth: number,
+    sideSign: number,
+  ) => {
+    const wrappedProgress = wrapProgress(progress)
+    const source = item.curve.getPointAt(wrappedProgress)
+    const tangent = item.curve.getTangentAt(wrappedProgress).normalize()
+    const toCamera = localCameraPosition.clone().sub(source).normalize()
+    let side = new THREE.Vector3().crossVectors(toCamera, tangent)
+
+    // 宽面朝向观察者，避免箭头像垂直地表的薄片。
+    // 升降支与视线近乎平行时，退回经向剖面内的稳定宽度方向。
+    if (side.lengthSq() < 0.0001) {
+      const horizontalRadial = new THREE.Vector3(source.x, 0, source.z)
+      if (horizontalRadial.lengthSq() < 0.0001) horizontalRadial.set(0, 0, 1)
+      horizontalRadial.normalize()
+      const planeNormal = new THREE.Vector3()
+        .crossVectors(new THREE.Vector3(0, 1, 0), horizontalRadial)
+        .normalize()
+      side = new THREE.Vector3().crossVectors(planeNormal, tangent)
+    }
+    side.normalize()
+    source.addScaledVector(side, halfWidth * sideSign)
+    positionAttribute.setXYZ(vertexIndex, source.x, source.y, source.z)
+  }
+
+  for (let index = 0; index < shaftSamples; index += 1) {
+    const sampleProgress = lerpValue(
+      tailProgress,
+      shoulderProgress,
+      index / (shaftSamples - 1),
+    )
+    setPlanePoint(index * 2, sampleProgress, shaftHalfWidth, 1)
+    setPlanePoint(index * 2 + 1, sampleProgress, shaftHalfWidth, -1)
+  }
+
+  const headStart = shaftSamples * 2
+  setPlanePoint(headStart, shoulderProgress, headHalfWidth, 1)
+  setPlanePoint(headStart + 1, shoulderProgress, headHalfWidth, -1)
+  setPlanePoint(headStart + 2, headProgress, 0, 0)
+  positionAttribute.needsUpdate = true
+  mesh.geometry.computeBoundingSphere()
 }
 
 function createCirculationTube(
@@ -1719,7 +2411,7 @@ function getSmokeStreamConfig(
       strandSpread: 0.145,
       strandRadius: 0.0105,
       hazeRadius: 0.105,
-      strandOpacity: 0.42,
+      strandOpacity: 0.76,
       hazeOpacity: 0.075,
       flowSpeed: 0.70,
       waveAmplitude: 0.022,
@@ -1732,7 +2424,7 @@ function getSmokeStreamConfig(
       strandSpread: 0.118,
       strandRadius: 0.0095,
       hazeRadius: 0.088,
-      strandOpacity: 0.40,
+      strandOpacity: 0.72,
       hazeOpacity: 0.072,
       flowSpeed: 0.86,
       waveAmplitude: 0.019,
@@ -1745,7 +2437,7 @@ function getSmokeStreamConfig(
       strandSpread: 0.114,
       strandRadius: 0.0092,
       hazeRadius: 0.084,
-      strandOpacity: 0.39,
+      strandOpacity: 0.70,
       hazeOpacity: 0.068,
       flowSpeed: 0.98,
       waveAmplitude: 0.021,
@@ -1754,13 +2446,13 @@ function getSmokeStreamConfig(
     },
     polar: {
       segments: 240,
-      strandCount: 9,
-      strandSpread: 0.098,
-      strandRadius: 0.0088,
-      hazeRadius: 0.076,
-      strandOpacity: 0.38,
-      hazeOpacity: 0.064,
-      flowSpeed: 0.80,
+      strandCount: 11,
+      strandSpread: 0.118,
+      strandRadius: 0.0094,
+      hazeRadius: 0.092,
+      strandOpacity: 0.74,
+      hazeOpacity: 0.078,
+      flowSpeed: 0.90,
       waveAmplitude: 0.017,
       waveFrequency: 4.1,
       twistCount: 3.5,
@@ -1838,7 +2530,7 @@ function createOffsetSmokeCurve(
 }
 
 function createSmokeStreamMaterial(
-  color: number,
+  _color: number,
   options: {
     opacity: number
     flowSpeed: number
@@ -1849,9 +2541,12 @@ function createSmokeStreamMaterial(
     brightness: number
   },
 ) {
+  const paletteIndex = Math.abs(Math.floor(options.phase * 7.0)) % 4
+  const surfacePalette = [0x42e9ff, 0x69b8ff, 0x9188ff, 0xb3d4ff]
+  const warmPalette = [0xff4f59, 0xff6273, 0xff7694, 0xff5366]
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      uColor: { value: new THREE.Color(color) },
+      uColor: { value: new THREE.Color(surfacePalette[paletteIndex]) },
       uTime: { value: 0 },
       uOpacity: { value: options.opacity },
       uFlowSpeed: { value: options.flowSpeed },
@@ -1860,8 +2555,8 @@ function createSmokeStreamMaterial(
       uWaveFrequency: { value: options.waveFrequency },
       uHaze: { value: options.haze ? 1 : 0 },
       uBrightness: { value: options.brightness },
-      uRiseColor: { value: new THREE.Color(0xffb15a) },
-      uSinkColor: { value: new THREE.Color(0x8cc8ff) },
+      uRiseColor: { value: new THREE.Color(warmPalette[paletteIndex]) },
+      uSinkColor: { value: new THREE.Color(paletteIndex % 2 === 0 ? 0x799fff : 0xa18cff) },
       uReveal: { value: 0 },
     },
     vertexShader: `
@@ -2099,16 +2794,16 @@ function createSmokeStreamMaterial(
 
         // UV 纵向区间对应：近地面→上升→高空→下沉。
         float riseMask =
-          smoothstep(0.16, 0.23, vUv.x) *
-          (1.0 - smoothstep(0.46, 0.53, vUv.x));
+          smoothstep(0.18, 0.27, vUv.x) *
+          (1.0 - smoothstep(0.64, 0.72, vUv.x));
 
         float sinkMask =
-          smoothstep(0.65, 0.72, vUv.x) *
-          (1.0 - smoothstep(0.96, 1.0, vUv.x));
+          smoothstep(0.66, 0.73, vUv.x) *
+          (1.0 - smoothstep(0.98, 1.0, vUv.x));
 
         vec3 segmentColor = uColor;
-        segmentColor = mix(segmentColor, uRiseColor, riseMask * 0.90);
-        segmentColor = mix(segmentColor, uSinkColor, sinkMask * 0.90);
+        segmentColor = mix(segmentColor, uRiseColor, riseMask * 0.97);
+        segmentColor = mix(segmentColor, uSinkColor, sinkMask * 0.94);
 
         // 从路径起点逐步喷出，形成完整环流，而不是瞬间全部显示。
         float revealAlpha = smoothstep(
@@ -2126,19 +2821,19 @@ function createSmokeStreamMaterial(
 
         float alpha =
           uOpacity *
-          density *
+          clamp(density * 2.35, 0.0, 1.0) *
           revealAlpha *
           (0.46 + softBreakup * 0.70);
 
         if (alpha < 0.0035) discard;
 
         float whitening = clamp(
-          0.14 +
-          fresnel * 0.42 +
-          pow(finePulse, 10.0) * 0.27 +
-          uHaze * 0.06,
+          0.08 +
+          fresnel * 0.22 +
+          pow(finePulse, 10.0) * 0.18 +
+          uHaze * 0.04,
           0.0,
-          0.78
+          0.44
         );
 
         vec3 smokeColor = mix(
@@ -2168,9 +2863,139 @@ function createSmokeStreamMaterial(
   return material
 }
 
+function createCirculationEnvelope(
+  curve: THREE.Curve<THREE.Vector3>,
+  mode: 'single' | 'three',
+) {
+  const sampleCount = mode === 'single' ? 150 : 110
+  const boundaryPoints = Array.from({ length: sampleCount }, (_, index) =>
+    curve.getPointAt(index / sampleCount),
+  )
+  const horizontalAxis = boundaryPoints
+    .reduce((axis, point) => axis.add(new THREE.Vector3(point.x, 0, point.z)), new THREE.Vector3())
+    .normalize()
+  const verticalAxis = new THREE.Vector3(0, 1, 0)
+  const normalAxis = horizontalAxis.clone().cross(verticalAxis).normalize()
+
+  const shape = new THREE.Shape()
+  boundaryPoints.forEach((point, index) => {
+    const x = point.dot(horizontalAxis)
+    const y = point.y
+    if (index === 0) shape.moveTo(x, y)
+    else shape.lineTo(x, y)
+  })
+  shape.closePath()
+
+  const geometry = new THREE.ShapeGeometry(shape, 16)
+  geometry.applyMatrix4(new THREE.Matrix4().makeBasis(
+    horizontalAxis,
+    verticalAxis,
+    normalAxis,
+  ))
+  geometry.computeVertexNormals()
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uCoolColor: { value: new THREE.Color(0x55ddff) },
+      uVioletColor: { value: new THREE.Color(0x9b91ff) },
+      uWarmColor: { value: new THREE.Color(0xff6682) },
+      uOpacity: { value: mode === 'single' ? 0.62 : 0.52 },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uCoolColor;
+      uniform vec3 uVioletColor;
+      uniform vec3 uWarmColor;
+      uniform float uOpacity;
+      varying vec2 vUv;
+
+      void main() {
+        float verticalGradient = smoothstep(0.02, 0.96, vUv.y);
+        float warmBand = smoothstep(0.32, 0.64, vUv.y) * (1.0 - smoothstep(0.76, 0.98, vUv.y));
+        vec3 color = mix(uCoolColor, uVioletColor, verticalGradient * 0.62);
+        color = mix(color, uWarmColor, warmBand * 0.10);
+        float centerGlow = 1.0 - abs(vUv.x - 0.5) * 2.0;
+        float alpha = uOpacity * (0.34 + verticalGradient * 0.18 + centerGlow * 0.14);
+        gl_FragColor = vec4(color, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    blending: THREE.NormalBlending,
+  })
+  material.toneMapped = false
+  const face = new THREE.Mesh(geometry, material)
+  face.name = `${mode}-circulation-gradient-face`
+  face.renderOrder = 5.36
+  face.frustumCulled = false
+
+  const outlineGeometry = new THREE.BufferGeometry().setFromPoints([
+    ...boundaryPoints,
+    boundaryPoints[0],
+  ])
+  const outline = new THREE.Line(
+    outlineGeometry,
+    new THREE.LineBasicMaterial({
+      color: mode === 'single' ? 0x7de8ff : 0x83d8ff,
+      transparent: true,
+      opacity: mode === 'single' ? 0.82 : 0.66,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    }),
+  )
+  outline.renderOrder = 5.38
+
+  const group = new THREE.Group()
+  group.name = `${mode}-circulation-solid-envelope`
+  group.add(face, outline)
+  return group
+}
+
+function createInsetCirculationCurve(
+  curve: THREE.Curve<THREE.Vector3>,
+  scale: number,
+) {
+  const sampleCount = 220
+  const points = Array.from({ length: sampleCount }, (_, index) =>
+    curve.getPointAt(index / sampleCount),
+  )
+  const latitudes = points.map(point =>
+    THREE.MathUtils.radToDeg(Math.asin(point.y / Math.max(0.0001, point.length()))),
+  )
+  const centerLatitude = latitudes.reduce((sum, latitude) => sum + latitude, 0) / latitudes.length
+  const latitudeScale = Math.min(0.92, scale + 0.12)
+  const insetPoints = points.map((point, index) => {
+    const radius = point.length()
+    const theta = Math.atan2(point.z, -point.x)
+    const longitude = normalizeLon(THREE.MathUtils.radToDeg(theta) - 180)
+    const latitude = centerLatitude + (latitudes[index] - centerLatitude) * latitudeScale
+    const insetRadius =
+      EARTH_RADIUS + 0.14 +
+      Math.max(0, radius - (EARTH_RADIUS + 0.09)) * scale
+    return latLonToVec3(latitude, longitude, insetRadius)
+  })
+  const insetCurve = new THREE.CatmullRomCurve3(
+    insetPoints,
+    true,
+    'centripetal',
+    0.5,
+  )
+  insetCurve.arcLengthDivisions = 520
+  return insetCurve
+}
+
 function createSmokeStream(
   definition: CirculationDefinition,
-  baseCurve: AtmosphericCellCurve,
+  baseCurve: THREE.Curve<THREE.Vector3>,
   mode: 'single' | 'three',
   options: {
     streamIndex: number
@@ -2253,12 +3078,19 @@ function createSmokeBundle(
     definition.hemisphere === 'south'
       ? 0.43
       : 0
+  const smokeCurve = createInsetCirculationCurve(
+    curve,
+    mode === 'single' ? 0.82 : 0.72,
+  )
+
+  // 半透明实体面填满整个闭合剖面；烟流使用内缩曲线，始终位于包络内部。
+  group.add(createCirculationEnvelope(curve, mode))
 
   // 一层宽而淡的体积烟雾，负责形成截图中柔和的空气团感。
   group.add(
     createSmokeStream(
       definition,
-      curve,
+      smokeCurve,
       mode,
       {
         streamIndex: -1,
@@ -2281,7 +3113,7 @@ function createSmokeBundle(
   group.add(
     createSmokeStream(
       definition,
-      curve,
+      smokeCurve,
       mode,
       {
         streamIndex: -2,
@@ -2328,7 +3160,7 @@ function createSmokeBundle(
     group.add(
       createSmokeStream(
         definition,
-        curve,
+        smokeCurve,
         mode,
         {
           streamIndex: index,
@@ -2357,8 +3189,8 @@ function createSmokeBundle(
           haze: false,
           brightness:
             index === 0
-              ? 1.32
-              : 1.08 + (index % 3) * 0.06,
+              ? 2.18
+              : 1.82 + (index % 3) * 0.10,
         },
       ),
     )
@@ -2374,28 +3206,65 @@ function createSingleCellSystem() {
 
   const airflowGroup = new THREE.Group()
   const directionGroup = new THREE.Group()
+  const surfaceDirectionGroup = new THREE.Group()
 
   airflowGroup.name = 'single-cell-shader-smoke-streams'
-  directionGroup.name = 'single-cell-direction-arrows'
+  directionGroup.name = 'single-cell-circulation-direction-arrows'
+  surfaceDirectionGroup.name = 'single-cell-surface-direction-arrows'
 
-  root.add(airflowGroup, directionGroup)
+  root.add(airflowGroup, directionGroup, surfaceDirectionGroup)
 
   singleCellDefinitions.forEach(definition => {
-    const curve = new AtmosphericCellCurve(
-      definition,
-      getCellCenterLon(definition),
-      0,
-    )
+    CIRCULATION_SECTIONS.forEach((section, sectionIndex) => {
+      const curve = new AtmosphericCellCurve(definition, section.longitude, 0)
+      if (section.fullEffect) {
+        airflowGroup.add(createSmokeBundle(definition, curve, 'single'))
+      } else {
+        airflowGroup.add(createCirculationEnvelope(curve, 'single'))
+      }
 
-    airflowGroup.add(
-      createSmokeBundle(definition, curve, 'single'),
-    )
+      if (section.fullEffect) {
+        ;[0.10, 0.34, 0.58, 0.82].forEach((progress, arrowIndex) => {
+          directionGroup.add(
+            createCurveDirectionArrow(
+              curve,
+              progress + sectionIndex * 0.025 + arrowIndex * 0.006,
+              definition,
+              1.06,
+              'single',
+            ),
+          )
+        })
+      } else {
+        ;[0.12, 0.58].forEach((progress, arrowIndex) => {
+          directionGroup.add(
+            createMovingInsetCirculationArrow(
+              curve,
+              definition,
+              progress + sectionIndex * 0.035,
+              sectionIndex * 0.23 + arrowIndex * 0.46,
+              'single',
+            ),
+          )
+        })
+      }
+    })
 
-      ;[0.12, 0.37, 0.62, 0.87].forEach(progress => {
-        directionGroup.add(
-          createCurveDirectionArrow(curve, progress, definition, 0.92, 'single'),
-        )
-      })
+    // 四个剖面之间各放置一组南、北半球贴地箭头：
+    // 4 个间隔 × 2 个半球，共 8 组，并全部位于相邻剖面的正中间。
+    SINGLE_CELL_SURFACE_ARROW_LONGITUDES.forEach((longitude, index) => {
+      const surfaceCurve = new SingleCellSurfaceArrowCurve(
+        definition.hemisphere,
+        longitude,
+      )
+      surfaceDirectionGroup.add(
+        createMovingSingleCellSurfaceArrow(
+          surfaceCurve,
+          0.38 + index * 0.08,
+          index * 0.23 + (definition.hemisphere === 'south' ? 0.46 : 0),
+        ),
+      )
+    })
   })
 
   singleCellAirflowGroup = airflowGroup
@@ -2436,21 +3305,49 @@ function createThreeCellSystem(latitudeOffset = 0) {
   )
 
   threeCellDefinitions.forEach(definition => {
-    const curve = new AtmosphericCellCurve(
-      definition,
-      getCellCenterLon(definition),
-      latitudeOffset,
-    )
+    CIRCULATION_SECTIONS.forEach((section, sectionIndex) => {
+      const curve = new AtmosphericCellCurve(
+        definition,
+        section.longitude,
+        latitudeOffset,
+      )
 
-    airflowGroups[definition.type].add(
-      createSmokeBundle(definition, curve, 'three'),
-    )
-
-      ;[0.12, 0.37, 0.62, 0.87].forEach(progress => {
-        directionGroups[definition.type].add(
-          createCurveDirectionArrow(curve, progress, definition, 0.84, 'three'),
+      if (section.fullEffect) {
+        airflowGroups[definition.type].add(
+          createSmokeBundle(definition, curve, 'three'),
         )
-      })
+      } else {
+        airflowGroups[definition.type].add(
+          createCirculationEnvelope(curve, 'three'),
+        )
+      }
+
+      if (section.fullEffect) {
+        ;[0.12, 0.37, 0.62, 0.87].forEach((progress, arrowIndex) => {
+          directionGroups[definition.type].add(
+            createCurveDirectionArrow(
+              curve,
+              progress + sectionIndex * 0.018 + arrowIndex * 0.004,
+              definition,
+              1.0,
+              'three',
+            ),
+          )
+        })
+      } else {
+        ;[0.14, 0.60].forEach((progress, arrowIndex) => {
+          directionGroups[definition.type].add(
+            createMovingInsetCirculationArrow(
+              curve,
+              definition,
+              progress + sectionIndex * 0.028,
+              sectionIndex * 0.19 + arrowIndex * 0.43,
+              'three',
+            ),
+          )
+        })
+      }
+    })
   })
 
   circulationLineGroups = directionGroups
@@ -2552,32 +3449,96 @@ function createLatitudeBandMesh(
   const phiStart = THREE.MathUtils.degToRad(90 - latMax)
   const phiLength = THREE.MathUtils.degToRad(latMax - latMin)
 
-  const geometry = new THREE.SphereGeometry(
-    EARTH_RADIUS + 0.022,
-    128,
-    10,
-    0,
-    Math.PI * 2,
-    phiStart,
-    phiLength,
-  )
+  const group = new THREE.Group()
+  group.userData.pressureBandId = definition.id
+  group.userData.pressureType = definition.type
 
-  const material = new THREE.MeshBasicMaterial({
-    color: definition.color,
+  const createBandMaterial = (opacity: number, additive = false) => new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color(definition.color) },
+      uOpacity: { value: opacity },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      varying vec2 vUv;
+
+      void main() {
+        float edgeDistance = min(vUv.y, 1.0 - vUv.y);
+        float feather = smoothstep(0.0, 0.17, edgeDistance);
+        float edgeGlow = 1.0 - smoothstep(0.0, 0.10, edgeDistance);
+        vec3 color = mix(uColor, vec3(0.92, 0.98, 1.0), edgeGlow * 0.42);
+        float alpha = uOpacity * (0.42 + feather * 0.58 + edgeGlow * 0.32);
+        gl_FragColor = vec4(color, alpha);
+      }
+    `,
     transparent: true,
-    opacity: definition.id === 'equatorial-low' ? 0.38 : 0.28,
-    side: THREE.DoubleSide,
     depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
   })
 
-  const mesh = new THREE.Mesh(geometry, material)
-  mesh.userData.pressureBandId = definition.id
-  mesh.userData.pressureType = definition.type
-  mesh.renderOrder = 2
-  return mesh
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      EARTH_RADIUS + 0.028,
+      144,
+      12,
+      0,
+      Math.PI * 2,
+      phiStart,
+      phiLength,
+    ),
+    createBandMaterial(definition.id === 'equatorial-low' ? 0.34 : 0.27),
+  )
+  core.renderOrder = 2
+  group.add(core)
+
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      EARTH_RADIUS + 0.052,
+      144,
+      8,
+      0,
+      Math.PI * 2,
+      phiStart,
+      phiLength,
+    ),
+    createBandMaterial(0.10, true),
+  )
+  halo.renderOrder = 3
+  group.add(halo)
+
+  const edgeColor = new THREE.Color(definition.color).lerp(new THREE.Color(0xe9fbff), 0.42)
+    ;[latMin, latMax].forEach(latitude => {
+      const points = Array.from({ length: 145 }, (_, index) => {
+        const longitude = -180 + index * 2.5
+        return latLonToVec3(latitude, longitude, EARTH_RADIUS + 0.058)
+      })
+      const curve = new THREE.CatmullRomCurve3(points, true, 'centripetal', 0.5)
+      const edge = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 192, 0.0065, 6, true),
+        new THREE.MeshBasicMaterial({
+          color: edgeColor,
+          transparent: true,
+          opacity: 0.34,
+          depthWrite: false,
+          depthTest: true,
+          blending: THREE.AdditiveBlending,
+        }),
+      )
+      edge.renderOrder = 4
+      group.add(edge)
+    })
+
+  return group
 }
 
 function createSurfaceTextDecal(
@@ -2755,29 +3716,6 @@ function createPressureBands(latitudeOffset = 0) {
     group.add(createLatitudeBandMesh(definition, latitudeOffset))
   })
 
-  pressureBandTextMesh = createPressureBandTextOverlay(latitudeOffset)
-  group.add(pressureBandTextMesh)
-
-  const northPolarLat = shiftLatitude(82, latitudeOffset)
-  const southPolarLat = shiftLatitude(-82, latitudeOffset)
-
-  group.add(
-    createSurfaceTextDecal(
-      'H 极地高气压带',
-      northPolarLat,
-      -90,
-      0xff6f7d,
-      { fontSize: 22, worldHeight: 0.16, radiusOffset: 0.052 },
-    ),
-    createSurfaceTextDecal(
-      'H 极地高气压带',
-      southPolarLat,
-      90,
-      0xff6f7d,
-      { fontSize: 22, worldHeight: 0.16, radiusOffset: 0.052 },
-    ),
-  )
-
   return group
 }
 
@@ -2785,37 +3723,38 @@ function createPressureBands(latitudeOffset = 0) {
 function getWindGradient(definition: WindBandDefinition) {
   if (definition.type === 'trade') {
     return {
-      start: new THREE.Color(0x54d8ff),
-      end: new THREE.Color(0x2ec4b6),
+      start: new THREE.Color(0x5af0d2),
+      end: new THREE.Color(0x16b8d4),
     }
   }
 
   if (definition.type === 'westerly') {
     return {
-      start: new THREE.Color(0xffc45b),
-      end: new THREE.Color(0xff5f9e),
+      start: new THREE.Color(0xffe066),
+      end: new THREE.Color(0xff8c42),
     }
   }
 
   return {
-    start: new THREE.Color(0x8876ff),
-    end: new THREE.Color(0x74e9ff),
+    start: new THREE.Color(0xd0f7ff),
+    end: new THREE.Color(0x4c6fff),
   }
 }
 
-function createWindFlowMaterial(
-  definition: WindBandDefinition,
+function createFlowRibbonMaterial(
+  colorStart: THREE.Color,
+  colorEnd: THREE.Color,
   phase: number,
+  opacity: number,
+  registry: THREE.ShaderMaterial[],
 ) {
-  const gradient = getWindGradient(definition)
-
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      uColorStart: { value: gradient.start },
-      uColorEnd: { value: gradient.end },
+      uColorStart: { value: colorStart },
+      uColorEnd: { value: colorEnd },
       uTime: { value: 0 },
       uPhase: { value: phase },
-      uOpacity: { value: 0.18 },
+      uOpacity: { value: opacity },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -2835,15 +3774,28 @@ function createWindFlowMaterial(
       varying vec2 vUv;
 
       void main() {
-        vec3 gradientColor = mix(uColorStart, uColorEnd, smoothstep(0.0, 1.0, vUv.x));
-
-        float movingLight = 0.5 + 0.5 * sin(
-          (vUv.x * 7.0 - uTime * 1.8 + uPhase) * 6.28318530718
+        vec3 gradientColor = mix(
+          uColorStart,
+          uColorEnd,
+          smoothstep(0.02, 0.98, vUv.x)
         );
 
-        float core = pow(movingLight, 5.0);
-        vec3 color = gradientColor * (0.82 + core * 0.72);
-        float alpha = uOpacity * (0.55 + core * 0.45);
+        float centerHighlight = pow(
+          max(0.0, cos((vUv.y - 0.5) * 3.14159265359)),
+          3.0
+        );
+        float sweepPosition = fract(uTime * 0.16 + uPhase);
+        float sweepDistance = abs(vUv.x - sweepPosition);
+        sweepDistance = min(sweepDistance, 1.0 - sweepDistance);
+        float movingHighlight = exp(-pow(sweepDistance * 11.0, 2.0));
+        float roundedEnds = smoothstep(0.0, 0.045, vUv.x)
+          * (1.0 - smoothstep(0.93, 1.0, vUv.x));
+
+        vec3 color = mix(gradientColor, vec3(1.0), centerHighlight * 0.16);
+        color += vec3(1.0) * movingHighlight * 0.18;
+        float alpha = uOpacity
+          * roundedEnds
+          * (0.80 + centerHighlight * 0.20 + movingHighlight * 0.18);
 
         gl_FragColor = vec4(color, alpha);
       }
@@ -2851,78 +3803,217 @@ function createWindFlowMaterial(
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
   })
 
-  windFlowMaterials.push(material)
+  registry.push(material)
   return material
 }
 
-function createMovingWindArrowObject(
-  definition: WindBandDefinition,
+function createSphericalFlowArrow(
+  curve: THREE.Curve<THREE.Vector3>,
+  colorStart: THREE.Color,
+  colorEnd: THREE.Color,
+  options: {
+    shaftRadius: number
+    headRadius: number
+    headLength: number
+    opacity: number
+    phase: number
+    renderOrder: number
+    registry: THREE.ShaderMaterial[]
+  },
 ) {
   const group = new THREE.Group()
-  const gradient = getWindGradient(definition)
+  const glowColor = colorStart.clone().lerp(colorEnd, 0.58)
 
-  const shaftLength = 0.23
-  const shaftRadius = 0.014
-  const segmentCount = 6
-
-  for (let index = 0; index < segmentCount; index++) {
-    const segmentLength = shaftLength / segmentCount
-    const t = (index + 0.5) / segmentCount
-    const color = gradient.start.clone().lerp(gradient.end, t)
-
-    const segment = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        shaftRadius,
-        shaftRadius,
-        segmentLength,
-        10,
-        1,
-        false,
-      ),
-      new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.90,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      }),
-    )
-
-    segment.position.y = -shaftLength / 2 + segmentLength * (index + 0.5)
-    group.add(segment)
-  }
-
-  const head = new THREE.Mesh(
-    new THREE.ConeGeometry(0.050, 0.115, 14, 1, false),
+  const glow = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 84, options.shaftRadius * 1.85, 14, false),
     new THREE.MeshBasicMaterial({
-      color: gradient.end,
+      color: glowColor,
       transparent: true,
-      opacity: 0.98,
+      opacity: 0.14,
       depthWrite: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
     }),
   )
+  glow.renderOrder = options.renderOrder - 1
+  group.add(glow)
 
-  head.position.y = shaftLength / 2 + 0.050
+  const shaft = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 96, options.shaftRadius, 16, false),
+    createFlowRibbonMaterial(
+      colorStart,
+      colorEnd,
+      options.phase,
+      options.opacity,
+      options.registry,
+    ),
+  )
+  shaft.renderOrder = options.renderOrder
+  group.add(shaft)
+
+  const endPosition = curve.getPointAt(1)
+  const endTangent = curve.getTangentAt(1).normalize()
+
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(
+      options.headRadius,
+      options.headLength,
+      20,
+      1,
+      false,
+    ),
+    new THREE.MeshBasicMaterial({
+      color: colorEnd,
+      transparent: true,
+      opacity: 0.96,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.NormalBlending,
+    }),
+  )
+  head.position.copy(endPosition).addScaledVector(endTangent, options.headLength * 0.30)
+  head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), endTangent)
+  head.renderOrder = options.renderOrder + 1
   group.add(head)
 
   const glowHead = new THREE.Mesh(
-    new THREE.ConeGeometry(0.061, 0.132, 14, 1, false),
+    new THREE.ConeGeometry(
+      options.headRadius * 1.34,
+      options.headLength * 1.18,
+      20,
+      1,
+      false,
+    ),
     new THREE.MeshBasicMaterial({
-      color: gradient.end,
+      color: colorEnd,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.18,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      depthTest: true,
+      blending: THREE.NormalBlending,
     }),
   )
   glowHead.position.copy(head.position)
+  glowHead.quaternion.copy(head.quaternion)
+  glowHead.renderOrder = options.renderOrder
   group.add(glowHead)
 
-  group.renderOrder = 6
+  const tail = new THREE.Mesh(
+    new THREE.SphereGeometry(options.shaftRadius * 1.05, 14, 10),
+    new THREE.MeshBasicMaterial({
+      color: colorStart,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    }),
+  )
+  tail.position.copy(curve.getPointAt(0))
+  tail.renderOrder = options.renderOrder
+  group.add(tail)
+
+  group.renderOrder = options.renderOrder
+  return group
+}
+
+function createPlanarFlowArrow(
+  colorStart: THREE.Color,
+  colorEnd: THREE.Color,
+  options: {
+    length: number
+    shaftWidth: number
+    headWidth: number
+    headLength: number
+    opacity: number
+    phase: number
+    renderOrder: number
+    registry: THREE.ShaderMaterial[]
+  },
+) {
+  const shape = new THREE.Shape()
+  const shaftHalf = options.shaftWidth * 0.5
+  const headHalf = options.headWidth * 0.5
+  const shoulderY = options.length - options.headLength
+
+  shape.moveTo(-shaftHalf, 0)
+  shape.lineTo(shaftHalf, 0)
+  shape.lineTo(shaftHalf, shoulderY)
+  shape.lineTo(headHalf, shoulderY)
+  shape.lineTo(0, options.length)
+  shape.lineTo(-headHalf, shoulderY)
+  shape.lineTo(-shaftHalf, shoulderY)
+  shape.closePath()
+
+  const geometry = new THREE.ShapeGeometry(shape, 12)
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uColorStart: { value: colorStart },
+      uColorEnd: { value: colorEnd },
+      uTime: { value: 0 },
+      uPhase: { value: options.phase },
+      uOpacity: { value: options.opacity },
+      uLength: { value: options.length },
+    },
+    vertexShader: `
+      uniform float uLength;
+      varying float vAlong;
+
+      void main() {
+        vAlong = clamp(position.y / uLength, 0.0, 1.0);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColorStart;
+      uniform vec3 uColorEnd;
+      uniform float uTime;
+      uniform float uPhase;
+      uniform float uOpacity;
+      varying float vAlong;
+
+      void main() {
+        vec3 color = mix(uColorStart, uColorEnd, smoothstep(0.02, 0.96, vAlong));
+        float sweep = fract(uTime * 0.34 + uPhase);
+        float highlight = exp(-pow((vAlong - sweep) * 12.0, 2.0));
+        float tailFeather = smoothstep(0.0, 0.16, vAlong);
+        color = mix(color, vec3(1.0), highlight * 0.42);
+        gl_FragColor = vec4(color, uOpacity * tailFeather * (0.90 + highlight * 0.10));
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    blending: THREE.NormalBlending,
+  })
+  options.registry.push(material)
+
+  const group = new THREE.Group()
+  const glow = new THREE.Mesh(
+    geometry.clone(),
+    new THREE.MeshBasicMaterial({
+      color: colorStart.clone().lerp(colorEnd, 0.62),
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    }),
+  )
+  glow.scale.set(1.35, 1.10, 1)
+  glow.position.z = -0.003
+  glow.renderOrder = options.renderOrder - 1
+
+  const arrow = new THREE.Mesh(geometry, material)
+  arrow.renderOrder = options.renderOrder
+  group.add(glow, arrow)
+  group.renderOrder = options.renderOrder
+  group.userData.planarFlowArrow = true
   return group
 }
 
@@ -2933,26 +4024,26 @@ function createWindSurfaceArrow(
 ) {
   const group = new THREE.Group()
   const curve = new SurfaceWindCurve(definition, baseLon, latitudeOffset)
+  const gradient = getWindGradient(definition)
 
-  // 不绘制移动轨迹，只保留完整的渐变箭杆与箭头沿球面路径移动。
-  const initialProgress = 0.08 + (((baseLon + 180) / 24) % 5) * 0.14
-  const movingArrow = createMovingWindArrowObject(definition)
-  const position = curve.getPointAt(initialProgress)
-  const tangent = curve.getTangentAt(initialProgress).normalize()
-
-  movingArrow.position.copy(position)
-  movingArrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent)
-  group.add(movingArrow)
-
-  windDirectionArrows.push({
-    mesh: movingArrow,
-    curve,
-    progress: initialProgress,
-    speed: 0.105,
-    loopStart: 0.04,
-    loopEnd: 0.96,
+  const progress = 0.12 + THREE.MathUtils.euclideanModulo(baseLon + 176, 192) / 192 * 0.60
+  const result = createMovingSphericalSurfaceArrow(curve, progress, {
+    colorStart: gradient.start,
+    colorEnd: gradient.end,
+    phase: (baseLon + 180) / 360,
+    opacity: 0.93,
+    span: definition.type === 'polar' ? 0.34 : 0.31,
+    shaftHalfWidth: definition.type === 'polar' ? 0.040 : 0.037,
+    headHalfWidth: definition.type === 'trade' ? 0.112 : definition.type === 'polar' ? 0.116 : 0.105,
+    speed: definition.type === 'westerly' ? 0.092 : 0.105,
+    loopStart: 0.10,
+    loopEnd: 0.90,
     mode: 'wind',
+    renderOrder: 8,
+    registry: windFlowMaterials,
   })
+  group.add(result.arrow)
+  windDirectionArrows.push(result.item)
 
   group.userData.windBandId = definition.id
   return group
@@ -2963,7 +4054,7 @@ function createWindArrows(latitudeOffset = 0) {
   group.name = 'surface-wind-arrows'
 
   windBandDefinitions.forEach(definition => {
-    for (let baseLon = -170; baseLon <= 170; baseLon += 24) {
+    for (let baseLon = -176; baseLon <= 176; baseLon += 32) {
       group.add(createWindSurfaceArrow(definition, baseLon, latitudeOffset))
     }
   })
@@ -2984,20 +4075,27 @@ class MonsoonCurve extends THREE.Curve<THREE.Vector3> {
 
   getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
     const progress = smoothstep01(t)
+    const deltaLat = this.definition.endLat - this.definition.startLat
+    const deltaLon = THREE.MathUtils.euclideanModulo(
+      this.definition.endLon - this.definition.startLon + 180,
+      360,
+    ) - 180
+    const directionLength = Math.hypot(deltaLat, deltaLon) || 1
+    const curveOffset = Math.sin(progress * Math.PI) * 5.2
     const lat = lerpValue(
       this.definition.startLat,
       this.definition.endLat,
       progress,
-    ) + Math.sin(progress * Math.PI) * 1.1
+    ) + (-deltaLon / directionLength) * curveOffset
 
-    const lon = lerpLongitude(
-      this.definition.startLon,
-      this.definition.endLon,
-      progress,
+    const lon = normalizeLon(
+      this.definition.startLon
+      + deltaLon * progress
+      + (deltaLat / directionLength) * curveOffset,
     )
 
     return target.copy(
-      latLonToVec3(lat, lon, EARTH_RADIUS + 0.045),
+      latLonToVec3(lat, lon, EARTH_RADIUS + 0.090),
     )
   }
 }
@@ -3174,78 +4272,33 @@ function createPressureCenterObject(definition: PressureCenterDefinition) {
   return group
 }
 
-function createGradientArrowObject(
-  colorStart: number,
-  colorEnd: number,
-  scale = 1,
-) {
-  const group = new THREE.Group()
-  const start = new THREE.Color(colorStart)
-  const end = new THREE.Color(colorEnd)
-  const shaftLength = 0.22 * scale
-  const shaftRadius = 0.013 * scale
-  const segmentCount = 6
-
-  for (let index = 0; index < segmentCount; index++) {
-    const segmentLength = shaftLength / segmentCount
-    const color = start.clone().lerp(end, (index + 0.5) / segmentCount)
-    const segment = new THREE.Mesh(
-      new THREE.CylinderGeometry(shaftRadius, shaftRadius, segmentLength, 10),
-      new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.92,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      }),
-    )
-    segment.position.y = -shaftLength / 2 + segmentLength * (index + 0.5)
-    group.add(segment)
-  }
-
-  const head = new THREE.Mesh(
-    new THREE.ConeGeometry(0.047 * scale, 0.108 * scale, 12),
-    new THREE.MeshBasicMaterial({
-      color: end,
-      transparent: true,
-      opacity: 0.98,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }),
-  )
-  head.position.y = shaftLength / 2 + 0.044 * scale
-  group.add(head)
-  group.renderOrder = 9
-  return group
-}
-
 function createMonsoonObject(definition: MonsoonDefinition) {
   const group = new THREE.Group()
   const curve = new MonsoonCurve(definition)
 
-  for (let index = 0; index < 3; index++) {
-    const progress = 0.12 + index * 0.28
-    const arrow = createGradientArrowObject(
-      definition.colorStart,
-      definition.colorEnd,
-      0.92,
-    )
-    const position = curve.getPointAt(progress)
-    const tangent = curve.getTangentAt(progress).normalize()
-    arrow.position.copy(position)
-    arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent)
-    group.add(arrow)
+  const progressPoints = definition.season === 'summer'
+    ? [0.18, 0.44, 0.70]
+    : [0.22, 0.48, 0.72]
 
-    monsoonDirectionArrows.push({
-      mesh: arrow,
-      curve,
-      progress,
-      speed: 0.085,
-      loopStart: 0.04,
-      loopEnd: 0.96,
+  progressPoints.forEach((progress, index) => {
+    const result = createMovingSphericalSurfaceArrow(curve, progress, {
+      colorStart: new THREE.Color(definition.colorStart),
+      colorEnd: new THREE.Color(definition.colorEnd),
+      phase: (definition.season === 'summer' ? 0.18 : 0.62) + index * 0.29,
+      opacity: 0.96,
+      span: 0.33,
+      shaftHalfWidth: 0.040,
+      headHalfWidth: 0.122,
+      speed: 0.088 + index * 0.008,
+      loopStart: 0.12,
+      loopEnd: 0.88,
       mode: 'monsoon',
+      renderOrder: 10,
+      registry: monsoonFlowMaterials,
     })
-  }
+    group.add(result.arrow)
+    monsoonDirectionArrows.push(result.item)
+  })
 
   group.userData.season = definition.season
   group.userData.monsoonId = definition.id
@@ -4021,6 +5074,1317 @@ function removeAndDispose(parent: THREE.Object3D, object: THREE.Object3D | null)
   disposeObject3D(object)
 }
 
+// ==================== 阶段四、五：平面世界地图 ====================
+type MapPressureCenter = {
+  name: string
+  symbol: 'H' | 'L'
+  lat: number
+  lon: number
+  strength: number
+  radius: number
+}
+
+type PressureGrid = {
+  cols: number
+  rows: number
+  values: Float32Array
+}
+
+type MapWindSeed = {
+  longitude: number
+  latitude: number
+  seedIndex: number
+  phase: number
+}
+
+type MapWindTrack = {
+  phase: number
+  route: Array<{ longitude: number; latitude: number }>
+}
+
+const pressureContourLevels = [980, 988, 996, 1004, 1012, 1020, 1028, 1036, 1044]
+let cachedPressureGridKey = ''
+let cachedPressureGrid: PressureGrid | null = null
+let pressureFieldCanvas: HTMLCanvasElement | null = null
+let pressureStaticCanvas: HTMLCanvasElement | null = null
+let pressureStaticCacheKey = ''
+let mapWindSeeds: MapWindSeed[] = []
+const mapWindTrackCache = new Map<NcepSlpMonth, MapWindTrack[]>()
+
+const januaryPressureCenters: MapPressureCenter[] = [
+  { name: '亚洲高压', symbol: 'H', lat: 48, lon: 92, strength: 1, radius: 0.16 },
+  { name: '北美高压', symbol: 'H', lat: 45, lon: -105, strength: 0.78, radius: 0.13 },
+  { name: '阿留申低压', symbol: 'L', lat: 52, lon: -172, strength: 1, radius: 0.15 },
+  { name: '冰岛低压', symbol: 'L', lat: 60, lon: -25, strength: 0.9, radius: 0.12 },
+  { name: '澳大利亚低压', symbol: 'L', lat: -25, lon: 135, strength: 0.8, radius: 0.11 },
+  { name: '南印度洋高压', symbol: 'H', lat: -32, lon: 78, strength: 0.68, radius: 0.12 },
+  { name: '南太平洋高压', symbol: 'H', lat: -31, lon: -108, strength: 0.72, radius: 0.13 },
+]
+
+const julyPressureCenters: MapPressureCenter[] = [
+  { name: '亚洲低压', symbol: 'L', lat: 30, lon: 76, strength: 1, radius: 0.16 },
+  { name: '北太平洋高压', symbol: 'H', lat: 31, lon: -148, strength: 0.95, radius: 0.16 },
+  { name: '北大西洋高压', symbol: 'H', lat: 30, lon: -38, strength: 0.9, radius: 0.14 },
+  { name: '南印度洋高压', symbol: 'H', lat: -30, lon: 73, strength: 0.78, radius: 0.13 },
+  { name: '澳大利亚高压', symbol: 'H', lat: -28, lon: 134, strength: 0.76, radius: 0.12 },
+  { name: '南太平洋高压', symbol: 'H', lat: -31, lon: -110, strength: 0.78, radius: 0.14 },
+]
+
+function mapX(longitude: number, width: number) {
+  return (((longitude % 360) + 360) % 360) / 360 * width
+}
+
+function mapY(latitude: number, height: number) {
+  return ((90 - latitude) / 180) * height
+}
+
+function getPressureMonth(centers: MapPressureCenter[]): NcepSlpMonth {
+  return centers === januaryPressureCenters ? 'january' : 'july'
+}
+
+function evaluatePressure(longitude: number, latitude: number, centers: MapPressureCenter[]) {
+  return sampleNcepSlp(getPressureMonth(centers), longitude, latitude)
+}
+
+function getPressureGrid(centers: MapPressureCenter[]) {
+  const key = centers === januaryPressureCenters ? 'january' : 'july'
+  if (cachedPressureGrid && cachedPressureGridKey === key) return cachedPressureGrid
+
+  const cols = 288
+  const rows = 144
+  const values = new Float32Array((cols + 1) * (rows + 1))
+
+  for (let row = 0; row <= rows; row += 1) {
+    const latitude = 90 - row / rows * 180
+    for (let col = 0; col <= cols; col += 1) {
+      const longitude = col / cols * 360
+      values[row * (cols + 1) + col] = evaluatePressure(longitude, latitude, centers)
+    }
+  }
+
+  cachedPressureGridKey = key
+  cachedPressureGrid = { cols, rows, values }
+  return cachedPressureGrid
+}
+
+function pressureColor(value: number) {
+  const bands = [
+    { upper: 992, color: [55, 74, 218] },
+    { upper: 1000, color: [91, 126, 232] },
+    { upper: 1008, color: [145, 202, 246] },
+    { upper: 1016, color: [217, 225, 220] },
+    { upper: 1024, color: [246, 194, 125] },
+    { upper: 1032, color: [244, 125, 66] },
+    { upper: Number.POSITIVE_INFINITY, color: [233, 72, 43] },
+  ]
+  return (bands.find(band => value < band.upper) ?? bands[bands.length - 1]).color
+}
+
+function drawPressureField(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  grid: PressureGrid,
+) {
+  if (!pressureFieldCanvas) pressureFieldCanvas = document.createElement('canvas')
+  pressureFieldCanvas.width = grid.cols
+  pressureFieldCanvas.height = grid.rows
+  const fieldCtx = pressureFieldCanvas.getContext('2d')
+  if (!fieldCtx) return
+
+  const image = fieldCtx.createImageData(grid.cols, grid.rows)
+  for (let row = 0; row < grid.rows; row += 1) {
+    for (let col = 0; col < grid.cols; col += 1) {
+      const value = grid.values[row * (grid.cols + 1) + col]
+      const [red, green, blue] = pressureColor(value)
+      const pixel = (row * grid.cols + col) * 4
+      image.data[pixel] = red
+      image.data[pixel + 1] = green
+      image.data[pixel + 2] = blue
+      image.data[pixel + 3] = 205
+    }
+  }
+  fieldCtx.putImageData(image, 0, 0)
+
+  ctx.save()
+  ctx.globalAlpha = 0.58
+  ctx.imageSmoothingEnabled = true
+  ctx.drawImage(pressureFieldCanvas, 0, 0, width, height)
+  ctx.restore()
+}
+
+function drawMapGrid(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  ctx.save()
+  ctx.font = `600 ${Math.max(10, width * 0.012)}px "Microsoft YaHei", sans-serif`
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+
+  if (layers.latLines) {
+    for (let longitude = 0; longitude < 360; longitude += 15) {
+      const x = mapX(longitude, width)
+      ctx.beginPath()
+      ctx.setLineDash([5, 8])
+      ctx.lineWidth = longitude === 0 || longitude === 180 ? 1.15 : 0.7
+      ctx.strokeStyle = longitude === 0
+        ? 'rgba(46, 196, 182, 0.56)'
+        : longitude === 180
+          ? 'rgba(255, 95, 158, 0.52)'
+          : 'rgba(195, 235, 255, 0.20)'
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, height)
+      ctx.stroke()
+    }
+
+    ;[60, 30, 0, -30, -60].forEach(latitude => {
+      const y = mapY(latitude, height)
+      ctx.beginPath()
+      ctx.setLineDash(latitude === 0 ? [] : [7, 7])
+      ctx.lineWidth = latitude === 0 ? 1.6 : 1
+      ctx.strokeStyle = latitude === 0
+        ? 'rgba(255, 222, 129, 0.72)'
+        : 'rgba(195, 235, 255, 0.42)'
+      ctx.moveTo(0, y)
+      ctx.lineTo(width, y)
+      ctx.stroke()
+      if (layers.textAnnotations) {
+        ctx.fillStyle = 'rgba(231, 246, 255, 0.86)'
+        ctx.fillText(`${Math.abs(latitude)}°${latitude > 0 ? 'N' : latitude < 0 ? 'S' : ''}`, 9, y - 9)
+      }
+    })
+  }
+
+  if (layers.subsolarLine) {
+    const subsolarLatitude = getSubsolarLatitude()
+    const y = mapY(subsolarLatitude, height)
+    ctx.beginPath()
+    ctx.setLineDash([])
+    ctx.lineWidth = Math.max(1.4, width * 0.0018)
+    ctx.strokeStyle = 'rgba(255, 214, 84, 0.94)'
+    ctx.shadowBlur = 7
+    ctx.shadowColor = 'rgba(255, 187, 38, 0.72)'
+    ctx.moveTo(0, y)
+    ctx.lineTo(width, y)
+    ctx.stroke()
+    if (layers.textAnnotations) {
+      ctx.textAlign = 'right'
+      ctx.fillStyle = '#ffe58d'
+      ctx.fillText(`太阳直射纬线 ${Math.abs(subsolarLatitude).toFixed(1)}°${subsolarLatitude >= 0 ? 'N' : 'S'}`, width - 12, y - 10)
+    }
+  }
+
+  ctx.restore()
+}
+
+function drawPressureBands(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  const bands = [
+    { lat: 60, color: '74, 112, 255', opacity: 0.25 },
+    { lat: 30, color: '255, 115, 62', opacity: 0.20 },
+    { lat: 0, color: '73, 159, 235', opacity: 0.16 },
+    { lat: -30, color: '255, 115, 62', opacity: 0.20 },
+    { lat: -60, color: '74, 112, 255', opacity: 0.28 },
+  ]
+
+  bands.forEach(({ lat, color, opacity }) => {
+    const centerY = mapY(lat, height)
+    const bandHeight = height * (Math.abs(lat) === 60 ? 0.13 : 0.11)
+    const gradient = ctx.createLinearGradient(0, centerY - bandHeight, 0, centerY + bandHeight)
+    gradient.addColorStop(0, `rgba(${color}, 0)`)
+    gradient.addColorStop(0.5, `rgba(${color}, ${opacity})`)
+    gradient.addColorStop(1, `rgba(${color}, 0)`)
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, centerY - bandHeight, width, bandHeight * 2)
+  })
+}
+
+function drawPolarPressureContours(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  ctx.save()
+  ctx.strokeStyle = 'rgba(178, 211, 255, 0.60)'
+  ctx.lineWidth = Math.max(0.8, width * 0.0012)
+
+  for (let contour = 0; contour < 5; contour += 1) {
+    ctx.beginPath()
+    for (let step = 0; step <= 120; step += 1) {
+      const longitude = step / 120 * 360
+      const latitude = -61 - contour * 4.2 + Math.sin(step * 0.26 + contour * 0.9) * (1.7 + contour * 0.24)
+      const x = longitude / 360 * width
+      const y = mapY(latitude, height)
+      if (step === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+  }
+
+  ctx.fillStyle = '#d9e9ff'
+  ctx.font = `700 ${Math.max(10, width * 0.013)}px "Microsoft YaHei", sans-serif`
+  ctx.textAlign = 'center'
+  ctx.shadowBlur = 8
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+  ctx.fillText('南极低压带', width * 0.50, mapY(-73, height))
+  ctx.restore()
+}
+
+type ContourPoint = { x: number; y: number }
+
+function contourIntersection(
+  level: number,
+  valueA: number,
+  valueB: number,
+  pointA: ContourPoint,
+  pointB: ContourPoint,
+) {
+  const difference = valueB - valueA
+  const safeDifference = Math.abs(difference) < 0.0001
+    ? (difference < 0 ? -0.0001 : 0.0001)
+    : difference
+  const progress = (level - valueA) / safeDifference
+  return {
+    x: pointA.x + (pointB.x - pointA.x) * progress,
+    y: pointA.y + (pointB.y - pointA.y) * progress,
+  }
+}
+
+function drawIsobars(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  grid: PressureGrid,
+  showLabels: boolean,
+) {
+  const vertex = (row: number, col: number) => grid.values[row * (grid.cols + 1) + col]
+
+  pressureContourLevels.forEach((level, levelIndex) => {
+    const labels: ContourPoint[] = []
+    let segmentCount = 0
+    ctx.save()
+    ctx.beginPath()
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.lineWidth = level === 1012 ? Math.max(1.0, width * 0.00115) : Math.max(0.72, width * 0.00082)
+    ctx.strokeStyle = level === 1012
+      ? 'rgba(255, 242, 190, 0.88)'
+      : 'rgba(236, 247, 255, 0.76)'
+    ctx.shadowBlur = level === 1012 ? 2 : 0
+    ctx.shadowColor = 'rgba(48, 126, 210, 0.28)'
+
+    for (let row = 0; row < grid.rows; row += 1) {
+      for (let col = 0; col < grid.cols; col += 1) {
+        const points = [
+          { x: col, y: row },
+          { x: col + 1, y: row },
+          { x: col + 1, y: row + 1 },
+          { x: col, y: row + 1 },
+        ]
+        const values = [
+          vertex(row, col),
+          vertex(row, col + 1),
+          vertex(row + 1, col + 1),
+          vertex(row + 1, col),
+        ]
+        const intersections: ContourPoint[] = []
+        const edges = [[0, 1], [1, 2], [2, 3], [3, 0]]
+
+        edges.forEach(([start, end]) => {
+          const valueA = values[start]
+          const valueB = values[end]
+          if (
+            (valueA < level && valueB >= level) ||
+            (valueB < level && valueA >= level)
+          ) {
+            intersections.push(contourIntersection(level, valueA, valueB, points[start], points[end]))
+          }
+        })
+
+        if (intersections.length < 2) continue
+        const pairs = intersections.length === 4
+          ? [[intersections[0], intersections[1]], [intersections[2], intersections[3]]]
+          : [[intersections[0], intersections[1]]]
+
+        pairs.forEach(([start, end]) => {
+          const startX = start.x / grid.cols * width
+          const startY = start.y / grid.rows * height
+          const endX = end.x / grid.cols * width
+          const endY = end.y / grid.rows * height
+          ctx.moveTo(startX, startY)
+          ctx.lineTo(endX, endY)
+          segmentCount += 1
+          if (
+            showLabels &&
+            segmentCount % 184 === 48 + levelIndex * 5 &&
+            labels.length < 4 &&
+            startX > 30 && startX < width - 30 &&
+            startY > 18 && startY < height - 18
+          ) {
+            labels.push({ x: (startX + endX) * 0.5, y: (startY + endY) * 0.5 })
+          }
+        })
+      }
+    }
+    ctx.stroke()
+    ctx.restore()
+
+    if (showLabels) labels.forEach(label => {
+      ctx.save()
+      const fontSize = Math.max(8, width * 0.0105)
+      ctx.font = `700 ${fontSize}px "Microsoft YaHei", sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const text = `${level}`
+      const textWidth = ctx.measureText(text).width
+      ctx.fillStyle = 'rgba(3, 14, 29, 0.74)'
+      ctx.fillRect(label.x - textWidth * 0.6, label.y - fontSize * 0.62, textWidth * 1.2, fontSize * 1.24)
+      ctx.fillStyle = level === 1012 ? '#fff0b7' : '#e6f5ff'
+      ctx.fillText(text, label.x, label.y)
+      ctx.restore()
+    })
+  })
+}
+
+function drawPressureStaticLayer(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  grid: PressureGrid,
+) {
+  const cacheKey = `${cachedPressureGridKey}:${width}x${height}:labels-${Number(layers.textAnnotations)}`
+  if (!pressureStaticCanvas) pressureStaticCanvas = document.createElement('canvas')
+
+  if (pressureStaticCacheKey !== cacheKey) {
+    pressureStaticCanvas.width = width
+    pressureStaticCanvas.height = height
+    const staticCtx = pressureStaticCanvas.getContext('2d')
+    if (!staticCtx) return
+    staticCtx.clearRect(0, 0, width, height)
+    drawPressureField(staticCtx, width, height, grid)
+    drawIsobars(staticCtx, width, height, grid, !!layers.textAnnotations)
+    pressureStaticCacheKey = cacheKey
+  }
+
+  ctx.drawImage(pressureStaticCanvas, 0, 0, width, height)
+}
+
+function drawPressureCenter(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  center: MapPressureCenter,
+) {
+  const x = mapX(center.lon, width)
+  const y = mapY(center.lat, height)
+  const high = center.symbol === 'H'
+  const rgb = high ? '255, 112, 58' : '69, 112, 255'
+  const fieldCenters = month.value <= 2 || month.value >= 10
+    ? januaryPressureCenters
+    : julyPressureCenters
+  const centerPressure = Math.round(evaluatePressure(center.lon, center.lat, fieldCenters))
+  const glowRadius = Math.max(24, width * 0.048)
+
+  ctx.save()
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, glowRadius)
+  glow.addColorStop(0, `rgba(${rgb}, ${0.42 * center.strength})`)
+  glow.addColorStop(0.52, `rgba(${rgb}, ${0.17 * center.strength})`)
+  glow.addColorStop(1, `rgba(${rgb}, 0)`)
+  ctx.fillStyle = glow
+  ctx.beginPath()
+  ctx.arc(x, y, glowRadius, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.shadowBlur = 10
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.9)'
+  ctx.fillStyle = high ? '#ffe1b6' : '#d9ecff'
+  ctx.font = `800 ${Math.max(20, width * 0.032)}px "Microsoft YaHei", sans-serif`
+  ctx.fillText(center.symbol, x, y - 4)
+  if (layers.textAnnotations) {
+    ctx.font = `700 ${Math.max(10, width * 0.014)}px "Microsoft YaHei", sans-serif`
+    ctx.fillText(center.name, x, y + Math.max(17, height * 0.044))
+    ctx.font = `600 ${Math.max(8, width * 0.0105)}px "Microsoft YaHei", sans-serif`
+    ctx.fillStyle = 'rgba(236, 248, 255, 0.88)'
+    ctx.fillText(`${centerPressure} hPa`, x, y + Math.max(31, height * 0.077))
+  }
+  ctx.restore()
+}
+
+function drawVerticalThermalArrow(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  longitude: number,
+  latitude: number,
+  rising: boolean,
+) {
+  const x = mapX(longitude, width)
+  const y = mapY(latitude, height)
+  const length = height * 0.095
+  const direction = rising ? -1 : 1
+  const startY = y + direction * length * 0.48
+  const endY = y - direction * length * 0.48
+  const color = rising ? '#8de7ff' : '#ffe1a1'
+
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.shadowBlur = 12
+  ctx.shadowColor = color
+  ctx.lineWidth = Math.max(3, width * 0.004)
+  ctx.beginPath()
+  ctx.moveTo(x, startY)
+  ctx.lineTo(x, endY)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(x, endY - direction * 9)
+  ctx.lineTo(x - 7, endY + direction * 3)
+  ctx.lineTo(x + 7, endY + direction * 3)
+  ctx.closePath()
+  ctx.fill()
+  ctx.font = `800 ${Math.max(11, width * 0.014)}px "Microsoft YaHei", sans-serif`
+  ctx.textAlign = 'center'
+  ctx.fillText(rising ? '上升' : '下沉', x, y + height * 0.07)
+  ctx.restore()
+}
+
+function drawMapArrow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+  color: string,
+  width: number,
+) {
+  const endX = x + dx
+  const endY = y + dy
+  const angle = Math.atan2(dy, dx)
+  const head = Math.max(5, width * 0.008)
+
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.shadowBlur = 7
+  ctx.shadowColor = color
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.globalAlpha = 0.94
+  ctx.lineWidth = Math.max(1.6, width * 0.0024)
+  ctx.beginPath()
+  ctx.moveTo(x, y)
+  ctx.quadraticCurveTo(x + dx * 0.48, y + dy * 0.48 - Math.sign(dx || 1) * 4, endX, endY)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(endX, endY)
+  ctx.lineTo(endX - Math.cos(angle - 0.56) * head, endY - Math.sin(angle - 0.56) * head)
+  ctx.lineTo(endX - Math.cos(angle + 0.56) * head, endY - Math.sin(angle + 0.56) * head)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+function pressureDrivenWindVector(
+  longitude: number,
+  latitude: number,
+  centers: MapPressureCenter[],
+) {
+  const step = 2.5
+  const rawLongitudeGradient = (
+    evaluatePressure(longitude + step, latitude, centers) -
+    evaluatePressure(longitude - step, latitude, centers)
+  ) / (step * 2)
+  const gradientLat = (
+    evaluatePressure(longitude, latitude + step, centers) -
+    evaluatePressure(longitude, latitude - step, centers)
+  ) / (step * 2)
+
+  // 同样的经度差在高纬对应更短的实际距离，梯度需按 cos(latitude) 修正。
+  const longitudeScale = Math.max(0.22, Math.cos(THREE.MathUtils.degToRad(latitude)))
+  const gradientLon = rawLongitudeGradient / longitudeScale
+
+  const hemisphere = latitude >= 0 ? 1 : -1
+  // 地转分量沿等压线；摩擦分量以约 14° 夹角斜穿等压线指向低压。
+  let east = -hemisphere * gradientLat - gradientLon * 0.25
+  let north = hemisphere * gradientLon - gradientLat * 0.25
+  const pressureGradient = Math.hypot(gradientLon, gradientLat)
+
+  const absoluteLatitude = Math.abs(latitude)
+  let prevailingEast = -1
+  let prevailingNorth = latitude >= 0 ? -0.28 : 0.28
+  if (absoluteLatitude >= 30 && absoluteLatitude < 60) {
+    prevailingEast = 1
+    prevailingNorth = latitude >= 0 ? 0.18 : -0.18
+  }
+
+  const vectorLength = Math.max(0.001, Math.hypot(east, north))
+  east /= vectorLength
+  north /= vectorLength
+  // 赤道附近科氏参数趋近于零，以气候平均信风约束方向；中高纬主要服从气压梯度。
+  const coriolisWeight = smoothstep01((absoluteLatitude - 4) / 18)
+  const pressureWeight = Math.max(0.24, Math.min(0.9, pressureGradient / 0.95)) * coriolisWeight
+  east = east * pressureWeight + prevailingEast * (1 - pressureWeight)
+  north = north * pressureWeight + prevailingNorth * (1 - pressureWeight)
+  const combinedLength = Math.max(0.001, Math.hypot(east, north))
+
+  return {
+    east: east / combinedLength,
+    north: north / combinedLength,
+    pressureGradient,
+  }
+}
+
+function windColorForLatitude(latitude: number) {
+  const absoluteLatitude = Math.abs(latitude)
+  if (absoluteLatitude >= 60) return '#75a7ff'
+  if (absoluteLatitude >= 30) return '#ffb84d'
+  return '#2ed9c3'
+}
+
+function resetMapWindSeed(seed: MapWindSeed, seedIndex = seed.seedIndex) {
+  const seedLatitudes = [74, 62, 50, 38, 26, 14, 4, -4, -14, -26, -38, -50, -62, -74]
+  const lane = seedIndex % seedLatitudes.length
+  const column = Math.floor(seedIndex / seedLatitudes.length)
+  seed.seedIndex = seedIndex
+  seed.longitude = (column * 43 + lane * 11 + 9) % 360
+  seed.latitude = seedLatitudes[lane] ?? 0
+  seed.phase = (seedIndex * 0.61803398875) % 1
+}
+
+function ensureMapWindSeeds() {
+  if (mapWindSeeds.length === 112) return
+  mapWindSeeds = Array.from({ length: 112 }, (_, seedIndex) => {
+    const seed: MapWindSeed = {
+      longitude: 0,
+      latitude: 0,
+      seedIndex,
+      phase: 0,
+    }
+    resetMapWindSeed(seed, seedIndex)
+    return seed
+  })
+}
+
+function traceWindStreamline(
+  seed: MapWindSeed,
+  centers: MapPressureCenter[],
+) {
+  const backward: Array<{ longitude: number; latitude: number }> = []
+  const forward: Array<{ longitude: number; latitude: number }> = []
+  let longitude = seed.longitude
+  let latitude = seed.latitude
+
+  for (let index = 0; index < 5; index += 1) {
+    const vector = pressureDrivenWindVector(longitude, latitude, centers)
+    longitude -= vector.east * 3
+    latitude = clamp(latitude - vector.north * 3, -82, 82)
+    backward.unshift({ longitude, latitude })
+  }
+
+  longitude = seed.longitude
+  latitude = seed.latitude
+  forward.push({ longitude, latitude })
+  for (let index = 0; index < 20; index += 1) {
+    const vector = pressureDrivenWindVector(longitude, latitude, centers)
+    longitude += vector.east * 3
+    latitude = clamp(latitude + vector.north * 3, -82, 82)
+    forward.push({ longitude, latitude })
+  }
+
+  return [...backward, ...forward]
+}
+
+function getMapWindTracks(centers: MapPressureCenter[]) {
+  const key = getPressureMonth(centers)
+  const cachedTracks = mapWindTrackCache.get(key)
+  if (cachedTracks) return cachedTracks
+
+  ensureMapWindSeeds()
+  const tracks = mapWindSeeds.map(seed => ({
+    phase: seed.phase,
+    // 每条轨迹只根据当月真实气压场计算一次；动画帧只沿固定轨迹取样。
+    route: traceWindStreamline(seed, centers),
+  }))
+  mapWindTrackCache.set(key, tracks)
+  return tracks
+}
+
+function drawStableWindPacket(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  points: Array<{ longitude: number; latitude: number }>,
+  color: string,
+  opacity: number,
+) {
+  drawCurvedStreamlineArrow(ctx, width, height, points, color, opacity)
+}
+
+function getMapArrowGradient(color: string) {
+  const palettes: Record<string, { start: string; end: string }> = {
+    '#2ed9c3': { start: '#5af0d2', end: '#16b8d4' },
+    '#ffb84d': { start: '#ffe066', end: '#ff8c42' },
+    '#75a7ff': { start: '#d0f7ff', end: '#4c6fff' },
+    '#ff4f87': { start: '#ff9fcb', end: '#ff315f' },
+    '#a875ff': { start: '#d8b9ff', end: '#7446ff' },
+    '#df78ff': { start: '#f0bbff', end: '#9854ff' },
+    '#9bed6e': { start: '#dfff8b', end: '#66e37a' },
+    '#58e5b2': { start: '#b7ffd9', end: '#35c79a' },
+  }
+  return palettes[color.toLowerCase()] ?? { start: '#eefbff', end: color }
+}
+
+function drawCurvedStreamlineArrow(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  points: Array<{ longitude: number; latitude: number }>,
+  color: string,
+  opacity = 1,
+) {
+  if (points.length < 3) return
+  const screenPoints: ContourPoint[] = []
+  points.forEach((point, index) => {
+    let x = mapX(point.longitude, width)
+    const y = mapY(point.latitude, height)
+    if (index > 0) {
+      const previousX = screenPoints[index - 1].x
+      while (x - previousX > width * 0.5) x -= width
+      while (x - previousX < -width * 0.5) x += width
+    }
+    screenPoints.push({ x, y })
+  })
+
+    ;[-width, 0, width].forEach(offset => {
+      const tail = screenPoints[0]
+      const head = screenPoints[screenPoints.length - 1]
+      if (head.x + offset < -80 || tail.x + offset > width + 80) return
+      const palette = getMapArrowGradient(color)
+      const gradient = ctx.createLinearGradient(
+        tail.x + offset,
+        tail.y,
+        head.x + offset,
+        head.y,
+      )
+      gradient.addColorStop(0, palette.start)
+      gradient.addColorStop(0.72, palette.end)
+      gradient.addColorStop(1, palette.end)
+
+      ctx.save()
+      ctx.globalAlpha = opacity
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = color
+      ctx.globalAlpha = opacity * 0.18
+      ctx.lineWidth = Math.max(5.2, width * 0.0065)
+      ctx.shadowBlur = 8
+      ctx.shadowColor = color
+      ctx.beginPath()
+      ctx.moveTo(tail.x + offset, tail.y)
+      for (let index = 1; index < screenPoints.length - 1; index += 1) {
+        const current = screenPoints[index]
+        const next = screenPoints[index + 1]
+        ctx.quadraticCurveTo(
+          current.x + offset,
+          current.y,
+          (current.x + next.x) * 0.5 + offset,
+          (current.y + next.y) * 0.5,
+        )
+      }
+      ctx.lineTo(head.x + offset, head.y)
+      ctx.stroke()
+
+      ctx.globalAlpha = opacity
+      ctx.strokeStyle = gradient
+      ctx.lineWidth = Math.max(2.4, width * 0.0032)
+      ctx.shadowBlur = 3
+      ctx.beginPath()
+      ctx.moveTo(tail.x + offset, tail.y)
+      for (let index = 1; index < screenPoints.length - 1; index += 1) {
+        const current = screenPoints[index]
+        const next = screenPoints[index + 1]
+        ctx.quadraticCurveTo(
+          current.x + offset,
+          current.y,
+          (current.x + next.x) * 0.5 + offset,
+          (current.y + next.y) * 0.5,
+        )
+      }
+      ctx.lineTo(head.x + offset, head.y)
+      ctx.stroke()
+
+      const previous = screenPoints[screenPoints.length - 2]
+      const angle = Math.atan2(head.y - previous.y, head.x - previous.x)
+      // 保持明确的箭头轮廓，地图适配到较窄视口时也不会只剩发光短线。
+      const arrowHead = Math.max(8.5, width * 0.012)
+      ctx.fillStyle = gradient
+      ctx.shadowBlur = 7
+      ctx.shadowColor = color
+      ctx.beginPath()
+      ctx.moveTo(head.x + offset, head.y)
+      ctx.lineTo(
+        head.x + offset - Math.cos(angle - 0.56) * arrowHead,
+        head.y - Math.sin(angle - 0.56) * arrowHead,
+      )
+      ctx.lineTo(
+        head.x + offset - Math.cos(angle + 0.56) * arrowHead,
+        head.y - Math.sin(angle + 0.56) * arrowHead,
+      )
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+    })
+}
+
+function drawWindField(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  centers: MapPressureCenter[],
+) {
+  const tracks = getMapWindTracks(centers)
+  tracks.forEach(track => {
+    // 固定槽位、固定长度、固定不透明度，箭头重叠时也不会重置、隐藏或重新寻路。
+    const packetCenter = 0.08 + ((mapAnimTime * 0.092 + track.phase) % 1) * 0.84
+    const packetPoints = [-0.070, -0.052, -0.035, -0.017, 0, 0.017, 0.035, 0.052, 0.070]
+      .map(offset => sampleGeographicRoute(track.route, packetCenter + offset))
+    drawStableWindPacket(
+      ctx,
+      width,
+      height,
+      packetPoints,
+      windColorForLatitude(packetPoints[packetPoints.length - 1].latitude),
+      0.98,
+    )
+  })
+
+  const labels = [
+    { text: '北半球极地东风', lon: 118, lat: 72, color: '#75a7ff' },
+    { text: '北半球西风', lon: 22, lat: 47, color: '#ffb84d' },
+    { text: '东北信风', lon: 214, lat: 18, color: '#2ed9c3' },
+    { text: '东南信风', lon: 42, lat: -18, color: '#2ed9c3' },
+    { text: '南半球西风', lon: 214, lat: -47, color: '#ffb84d' },
+    { text: '南半球极地东风', lon: 72, lat: -69, color: '#75a7ff' },
+  ]
+  if (layers.textAnnotations) labels.forEach(label => {
+    ctx.save()
+    ctx.font = `800 ${Math.max(10, width * 0.013)}px "Microsoft YaHei", sans-serif`
+    ctx.textAlign = 'center'
+    ctx.fillStyle = label.color
+    ctx.shadowBlur = 8
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)'
+    ctx.fillText(label.text, mapX(label.lon, width), mapY(label.lat, height) - 11)
+    ctx.restore()
+  })
+}
+
+function sampleGeographicRoute(
+  points: Array<{ longitude: number; latitude: number }>,
+  progress: number,
+): { longitude: number; latitude: number } {
+  const fallback = points[0] ?? { longitude: 0, latitude: 0 }
+  const segmentLengths: number[] = []
+  let totalLength = 0
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index] ?? fallback
+    const end = points[index + 1] ?? start
+    const segmentLength = Math.hypot(
+      end.longitude - start.longitude,
+      (end.latitude - start.latitude) * 1.45,
+    )
+    segmentLengths.push(segmentLength)
+    totalLength += segmentLength
+  }
+
+  let distance = Math.max(0, Math.min(1, progress)) * totalLength
+  for (let index = 0; index < segmentLengths.length; index += 1) {
+    if (distance <= segmentLengths[index] || index === segmentLengths.length - 1) {
+      const start = points[index] ?? fallback
+      const end = points[index + 1] ?? start
+      const localProgress = distance / Math.max(0.001, segmentLengths[index] ?? 0)
+      return {
+        longitude: lerpValue(start.longitude, end.longitude, localProgress),
+        latitude: lerpValue(start.latitude, end.latitude, localProgress),
+      }
+    }
+    distance -= segmentLengths[index] ?? 0
+  }
+
+  return points[points.length - 1] ?? fallback
+}
+
+function drawMonsoonRouteGuide(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  points: Array<{ longitude: number; latitude: number }>,
+  color: string,
+) {
+  const screenPoints = points.map(point => ({
+    x: mapX(point.longitude, width),
+    y: mapY(point.latitude, height),
+  }))
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.strokeStyle = color
+  ctx.globalAlpha = 0.34
+  ctx.lineWidth = Math.max(1.2, width * 0.0018)
+  ctx.beginPath()
+  ctx.moveTo(screenPoints[0].x, screenPoints[0].y)
+  for (let index = 1; index < screenPoints.length - 1; index += 1) {
+    const current = screenPoints[index]
+    const next = screenPoints[index + 1]
+    ctx.quadraticCurveTo(
+      current.x,
+      current.y,
+      (current.x + next.x) * 0.5,
+      (current.y + next.y) * 0.5,
+    )
+  }
+  const end = screenPoints[screenPoints.length - 1]
+  ctx.lineTo(end.x, end.y)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function drawMonsoonField(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  const summer = month.value >= 4 && month.value <= 8
+  const routes = summer
+    ? [
+      {
+        color: '#ff4f87',
+        label: '东南季风',
+        points: [
+          { longitude: 150, latitude: 16 },
+          { longitude: 143, latitude: 20 },
+          { longitude: 135, latitude: 24 },
+          { longitude: 126, latitude: 29 },
+          { longitude: 116, latitude: 34 },
+        ],
+      },
+      {
+        color: '#a875ff',
+        label: '西南季风 · 阿拉伯海支流',
+        points: [
+          { longitude: 48, latitude: -9 },
+          { longitude: 56, latitude: -2 },
+          { longitude: 64, latitude: 7 },
+          { longitude: 72, latitude: 16 },
+          { longitude: 80, latitude: 25 },
+        ],
+      },
+      {
+        color: '#df78ff',
+        label: '西南季风 · 孟加拉湾支流',
+        points: [
+          { longitude: 82, latitude: -5 },
+          { longitude: 87, latitude: 4 },
+          { longitude: 92, latitude: 13 },
+          { longitude: 100, latitude: 22 },
+          { longitude: 109, latitude: 29 },
+        ],
+      },
+    ]
+    : [
+      {
+        color: '#9bed6e',
+        label: '西北季风',
+        points: [
+          { longitude: 98, latitude: 50 },
+          { longitude: 104, latitude: 42 },
+          { longitude: 111, latitude: 34 },
+          { longitude: 120, latitude: 26 },
+          { longitude: 130, latitude: 19 },
+        ],
+      },
+      {
+        color: '#58e5b2',
+        label: '东北季风',
+        points: [
+          { longitude: 91, latitude: 30 },
+          { longitude: 86, latitude: 23 },
+          { longitude: 80, latitude: 16 },
+          { longitude: 73, latitude: 9 },
+          { longitude: 66, latitude: 3 },
+        ],
+      },
+    ]
+
+  routes.forEach((route, routeIndex) => {
+    drawMonsoonRouteGuide(ctx, width, height, route.points, route.color)
+
+      ;[0, 0.34, 0.68].forEach((offset, particleIndex) => {
+        const progress = (mapAnimTime * 0.085 + offset + routeIndex * 0.07) % 1
+        const segmentPoints = [-0.045, -0.022, 0, 0.022, 0.045].map(delta =>
+          sampleGeographicRoute(route.points, Math.max(0, Math.min(1, progress + delta))),
+        )
+        const edgeFade = Math.min(1, progress / 0.08, (1 - progress) / 0.08)
+        drawCurvedStreamlineArrow(
+          ctx,
+          width,
+          height,
+          segmentPoints,
+          route.color,
+          edgeFade * (0.9 - particleIndex * 0.08),
+        )
+      })
+
+    if (layers.textAnnotations) {
+      const labelPoint = route.points[Math.max(1, route.points.length - 2)]
+      ctx.save()
+      ctx.font = `800 ${Math.max(10, width * 0.012)}px "Microsoft YaHei", sans-serif`
+      ctx.fillStyle = route.color
+      ctx.textAlign = 'center'
+      ctx.shadowBlur = 8
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.92)'
+      ctx.fillText(
+        route.label,
+        mapX(labelPoint.longitude, width),
+        mapY(labelPoint.latitude, height) - height * 0.026,
+      )
+      ctx.restore()
+    }
+  })
+}
+
+function initWorldMapThreeScene() {
+  const canvas = worldMapCanvasRef.value
+  if (!canvas) return false
+  if (worldMapRenderer && worldMapScene && worldMapCamera) return true
+
+  worldMapScene = new THREE.Scene()
+  worldMapCamera = new THREE.OrthographicCamera(-1, 1, 0.5, -0.5, 0.1, 10)
+  worldMapCamera.position.set(0, 0, 2)
+  worldMapCamera.lookAt(0, 0, 0)
+
+  worldMapRenderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: false,
+    powerPreference: 'high-performance',
+  })
+  worldMapRenderer.setClearColor(0x071425, 1)
+  worldMapRenderer.outputColorSpace = THREE.SRGBColorSpace
+
+  worldMapControls = new OrbitControls(worldMapCamera, canvas)
+  worldMapControls.enableDamping = true
+  worldMapControls.dampingFactor = 0.085
+  worldMapControls.enableRotate = false
+  worldMapControls.enablePan = true
+  worldMapControls.enableZoom = true
+  worldMapControls.zoomToCursor = true
+  worldMapControls.screenSpacePanning = true
+  worldMapControls.minZoom = 0.7
+  worldMapControls.maxZoom = 6
+  worldMapControls.target.set(0, 0, 0)
+  worldMapControls.mouseButtons.LEFT = THREE.MOUSE.PAN
+  worldMapControls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY
+  worldMapControls.mouseButtons.RIGHT = THREE.MOUSE.PAN
+  worldMapControls.addEventListener('start', () => {
+    isMapDragging.value = true
+  })
+  worldMapControls.addEventListener('end', () => {
+    isMapDragging.value = false
+  })
+  worldMapControls.addEventListener('change', () => {
+    if (worldMapCamera) mapZoom.value = worldMapCamera.zoom
+  })
+
+  const planeGeometry = new THREE.PlaneGeometry(2, 1, 1, 1)
+  worldMapBaseMesh = new THREE.Mesh(
+    planeGeometry,
+    new THREE.MeshBasicMaterial({ color: 0x092038, side: THREE.DoubleSide }),
+  )
+  worldMapBaseMesh.position.z = 0
+  worldMapBaseMesh.renderOrder = 0
+
+  worldMapStaticCanvas = document.createElement('canvas')
+  worldMapStaticCanvas.width = WORLD_MAP_TEXTURE_WIDTH
+  worldMapStaticCanvas.height = WORLD_MAP_TEXTURE_HEIGHT
+  worldMapStaticTexture = new THREE.CanvasTexture(worldMapStaticCanvas)
+  worldMapStaticTexture.colorSpace = THREE.SRGBColorSpace
+  worldMapStaticTexture.minFilter = THREE.LinearFilter
+  worldMapStaticTexture.magFilter = THREE.LinearFilter
+  worldMapStaticTexture.generateMipmaps = false
+  worldMapStaticMesh = new THREE.Mesh(
+    planeGeometry,
+    new THREE.MeshBasicMaterial({
+      map: worldMapStaticTexture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+      blending: THREE.NormalBlending,
+    }),
+  )
+  worldMapStaticMesh.position.z = 0.015
+  worldMapStaticMesh.renderOrder = 1
+
+  worldMapDynamicCanvas = document.createElement('canvas')
+  worldMapDynamicCanvas.width = WORLD_MAP_TEXTURE_WIDTH
+  worldMapDynamicCanvas.height = WORLD_MAP_TEXTURE_HEIGHT
+  worldMapDynamicTexture = new THREE.CanvasTexture(worldMapDynamicCanvas)
+  worldMapDynamicTexture.colorSpace = THREE.SRGBColorSpace
+  worldMapDynamicTexture.minFilter = THREE.LinearFilter
+  worldMapDynamicTexture.magFilter = THREE.LinearFilter
+  worldMapDynamicTexture.generateMipmaps = false
+  worldMapDynamicMesh = new THREE.Mesh(
+    planeGeometry,
+    new THREE.MeshBasicMaterial({
+      map: worldMapDynamicTexture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+      blending: THREE.NormalBlending,
+    }),
+  )
+  worldMapDynamicMesh.position.z = 0.03
+  worldMapDynamicMesh.renderOrder = 2
+
+  worldMapScene.add(worldMapBaseMesh, worldMapStaticMesh, worldMapDynamicMesh)
+
+  new THREE.TextureLoader().load(
+    earthTextureUrl,
+    texture => {
+      if (componentDestroyed || !worldMapBaseMesh) {
+        texture.dispose()
+        return
+      }
+      texture.colorSpace = THREE.SRGBColorSpace
+      texture.wrapS = THREE.RepeatWrapping
+      texture.offset.x = 0.5
+      const material = new THREE.ShaderMaterial({
+        uniforms: { uMap: { value: texture } },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D uMap;
+          varying vec2 vUv;
+          void main() {
+            // 数据层以 0° 经线为左边界；底图同步平移 180°，确保经纬定位一致。
+            vec2 mapUv = vec2(fract(vUv.x + 0.5), vUv.y);
+            vec3 color = texture2D(uMap, mapUv).rgb;
+            float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+            color = mix(vec3(luma), color, 0.82);
+            color = (color - 0.5) * 1.12 + 0.5;
+            color *= vec3(0.62, 0.67, 0.73);
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+      })
+      const previousMaterial = worldMapBaseMesh.material
+      worldMapBaseMesh.material = material
+      if (previousMaterial instanceof THREE.Material) previousMaterial.dispose()
+      drawFlatWorldMap()
+    },
+  )
+
+  return true
+}
+
+
+type WorldMapViewportMetrics = {
+  width: number
+  height: number
+  dpr: number
+}
+
+/**
+ * 只同步最终 WebGL 显示画布。
+ *
+ * 这里故意使用 clientWidth / clientHeight，而不是 getBoundingClientRect()：
+ * 后者会包含祖先元素 CSS transform（例如地图入场动画）的缩放结果，
+ * 会把“视觉变换尺寸”误当成“布局尺寸”。
+ *
+ * 地理数据层不再使用这个 width / height 绘制，它们始终画在固定的
+ * WORLD_MAP_TEXTURE_WIDTH × WORLD_MAP_TEXTURE_HEIGHT 经纬纹理上。
+ */
+function syncWorldMapViewport(): WorldMapViewportMetrics | null {
+  const canvas = worldMapCanvasRef.value
+  if (!canvas || !worldMapRenderer || !worldMapCamera) return null
+
+  const width = Math.max(1, canvas.clientWidth)
+  const height = Math.max(1, canvas.clientHeight)
+  if (width < 2 || height < 2) return null
+
+  const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 0.5), 2)
+  const expectedPixelWidth = Math.max(1, Math.round(width * dpr))
+  const expectedPixelHeight = Math.max(1, Math.round(height * dpr))
+
+  const cssSizeChanged =
+    Math.abs(lastWorldMapWidth - width) > 0.01 ||
+    Math.abs(lastWorldMapHeight - height) > 0.01
+  const dprChanged = Math.abs(lastWorldMapDpr - dpr) > 0.001
+  const bufferChanged =
+    canvas.width !== expectedPixelWidth ||
+    canvas.height !== expectedPixelHeight
+
+  if (cssSizeChanged || dprChanged || bufferChanged) {
+    lastWorldMapWidth = width
+    lastWorldMapHeight = height
+    lastWorldMapDpr = dpr
+
+    worldMapRenderer.setPixelRatio(dpr)
+    worldMapRenderer.setSize(width, height, false)
+  }
+
+  // 三个平面始终使用完全相同的几何变换。
+  // frame 本身固定为 2:1；这里仍兼容极小的实际宽高比误差。
+  const aspect = width / height
+  const scaleX = aspect / 2
+  worldMapBaseMesh?.scale.set(scaleX, 1, 1)
+  worldMapStaticMesh?.scale.set(scaleX, 1, 1)
+  worldMapDynamicMesh?.scale.set(scaleX, 1, 1)
+
+  worldMapCamera.left = -aspect * 0.5
+  worldMapCamera.right = aspect * 0.5
+  worldMapCamera.top = 0.5
+  worldMapCamera.bottom = -0.5
+  worldMapCamera.updateProjectionMatrix()
+  worldMapControls?.update()
+
+  return { width, height, dpr }
+}
+
+function drawFlatWorldMap() {
+  if (!isWorldMapView.value || !initWorldMapThreeScene()) return
+  if (
+    !worldMapRenderer ||
+    !worldMapScene ||
+    !worldMapCamera ||
+    !worldMapStaticCanvas ||
+    !worldMapDynamicCanvas ||
+    !worldMapStaticTexture ||
+    !worldMapDynamicTexture
+  ) return
+
+  // 只校准最终显示画布；地理纹理自身尺寸永远固定。
+  const viewport = syncWorldMapViewport()
+  if (!viewport) return
+
+  const mapWidth = WORLD_MAP_TEXTURE_WIDTH
+  const mapHeight = WORLD_MAP_TEXTURE_HEIGHT
+
+  // 防御式校准：任何地方都不允许把两个离屏纹理改成跟 DOM 尺寸相关的大小。
+  if (
+    worldMapStaticCanvas.width !== mapWidth ||
+    worldMapStaticCanvas.height !== mapHeight
+  ) {
+    worldMapStaticCanvas.width = mapWidth
+    worldMapStaticCanvas.height = mapHeight
+    pressureStaticCacheKey = ''
+  }
+  if (
+    worldMapDynamicCanvas.width !== mapWidth ||
+    worldMapDynamicCanvas.height !== mapHeight
+  ) {
+    worldMapDynamicCanvas.width = mapWidth
+    worldMapDynamicCanvas.height = mapHeight
+  }
+
+  const staticContext = worldMapStaticCanvas.getContext('2d')
+  const dynamicContext = worldMapDynamicCanvas.getContext('2d')
+  if (!staticContext || !dynamicContext) return
+
+  // 离屏地图画布使用固定逻辑像素，不再叠加 DPR transform。
+  staticContext.setTransform(1, 0, 0, 1, 0, 0)
+  staticContext.clearRect(0, 0, mapWidth, mapHeight)
+  dynamicContext.setTransform(1, 0, 0, 1, 0, 0)
+  dynamicContext.clearRect(0, 0, mapWidth, mapHeight)
+
+  const winter = month.value <= 2 || month.value >= 10
+  const centers = winter ? januaryPressureCenters : julyPressureCenters
+  const pressureGrid = getPressureGrid(centers)
+
+  if (layers.pressureBands) {
+    drawPressureStaticLayer(staticContext, mapWidth, mapHeight, pressureGrid)
+  }
+  drawMapGrid(staticContext, mapWidth, mapHeight)
+
+  if (layers.regionalPressureCenters) {
+    centers.forEach(center => drawPressureCenter(staticContext, mapWidth, mapHeight, center))
+  }
+
+  // 阶段五的全球风场与季风永远画在固定地理纹理上。
+  // 左侧面板展开/收起、浏览器缩放只会改变纹理最终显示大小，不会改变箭头所在 UV。
+  if (currentStage.value === 4) {
+    if (layers.surfaceWinds) {
+      drawWindField(dynamicContext, mapWidth, mapHeight, centers)
+    }
+    if (layers.monsoonWinds) {
+      drawMonsoonField(dynamicContext, mapWidth, mapHeight)
+    }
+  }
+
+  worldMapStaticTexture.needsUpdate = true
+  worldMapDynamicTexture.needsUpdate = true
+  worldMapControls?.update()
+  worldMapRenderer.render(worldMapScene, worldMapCamera)
+}
+
+/**
+ * 阶段切换、侧栏布局变化时连续补几帧二维地图。
+ * 这样即使 v-show / Grid / 浮层布局分两三个 RAF 才最终稳定，
+ * 阶段五的动态箭头也不会等到“收起左侧”后才首次正确上传。
+ */
+function forceWorldMapRedraw(frameCount = 4) {
+  nextTick(() => {
+    let remaining = Math.max(1, frameCount)
+    const redraw = () => {
+      if (componentDestroyed || !isWorldMapView.value) return
+      drawFlatWorldMap()
+      remaining -= 1
+      if (remaining > 0) requestAnimationFrame(redraw)
+    }
+    requestAnimationFrame(redraw)
+  })
+}
+
+function scheduleFlatMapDraw() {
+  forceWorldMapRedraw(2)
+}
+
+function setWorldMapZoom(nextZoom: number) {
+  if (!worldMapCamera) initWorldMapThreeScene()
+  if (!worldMapCamera) return
+  const clampedZoom = Math.max(0.7, Math.min(6, Math.round(nextZoom * 100) / 100))
+  worldMapCamera.zoom = clampedZoom
+  worldMapCamera.updateProjectionMatrix()
+  mapZoom.value = clampedZoom
+  worldMapControls?.update()
+  drawFlatWorldMap()
+}
+
+function zoomWorldMap(delta: number) {
+  if (delta > 0 && !isMapExpanded.value) {
+    isMapExpanded.value = true
+    nextTick(() => requestAnimationFrame(() => setWorldMapZoom(mapZoom.value + delta)))
+    return
+  }
+  setWorldMapZoom(mapZoom.value + delta)
+}
+
+function resetWorldMapView() {
+  mapZoom.value = 1
+  isMapExpanded.value = false
+  if (worldMapCamera) {
+    worldMapCamera.position.set(0, 0, 2)
+    worldMapCamera.up.set(0, 1, 0)
+    worldMapCamera.zoom = 1
+    worldMapCamera.lookAt(0, 0, 0)
+    worldMapCamera.updateProjectionMatrix()
+  }
+  worldMapControls?.target.set(0, 0, 0)
+  worldMapControls?.update()
+  scheduleFlatMapDraw()
+}
+
 // ==================== 动态大气图层重建 ====================
 function rebuildDynamicAtmosphere(force = false) {
   if (!sceneReady || !earthMesh) return
@@ -4084,6 +6448,19 @@ function initScene() {
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x000a1a)
 
+  new THREE.TextureLoader().load(
+    atmosphericSpaceBackgroundUrl,
+    texture => {
+      if (componentDestroyed || !scene) {
+        texture.dispose()
+        return
+      }
+      texture.colorSpace = THREE.SRGBColorSpace
+      scene.background = texture
+      scene.backgroundIntensity = 0.76
+    },
+  )
+
   camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200)
   camera.position.copy(defaultCameraPosition)
 
@@ -4120,7 +6497,7 @@ function initScene() {
   earthGroup.add(earthMesh, atmosphereMesh)
 
   new THREE.TextureLoader().load(
-    '/geo-resources-folder/images/earth.jpg',
+    '/geo-resources-folder/images/Material.003_diffuse.jpg',
     texture => {
       if (componentDestroyed) {
         texture.dispose()
@@ -4191,6 +6568,17 @@ function initScene() {
 
   threeResizeObserver.observe(container)
 
+  // 二维地图直接监听实际 2:1 frame。侧栏展开/收起、浏览器缩放、
+  // vh 变化最终都会反映到这个元素的布局尺寸。
+  const worldMapFrame = worldMapCanvasRef.value?.closest('.world-map-frame')
+  if (worldMapFrame instanceof HTMLElement) {
+    worldMapResizeObserver = new ResizeObserver(() => {
+      if (!isWorldMapView.value || componentDestroyed) return
+      forceWorldMapRedraw(3)
+    })
+    worldMapResizeObserver.observe(worldMapFrame)
+  }
+
   sceneReady = true
   isCloseView.value = false
   applyCloseViewImmediately()
@@ -4223,19 +6611,38 @@ function updateMovingArrowItem(
   const range = item.loopEnd - item.loopStart
   item.progress += deltaTime * item.speed * playbackSpeed.value
 
-  while (item.progress > item.loopEnd) {
-    item.progress = item.loopStart + (item.progress - item.loopEnd) % range
+  if (item.progress >= item.loopEnd) {
+    item.progress = item.loopStart + THREE.MathUtils.euclideanModulo(
+      item.progress - item.loopStart,
+      range,
+    )
+  }
+
+  if (item.mesh.userData.curvePlaneArrow) {
+    updateCurvePlaneArrow(item)
+    return
+  }
+
+  if (item.mesh.userData.sphericalSurfaceArrow) {
+    updateSphericalSurfaceArrow(item)
+    return
   }
 
   const position = item.curve.getPointAt(item.progress)
   const tangent = item.curve.getTangentAt(item.progress).normalize()
 
   item.mesh.position.copy(position)
-  if (item.mode === 'vertical') {
+  if (
+    item.mesh.userData.planarFlowArrow ||
+    item.mode === 'vertical' ||
+    item.mode === 'wind' ||
+    item.mode === 'monsoon'
+  ) {
     orientPlanarArrowOnCurve(item.mesh, position, tangent)
   } else {
     item.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent)
   }
+
 }
 
 function updateAnimatedArrows(deltaTime: number) {
@@ -4271,6 +6678,14 @@ function updateAnimatedArrows(deltaTime: number) {
   }
 
   windFlowMaterials.forEach(material => {
+    material.uniforms.uTime.value = timeAccum
+  })
+
+  singleCellArrowMaterials.forEach(material => {
+    material.uniforms.uTime.value = timeAccum
+  })
+
+  monsoonFlowMaterials.forEach(material => {
     material.uniforms.uTime.value = timeAccum
   })
 
@@ -4333,10 +6748,13 @@ function animate() {
   const deltaTime = Math.min(clock.getDelta(), 0.05)
 
   if (isPlaying.value) {
+    // 阶段五二维地图与三维场景共用同一套播放状态和动画倍速。
+    // 暂停时 mapAnimTime 不再推进；切换 0.5×~5× 时风场/季风箭头同步变速。
+    mapAnimTime += deltaTime * playbackSpeed.value
     timeAccum += deltaTime * playbackSpeed.value
 
-    if (!isCloseView.value && !viewTransitionActive) {
-      const rotationSpeed = simMode.value === 'single' ? 0.035 : 0.075
+    if (currentStage.value !== 0 && !isCloseView.value && !viewTransitionActive) {
+      const rotationSpeed = 0.075
       rotationAngle += deltaTime * rotationSpeed * playbackSpeed.value
       earthMesh.rotation.y = rotationAngle
     }
@@ -4349,6 +6767,10 @@ function animate() {
   updateFadingGroups(deltaTime)
   updateViewTransition(deltaTime)
   orbitControls?.update()
+
+  if (isWorldMapView.value) {
+    drawFlatWorldMap()
+  }
 
   if (renderer && scene && camera) {
     renderer.render(scene, camera)
@@ -4506,9 +6928,23 @@ function setCloseViewState(enabled: boolean, instant = false) {
   }
 }
 
-function syncStageView(_stageIndex: number, _instant = false) {
-  // 环流展开视角改为完全手动控制。
-  // 切换阶段、首次进入阶段一时都保持默认未展开状态。
+function syncStageView(stageIndex: number, deferThreeSceneReveal = false) {
+  // 阶段四、五切换为平面世界地图；前三阶段继续使用三维地球。
+  cancelAnimationFrame(threeSceneRevealFrame)
+
+  if (stageIndex >= 3) {
+    isWorldMapView.value = true
+  } else if (!deferThreeSceneReveal) {
+    isWorldMapView.value = false
+    resetWorldMapView()
+  }
+
+  setCloseViewState(false, true)
+  if (stageIndex >= 3) {
+    forceWorldMapRedraw(4)
+  } else {
+    scheduleFlatMapDraw()
+  }
 }
 
 function applyLayerVisibility() {
@@ -4566,13 +7002,6 @@ function applyLayerVisibility() {
     pressureBeltGroup.visible = !singleMode && !!layers.pressureBands
   }
 
-  if (pressureBandTextMesh) {
-    pressureBandTextMesh.visible =
-      !singleMode &&
-      !!layers.pressureBands &&
-      !!layers.textAnnotations
-  }
-
   setFadingGroupVisibility(
     pressureArrowGroup,
     !singleMode && !!layers.pressureArrows,
@@ -4611,9 +7040,15 @@ function isLayerAvailable(key: string) {
 function applyStage(stageIndex: number) {
   const stage = stages[stageIndex]
   if (!stage) return
+  const leavingWorldMap = isWorldMapView.value && stageIndex < 3
 
   // 阶段一必须使用理想单圈模式，其余阶段统一使用三圈模式。
   simMode.value = stageIndex === 0 ? 'single' : 'three'
+
+  if (stageIndex === 0 && earthMesh) {
+    rotationAngle = DEFAULT_EARTH_ROTATION
+    earthMesh.rotation.y = rotationAngle
+  }
 
   Object.keys(layers).forEach(key => {
     layers[key] = false
@@ -4624,13 +7059,42 @@ function applyStage(stageIndex: number) {
   })
 
   stepDone.value = {}
-  syncStageView(stageIndex)
+  // 从二维地图返回地球时先保留地图遮罩，等三维场景完成重建与首帧渲染后再揭开。
+  syncStageView(stageIndex, leavingWorldMap)
 
   if (sceneReady) {
     rebuildDynamicAtmosphere()
   }
 
   applyLayerVisibility()
+
+  if (stageIndex < 3 && renderer && scene && camera) {
+    orbitControls?.update()
+    renderer.render(scene, camera)
+  }
+
+  if (leavingWorldMap) {
+    nextTick(() => {
+      threeSceneRevealFrame = requestAnimationFrame(() => {
+        if (componentDestroyed || currentStage.value !== stageIndex || stageIndex >= 3) return
+
+        // 再确认一帧已经写入 WebGL 缓冲区，然后才让 v-show 切回三维画布。
+        orbitControls?.update()
+        renderer?.render(scene!, camera!)
+        isWorldMapView.value = false
+        resetWorldMapView()
+
+        nextTick(() => {
+          resizeThreeSceneNow()
+          renderer?.render(scene!, camera!)
+        })
+      })
+    })
+  }
+
+  // 等 Vue 的 v-show、左侧布局以及 stage layers 全部提交后连续补绘。
+  // 阶段五必须在这里再次强制上传动态纹理，不能依赖用户之后收起侧栏来触发 resize。
+  if (stageIndex >= 3) forceWorldMapRedraw(stageIndex === 4 ? 6 : 4)
 }
 
 function setMode(mode: SimMode) {
@@ -4738,6 +7202,11 @@ function togglePlayback() {
   isPlaying.value = !isPlaying.value
 }
 
+function setRepresentativeMonth(nextMonth: 0 | 6) {
+  if (currentStage.value < 2) return
+  month.value = nextMonth
+}
+
 function nextStage() {
   if (currentStage.value < stages.length - 1) {
     goToStage(currentStage.value + 1)
@@ -4766,6 +7235,13 @@ function resizeThreeSceneNow() {
     !camera ||
     !renderer
   ) {
+    return
+  }
+
+  // 阶段四、五：三维容器被 v-show 隐藏，clientWidth/Height 为 0。
+  // 此时只需重绘平面世界地图（等压线、风向箭头），跳过三维 resize。
+  if (isWorldMapView.value) {
+    scheduleFlatMapDraw()
     return
   }
 
@@ -4817,6 +7293,14 @@ function resizeThreeSceneNow() {
       camera
     )
   }
+
+  /*
+   * 阶段四、五的平面世界地图（等压线、风向箭头）需要随容器尺寸变化重绘，
+   * 否则纹理保持旧分辨率，视觉上发生偏移。
+   */
+  if (isWorldMapView.value) {
+    scheduleFlatMapDraw()
+  }
 }
 
 function scheduleSceneResize(
@@ -4836,6 +7320,8 @@ function scheduleSceneResize(
     sceneResizeSettleFrame
   )
 
+  cancelAnimationFrame(threeSceneRevealFrame)
+
   sceneResizeTimer =
     setTimeout(() => {
       sceneResizeTimer = null
@@ -4854,7 +7340,10 @@ function scheduleSceneResize(
 }
 
 // ==================== 监听 ====================
-watch(layers, applyLayerVisibility, { deep: true })
+watch(layers, () => {
+  applyLayerVisibility()
+  if (isWorldMapView.value) scheduleFlatMapDraw()
+}, { deep: true })
 
 watch(simMode, () => {
   if (!sceneReady) return
@@ -4867,6 +7356,7 @@ watch(month, () => {
   if (!sceneReady) return
   rebuildDynamicAtmosphere()
   updateStageFourSeasonVisibility()
+  if (isWorldMapView.value) scheduleFlatMapDraw()
 })
 
 // ==================== 生命周期 ====================
@@ -4888,6 +7378,12 @@ onBeforeUnmount(() => {
   threeResizeObserver?.disconnect()
   threeResizeObserver = null
 
+  worldMapResizeObserver?.disconnect()
+  worldMapResizeObserver = null
+  lastWorldMapWidth = 0
+  lastWorldMapHeight = 0
+  lastWorldMapDpr = 0
+
   if (sceneResizeTimer) {
     clearTimeout(sceneResizeTimer)
     sceneResizeTimer = null
@@ -4904,7 +7400,29 @@ onBeforeUnmount(() => {
   orbitControls?.dispose()
   orbitControls = null
 
+  worldMapControls?.dispose()
+  worldMapControls = null
+
+  if (worldMapScene) disposeObject3D(worldMapScene)
+  worldMapRenderer?.renderLists.dispose()
+  worldMapRenderer?.dispose()
+  worldMapRenderer?.forceContextLoss()
+  worldMapRenderer = null
+  worldMapScene = null
+  worldMapCamera = null
+  worldMapBaseMesh = null
+  worldMapStaticMesh = null
+  worldMapDynamicMesh = null
+  worldMapStaticCanvas = null
+  worldMapDynamicCanvas = null
+  worldMapStaticTexture = null
+  worldMapDynamicTexture = null
+
   if (scene) {
+    if (scene.background instanceof THREE.Texture) {
+      scene.background.dispose()
+      scene.background = null
+    }
     disposeObject3D(scene)
   }
 
@@ -4916,6 +7434,8 @@ onBeforeUnmount(() => {
   verticalSmokeMaterials.length = 0
   fadingGroups.length = 0
   windFlowMaterials.length = 0
+  singleCellArrowMaterials.length = 0
+  monsoonFlowMaterials.length = 0
   regionalPressureMaterials.length = 0
 
   renderer?.renderLists.dispose()
@@ -4943,7 +7463,6 @@ onBeforeUnmount(() => {
   pressureArrowGroup = null
   latLineGroup = null
   subsolarLineGroup = null
-  pressureBandTextMesh = null
   regionalPressureRoot = null
   regionalPressureSummerGroup = null
   regionalPressureWinterGroup = null
@@ -5207,28 +7726,33 @@ onBeforeUnmount(() => {
 }
 
 .scene-label.label-low {
-  color: #ff8800;
-  border-color: rgba(255, 136, 0, 0.6);
+  color: #d4caff;
+  border-color: rgba(198, 184, 255, 0.66);
+  box-shadow: 0 0 14px rgba(198, 184, 255, 0.16);
 }
 
 .scene-label.label-high {
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.6);
+  color: #b7f4e4;
+  border-color: rgba(166, 234, 216, 0.66);
+  box-shadow: 0 0 14px rgba(166, 234, 216, 0.16);
 }
 
 .scene-label.label-trade {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.6);
+  color: #2ed9c3;
+  border-color: rgba(46, 217, 195, 0.70);
+  box-shadow: 0 0 14px rgba(46, 217, 195, 0.20);
 }
 
 .scene-label.label-westerly {
-  color: #2ec4b6;
-  border-color: rgba(46, 196, 182, 0.6);
+  color: #ffb84d;
+  border-color: rgba(255, 184, 77, 0.70);
+  box-shadow: 0 0 14px rgba(255, 184, 77, 0.20);
 }
 
 .scene-label.label-polar {
-  color: #a78bfa;
-  border-color: rgba(167, 139, 250, 0.6);
+  color: #75a7ff;
+  border-color: rgba(117, 167, 255, 0.72);
+  box-shadow: 0 0 14px rgba(117, 167, 255, 0.22);
 }
 
 .scene-label.label-cell-hadley {
@@ -5308,11 +7832,11 @@ onBeforeUnmount(() => {
 }
 
 .wind-item.pressure-low .wind-icon {
-  color: #ff8800;
+  color: #c6b8ff;
 }
 
 .wind-item.pressure-high .wind-icon {
-  color: #ef4444;
+  color: #a6ead8;
 }
 
 /* 图例 */
@@ -6022,8 +8546,8 @@ body.geo-panel-resizing {
 }
 
 .monsoon-legend-ribbon {
-  background: linear-gradient(90deg, #ffd166, #ff5f6d, #f72585) !important;
-  box-shadow: 0 0 9px rgba(247, 37, 133, 0.48) !important;
+  background: linear-gradient(90deg, #ff3158, #a84fff, #8be76d) !important;
+  box-shadow: 0 0 9px rgba(168, 79, 255, 0.42) !important;
 }
 
 
@@ -6432,5 +8956,398 @@ body.geo-panel-resizing {
   display: block;
   width: 100% !important;
   height: 100% !important;
+}
+
+/* ===================== 阶段四、五：平面世界地图 ===================== */
+.general-atmospheric-circulation-container .world-map-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: clamp(18px, 3vh, 34px) clamp(12px, 2.4vw, 34px) 92px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: rgba(0, 7, 20, 0.16);
+  animation: world-map-reveal 0.72s cubic-bezier(0.2, 0.72, 0.2, 1) both;
+}
+
+.general-atmospheric-circulation-container .world-map-stage.map-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  gap: 12px;
+  padding: 20px;
+  background: rgba(0, 7, 18, 0.94);
+  backdrop-filter: blur(14px);
+  animation: none;
+}
+
+.general-atmospheric-circulation-container .world-map-stage.map-expanded .world-map-frame {
+  width: min(94vw, calc((100vh - 116px) * 2));
+  max-height: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.general-atmospheric-circulation-container .world-map-stage.map-expanded .world-map-legend {
+  background: rgba(3, 16, 33, 0.94);
+}
+
+.general-atmospheric-circulation-container .world-map-frame {
+  position: relative;
+  /* 只保留一套地图尺寸来源：既受中心区域宽度约束，也受视口高度约束。
+     浏览器缩放时不会再被文件末尾第二套 width 规则二次覆盖。 */
+  width: min(100%, calc((100vh - 210px) * 2), 1120px);
+  aspect-ratio: 2 / 1;
+  max-height: calc(100% - 74px);
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: #071425;
+  box-shadow: none;
+}
+
+.general-atmospheric-circulation-container .world-map-viewport {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+}
+
+.general-atmospheric-circulation-container .world-map-viewport.dragging {
+  cursor: grabbing;
+}
+
+.general-atmospheric-circulation-container .world-map-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.general-atmospheric-circulation-container .world-map-canvas {
+  display: block;
+  z-index: 2;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.general-atmospheric-circulation-container .world-map-state-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid rgba(108, 226, 255, 0.34);
+  border-radius: 7px;
+  background: rgba(2, 14, 29, 0.78);
+  color: #cbefff;
+  font-size: 12px;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+}
+
+.general-atmospheric-circulation-container .world-map-state-badge strong {
+  color: #73ebff;
+}
+
+.general-atmospheric-circulation-container .world-map-interaction-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 3;
+  padding: 6px 9px;
+  border: 1px solid rgba(122, 205, 255, 0.24);
+  border-radius: 6px;
+  background: rgba(3, 15, 30, 0.72);
+  color: rgba(210, 238, 255, 0.82);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.general-atmospheric-circulation-container .world-map-legend {
+  display: grid;
+  grid-template-columns: auto minmax(250px, 390px);
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 5px;
+  padding: 9px 14px;
+  border: 1px solid rgba(143, 218, 255, 0.34);
+  border-radius: 8px;
+  background: rgba(3, 16, 33, 0.82);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  color: #e7f7ff;
+}
+
+.general-atmospheric-circulation-container .world-map-legend .legend-title {
+  grid-row: 1 / 4;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.general-atmospheric-circulation-container .pressure-scale {
+  height: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  background: linear-gradient(90deg, #455ce7 0%, #7292ef 20%, #a8ddff 38%, #f5f1df 53%, #ffc578 72%, #ff5d35 100%);
+}
+
+.general-atmospheric-circulation-container .legend-values {
+  color: #d8e9f5;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.general-atmospheric-circulation-container .legend-source {
+  color: rgba(174, 212, 232, 0.78);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+@keyframes world-map-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  .general-atmospheric-circulation-container .world-map-stage {
+    gap: 10px;
+    padding: 14px 10px 84px;
+  }
+
+  .general-atmospheric-circulation-container .world-map-frame {
+    max-height: calc(100% - 58px);
+  }
+
+  .general-atmospheric-circulation-container .world-map-legend {
+    grid-template-columns: auto minmax(150px, 250px);
+    padding: 7px 10px;
+  }
+}
+
+/* ===================== 教学浮卡、代表月份与全宽二维地图 ===================== */
+.general-atmospheric-circulation-container .floating-teaching-content {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px 6px;
+}
+
+.general-atmospheric-circulation-container .floating-stage-nav {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  overflow: visible;
+  background: transparent;
+}
+
+.general-atmospheric-circulation-container .floating-stage-nav .stage-nav-item,
+.general-atmospheric-circulation-container .floating-stage-card .step-point {
+  border: 1px solid transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.general-atmospheric-circulation-container .floating-stage-nav .stage-nav-item {
+  min-width: 0;
+}
+
+.general-atmospheric-circulation-container .floating-stage-card {
+  min-width: 0;
+  padding: 2px 0 8px;
+}
+
+.general-atmospheric-circulation-container .floating-stage-card .stage-header {
+  align-items: flex-start;
+}
+
+.general-atmospheric-circulation-container .floating-stage-card .section-title {
+  min-width: 0;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.general-atmospheric-circulation-container .floating-stage-card .step-point {
+  width: 100%;
+}
+
+.general-atmospheric-circulation-container .timeline-dock {
+  width: min(96%, 1040px) !important;
+}
+
+.general-atmospheric-circulation-container .month-control-group,
+.general-atmospheric-circulation-container .month-options {
+  display: flex;
+  align-items: center;
+}
+
+.general-atmospheric-circulation-container .month-control-group {
+  flex: 0 0 auto;
+  gap: 9px;
+  padding-right: 12px;
+  border-right: 1px solid rgba(112, 205, 236, 0.18);
+}
+
+.general-atmospheric-circulation-container .month-control-label {
+  color: #9fd8e8;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.general-atmospheric-circulation-container .month-options {
+  gap: 6px;
+}
+
+.general-atmospheric-circulation-container .month-btn {
+  min-width: 52px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(96, 205, 239, 0.26);
+  border-radius: 9px;
+  color: #b8d9e8;
+  background: rgba(6, 27, 45, 0.72);
+}
+
+.general-atmospheric-circulation-container .month-btn.active:not(:disabled) {
+  border-color: rgba(116, 230, 255, 0.86);
+  color: #fff;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
+  box-shadow: 0 5px 16px rgba(36, 124, 255, 0.24);
+}
+
+.general-atmospheric-circulation-container .month-control-group.disabled {
+  opacity: 0.38;
+}
+
+.general-atmospheric-circulation-container .month-btn:disabled {
+  cursor: not-allowed;
+}
+
+.general-atmospheric-circulation-container .world-map-stage {
+  padding-inline: clamp(8px, 1vw, 18px);
+}
+
+.general-atmospheric-circulation-container .world-map-legend {
+  align-self: center;
+}
+
+/* 左侧图例随教学阶段切换，只解释当前画面中实际存在的视觉编码。 */
+.general-atmospheric-circulation-container .legend-groups {
+  display: grid;
+  gap: 10px;
+}
+
+.general-atmospheric-circulation-container .legend-group {
+  padding: 9px;
+  border: 1px solid rgba(109, 207, 236, 0.13);
+  border-radius: 9px;
+  background: linear-gradient(145deg, rgba(12, 36, 57, 0.72), rgba(5, 20, 37, 0.46));
+}
+
+.general-atmospheric-circulation-container .legend-group-title {
+  margin-bottom: 7px;
+  color: #74ddec;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.general-atmospheric-circulation-container .legend-group .legend-list {
+  display: grid;
+  gap: 5px;
+}
+
+.general-atmospheric-circulation-container .legend-group .legend-item {
+  min-height: 25px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: #c0d4df;
+  font-size: 11px;
+  background: rgba(5, 18, 32, 0.34);
+}
+
+.general-atmospheric-circulation-container .legend-symbol {
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.general-atmospheric-circulation-container .legend-symbol.legend-dot {
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 50%;
+}
+
+.general-atmospheric-circulation-container .legend-symbol.legend-line {
+  width: 24px;
+  height: 2px;
+  border-radius: 999px;
+}
+
+.general-atmospheric-circulation-container .legend-symbol.legend-band {
+  width: 24px;
+  height: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  border-radius: 3px;
+  opacity: 1;
+}
+
+.general-atmospheric-circulation-container .legend-symbol.legend-ribbon {
+  width: 26px;
+  height: 6px;
+  border: 0;
+  border-radius: 999px;
+  transform: skewX(-16deg);
+}
+
+@media (max-width: 1180px) {
+  .general-atmospheric-circulation-container .timeline-dock {
+    flex-wrap: wrap;
+    justify-content: center;
+    width: calc(100% - 24px) !important;
+    min-height: 104px !important;
+  }
+
+  .general-atmospheric-circulation-container .timeline-spacer {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .general-atmospheric-circulation-container .timeline-dock {
+    min-height: 148px !important;
+  }
+
+  .general-atmospheric-circulation-container .month-control-group {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .general-atmospheric-circulation-container .month-control-label,
+  .general-atmospheric-circulation-container .speed-control-label {
+    display: none;
+  }
 }
 </style>

@@ -1,11 +1,12 @@
 <template>
-  <section ref="cardRef" class="floating-feature-card" :class="[`variant-${variant}`, { collapsed, resizing }]" :style="{
-    left: `${position.x}px`,
-    top: `${position.y}px`,
-    width: !collapsed && size.width ? `${size.width}px` : undefined,
-    height: !collapsed && size.height ? `${size.height}px` : undefined,
-    zIndex: cardZIndex,
-  }" @pointerdown.capture="bringToFront">
+  <section ref="cardRef" class="floating-feature-card"
+    :class="[`variant-${variant}`, { collapsed, resizing, 'theme-light': light }]" :style="{
+      left: `${position.x}px`,
+      top: `${position.y}px`,
+      width: !collapsed && size.width ? `${size.width}px` : undefined,
+      height: !collapsed && size.height ? `${size.height}px` : undefined,
+      zIndex: cardZIndex,
+    }" @pointerdown.capture="bringToFront">
     <header class="feature-card-head" @pointerdown.stop.prevent="startDrag">
       <div class="feature-card-title">
         <span :title="title">{{ title }}</span>
@@ -51,6 +52,7 @@ const props = withDefaults(defineProps<{
   resizable?: boolean
   minWidth?: number
   minHeight?: number
+  light?: boolean
 }>(), {
   subtitle: '',
   initialTop: 76,
@@ -58,6 +60,7 @@ const props = withDefaults(defineProps<{
   bottomInset: 10,
   initialCollapsed: false,
   resizable: true,
+  light: false,
 })
 
 const emit = defineEmits<{
@@ -320,7 +323,7 @@ onUnmounted(() => {
   transition: none !important;
 }
 
-:global(.theme-light) .floating-feature-card {
+.floating-feature-card.theme-light {
   --feature-bg: linear-gradient(145deg, rgba(248, 253, 255, 0.93), rgba(229, 243, 249, 0.84));
   --feature-head-bg: linear-gradient(90deg, rgba(216, 240, 249, 0.92), rgba(244, 250, 253, 0.72));
   --feature-border: rgba(33, 133, 174, 0.30);

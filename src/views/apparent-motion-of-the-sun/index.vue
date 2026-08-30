@@ -217,41 +217,20 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>数据与规律验证</h2>
-              <p>读取实时结果，展开查看计算过程与易错提醒</p>
-            </div>
-
-            <span class="panel-badge">DATA</span>
-          </div>
-
-          <div class="data-grid sun-data-grid">
-            <article v-for="item in sunDataCards" :key="item.label" class="geo-card data-card" :class="item.className">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.description }}</small>
-            </article>
-          </div>
+      <FloatingFeatureCard title="数据与规律验证" subtitle="读取实时结果，展开查看计算过程与易错提醒" variant="data" :initial-top="76"
+        :initial-right="18" light v-model:collapsed="dataCardCollapsed">
+        <div class="data-grid sun-data-grid" style="padding: 16px;">
+          <article v-for="item in sunDataCards" :key="item.label" class="geo-card data-card" :class="item.className">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <small>{{ item.description }}</small>
+          </article>
         </div>
-
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
         v-bind="leftEntryAttrs">
         ›
-      </button>
-
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
       </button>
     </main>
   </div>
@@ -289,6 +268,7 @@ import '@/styles/geo-page-template.css'
 import {
   useGeoPanelLayout,
 } from '@/hooks/useGeoPanelLayout'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
 // ===== 天空颜色模块（原 skyColors.ts） =====
 function lerpColor(c1: number[], c2: number[], t: number): number[] {
@@ -354,18 +334,18 @@ function applySky(
     groundColor = [18, 28, 14]
   } else if (sunH < -6) {
     const t = (sunH + 12) / 6
-    skyTop = lerpColor(S.nightTop, S.dawnTop, t); skyMid = lerpColor(S.nightMid, S.dawnMid, t); skyHorizon = lerpColor(S.nightHorizon, S.dawnHorizon, t)
-    groundMid = lerpColor(S.nightGround, S.dawnGround, t); groundDark = lerpColor([10, 15, 6], S.nightGround, t)
-    ambColor = lerpColor([15, 25, 55], [40, 50, 90], t); ambInt = 0.3 + t * 0.3
-    hSky = lerpColor([20, 35, 65], [50, 60, 100], t); hGround = lerpColor(S.nightGround, S.dawnGround, t); hInt = 0.25 + t * 0.3
-    groundColor = lerpColor([18, 28, 14], [30, 45, 20], t)
+    skyTop = lerpColor(S.nightTop, S.dawnTop, t * 0.4); skyMid = lerpColor(S.nightMid, S.dawnMid, t * 0.4); skyHorizon = lerpColor(S.nightHorizon, S.dawnHorizon, t * 0.5)
+    groundMid = lerpColor(S.nightGround, S.dawnGround, t * 0.3); groundDark = lerpColor([10, 15, 6], S.nightGround, t * 0.3)
+    ambColor = lerpColor([15, 25, 55], [25, 35, 70], t * 0.5); ambInt = 0.3 + t * 0.08
+    hSky = lerpColor([20, 35, 65], [30, 45, 85], t * 0.4); hGround = lerpColor(S.nightGround, S.dawnGround, t * 0.3); hInt = 0.25 + t * 0.08
+    groundColor = lerpColor([18, 28, 14], [22, 34, 16], t * 0.3)
   } else if (sunH < 0) {
     const t = (sunH + 6) / 6
     skyTop = lerpColor(S.dawnTop, S.sunriseTop, t); skyMid = lerpColor(S.dawnMid, S.sunriseMid, t); skyHorizon = lerpColor(S.dawnHorizon, S.sunriseHorizon, t)
     groundMid = lerpColor(S.dawnGround, S.dayGround, t * 0.4); groundDark = lerpColor(S.nightGround, S.dawnGround, t * 0.5)
-    ambColor = lerpColor([40, 50, 90], [100, 140, 200], t); ambInt = 0.6 + t * 0.5
-    hSky = lerpColor([50, 60, 100], [130, 160, 210], t); hGround = lerpColor(S.dawnGround, S.dayGround, t * 0.5); hInt = 0.55 + t * 0.5
-    groundColor = lerpColor([30, 45, 20], [50, 100, 40], t)
+    ambColor = lerpColor([25, 35, 70], [100, 140, 200], t); ambInt = 0.38 + t * 0.6
+    hSky = lerpColor([30, 45, 85], [130, 160, 210], t); hGround = lerpColor(S.dawnGround, S.dayGround, t * 0.5); hInt = 0.33 + t * 0.6
+    groundColor = lerpColor([22, 34, 16], [50, 100, 40], t)
   } else if (sunH < 15) {
     const t = sunH / 15
     skyTop = lerpColor(S.sunriseTop, S.dayTop, t); skyMid = lerpColor(S.sunriseMid, S.dayMid, t); skyHorizon = lerpColor(S.sunriseHorizon, S.dayHorizon, t)
@@ -400,13 +380,13 @@ function applySky(
   bgTexture.needsUpdate = true
 
   setColor(ambientLight.color, ambColor)
-  ambientLight.intensity = ambInt
+  ambientLight.intensity = ambInt * 0.5
 
   setColor(hemiLight.color, hSky)
   setColor(hemiLight.groundColor, hGround)
-  hemiLight.intensity = hInt
+  hemiLight.intensity = hInt * 0.5
 
-  setColor(groundMaterial.color, groundColor)
+  setColor(groundMaterial.color, groundColor.map(c => Math.max(Math.round(c * 0.55), 22)))
 }
 // --- 城市与节气预设数据 ---
 const cities = [
@@ -480,14 +460,11 @@ const logoUrl = ref(
   'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png'
 )
 
-const rightActivePanels =
-  ref(['lecture', 'calc'])
-
 const speedOptions =
   [1, 2, 5, 10, 20]
 
 const hasLeftPanel = true
-const hasRightPanel = true
+const dataCardCollapsed = ref(false)
 
 /*
  * 左右面板的宽度、断点、拖拽、展开折叠和事件清理
@@ -502,7 +479,6 @@ const {
   layoutMode,
 
   leftCollapsed,
-  rightCollapsed,
   allPanelsCollapsed,
 
   draggingSide,
@@ -510,16 +486,12 @@ const {
 
   workspaceAttrs,
   leftPanelAttrs,
-  rightPanelAttrs,
 
   leftResizeAttrs,
-  rightResizeAttrs,
 
   leftCollapseAttrs,
-  rightCollapseAttrs,
 
   leftEntryAttrs,
-  rightEntryAttrs,
 
   toggleAll: toggleAllPanels,
 } = useGeoPanelLayout({
@@ -528,7 +500,7 @@ const {
   },
 
   right: {
-    enabled: hasRightPanel,
+    enabled: false,
   },
 
   onLayoutChange(state) {
@@ -776,12 +748,17 @@ let swfcGroup: THREE.Group
 let shTowerGroup: THREE.Group
 let buildingGroup: THREE.Group
 let gridLines: THREE.Line[] = []
-let pathLine: THREE.Line | null = null
+let pathLine: THREE.Object3D | null = null
 let sunMesh: THREE.Mesh | null = null
 let currentSunMarker: THREE.Mesh | null = null
 let sunGlowSprite: THREE.Sprite | null = null
 let curSunGlowSprite: THREE.Sprite | null = null
 let sunPointLight: THREE.PointLight | null = null
+let flagpoleGroup: THREE.Group | null = null
+let sunriseLabel: THREE.Sprite | null = null
+let sunsetLabel: THREE.Sprite | null = null
+let undergroundPath: THREE.Group | null = null
+let flagShaderMat: THREE.ShaderMaterial | null = null
 let animFrameId = 0
 let sceneResizeObserver:
   | ResizeObserver
@@ -845,6 +822,9 @@ function drawSunPath() {
   if (sunGlowSprite) { scene.remove(sunGlowSprite); sunGlowSprite = null }
   if (curSunGlowSprite) { scene.remove(curSunGlowSprite); curSunGlowSprite = null }
   if (sunPointLight) { scene.remove(sunPointLight); sunPointLight = null }
+  if (sunriseLabel) { scene.remove(sunriseLabel); sunriseLabel = null }
+  if (sunsetLabel) { scene.remove(sunsetLabel); sunsetLabel = null }
+  if (undergroundPath) { scene.remove(undergroundPath); undergroundPath = null }
 
   // 生成太阳外发光纹理
   const glowCanvas = document.createElement('canvas')
@@ -852,12 +832,12 @@ function drawSunPath() {
   glowCanvas.height = 256
   const glowCtx = glowCanvas.getContext('2d')!
   const gradient = glowCtx.createRadialGradient(128, 128, 0, 128, 128, 128)
-  gradient.addColorStop(0, 'rgba(255,240,180,1.0)')
-  gradient.addColorStop(0.15, 'rgba(255,220,100,0.9)')
-  gradient.addColorStop(0.3, 'rgba(255,180,50,0.5)')
-  gradient.addColorStop(0.5, 'rgba(255,140,20,0.25)')
-  gradient.addColorStop(0.7, 'rgba(255,100,0,0.08)')
-  gradient.addColorStop(1, 'rgba(255,60,0,0.0)')
+  gradient.addColorStop(0, 'rgba(255,210,0,0.9)')
+  gradient.addColorStop(0.15, 'rgba(255,190,0,0.7)')
+  gradient.addColorStop(0.3, 'rgba(255,165,0,0.5)')
+  gradient.addColorStop(0.5, 'rgba(255,130,0,0.3)')
+  gradient.addColorStop(0.7, 'rgba(255,90,0,0.15)')
+  gradient.addColorStop(1, 'rgba(255,40,0,0.0)')
   glowCtx.fillStyle = gradient
   glowCtx.fillRect(0, 0, 256, 256)
   const glowTexture = new THREE.CanvasTexture(glowCanvas)
@@ -874,38 +854,84 @@ function drawSunPath() {
     return sprite
   }
 
-  const points: THREE.Vector3[] = []
+  // 收集所有轨迹点（含地表以下）
+  const allPoints: THREE.Vector3[] = []
+  const abovePoints: THREE.Vector3[] = []
   for (let h = -180; h <= 180; h += 1) {
     const pos = calculateSunPosition(currentLatitude.value, currentDeclination.value, h)
-    if (pos.y >= -0.1) points.push(new THREE.Vector3(pos.x, pos.y, pos.z))
+    const p = new THREE.Vector3(pos.x, pos.y, pos.z)
+    allPoints.push(p)
+    if (pos.y >= -0.1) abovePoints.push(p.clone())
   }
 
-  if (showPath.value && points.length > 2) {
+  // 地下轨迹（半透明管道，区分于地上实线）
+  if (showPath.value && allPoints.length > 2) {
+    const belowPoints: THREE.Vector3[] = []
+    for (const p of allPoints) {
+      if (p.y < -0.1) belowPoints.push(p)
+    }
+    if (belowPoints.length > 2) {
+      const belowCurve = new THREE.CatmullRomCurve3(belowPoints, false, 'centripetal', 0)
+      const belowTube = new THREE.TubeGeometry(belowCurve, 80, 0.02, 6, false)
+      const belowMat = new THREE.MeshBasicMaterial({ color: 0x8a7a4a, transparent: true, opacity: 0.35 })
+      undergroundPath = new THREE.Group()
+      undergroundPath.add(new THREE.Mesh(belowTube, belowMat))
+      scene.add(undergroundPath)
+    }
+  }
+
+  if (showPath.value && abovePoints.length > 2) {
     // 检测是否为闭合环（极昼路径：首尾点接近）
-    const first = points[0]!
-    const last = points[points.length - 1]!
+    const first = abovePoints[0]!
+    const last = abovePoints[abovePoints.length - 1]!
     const isClosedLoop = Math.abs(first.x - last.x) < 0.1 && Math.abs(first.z - last.z) < 0.1 && Math.abs(first.y - last.y) < 0.1
     // 闭合环时去掉重复的尾点，使用 closed=true
-    const curvePoints = isClosedLoop ? points.slice(0, -1) : points
+    const curvePoints = isClosedLoop ? abovePoints.slice(0, -1) : abovePoints
     const curve = new THREE.CatmullRomCurve3(curvePoints, isClosedLoop, 'catmullrom', isClosedLoop ? 0 : 0.3)
-    const smoothPoints = curve.getPoints(isClosedLoop ? 500 : 300)
-    const geo = new THREE.BufferGeometry().setFromPoints(smoothPoints)
-    const color = currentDeclination.value > 0 ? 0xf59e0b : (currentDeclination.value < 0 ? 0x3b82f6 : 0x10b981)
-    const mat = new THREE.LineBasicMaterial({ color, linewidth: 3 })
-    pathLine = new THREE.Line(geo, mat)
+    const tubeGeo = new THREE.TubeGeometry(curve, isClosedLoop ? 200 : 150, 0.025, 8, isClosedLoop)
+    const mat = new THREE.MeshBasicMaterial({ color: 0xe4d28b })
+    pathLine = new THREE.Mesh(tubeGeo, mat)
     scene.add(pathLine)
+
+    // 日出日落标记（非闭合环时）
+    if (!isClosedLoop) {
+      const makeSunLabel = (text: string, pos: THREE.Vector3) => {
+        const c = document.createElement('canvas')
+        c.width = 160
+        c.height = 64
+        const cx = c.getContext('2d')!
+        cx.font = 'bold 32px Arial'
+        cx.fillStyle = '#ffd000'
+        cx.strokeStyle = '#000'
+        cx.lineWidth = 4
+        cx.textAlign = 'center'
+        cx.textBaseline = 'middle'
+        cx.strokeText(text, 80, 32)
+        cx.fillText(text, 80, 32)
+        const tex = new THREE.CanvasTexture(c)
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }))
+        sp.scale.set(1.5, 0.6, 1)
+        sp.position.copy(pos)
+        sp.position.y += 0.5
+        return sp
+      }
+      sunriseLabel = makeSunLabel('日出', first)
+      scene.add(sunriseLabel)
+      sunsetLabel = makeSunLabel('日落', last)
+      scene.add(sunsetLabel)
+    }
   }
 
   // 当前时刻太阳标记：真实发光体 + 外发光 + 点光源
   const curPos = calculateSunPosition(currentLatitude.value, currentDeclination.value, currentHourAngle.value)
-  if (curPos.y >= -0.1) {
+  {
     const markerGeo = new THREE.SphereGeometry(0.35, 32, 32)
-    const markerMat = new THREE.MeshBasicMaterial({ color: 0xffcc40 })
+    const markerMat = new THREE.MeshBasicMaterial({ color: 0xffb800 })
     currentSunMarker = new THREE.Mesh(markerGeo, markerMat)
     currentSunMarker.position.set(curPos.x, curPos.y, curPos.z)
     scene.add(currentSunMarker)
 
-    curSunGlowSprite = makeGlowSprite(5.0)
+    curSunGlowSprite = makeGlowSprite(3.5)
     curSunGlowSprite.position.set(curPos.x, curPos.y, curPos.z)
     scene.add(curSunGlowSprite)
 
@@ -927,7 +953,99 @@ function drawSunPath() {
     dirLight.intensity = 0.3
     renderer.shadowMap.enabled = showShadows.value
   }
+
+  // 旗杆太阳高度角演示：太阳光线、地面阴影、角度弧线、标注
+  updateFlagpoleAngle(curPos)
+
   updateSkyBackground()
+}
+
+function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: number; azDeg: number }) {
+  if (!flagpoleGroup) return
+  // 清除上次的线条/弧线/标注
+  for (let i = flagpoleGroup.children.length - 1; i >= 0; i--) {
+    const child = flagpoleGroup.children[i]!
+    if ((child as any)._isDynamic) flagpoleGroup.remove(child)
+  }
+
+  const sunPos = new THREE.Vector3(curPos.x, curPos.y, curPos.z)
+  const horizDir = new THREE.Vector3(curPos.x, 0, curPos.z)
+  if (horizDir.length() < 0.01) return
+  horizDir.normalize()
+  // 太阳在地平线以下时不显示
+  if (curPos.y < -0.05) return
+
+  const rayMat = new THREE.MeshBasicMaterial({ color: 0xe4d28b })
+  const arcMat = new THREE.MeshBasicMaterial({ color: 0xe4d28b })
+
+  const altRad = Math.max(curPos.alt * Math.PI / 180, 0.5 * Math.PI / 180)
+  const center = new THREE.Vector3(0, 0.01, 0)
+
+  // 太阳光线：从太阳直连正中心（圆柱体）
+  const rayDir = center.clone().sub(sunPos)
+  const rayLen = rayDir.length()
+  const rayMid = sunPos.clone().add(center).multiplyScalar(0.5)
+  const rayCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, rayLen, 8), rayMat)
+  rayCyl.position.copy(rayMid)
+  rayCyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rayDir.normalize())
+    ; (rayCyl as any)._isDynamic = true
+  flagpoleGroup.add(rayCyl)
+
+  // 地面水平线：从中心向太阳水平方向（夹角的另一条边）
+  const groundLineLen = 1.2
+  const groundEnd = center.clone().add(horizDir.clone().multiplyScalar(groundLineLen))
+  const groundMid = center.clone().add(groundEnd).multiplyScalar(0.5)
+  const groundDirVec = groundEnd.clone().sub(center)
+  const groundCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, groundLineLen, 8), rayMat)
+  groundCyl.position.copy(groundMid)
+  groundCyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), groundDirVec.normalize())
+    ; (groundCyl as any)._isDynamic = true
+  flagpoleGroup.add(groundCyl)
+
+  // 角度弧线：在正中心，从地面方向到太阳光线方向（管道体）
+  const up = new THREE.Vector3(0, 1, 0)
+  const arcSegments = 24
+  const arcRadius = 0.8
+  const arcPoints: THREE.Vector3[] = []
+  for (let i = 0; i <= arcSegments; i++) {
+    const t = i / arcSegments
+    const angle = t * altRad
+    const p = center.clone()
+      .add(horizDir.clone().multiplyScalar(Math.cos(angle) * arcRadius))
+      .add(up.clone().multiplyScalar(Math.sin(angle) * arcRadius))
+    arcPoints.push(p)
+  }
+  const arcCurve = new THREE.CatmullRomCurve3(arcPoints, false, 'catmullrom', 0.3)
+  const arcTube = new THREE.Mesh(new THREE.TubeGeometry(arcCurve, 32, 0.018, 8, false), arcMat)
+    ; (arcTube as any)._isDynamic = true
+  flagpoleGroup.add(arcTube)
+
+  // 标注太阳高度角文字
+  const labelCanvas = document.createElement('canvas')
+  labelCanvas.width = 256
+  labelCanvas.height = 64
+  const lctx = labelCanvas.getContext('2d')!
+  lctx.fillStyle = 'rgba(0,0,0,0)'
+  lctx.fillRect(0, 0, 256, 64)
+  lctx.font = 'bold 28px sans-serif'
+  lctx.fillStyle = '#e4d28b'
+  lctx.strokeStyle = '#000000'
+  lctx.lineWidth = 4
+  const text = `太阳高度角 ${curPos.alt.toFixed(1)}°`
+  lctx.strokeText(text, 8, 42)
+  lctx.fillText(text, 8, 42)
+  const labelTex = new THREE.CanvasTexture(labelCanvas)
+  const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false })
+  const labelSprite = new THREE.Sprite(labelMat)
+  labelSprite.scale.set(1.6, 0.4, 1)
+  // 放在弧线中点上方
+  const midAngle = altRad * 0.5
+  const labelPos = center.clone()
+    .add(horizDir.clone().multiplyScalar(Math.cos(midAngle) * (arcRadius + 0.3)))
+    .add(up.clone().multiplyScalar(Math.sin(midAngle) * (arcRadius + 0.3)))
+  labelSprite.position.copy(labelPos)
+    ; (labelSprite as any)._isDynamic = true
+  flagpoleGroup.add(labelSprite)
 }
 
 // --- 动态天空背景（委托给外部模块，避免Vue SFC编译器干扰） ---
@@ -942,19 +1060,15 @@ function updateSkyBackground() {
     hemiLightRef,
     horizonMeshRef.material as THREE.MeshLambertMaterial,
   )
-  // 建筑窗户夜间亮灯：太阳低于0°时逐渐亮起，低于-6°完全亮
-  if (windowMatRef) {
-    const sunH = currentSunHeight.value
-    if (sunH > 0) {
-      windowMatRef.color.setRGB(0.1, 0.19, 0.25) // 白天：深蓝灰
-    } else {
-      const t = Math.min(-sunH / 6, 1) // 0~1，太阳越低越亮
-      const r = 0.12 + (1.0 - 0.12) * t   // → 暖黄
-      const g = 0.22 + (0.92 - 0.22) * t
-      const b = 0.30 + (0.48 - 0.30) * t
-      windowMatRef.color.setRGB(r, g, b)
-    }
-  }
+  // 建筑窗户夜间亮灯 + 路灯亮灯
+  const sunH = currentSunHeight.value
+  const nightT = sunH > 0 ? 0 : Math.min(-sunH / 6, 1)
+  const mats = (buildingGroup as any)?._buildingMats as THREE.MeshStandardMaterial[] | undefined
+  mats?.forEach((m) => { m.emissiveIntensity = nightT * 1.4 })
+  const lampMats = (buildingGroup as any)?._lampHeadMats as THREE.MeshStandardMaterial[] | undefined
+  lampMats?.forEach((m) => { m.emissiveIntensity = nightT * 2.0 })
+  const lamps = (buildingGroup as any)?._streetLights as THREE.PointLight[] | undefined
+  lamps?.forEach((l) => { l.intensity = nightT * 2.0 })
 }
 
 // --- 交互控制函数 ---
@@ -1129,7 +1243,7 @@ function initThree() {
   lastSceneWidth = width
   lastSceneHeight = height
   renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  renderer.shadowMap.type = THREE.BasicShadowMap
   container.appendChild(renderer.domElement)
 
   controls = new OrbitControls(camera, renderer.domElement)
@@ -1156,27 +1270,36 @@ function initThree() {
   // 定向光源
   dirLight = new THREE.DirectionalLight(0xfff8e7, 1.0)
   dirLight.castShadow = true
-  dirLight.shadow.mapSize.width = 1024
-  dirLight.shadow.mapSize.height = 1024
+  dirLight.shadow.mapSize.width = 2048
+  dirLight.shadow.mapSize.height = 2048
   dirLight.shadow.camera.near = 0.5
   dirLight.shadow.camera.far = 50
   dirLight.shadow.camera.left = -12
   dirLight.shadow.camera.right = 12
   dirLight.shadow.camera.top = 12
   dirLight.shadow.camera.bottom = -12
-  dirLight.shadow.bias = -0.001
+  dirLight.shadow.bias = -0.0005
+  dirLight.shadow.radius = 1
   dirLight.position.set(5, 8, 5)
   dirLight.target.position.set(0, 0, 0)
   scene.add(dirLight)
   scene.add(dirLight.target)
 
-  // 地平圈 - 亮绿色草地
+  // 地平圈 - 深色草地
   const horizonGeo = new THREE.CylinderGeometry(8, 8, 0.1, 64)
-  const horizonMat = new THREE.MeshLambertMaterial({ color: 0x4a8a3a, transparent: true, opacity: 0.9 })
+  const horizonMat = new THREE.MeshLambertMaterial({ color: 0x103808, transparent: true, opacity: 0.92 })
   horizonMeshRef = new THREE.Mesh(horizonGeo, horizonMat)
   horizonMeshRef.position.y = -0.05
   horizonMeshRef.receiveShadow = true
   scene.add(horizonMeshRef)
+
+  // 地表圆边框
+  const borderGeo = new THREE.TorusGeometry(8, 0.08, 8, 64)
+  const borderMat = new THREE.MeshStandardMaterial({ color: 0x3a6a2a, roughness: 0.8 })
+  const border = new THREE.Mesh(borderGeo, borderMat)
+  border.rotation.x = Math.PI / 2
+  border.position.y = 0.02
+  scene.add(border)
 
   // 方位线
   const createLine = (x1: number, z1: number, x2: number, z2: number, color: number) => {
@@ -1187,36 +1310,45 @@ function initThree() {
     scene.add(line)
     gridLines.push(line)
   }
-  createLine(0, -8, 0, 8, 0xffffff)
-  createLine(-8, 0, 8, 0, 0xffffff)
-  createLine(0, 0, 0, -8.5, 0x8888ff)
-  createLine(0, 0, 0, 8.5, 0x8888ff)
-  createLine(0, 0, -8.5, 0, 0x8888ff)
-  createLine(0, 0, 8.5, 0, 0x8888ff)
+  // 中轴线（黄色实线圆柱）
+  const axisMat = new THREE.MeshBasicMaterial({ color: 0xffd000 })
+  const axisNS = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 16, 6), axisMat)
+  axisNS.rotation.x = Math.PI / 2
+  axisNS.position.y = 0.02
+  scene.add(axisNS)
+  gridLines.push(axisNS as any)
+  const axisEW = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 16, 6), axisMat)
+  axisEW.rotation.z = Math.PI / 2
+  axisEW.position.y = 0.02
+  scene.add(axisEW)
+  gridLines.push(axisEW as any)
 
   // 东南西北方向标签
   const makeDirLabel = (text: string, color: string, x: number, z: number) => {
     const canvas = document.createElement('canvas')
-    canvas.width = 128
-    canvas.height = 64
+    canvas.width = 192
+    canvas.height = 96
     const ctx = canvas.getContext('2d')!
-    ctx.clearRect(0, 0, 128, 64)
-    ctx.font = 'bold 36px Arial'
+    ctx.clearRect(0, 0, 192, 96)
+    ctx.font = 'bold 52px Arial'
     ctx.fillStyle = color
+    ctx.strokeStyle = '#000000'
+    ctx.lineWidth = 4
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(text, 64, 32)
+    ctx.strokeText(text, 96, 48)
+    ctx.fillText(text, 96, 48)
     const texture = new THREE.CanvasTexture(canvas)
     const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })
     const sprite = new THREE.Sprite(spriteMat)
-    sprite.scale.set(1.2, 0.6, 1)
+    sprite.scale.set(2.0, 1.0, 1)
     sprite.position.set(x, 0.8, z)
     scene.add(sprite)
   }
-  makeDirLabel('东 E', '#2ec4b6', 9.5, 0)
-  makeDirLabel('南 S', '#2ec4b6', 0, 9.5)
-  makeDirLabel('西 W', '#2ec4b6', -9.5, 0)
-  makeDirLabel('北 N', '#2ec4b6', 0, -9.5)
+  makeDirLabel('东 E', '#ffd000', 9.5, 0)
+  makeDirLabel('南 S', '#ffd000', 0, 9.5)
+  makeDirLabel('西 W', '#ffd000', -9.5, 0)
+  makeDirLabel('北 N', '#ffd000', 0, -9.5)
 
   // 天穹半球 - 主题色
   const domeGeo = new THREE.SphereGeometry(8, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2)
@@ -1224,693 +1356,477 @@ function initThree() {
   dome = new THREE.Mesh(domeGeo, domeMat)
   scene.add(dome)
 
-  // --- 城市建筑群 ---（陆家嘴三件套 + 紧凑真实建筑）
+  // --- 城市场景：九宫格街区 ---
   buildingGroup = new THREE.Group()
 
-  // 建筑通用材质
-  const concreteMat = new THREE.MeshPhongMaterial({ color: 0xd4d0c8, specular: 0x222222, shininess: 30 })
-  const glassMat = new THREE.MeshPhongMaterial({ color: 0x6a9fc0, specular: 0x888888, shininess: 120, transparent: true, opacity: 0.85 })
-  const darkGlassMat = new THREE.MeshPhongMaterial({ color: 0x3a5570, specular: 0xaaaaaa, shininess: 100, transparent: true, opacity: 0.9 })
-  const warmMat = new THREE.MeshPhongMaterial({ color: 0xc8a87c, specular: 0x333333, shininess: 60 })
-  const steelMat = new THREE.MeshPhongMaterial({ color: 0x8899aa, specular: 0x444444, shininess: 80 })
-  const blueMat = new THREE.MeshPhongMaterial({ color: 0x4a90d9, specular: 0x666666, shininess: 90, transparent: true, opacity: 0.85 })
-  const pinkMat = new THREE.MeshPhongMaterial({ color: 0xe860a0, specular: 0x888888, shininess: 80, transparent: true, opacity: 0.8 })
-  const windowMat = new THREE.MeshBasicMaterial({ color: 0x1a3040, toneMapped: false })
-  windowMatRef = windowMat
-  const roofMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 20 })
-  const lightConcreteMat = new THREE.MeshPhongMaterial({ color: 0xe8e4d8, specular: 0x222222, shininess: 25 })
-  const treeTrunkMat = new THREE.MeshPhongMaterial({ color: 0x7a4a28, shininess: 20 })
-  const treeLeafMat = new THREE.MeshPhongMaterial({ color: 0x3f8f4b, shininess: 30 })
-  const treeLeafLightMat = new THREE.MeshPhongMaterial({ color: 0x63b85f, shininess: 35 })
+  const CITY_SIZE = 12
+  const ROAD_WIDTH = 0.9
+  const ROAD_X = [-2, 2]
+  const ROAD_Z = [-2, 2]
+  const SIDEWALK_WIDTH = 0.25
+  const BLOCK_MARGIN = 0.3
 
-  const addBoxWindows = (
-    group: THREE.Group,
-    w: number,
-    h: number,
-    d: number,
-    yOffset = 0,
-    centerX = 0,
-    centerZ = 0,
-    includeBack = true,
-    includeSides = true
-  ) => {
-    const rowGap = 0.20
-    const colGap = 0.10
-    const rows = Math.max(
-      1,
-      Math.floor(h / rowGap)
-    )
-    const colsW = Math.max(
-      1,
-      Math.floor(w / colGap)
-    )
-    const colsD = Math.max(
-      1,
-      Math.floor(d / colGap)
-    )
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0x4a4a52, roughness: 0.95 })
+  const lineMat = new THREE.MeshStandardMaterial({ color: 0xf0c020, roughness: 0.6, emissive: 0x000000 })
+  const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.85 })
+  const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 })
+  const treeLeafMat = new THREE.MeshStandardMaterial({ color: 0x3f8f4b, roughness: 0.7 })
+  const lampPostMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6, metalness: 0.5 })
 
-    const winW = Math.min(
-      0.06,
-      Math.max(0.034, w * 0.34)
-    )
-    const winH = Math.min(
-      0.12,
-      Math.max(0.055, h * 0.12)
-    )
-    const winD = 0.006
-
-    for (let r = 0; r < rows; r++) {
-      const wy = yOffset + 0.08 + r * rowGap
-
-      if (wy > yOffset + h - 0.07) {
-        break
-      }
-
-      for (let c = 0; c < colsW; c++) {
-        const wx =
-          centerX - w / 2 + 0.04 + c * colGap
-
-        if (wx > centerX + w / 2 - 0.04) {
-          break
-        }
-
-        const wf = new THREE.Mesh(
-          new THREE.BoxGeometry(
-            winW,
-            winH,
-            winD
-          ),
-          windowMat
-        )
-        wf.position.set(
-          wx,
-          wy,
-          centerZ + d / 2 + 0.004
-        )
-        group.add(wf)
-
-        if (includeBack) {
-          const wb = new THREE.Mesh(
-            new THREE.BoxGeometry(
-              winW,
-              winH,
-              winD
-            ),
-            windowMat
-          )
-          wb.position.set(
-            wx,
-            wy,
-            centerZ - d / 2 - 0.004
-          )
-          group.add(wb)
-        }
-      }
-
-      if (includeSides) {
-        for (let c = 0; c < colsD; c++) {
-          const wz =
-            centerZ - d / 2 + 0.04 + c * colGap
-
-          if (wz > centerZ + d / 2 - 0.04) {
-            break
-          }
-
-          const wr = new THREE.Mesh(
-            new THREE.BoxGeometry(
-              winD,
-              winH,
-              winW
-            ),
-            windowMat
-          )
-          wr.position.set(
-            centerX + w / 2 + 0.004,
-            wy,
-            wz
-          )
-          group.add(wr)
-
-          const wl = new THREE.Mesh(
-            new THREE.BoxGeometry(
-              winD,
-              winH,
-              winW
-            ),
-            windowMat
-          )
-          wl.position.set(
-            centerX - w / 2 - 0.004,
-            wy,
-            wz
-          )
-          group.add(wl)
-        }
-      }
+  const winCanvas = document.createElement('canvas')
+  winCanvas.width = 64
+  winCanvas.height = 64
+  const winCtx = winCanvas.getContext('2d')!
+  winCtx.fillStyle = '#0a0a0a'
+  winCtx.fillRect(0, 0, 64, 64)
+  winCtx.fillStyle = '#5a5a5a'
+  for (let y = 2; y < 64; y += 8) {
+    for (let x = 2; x < 64; x += 8) {
+      winCtx.fillRect(x, y, 5, 5)
     }
   }
+  const windowTex = new THREE.CanvasTexture(winCanvas)
+  windowTex.wrapS = THREE.RepeatWrapping
+  windowTex.wrapT = THREE.RepeatWrapping
 
-  // 辅助函数：创建带窗户的紧凑建筑（四面窗）
-  const makeBuilding = (w: number, h: number, d: number, mat: THREE.Material, x: number, z: number, addWindows = true) => {
-    const group = new THREE.Group()
+  const buildingMats: THREE.MeshStandardMaterial[] = []
+  function makeBuildingMat(color: number): THREE.MeshStandardMaterial {
+    const m = new THREE.MeshStandardMaterial({
+      color, map: windowTex, emissiveMap: windowTex,
+      emissive: new THREE.Color(0xffdca4), emissiveIntensity: 0,
+      roughness: 0.7, metalness: 0.1,
+    })
+    buildingMats.push(m)
+    return m
+  }
+  const concreteMat = makeBuildingMat(0xc8c4b8)
+  const glassMat = makeBuildingMat(0x6a9fc0)
+  const darkGlassMat = makeBuildingMat(0x3a5570)
+  const warmMat = makeBuildingMat(0xc8a87c)
+  const steelMat = makeBuildingMat(0x8899aa)
+  const lightConcreteMat = makeBuildingMat(0xe0ddd0)
+  const brickMat = makeBuildingMat(0xb05848)
+  const blueMat = makeBuildingMat(0x4a6a9a)
+  const greenMat = makeBuildingMat(0x5a8a6a)
+  const beigeMat = makeBuildingMat(0xd4c0a0)
+  const tealMat = makeBuildingMat(0x4a8a8a)
+  const rustMat = makeBuildingMat(0xa06840)
+
+  const lampHeadMats: THREE.MeshStandardMaterial[] = []
+  function makeLampHeadMat(): THREE.MeshStandardMaterial {
+    const m = new THREE.MeshStandardMaterial({
+      color: 0xfff5d0, emissive: 0xffdca4, emissiveIntensity: 0,
+      roughness: 0.4,
+    })
+    lampHeadMats.push(m)
+    return m
+  }
+  const streetLights: THREE.PointLight[] = []
+
+  function addRoad(x: number, z: number, w: number, d: number) {
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(w, d), roadMat)
+    road.rotation.x = -Math.PI / 2
+    road.position.set(x, 0.006, z)
+    road.receiveShadow = true
+    buildingGroup.add(road)
+  }
+  function addSidewalk(x: number, z: number, w: number, d: number) {
+    const sw = new THREE.Mesh(new THREE.PlaneGeometry(w, d), sidewalkMat)
+    sw.rotation.x = -Math.PI / 2
+    sw.position.set(x, 0.013, z)
+    sw.receiveShadow = true
+    buildingGroup.add(sw)
+  }
+
+  ROAD_X.forEach((rx) => addRoad(rx, 0, ROAD_WIDTH, CITY_SIZE))
+  ROAD_Z.forEach((rz) => addRoad(0, rz, CITY_SIZE, ROAD_WIDTH))
+
+  // 道路黄色虚线分割线
+  const dashLen = 0.18
+  const dashGap = 0.14
+  const lineWidth = 0.04
+  function addRoadLine(x: number, z: number, w: number, d: number) {
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lineMat)
+    line.rotation.x = -Math.PI / 2
+    line.position.set(x, 0.009, z)
+    buildingGroup.add(line)
+  }
+  ROAD_X.forEach((rx) => {
+    for (let p = -CITY_SIZE / 2 + dashLen / 2; p <= CITY_SIZE / 2 - dashLen / 2; p += dashLen + dashGap) {
+      addRoadLine(rx, p, lineWidth, dashLen)
+    }
+  })
+  ROAD_Z.forEach((rz) => {
+    for (let p = -CITY_SIZE / 2 + dashLen / 2; p <= CITY_SIZE / 2 - dashLen / 2; p += dashLen + dashGap) {
+      addRoadLine(p, rz, dashLen, lineWidth)
+    }
+  })
+  ROAD_X.forEach((rx) => {
+    addSidewalk(rx - ROAD_WIDTH / 2 - SIDEWALK_WIDTH / 2, 0, SIDEWALK_WIDTH, CITY_SIZE)
+    addSidewalk(rx + ROAD_WIDTH / 2 + SIDEWALK_WIDTH / 2, 0, SIDEWALK_WIDTH, CITY_SIZE)
+  })
+  ROAD_Z.forEach((rz) => {
+    addSidewalk(0, rz - ROAD_WIDTH / 2 - SIDEWALK_WIDTH / 2, CITY_SIZE, SIDEWALK_WIDTH)
+    addSidewalk(0, rz + ROAD_WIDTH / 2 + SIDEWALK_WIDTH / 2, CITY_SIZE, SIDEWALK_WIDTH)
+  })
+
+  // 人行横道（斑马线）
+  const crosswalkMat = new THREE.MeshBasicMaterial({ color: 0xeeeeee })
+  const cwOffset = ROAD_WIDTH / 2 + 0.22
+  function addCrosswalkStrips(x: number, z: number, horizontal: boolean) {
+    const stripeW = 0.06
+    const stripeGap = 0.05
+    const stripeLen = ROAD_WIDTH * 0.85
+    for (let i = -1; i <= 1; i++) {
+      const p = i * (stripeW + stripeGap)
+      const stripe = new THREE.Mesh(
+        horizontal ? new THREE.PlaneGeometry(stripeLen, stripeW) : new THREE.PlaneGeometry(stripeW, stripeLen),
+        crosswalkMat
+      )
+      stripe.rotation.x = -Math.PI / 2
+      if (horizontal) {
+        stripe.position.set(x, 0.008, z + p)
+      } else {
+        stripe.position.set(x + p, 0.008, z)
+      }
+      buildingGroup.add(stripe)
+    }
+  }
+  // 在每个路口四侧画斑马线
+  ROAD_X.forEach((rx) => {
+    ROAD_Z.forEach((rz) => {
+      addCrosswalkStrips(rx, rz - cwOffset, true)
+      addCrosswalkStrips(rx, rz + cwOffset, true)
+      addCrosswalkStrips(rx - cwOffset, rz, false)
+      addCrosswalkStrips(rx + cwOffset, rz, false)
+    })
+  })
+
+  // 红绿灯
+  const tlPoleMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6, metalness: 0.4 })
+  const tlRedMat = new THREE.MeshStandardMaterial({ color: 0x440000, emissive: 0xff0000, emissiveIntensity: 0.8 })
+  const tlYellowMat = new THREE.MeshStandardMaterial({ color: 0x444400, emissive: 0xffff00, emissiveIntensity: 0.6 })
+  const tlGreenMat = new THREE.MeshStandardMaterial({ color: 0x004400, emissive: 0x00ff00, emissiveIntensity: 0.5 })
+  function addTrafficLight(x: number, z: number) {
+    const g = new THREE.Group()
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 1.2, 8), tlPoleMat)
+    pole.position.y = 0.6
+    pole.castShadow = true
+    g.add(pole)
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.04, 0.04), tlPoleMat)
+    arm.position.set(0.1, 1.15, 0)
+    g.add(arm)
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.08), tlPoleMat)
+    box.position.set(0.2, 1.0, 0)
+    g.add(box)
+    const lightR = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 12), tlRedMat)
+    lightR.position.set(0.2, 1.1, 0.04)
+    g.add(lightR)
+    const lightY = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 12), tlYellowMat)
+    lightY.position.set(0.2, 1.0, 0.04)
+    g.add(lightY)
+    const lightG = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 12), tlGreenMat)
+    lightG.position.set(0.2, 0.9, 0.04)
+    g.add(lightG)
+    g.position.set(x, 0, z)
+    return g
+  }
+  const tlOffset = ROAD_WIDTH / 2 + SIDEWALK_WIDTH / 2 + 0.1
+  ROAD_X.forEach((rx) => {
+    ROAD_Z.forEach((rz) => {
+      buildingGroup.add(addTrafficLight(rx + tlOffset, rz + tlOffset))
+      buildingGroup.add(addTrafficLight(rx - tlOffset, rz - tlOffset))
+    })
+  })
+
+  const blockBounds: Array<[number, number]> = [
+    [-CITY_SIZE / 2, ROAD_X[0]! - ROAD_WIDTH / 2],
+    [ROAD_X[0]! + ROAD_WIDTH / 2, ROAD_X[1]! - ROAD_WIDTH / 2],
+    [ROAD_X[1]! + ROAD_WIDTH / 2, CITY_SIZE / 2],
+  ]
+  const rand = (a: number, b: number) => a + Math.random() * (b - a)
+  const blockConfigs = [
+    { count: 3, type: 'high' as const }, { count: 4, type: 'mixed' as const }, { count: 3, type: 'normal' as const },
+    { count: 4, type: 'mixed' as const }, { count: 2, type: 'high' as const }, { count: 3, type: 'normal' as const },
+    { count: 3, type: 'normal' as const }, { count: 4, type: 'mixed' as const }, { count: 3, type: 'high' as const },
+  ]
+  function pickMat(type: string) {
+    if (type === 'high') return [glassMat, darkGlassMat, steelMat, blueMat, tealMat][Math.floor(Math.random() * 5)]
+    if (type === 'mixed') return [concreteMat, glassMat, steelMat, warmMat, brickMat, beigeMat, rustMat][Math.floor(Math.random() * 7)]
+    return [concreteMat, lightConcreteMat, warmMat, brickMat, greenMat, beigeMat, rustMat][Math.floor(Math.random() * 7)]
+  }
+
+  // 建筑样式：方盒、阶梯塔、圆柱塔、L型、斜顶、双塔
+  function makeBox(w: number, h: number, d: number, mat: THREE.Material, x: number, z: number) {
     const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
-    body.position.y = h / 2
+    body.position.set(x, h / 2, z)
     body.castShadow = true
     body.receiveShadow = true
-    group.add(body)
-    // 屋顶边缘
-    const roofEdge = new THREE.Mesh(new THREE.BoxGeometry(w + 0.02, 0.04, d + 0.02), roofMat)
-    roofEdge.position.y = h + 0.02
-    group.add(roofEdge)
-    if (addWindows) {
-      addBoxWindows(
-        group,
-        w,
-        h,
-        d
-      )
-    }
-    group.position.set(x, 0, z)
-    return group
+    buildingGroup.add(body)
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.02, 0.06, d + 0.02), steelMat)
+    roof.position.set(x, h + 0.03, z)
+    buildingGroup.add(roof)
   }
-
-  // 辅助函数：创建阶梯式塔楼
-  const makeSteppedTower = (baseW: number, totalH: number, steps: number, mat: THREE.Material, x: number, z: number) => {
-    const group = new THREE.Group()
+  function makeStepped(w: number, h: number, d: number, mat: THREE.Material, x: number, z: number) {
+    const steps = 3
     let y = 0
     for (let i = 0; i < steps; i++) {
-      const frac = i / steps
-      const w = baseW * (1 - frac * 0.55)
-      const d = w * 0.85
-      const h = totalH / steps
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
-      const segmentBottom = y
-      y += h / 2
-      mesh.position.y = y
-      group.add(mesh)
-      addBoxWindows(
-        group,
-        w,
-        h,
-        d,
-        segmentBottom,
-        0,
-        0,
-        true,
-        true
-      )
-      y += h / 2
-      mesh.castShadow = true
-      mesh.receiveShadow = true
+      const sw = w * (1 - i * 0.2)
+      const sd = d * (1 - i * 0.2)
+      const sh = h / steps
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(sw, sh, sd), mat)
+      seg.position.set(x, y + sh / 2, z)
+      seg.castShadow = true
+      seg.receiveShadow = true
+      buildingGroup.add(seg)
+      y += sh
     }
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(baseW * 0.1, 0.2, 8), mat)
-    tip.position.y = y + 0.1; group.add(tip)
-    group.position.set(x, 0, z)
-    return group
   }
-
-  // 辅助函数：创建L型建筑
-  const makeLBuilding = (w: number, h: number, d: number, wingW: number, wingD: number, mat: THREE.Material, x: number, z: number) => {
-    const group = new THREE.Group()
+  function makeCylinder(r: number, h: number, mat: THREE.Material, x: number, z: number) {
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.85, r, h, 16), mat)
+    body.position.set(x, h / 2, z)
+    body.castShadow = true
+    body.receiveShadow = true
+    buildingGroup.add(body)
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.85, r * 0.85, 0.05, 16), steelMat)
+    cap.position.set(x, h + 0.025, z)
+    buildingGroup.add(cap)
+  }
+  function makeLShape(w: number, h: number, d: number, mat: THREE.Material, x: number, z: number) {
     const main = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
-    main.position.set(w / 2, h / 2, 0)
+    main.position.set(x + w * 0.15, h / 2, z)
     main.castShadow = true
     main.receiveShadow = true
-    group.add(main)
-    addBoxWindows(
-      group,
-      w,
-      h,
-      d,
-      0,
-      w / 2,
-      0,
-      true,
-      true
-    )
-
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(wingW, h * 0.7, wingD), mat)
-    wing.position.set(0, h * 0.35, wingD / 2)
+    buildingGroup.add(main)
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(w * 0.5, h * 0.65, d * 0.6), mat)
+    wing.position.set(x - w * 0.2, h * 0.325, z + d * 0.2)
     wing.castShadow = true
-    group.add(wing)
-    addBoxWindows(
-      group,
-      wingW,
-      h * 0.7,
-      wingD,
-      0,
-      0,
-      wingD / 2,
-      true,
-      true
-    )
-
-    group.position.set(x, 0, z)
-    return group
+    buildingGroup.add(wing)
   }
-
-  // 1. 金茂大厦（阶梯式）- 紧凑位置
-  jinMaoGroup = makeSteppedTower(0.35, 2.45, 7, warmMat, 0.88, 0.12)
-  buildingGroup.add(jinMaoGroup)
-
-  // 2. 环球金融中心（扁平+开孔顶部）- 紧凑位置
-  swfcGroup = new THREE.Group()
-  const swfcBody = new THREE.Mesh(new THREE.BoxGeometry(0.28, 2.5, 0.35), steelMat)
-  swfcBody.position.y = 1.25; swfcBody.castShadow = true; swfcBody.receiveShadow = true; swfcGroup.add(swfcBody)
-  for (let r = 0; r < 16; r++) {
-    const wy = 0.1 + r * 0.15
-    for (let c = 0; c < 3; c++) {
-      const wx = -0.12 + c * 0.08
-      const wMesh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.005), windowMat)
-      wMesh.position.set(wx, wy, 0.175 + 0.002)
-      swfcGroup.add(wMesh)
-    }
+  function makeSlantRoof(w: number, h: number, d: number, mat: THREE.Material, x: number, z: number) {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
+    body.position.set(x, h / 2, z)
+    body.castShadow = true
+    body.receiveShadow = true
+    buildingGroup.add(body)
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.02, 0.06, d + 0.02), steelMat)
+    roof.position.set(x, h + 0.03, z)
+    buildingGroup.add(roof)
   }
-  const swfcTop = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.45, 0.25), steelMat)
-  swfcTop.position.y = 2.73; swfcTop.castShadow = true; swfcGroup.add(swfcTop)
-  const swfcGapMat2 = new THREE.MeshBasicMaterial({ color: 0x0e1520 })
-  const swfcGap1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 0.25), swfcGapMat2)
-  swfcGap1.position.set(-0.05, 2.73, 0); swfcGroup.add(swfcGap1)
-  const swfcGap2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 0.25), swfcGapMat2)
-  swfcGap2.position.set(0.05, 2.73, 0); swfcGroup.add(swfcGap2)
-  const swfcAnt = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.02, 0.3, 6), steelMat)
-  swfcAnt.position.y = 2.95 + 0.15; swfcGroup.add(swfcAnt)
-  swfcGroup.position.set(-0.64, 0, 0.52)
-  buildingGroup.add(swfcGroup)
+  function makeTwin(w: number, h: number, d: number, mat: THREE.Material, x: number, z: number) {
+    const tw = w * 0.42
+    const left = new THREE.Mesh(new THREE.BoxGeometry(tw, h, d), mat)
+    left.position.set(x - w * 0.28, h / 2, z)
+    left.castShadow = true
+    left.receiveShadow = true
+    buildingGroup.add(left)
+    const right = new THREE.Mesh(new THREE.BoxGeometry(tw, h * 0.85, d), mat)
+    right.position.set(x + w * 0.28, h * 0.425, z)
+    right.castShadow = true
+    buildingGroup.add(right)
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, 0.05, d * 0.3), steelMat)
+    bridge.position.set(x, h * 0.65, z)
+    buildingGroup.add(bridge)
+  }
+  const buildingStyles = [makeBox, makeStepped, makeCylinder, makeLShape, makeSlantRoof, makeTwin]
 
-  // 3. 上海中心大厦（扭转式）- 紧凑位置
-  shTowerGroup = new THREE.Group()
-  let shY = 0
-  const shBaseW = 0.35, shTotalH = 3.8, shSectionCount = 12
-  const shSectionH = shTotalH / shSectionCount
-  for (let i = 0; i < shSectionCount; i++) {
-    const frac = i / shSectionCount
-    const w = shBaseW * (1 - frac * 0.5)
-    const d = w * 0.85
-    const twistAngle = frac * 0.45
-    const geo = new THREE.BoxGeometry(w, shSectionH, d)
-    const mesh = new THREE.Mesh(geo, blueMat)
-    shY += shSectionH / 2; mesh.position.y = shY; mesh.rotation.y = twistAngle; shTowerGroup.add(mesh); shY += shSectionH / 2
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    if (i < 8) {
-      for (let c = 0; c < 2; c++) {
-        const wMesh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.005), windowMat)
-        wMesh.position.set(-w / 2 + 0.04 + c * 0.08, shY - shSectionH / 2, d / 2 * Math.cos(twistAngle) + 0.002)
-        wMesh.rotation.y = twistAngle
-        shTowerGroup.add(wMesh)
+  let bi = 0
+  const placed: Array<{ x: number; z: number; hw: number; hd: number }> = []
+  for (let zi = 0; zi < 3; zi++) {
+    for (let xi = 0; xi < 3; xi++) {
+      const [xMin, xMax] = blockBounds[xi]!
+      const [zMin, zMax] = blockBounds[zi]!
+      const cfg = blockConfigs[bi]!
+      const blockPlaced: Array<{ x: number; z: number; hw: number; hd: number }> = []
+      for (let i = 0; i < cfg.count; i++) {
+        const maxW = Math.min(0.7, xMax - xMin - BLOCK_MARGIN * 2)
+        const maxD = Math.min(0.7, zMax - zMin - BLOCK_MARGIN * 2)
+        const w = rand(0.25, maxW)
+        const d = rand(0.25, maxD)
+        const h = cfg.type === 'high' ? rand(1.0, 2.2) : rand(0.4, 1.0)
+        // 尝试 20 次找不重叠的位置
+        let x = 0, z = 0, ok = false
+        const gap = 0.15
+        const centerRadius = 0.7
+        for (let attempt = 0; attempt < 20; attempt++) {
+          x = rand(xMin + BLOCK_MARGIN + w / 2, xMax - BLOCK_MARGIN - w / 2)
+          z = rand(zMin + BLOCK_MARGIN + d / 2, zMax - BLOCK_MARGIN - d / 2)
+          const distCenter = Math.sqrt(x * x + z * z)
+          ok = distCenter > centerRadius + Math.max(w, d) / 2 && blockPlaced.every((p) => {
+            return Math.abs(x - p.x) > p.hw + w / 2 + gap || Math.abs(z - p.z) > p.hd + d / 2 + gap
+          })
+          if (ok) break
+        }
+        if (!ok) continue
+        blockPlaced.push({ x, z, hw: w / 2, hd: d / 2 })
+        const mat = pickMat(cfg.type)
+        const styleFn = buildingStyles[Math.floor(Math.random() * buildingStyles.length)]!
+        if (styleFn === makeCylinder) {
+          styleFn(Math.min(w, d) * 0.5, h, mat, x, z)
+        } else {
+          styleFn(w, h, d, mat, x, z)
+        }
       }
+      bi++
     }
   }
-  const shTipMesh = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.35, 8), new THREE.MeshPhongMaterial({ color: 0x4a90d9, shininess: 100 }))
-  shTipMesh.position.y = shY + 0.175; shTowerGroup.add(shTipMesh)
-  shTowerGroup.position.set(0.08, 0, -0.88)
-  buildingGroup.add(shTowerGroup)
 
-  // 4. 城市综合体与普通高层（替代球塔造型）
-  const makeCylindricalTower = (
-    radius: number,
-    h: number,
-    mat: THREE.Material,
-    x: number,
-    z: number
-  ) => {
-    const group = new THREE.Group()
-
-    const body = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        radius * 0.82,
-        radius,
-        h,
-        18
-      ),
-      mat
-    )
-    body.position.y = h / 2
-    body.castShadow = true
-    body.receiveShadow = true
-    group.add(body)
-
-    const roof = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        radius * 0.86,
-        radius * 0.86,
-        0.06,
-        18
-      ),
-      roofMat
-    )
-    roof.position.y = h + 0.03
-    group.add(roof)
-
-    const bandCount = Math.floor(h / 0.28)
-    for (let i = 1; i < bandCount; i++) {
-      const band = new THREE.Mesh(
-        new THREE.TorusGeometry(
-          radius * 1.01,
-          0.006,
-          4,
-          28
-        ),
-        windowMat
-      )
-      band.rotation.x = Math.PI / 2
-      band.position.y = i * 0.28
-      group.add(band)
-    }
-
-    group.position.set(x, 0, z)
-    return group
-  }
-
-  const makeTwinTower = (
-    x: number,
-    z: number
-  ) => {
-    const group = new THREE.Group()
-
-    const leftTower = makeBuilding(
-      0.18,
-      1.8,
-      0.18,
-      darkGlassMat,
-      -0.16,
-      0,
-      true
-    )
-
-    const rightTower = makeBuilding(
-      0.18,
-      1.55,
-      0.18,
-      glassMat,
-      0.16,
-      0,
-      true
-    )
-
-    const bridge = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.38,
-        0.08,
-        0.10
-      ),
-      steelMat
-    )
-    bridge.position.set(0, 1.12, 0)
-    bridge.castShadow = true
-    bridge.receiveShadow = true
-
-    group.add(leftTower)
-    group.add(rightTower)
-    group.add(bridge)
-    group.position.set(x, 0, z)
-
-    return group
-  }
-
-  const makeSlantedRoofTower = (
-    x: number,
-    z: number
-  ) => {
-    const group = new THREE.Group()
-
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.32,
-        1.72,
-        0.24
-      ),
-      blueMat
-    )
-    body.position.y = 0.86
-    body.castShadow = true
-    body.receiveShadow = true
-    group.add(body)
-
-    const roof = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.34,
-        0.10,
-        0.26
-      ),
-      steelMat
-    )
-    roof.position.y = 1.76
-    roof.rotation.z = -0.18
-    roof.castShadow = true
-    group.add(roof)
-
-    for (let i = 0; i < 9; i++) {
-      const wy = 0.18 + i * 0.16
-      const line = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          0.27,
-          0.018,
-          0.006
-        ),
-        windowMat
-      )
-      line.position.set(0, wy, 0.123)
-      group.add(line)
-    }
-
-    group.position.set(x, 0, z)
-
-    return group
-  }
-
-  const makeTerraceBlock = (
-    x: number,
-    z: number
-  ) => {
-    const group = new THREE.Group()
-
-    const base = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.58,
-        0.34,
-        0.32
-      ),
-      lightConcreteMat
-    )
-    base.position.y = 0.17
-    base.castShadow = true
-    base.receiveShadow = true
-    group.add(base)
-
-    const upper = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.42,
-        0.42,
-        0.24
-      ),
-      glassMat
-    )
-    upper.position.y = 0.55
-    upper.castShadow = true
-    upper.receiveShadow = true
-    group.add(upper)
-    addBoxWindows(
-      group,
-      0.58,
-      0.34,
-      0.32,
-      0,
-      0,
-      0,
-      true,
-      true
-    )
-    addBoxWindows(
-      group,
-      0.42,
-      0.42,
-      0.24,
-      0.34,
-      0,
-      0,
-      true,
-      true
-    )
-
-    const roof = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        0.22,
-        0.27,
-        0.12,
-        6
-      ),
-      warmMat
-    )
-    roof.position.y = 0.82
-    roof.rotation.y = Math.PI / 6
-    roof.castShadow = true
-    group.add(roof)
-
-    group.position.set(x, 0, z)
-
-    return group
-  }
-
-  const makeTree = (
-    x: number,
-    z: number,
-    scale = 1
-  ) => {
-    const group = new THREE.Group()
-
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        0.025 * scale,
-        0.035 * scale,
-        0.24 * scale,
-        8
-      ),
-      treeTrunkMat
-    )
-    trunk.position.y = 0.12 * scale
+  function addTree(x: number, z: number, s = 1) {
+    const g = new THREE.Group()
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * s, 0.04 * s, 0.28 * s, 8), treeTrunkMat)
+    trunk.position.y = 0.14 * s
     trunk.castShadow = true
-    trunk.receiveShadow = true
-    group.add(trunk)
-
-    const crownA = new THREE.Mesh(
-      new THREE.SphereGeometry(
-        0.13 * scale,
-        12,
-        10
-      ),
-      treeLeafMat
-    )
-    crownA.position.set(
-      0,
-      0.30 * scale,
-      0
-    )
-    crownA.castShadow = true
-    group.add(crownA)
-
-    const crownB = new THREE.Mesh(
-      new THREE.SphereGeometry(
-        0.10 * scale,
-        10,
-        8
-      ),
-      treeLeafLightMat
-    )
-    crownB.position.set(
-      -0.055 * scale,
-      0.36 * scale,
-      0.03 * scale
-    )
-    crownB.castShadow = true
-    group.add(crownB)
-
-    const crownC = new THREE.Mesh(
-      new THREE.SphereGeometry(
-        0.09 * scale,
-        10,
-        8
-      ),
-      treeLeafMat
-    )
-    crownC.position.set(
-      0.06 * scale,
-      0.35 * scale,
-      -0.04 * scale
-    )
-    crownC.castShadow = true
-    group.add(crownC)
-
-    group.position.set(x, 0, z)
-
-    return group
+    g.add(trunk)
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.14 * s, 10, 8), treeLeafMat)
+    crown.position.y = 0.32 * s
+    crown.castShadow = true
+    g.add(crown)
+    g.position.set(x, 0, z)
+    return g
+  }
+  for (let x = -CITY_SIZE / 2 + 0.6; x <= CITY_SIZE / 2 - 0.6; x += 0.9) {
+    ROAD_Z.forEach((rz) => {
+      buildingGroup.add(addTree(x, rz - ROAD_WIDTH / 2 - SIDEWALK_WIDTH / 2, 0.85))
+      buildingGroup.add(addTree(x, rz + ROAD_WIDTH / 2 + SIDEWALK_WIDTH / 2, 0.85))
+    })
+  }
+  for (let z = -CITY_SIZE / 2 + 0.6; z <= CITY_SIZE / 2 - 0.6; z += 0.9) {
+    ROAD_X.forEach((rx) => {
+      buildingGroup.add(addTree(rx - ROAD_WIDTH / 2 - SIDEWALK_WIDTH / 2, z, 0.85))
+      buildingGroup.add(addTree(rx + ROAD_WIDTH / 2 + SIDEWALK_WIDTH / 2, z, 0.85))
+    })
   }
 
-  // 4. 分散式城市综合体与普通高层
-  buildingGroup.add(
-    makeTwinTower(-1.42, 0.86)
-  )
-  buildingGroup.add(
-    makeCylindricalTower(
-      0.15,
-      1.95,
-      darkGlassMat,
-      -1.62,
-      -0.28
-    )
-  )
-  buildingGroup.add(
-    makeSlantedRoofTower(-0.78, 1.42)
-  )
-  buildingGroup.add(
-    makeTerraceBlock(-1.68, 1.42)
-  )
+  function addLamp(x: number, z: number, rot: number) {
+    const g = new THREE.Group()
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.9, 8), lampPostMat)
+    post.position.y = 0.45
+    post.castShadow = true
+    g.add(post)
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.03, 0.03), lampPostMat)
+    arm.position.set(0.16, 0.87, 0)
+    g.add(arm)
+    const headMat = makeLampHeadMat()
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.07), headMat)
+    head.position.set(0.3, 0.86, 0)
+    g.add(head)
+    const pl = new THREE.PointLight(0xffdca4, 0, 10)
+    pl.position.set(0.3, 0.8, 0)
+    g.add(pl)
+    streetLights.push(pl)
+    g.position.set(x, 0, z)
+    g.rotation.y = rot
+    return g
+  }
+  const lampGap = 2.6
+  for (let x = -CITY_SIZE / 2 + 0.6; x <= CITY_SIZE / 2 - 0.6; x += lampGap) {
+    ROAD_Z.forEach((rz) => buildingGroup.add(addLamp(x, rz + ROAD_WIDTH / 2 + SIDEWALK_WIDTH / 2, 0)))
+  }
+  for (let z = -CITY_SIZE / 2 + 0.6; z <= CITY_SIZE / 2 - 0.6; z += lampGap) {
+    ROAD_X.forEach((rx) => buildingGroup.add(addLamp(rx + ROAD_WIDTH / 2 + SIDEWALK_WIDTH / 2, z, Math.PI / 2)))
+  }
 
-  // 5-12. 中景建筑拉开摆放，避免互相穿插
-  buildingGroup.add(makeBuilding(0.22, 1.6, 0.22, glassMat, 1.55, -0.62))
-  buildingGroup.add(makeBuilding(0.18, 1.3, 0.18, darkGlassMat, -1.22, -1.08))
-  buildingGroup.add(makeBuilding(0.20, 1.5, 0.20, concreteMat, 1.36, 1.02))
-  buildingGroup.add(makeBuilding(0.16, 1.1, 0.16, warmMat, -0.68, -1.38))
-  buildingGroup.add(makeBuilding(0.25, 1.75, 0.20, lightConcreteMat, 2.12, 0.22))
-  buildingGroup.add(makeBuilding(0.16, 1.05, 0.16, glassMat, -2.18, 0.18))
-  buildingGroup.add(makeBuilding(0.20, 1.38, 0.18, steelMat, 1.92, -1.38))
-  buildingGroup.add(makeSteppedTower(0.20, 1.55, 5, glassMat, -2.05, -1.18))
-
-  // 13-18. 外圈中低层建筑，形成更自然的城市天际线
-  buildingGroup.add(makeLBuilding(0.25, 1.15, 0.15, 0.12, 0.20, concreteMat, 2.48, 1.16))
-  buildingGroup.add(makeBuilding(0.18, 1.28, 0.18, darkGlassMat, -2.48, 1.02))
-  buildingGroup.add(makeBuilding(0.14, 0.9, 0.14, concreteMat, 3.18, 1.72))
-  buildingGroup.add(makeBuilding(0.12, 0.7, 0.12, lightConcreteMat, -3.16, 1.48))
-  buildingGroup.add(makeBuilding(0.16, 1.0, 0.14, warmMat, 4.05, 0.18))
-  buildingGroup.add(makeBuilding(0.10, 0.6, 0.10, steelMat, -4.08, 0.56))
-  buildingGroup.add(makeBuilding(0.13, 0.8, 0.13, glassMat, 3.58, -1.72))
-  buildingGroup.add(makeBuilding(0.11, 0.5, 0.11, concreteMat, -3.58, -1.46))
-
-  // 19. 树木绿化：避开建筑主体，围绕道路和建筑空隙摆放
-  const treePositions: Array<[
-    number,
-    number,
-    number
-  ]> = [
-      [-2.62, -0.42, 0.92],
-      [-2.36, 0.66, 0.82],
-      [-1.72, -1.68, 0.78],
-      [-1.16, 1.92, 0.86],
-      [-0.38, 1.98, 0.74],
-      [0.58, 1.78, 0.82],
-      [1.18, 1.48, 0.76],
-      [1.82, 0.76, 0.88],
-      [2.36, -0.10, 0.82],
-      [1.82, -1.78, 0.76],
-      [0.62, -1.96, 0.84],
-      [-0.42, -1.98, 0.72],
-      [-1.36, -1.94, 0.80],
-      [-2.62, 1.62, 0.70],
-      [2.78, 1.46, 0.76],
-      [2.86, -1.26, 0.70],
-      [3.72, 0.92, 0.66],
-      [-3.72, 0.26, 0.68],
-      [-3.08, -1.62, 0.70],
-      [3.12, -0.72, 0.72],
-      [-0.02, 2.30, 0.78],
-      [0.04, -2.32, 0.76],
-    ]
-
-  treePositions.forEach(
-    ([x, z, scale]) => {
-      buildingGroup.add(
-        makeTree(
-          x,
-          z,
-          scale
-        )
-      )
-    }
-  )
-
+  ; (buildingGroup as any)._buildingMats = buildingMats
+    ; (buildingGroup as any)._lampHeadMats = lampHeadMats
+    ; (buildingGroup as any)._streetLights = streetLights
 
   scene.add(buildingGroup)
+
+  // 旗杆（太阳高度角演示）
+  flagpoleGroup = new THREE.Group()
+  const poleHeight = 1.8
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.4, metalness: 0.6 })
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, poleHeight, 8), poleMat)
+  pole.position.y = poleHeight / 2
+  pole.castShadow = true
+  flagpoleGroup.add(pole)
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), poleMat)
+  ball.position.y = poleHeight + 0.04
+  flagpoleGroup.add(ball)
+
+  // 旗面（canvas 贴图：正面"智地有申" 背面"太阳视运动"，风吹 shader 动画）
+  const flagCanvas = document.createElement('canvas')
+  flagCanvas.width = 256
+  flagCanvas.height = 160
+  const fctx = flagCanvas.getContext('2d')!
+  const flagGrad = fctx.createLinearGradient(0, 0, 256, 160)
+  flagGrad.addColorStop(0, '#c8102e')
+  flagGrad.addColorStop(1, '#a00d22')
+  fctx.fillStyle = flagGrad
+  fctx.fillRect(0, 0, 256, 160)
+  fctx.font = 'bold 56px sans-serif'
+  fctx.fillStyle = '#ffd700'
+  fctx.strokeStyle = '#8a6a00'
+  fctx.lineWidth = 3
+  fctx.textAlign = 'center'
+  fctx.textBaseline = 'middle'
+  fctx.strokeText('智地有申', 128, 80)
+  fctx.fillText('智地有申', 128, 80)
+  const flagTex = new THREE.CanvasTexture(flagCanvas)
+
+  // 背面贴图：太阳视运动
+  const flagCanvasBack = document.createElement('canvas')
+  flagCanvasBack.width = 256
+  flagCanvasBack.height = 160
+  const fbctx = flagCanvasBack.getContext('2d')!
+  const flagGradB = fbctx.createLinearGradient(0, 0, 256, 160)
+  flagGradB.addColorStop(0, '#a00d22')
+  flagGradB.addColorStop(1, '#c8102e')
+  fbctx.fillStyle = flagGradB
+  fbctx.fillRect(0, 0, 256, 160)
+  fbctx.font = 'bold 48px sans-serif'
+  fbctx.fillStyle = '#ffd700'
+  fbctx.strokeStyle = '#8a6a00'
+  fbctx.lineWidth = 3
+  fbctx.textAlign = 'center'
+  fbctx.textBaseline = 'middle'
+  fbctx.strokeText('太阳视运动', 128, 80)
+  fbctx.fillText('太阳视运动', 128, 80)
+  const flagTexBack = new THREE.CanvasTexture(flagCanvasBack)
+
+  flagShaderMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uMap: { value: flagTex },
+      uMapBack: { value: flagTexBack },
+    },
+    vertexShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+      varying float vShade;
+      void main() {
+        vUv = uv;
+        vec3 pos = position;
+        float amp = (pos.x + 0.35) / 0.7;
+        pos.z += sin(uTime * 5.0 + pos.x * 6.0) * 0.07 * amp;
+        pos.y += cos(uTime * 4.0 + pos.x * 5.0) * 0.04 * amp;
+        vShade = 0.75 + 0.25 * (1.0 - amp * abs(sin(uTime * 5.0 + pos.x * 6.0)));
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uMap;
+      uniform sampler2D uMapBack;
+      varying vec2 vUv;
+      varying float vShade;
+      void main() {
+        vec4 tex;
+        if (gl_FrontFacing) {
+          tex = texture2D(uMap, vUv);
+        } else {
+          tex = texture2D(uMapBack, vec2(1.0 - vUv.x, vUv.y));
+        }
+        gl_FragColor = vec4(tex.rgb * vShade, tex.a);
+      }
+    `,
+    side: THREE.DoubleSide,
+    transparent: true,
+  })
+  const flagGeo = new THREE.PlaneGeometry(0.7, 0.44, 16, 8)
+  const flag = new THREE.Mesh(flagGeo, flagShaderMat)
+  flag.position.set(0.38, poleHeight - 0.15, 0)
+  flagpoleGroup.add(flag)
+  scene.add(flagpoleGroup)
 
   // 初始绘制太阳路径
   drawSunPath()
@@ -1924,6 +1840,10 @@ function animate() {
     currentHourAngle.value += animSpeed.value * 0.15
     if (currentHourAngle.value > 180) currentHourAngle.value = -180
     drawSunPath()
+  }
+
+  if (flagShaderMat) {
+    flagShaderMat.uniforms.uTime.value += 0.04
   }
 
   controls.update()

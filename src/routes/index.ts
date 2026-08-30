@@ -347,6 +347,15 @@ export const routes = [
     component: () =>
       import('@/views/shijing-shanhe/index.vue'),
   },
+  {
+    path: '/thermal-circulation',
+    name: 'thermal-circulation',
+    meta: {
+      title: '热力环流',
+    },
+    component: () =>
+      import('@/views/thermal-circulation/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
