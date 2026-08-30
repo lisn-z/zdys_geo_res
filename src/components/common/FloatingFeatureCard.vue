@@ -1,6 +1,6 @@
 <template>
   <section ref="cardRef" class="floating-feature-card"
-    :class="[`variant-${variant}`, { collapsed, resizing, 'theme-light': light }]" :style="{
+    :class="[`variant-${variant}`, { collapsed, resizing, 'theme-light': light, 'resize-from-right': resizeFromRight }]" :style="{
       left: `${position.x}px`,
       top: `${position.y}px`,
       width: !collapsed && size.width ? `${size.width}px` : undefined,
@@ -45,7 +45,9 @@ const props = withDefaults(defineProps<{
   variant: CardVariant
   initialTop?: number
   initialBottom?: number
+  initialLeft?: number
   initialRight?: number
+  initialCenterY?: boolean
   bottomInset?: number
   collapsed?: boolean
   initialCollapsed?: boolean
@@ -57,6 +59,7 @@ const props = withDefaults(defineProps<{
   subtitle: '',
   initialTop: 76,
   initialRight: 18,
+  initialCenterY: false,
   bottomInset: 10,
   initialCollapsed: false,
   resizable: true,
@@ -87,6 +90,11 @@ const resizing = ref(false)
 const cardZIndex = ref(44)
 const position = reactive({ x: 10, y: 76 })
 const size = reactive({ width: 0, height: 0 })
+const resizeFromRight = computed(() => {
+  if (typeof window === 'undefined') return props.initialLeft !== undefined
+  const width = size.width || cardRef.value?.offsetWidth || (props.variant === 'data' ? 360 : 620)
+  return position.x + width * 0.5 <= window.innerWidth * 0.5
+})
 const relativePosition = reactive({
   x: 1,
   y: props.initialBottom === undefined ? 0 : 1,
@@ -98,6 +106,7 @@ let resizeState: {
   x: number
   width: number
   height: number
+  fromRight: boolean
 } | null = null
 
 function bringToFront() {
@@ -171,10 +180,14 @@ function applyRelativePosition() {
 function setInitialPosition() {
   const width = cardRef.value?.offsetWidth || (props.variant === 'data' ? 360 : 620)
   const height = cardRef.value?.offsetHeight || (props.variant === 'data' ? 250 : 360)
-  const x = window.innerWidth - width - props.initialRight
-  const y = props.initialBottom === undefined
-    ? props.initialTop
-    : window.innerHeight - height - props.initialBottom
+  const x = props.initialLeft === undefined
+    ? window.innerWidth - width - props.initialRight
+    : props.initialLeft
+  const y = props.initialCenterY
+    ? (window.innerHeight - height) * 0.5
+    : props.initialBottom === undefined
+      ? props.initialTop
+      : window.innerHeight - height - props.initialBottom
   Object.assign(position, clampPosition(x, y))
   updateRelativePosition()
 }
@@ -229,10 +242,11 @@ function startResize(event: PointerEvent) {
     x: position.x,
     width: rect.width,
     height: rect.height,
+    fromRight: resizeFromRight.value,
   }
   resizing.value = true
   document.body.classList.add('geo-panel-resizing')
-  document.body.style.cursor = 'nesw-resize'
+  document.body.style.cursor = resizeState.fromRight ? 'nwse-resize' : 'nesw-resize'
   document.body.style.userSelect = 'none'
   window.addEventListener('pointermove', moveResize)
   window.addEventListener('pointerup', endResize, { once: true })
@@ -242,14 +256,22 @@ function startResize(event: PointerEvent) {
 function moveResize(event: PointerEvent) {
   if (!resizeState) return
   const minimum = getMinimumSize()
-  const rightEdge = resizeState.x + resizeState.width
-  const maxWidth = Math.max(minimum.width, rightEdge - 10)
   const maxHeight = Math.max(minimum.height, window.innerHeight - position.y - props.bottomInset)
-  const requestedWidth = resizeState.width + resizeState.startX - event.clientX
   const requestedHeight = resizeState.height + event.clientY - resizeState.startY
-  size.width = Math.max(minimum.width, Math.min(requestedWidth, maxWidth))
   size.height = Math.max(minimum.height, Math.min(requestedHeight, maxHeight))
-  position.x = rightEdge - size.width
+
+  if (resizeState.fromRight) {
+    const maxWidth = Math.max(minimum.width, window.innerWidth - resizeState.x - 10)
+    const requestedWidth = resizeState.width + event.clientX - resizeState.startX
+    size.width = Math.max(minimum.width, Math.min(requestedWidth, maxWidth))
+    position.x = resizeState.x
+  } else {
+    const rightEdge = resizeState.x + resizeState.width
+    const maxWidth = Math.max(minimum.width, rightEdge - 10)
+    const requestedWidth = resizeState.width + resizeState.startX - event.clientX
+    size.width = Math.max(minimum.width, Math.min(requestedWidth, maxWidth))
+    position.x = rightEdge - size.width
+  }
 }
 
 function endResize() {
@@ -475,6 +497,24 @@ onUnmounted(() => {
 .feature-resize-handle:hover {
   border-color: var(--feature-title);
   filter: drop-shadow(0 0 7px color-mix(in srgb, var(--feature-title) 45%, transparent));
+}
+
+.floating-feature-card.resize-from-right .feature-resize-handle {
+  right: 7px;
+  left: auto;
+  cursor: nwse-resize;
+}
+
+.floating-feature-card.resize-from-right .feature-resize-handle::before,
+.floating-feature-card.resize-from-right .feature-resize-handle::after,
+.floating-feature-card.resize-from-right .feature-resize-handle i {
+  right: 6px;
+  left: auto;
+  border-right: 2px solid var(--feature-title);
+  border-bottom: 2px solid var(--feature-title);
+  border-left: 0;
+  border-bottom-right-radius: 3px;
+  border-bottom-left-radius: 0;
 }
 
 .collapsed .feature-card-head {
