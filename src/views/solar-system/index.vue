@@ -1,260 +1,92 @@
 <template>
   <div ref="pageRef" class="solar-system-container geo-template-page geo-page theme-dark layout-floating"
     :class="'layout-' + layoutMode">
-    <header class="top-toolbar">
+    <header class="top-toolbar solar-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
           alt="logo" />
       </div>
 
-      <h1 class="page-title">
-        太阳系
-      </h1>
+      <h1 class="page-title">太阳系</h1>
 
       <div class="toolbar-actions">
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{
-            allPanelsCollapsed
-              ? '展开面板'
-              : '收起面板'
-          }}
+        <span class="focus-status">
+          <i></i>
+          控制中心：{{ selectedBodyInfo.name }}
+        </span>
+        <button type="button" class="theme-btn toolbar-btn" :class="{ active: allFloatingPanelsVisible }"
+          @click="toggleFloatingPanels">
+          {{ allFloatingPanelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
-    <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>太阳系控制</h2>
-              <p>
-                设置场景元素、观察视角和天体聚焦
-              </p>
-            </div>
-
-            <span class="panel-badge">
-              CONTROL
-            </span>
-          </div>
-
-
-
-          <!-- 运动辅助 -->
-          <div class="control-group motion-helper-card">
-            <div class="motion-helper-head">
-              <div>
-                <label>🌀 运动辅助</label>
-                <p>
-                  控制行星自转与模拟时间
-                </p>
-              </div>
-
-              <span class="motion-status-pill" :class="{
-                active: showRotation,
-              }">
-                {{ showRotation ? '自转中' : '已关闭' }}
-              </span>
-            </div>
-
-            <div class="motion-toggle-card">
-              <div class="motion-toggle-copy">
-                <strong>行星自转</strong>
-                <span>
-                  按各自行星自转周期与轴倾角运动
-                </span>
-              </div>
-
-              <el-switch v-model="showRotation" size="small" />
-            </div>
-
-            <div class="motion-time-grid">
-              <div>
-                <span>模拟天数</span>
-                <strong>
-                  第 {{ simulatedDay.toFixed(0) }} 天
-                </strong>
-              </div>
-
-              <div>
-                <span>折合年数</span>
-                <strong>
-                  {{
-                    (
-                      simulatedDay / 365
-                    ).toFixed(2)
-                  }}
-                  年
-                </strong>
-              </div>
-            </div>
-
-            <button type="button" class="theme-btn reset-time-btn" @click="resetTime">
-              重置模拟时间
-            </button>
-          </div>
-
-          <!-- 2. 场景元素开关 -->
-          <div class="control-group scene-elements-card">
-            <div class="scene-elements-head">
-              <div>
-                <label>🎨 场景元素</label>
-                <p>按需叠加轨道、标签与小天体</p>
-              </div>
-
-              <span class="scene-elements-count">
-                {{ enabledSceneElementCount }}/5 开启
-              </span>
-            </div>
-
-            <div class="scene-toggle-grid">
-              <div class="scene-toggle-item" :class="{ active: showOrbits }">
-                <div class="scene-toggle-copy">
-                  <span class="scene-toggle-icon">◎</span>
-                  <div>
-                    <strong>行星轨道</strong>
-                    <small>椭圆与轨道倾角</small>
-                  </div>
-                </div>
-                <el-switch v-model="showOrbits" size="small" />
-              </div>
-
-              <div class="scene-toggle-item" :class="{ active: showLabels }">
-                <div class="scene-toggle-copy">
-                  <span class="scene-toggle-icon">Aa</span>
-                  <div>
-                    <strong>行星标签</strong>
-                    <small>显示天体名称</small>
-                  </div>
-                </div>
-                <el-switch v-model="showLabels" size="small" />
-              </div>
-
-              <div class="scene-toggle-item" :class="{ active: showAsteroids }">
-                <div class="scene-toggle-copy">
-                  <span class="scene-toggle-icon">•••</span>
-                  <div>
-                    <strong>小行星带</strong>
-                    <small>火星与木星之间</small>
-                  </div>
-                </div>
-                <el-switch v-model="showAsteroids" size="small" />
-              </div>
-
-              <div class="scene-toggle-item" :class="{ active: showKuiper }">
-                <div class="scene-toggle-copy">
-                  <span class="scene-toggle-icon">❄</span>
-                  <div>
-                    <strong>柯伊伯带</strong>
-                    <small>海王星轨道之外</small>
-                  </div>
-                </div>
-                <el-switch v-model="showKuiper" size="small" />
-              </div>
-
-              <div class="scene-toggle-item scene-toggle-wide" :class="{ active: showComet }">
-                <div class="scene-toggle-copy">
-                  <span class="scene-toggle-icon comet-icon">☄</span>
-                  <div>
-                    <strong>哈雷彗星</strong>
-                    <small>高偏心率、逆向变速公转</small>
-                  </div>
-                </div>
-                <el-switch v-model="showComet" size="small" />
-              </div>
-            </div>
-          </div>
-
-          <!-- 3. 视角/聚焦 -->
-          <div class="control-group">
-            <label>🎥 视角与聚焦</label>
-            <div class="btn-group">
-              <button type="button" class="theme-btn option-btn btn-planet btn-sun" :class="{
-                active: activeView === 'sun',
-              }" @click="focusSun()">
-                太阳
-              </button>
-
-              <button v-for="p in planetViews" :key="p.id" type="button" class="theme-btn option-btn btn-planet" :class="{
-                active: focusedPlanet === p.id,
-              }" @click="focusPlanet(p.id)">
-                {{ p.name }}
-              </button>
-            </div>
-            <div class="btn-group" style="margin-top:4px;">
-              <button class="theme-btn option-btn btn-view" :class="{ active: activeView === 'top' }"
-                @click="setView('top')">俯瞰</button>
-              <button class="theme-btn option-btn btn-view" :class="{ active: activeView === 'side' }"
-                @click="setView('side')">侧视</button>
-              <button class="theme-btn option-btn btn-view" :class="{ active: activeView === 'free' }"
-                @click="setView('free')">自由</button>
-              <button class="theme-btn option-btn comet-focus-btn" @click="focusComet('halley')"
-                :class="{ active: focusedComet }" style="color:#88bbff;">☄️彗星</button>
-            </div>
-          </div>
-          <!-- 3.5 著名小行星聚焦：直接展开，不再折叠 -->
-          <div class="control-group compact-asteroids">
-            <label>
-              ☄️ 著名小行星
-            </label>
-
-            <div class="btn-group asteroid-button-grid">
-              <button v-for="a in asteroidData" :key="a.id" type="button" class="theme-btn option-btn btn-asteroid"
-                :class="{
-                  active: focusedAsteroid === a.id,
-                }" @click="focusAsteroid(a.id)">
-                {{ a.name }}
-              </button>
-            </div>
-          </div>
-
-          <!-- 知识点速览 -->
-          <div id="info-panel">
-            <strong>📌 太阳系八大行星分类</strong>
-            <div class="kp-group"><span class="kp-tag earth-like">类地行星</span> 水星 · 金星 · 地球 · 火星</div>
-            <div class="kp-group"><span class="kp-tag giant">巨行星</span> 木星 · 土星</div>
-            <div class="kp-group"><span class="kp-tag far">远日行星</span> 天王星 · 海王星</div>
-            <div style="margin-top:6px; font-size:11px; color:#94a3b8;">运动三特征：<b style="color:#2ec4b6;">同向性</b>·<b
-                style="color:#2ec4b6;">近圆性</b>·<b style="color:#2ec4b6;">共面性</b></div>
-          </div>
-        </div>
-
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
-
+    <main class="workspace solar-workspace" v-bind="workspaceAttrs">
       <section class="center-stage">
         <div class="stage-content solar-stage-content">
           <div ref="threeContainerRef" class="scene-host three-host solar-scene-host"></div>
 
-          <!-- 行星详情浮动卡（从右侧弹出） -->
+          <div class="scene-vignette" aria-hidden="true"></div>
 
+          <Transition v-if="detailPanelOpen && panelsReady" name="celestial-panel" mode="out-in"
+            @after-enter="setupDetailPreview">
+            <article :key="selectedBodyInfo.id" class="celestial-detail-panel"
+              :class="{ 'without-texture': !selectedBodyInfo.texture }">
+              <header class="detail-hero">
+                <div>
+                  <span class="detail-kicker">{{ selectedBodyInfo.kicker }}</span>
+                  <h2>{{ selectedBodyInfo.name }}</h2>
+                  <p>{{ selectedBodyInfo.subtitle }}</p>
+                </div>
+                <button type="button" class="detail-close" aria-label="关闭天体信息" @click="detailPanelOpen = false">
+                  ×
+                </button>
+              </header>
 
+              <div v-if="selectedBodyInfo.texture" class="celestial-texture">
+                <div ref="detailPreviewRef" class="celestial-preview-canvas"
+                  :aria-label="`${selectedBodyInfo.name}三维表面预览`"></div>
+                <div class="texture-caption">
+                  <span>LIVE CELESTIAL PREVIEW</span>
+                  <strong>{{ selectedBodyInfo.name }}三维表面</strong>
+                </div>
+              </div>
 
+              <div class="detail-scroll">
+                <div class="detail-stat-grid">
+                  <div v-for="item in selectedBodyInfo.stats" :key="item.label" class="detail-stat">
+                    <span>{{ item.label }}</span>
+                    <strong>{{ item.value }}</strong>
+                  </div>
+                </div>
 
-          <div v-if="loading" class="loading-mask">
-            <div class="loading-text">
-              🌌 太阳系生成中...
+                <div class="detail-description">
+                  <p v-for="(paragraph, index) in selectedBodyInfo.description.split('\n')" :key="index">
+                    {{ paragraph }}
+                  </p>
+                </div>
+              </div>
+            </article>
+          </Transition>
+
+          <Transition name="page-loading-fade" @after-leave="panelsReady = true">
+            <div v-if="loading" class="loading-mask">
+              <div class="loading-orbit" aria-hidden="true">
+                <i></i>
+                <span></span>
+              </div>
+              <div class="loading-text">
+                <strong>正在构建太阳系</strong>
+                <span>加载天体轨道与深空环境</span>
+              </div>
             </div>
-          </div>
+          </Transition>
         </div>
 
         <div class="timeline-dock solar-playback-dock">
-          <button type="button" class="timeline-icon-btn" :class="{
-            active: isAnimating,
-          }" :aria-label="isAnimating
-            ? '暂停'
-            : '播放'
-            " :title="isAnimating
-              ? '暂停'
-              : '播放'
-              " @click="
-                isAnimating =
-                !isAnimating
-                ">
+          <button type="button" class="timeline-icon-btn" :class="{ active: isAnimating }"
+            :aria-label="isAnimating ? '暂停' : '播放'" :title="isAnimating ? '暂停' : '播放'"
+            @click="isAnimating = !isAnimating">
             <el-icon>
               <VideoPause v-if="isAnimating" />
               <VideoPlay v-else />
@@ -263,254 +95,137 @@
 
           <div class="timeline-main">
             <div class="timeline-copy">
-              <span>模拟时间与速度</span>
-              <strong>
-                第
-                {{
-                  simulatedDay.toFixed(0)
-                }}
-                天 ·
-                {{
-                  (
-                    simulatedDay / 365
-                  ).toFixed(2)
-                }}
-                年 ·
-                {{ animSpeed }}×
-              </strong>
+              <span>模拟时间 <i class="scale-note">教学可视化比例 · 非真实尺度</i></span>
+              <strong>第 {{ simulatedDay.toFixed(0) }} 天 · {{ (simulatedDay / 365).toFixed(2) }} 年</strong>
             </div>
-
             <el-slider v-model="animSpeed" class="solar-speed-slider" :min="1" :max="50" :step="1"
               :show-tooltip="false" />
           </div>
+
+          <strong class="timeline-speed">{{ animSpeed }}×</strong>
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>数据与知识</h2>
-              <p>
-                查看天体参数、教材数据和易错点
-              </p>
+      <FloatingFeatureCard v-if="controlCardVisible && panelsReady" class="solar-control-card" title="太阳系探索台"
+        :subtitle="`当前控制中心 · ${selectedBodyInfo.name}`" variant="data" :initial-left="18" :initial-top="78"
+        :bottom-inset="92" :min-width="320" :min-height="480">
+        <div class="control-console">
+          <section class="console-section focus-section">
+            <div class="console-heading">
+              <div>
+                <span>ORBIT CENTER</span>
+                <h3>选择控制中心</h3>
+              </div>
+              <strong>{{ selectedBodyInfo.name }}</strong>
             </div>
 
-            <span class="panel-badge">
-              DATA
-            </span>
-          </div>
+            <div class="celestial-selector">
+              <button type="button" :class="{ active: activeView === 'sun' }" @click="focusSun()">
+                <span class="body-dot sun-dot"></span>
+                <strong>太阳</strong>
+              </button>
+              <button v-for="p in planetViews" :key="p.id" type="button" :class="{ active: focusedPlanet === p.id }"
+                @click="focusPlanet(p.id)">
+                <span class="body-dot" :style="{ backgroundColor: p.color }"></span>
+                <strong>{{ p.name }}</strong>
+              </button>
+            </div>
+            <button type="button" class="comet-control-button" :class="{ active: focusedComet }"
+              @click="focusComet('halley')">
+              <span class="comet-control-icon">☄</span>
+              <span>
+                <strong>聚焦哈雷彗星</strong>
+                <small>追踪高倾角逆向轨道</small>
+              </span>
+              <i>FOCUS</i>
+            </button>
+          </section>
 
-          <!-- 哈雷彗星信息 -->
-          <div id="comet-panel" v-if="focusedComet">
-            <strong style="color:#88bbff;">☄️ 哈雷彗星</strong>
-            <div class="card-grid">
-              <div class="data-card">
-                <div class="data-card-label">公转周期</div>
-                <div class="data-card-value" style="color:#88bbff;">{{ cometData.period }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">近日点</div>
-                <div class="data-card-value" style="color:#88bbff;">{{ cometData.perihelion }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">远日点</div>
-                <div class="data-card-value" style="color:#88bbff;">{{ cometData.aphelion }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">偏心率</div>
-                <div class="data-card-value" style="color:#88bbff;">{{ cometData.eccentricity }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">轨道倾角</div>
-                <div class="data-card-value" style="color:#88bbff;">{{ cometData.inclination }}</div>
-              </div>
-              <div class="data-card highlight">
-                <div class="data-card-label">下次近日点</div>
-                <div class="data-card-value" style="color:#fbbf24;">{{ cometData.nextPerihelion }}</div>
+          <section class="console-section">
+            <div class="console-heading">
+              <div>
+                <span>CAMERA</span>
+                <h3>观察视角</h3>
               </div>
             </div>
-            <div style="font-size:11px; color:#e2e8f0; margin-top:8px; line-height:1.6;">{{ cometData.desc }}</div>
-            <button class="theme-btn detail-action-btn" style="margin-top:8px; width:100%;"
-              @click="focusedComet = false; hideAllAnnotations(); activeView = 'free'; setView('free')">取消聚焦</button>
-          </div>
+            <div class="camera-grid">
+              <button type="button" :class="{ active: cameraPreset === 'orbit' }" @click="focusCurrentBody()">
+                环绕
+              </button>
+              <button type="button" :class="{ active: cameraPreset === 'top' }" @click="setView('top')">
+                俯瞰
+              </button>
+              <button type="button" :class="{ active: cameraPreset === 'side' }" @click="setView('side')">
+                侧视
+              </button>
+              <button type="button" :class="{ active: cameraPreset === 'free' }" @click="setView('free')">
+                自由
+              </button>
+            </div>
+          </section>
 
-          <!-- 当前聚焦小行星信息 -->
-          <div id="asteroid-info-panel" v-if="!focusedComet && focusedAsteroidInfo">
-            <strong style="color:#fbbf24;">☄️ 当前关注小行星：{{ focusedAsteroidInfo.name }}</strong>
-            <div class="card-grid">
-              <div class="data-card">
-                <div class="data-card-label">距日距离(AU)</div>
-                <div class="data-card-value" style="color:#fbbf24;">{{ focusedAsteroidInfo.au }}</div>
+          <section class="console-section">
+            <div class="console-heading">
+              <div>
+                <span>SCENE LAYERS</span>
+                <h3>场景图层</h3>
               </div>
-              <div class="data-card">
-                <div class="data-card-label">直径(km)</div>
-                <div class="data-card-value" style="color:#fbbf24;">{{ focusedAsteroidInfo.diameter }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">质量(kg)</div>
-                <div class="data-card-value" style="color:#fbbf24;">{{ focusedAsteroidInfo.mass || '—' }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">密度(g/cm³)</div>
-                <div class="data-card-value" style="color:#fbbf24;">{{ focusedAsteroidInfo.density || '—' }}</div>
-              </div>
+              <strong>{{ enabledSceneElementCount }}/5</strong>
             </div>
-            <div class="asteroid-cat-tag" :class="focusedAsteroidInfo.category === '矮行星' ? 'dwarf' : 'asteroid'">{{
-              focusedAsteroidInfo.category }}</div>
-            <div style="font-size:11px; color:#e2e8f0; margin-top:8px; line-height:1.6;">{{ focusedAsteroidInfo.desc }}
-            </div>
-            <button class="theme-btn detail-action-btn" style="margin-top:8px; width:100%;"
-              @click="focusedAsteroid = null; hideAllAnnotations(); activeView = 'free'; setView('free')">取消聚焦</button>
-          </div>
 
-          <!-- 当前聚焦行星信息（按课本表1-1） -->
-          <div id="params-panel" v-if="!focusedComet && !focusedAsteroidInfo">
-            <strong>🪐 当前关注：{{ focusedInfo.name }}</strong>
-            <div class="card-grid">
-              <div class="data-card">
-                <div class="data-card-label">距日距离(地球=1)</div>
-                <div class="data-card-value">{{ focusedInfo.au }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">公转周期(年)</div>
-                <div class="data-card-value">{{ focusedInfo.years }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">自转周期(日)</div>
-                <div class="data-card-value">{{ focusedInfo.rotation }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">轨道倾角</div>
-                <div class="data-card-value">{{ focusedInfo.orbitTilt }}°</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">轨道偏心率</div>
-                <div class="data-card-value">{{ focusedInfo.eccentricity }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">体积(地球=1)</div>
-                <div class="data-card-value">{{ focusedInfo.volume }}</div>
-              </div>
-              <div class="data-card">
-                <div class="data-card-label">质量(地球=1)</div>
-                <div class="data-card-value">{{ focusedInfo.mass }}</div>
-              </div>
-              <div class="data-card highlight">
-                <div class="data-card-label">平均密度(g/cm³)</div>
-                <div class="data-card-value">{{ focusedInfo.density }}</div>
-              </div>
-              <div class="data-card highlight">
-                <div class="data-card-label">表面温度(°C)</div>
-                <div class="data-card-value">{{ focusedInfo.temperature }}</div>
-              </div>
+            <div class="layer-list">
+              <label>
+                <span><strong>行星轨道</strong><small>显示轨道与倾角</small></span>
+                <el-switch v-model="showOrbits" size="small" />
+              </label>
+              <label>
+                <span><strong>天体标签</strong><small>显示行星名称</small></span>
+                <el-switch v-model="showLabels" size="small" />
+              </label>
+              <label>
+                <span><strong>小行星带</strong><small>火星与木星之间</small></span>
+                <el-switch v-model="showAsteroids" size="small" />
+              </label>
+              <label>
+                <span><strong>柯伊伯带</strong><small>海王星轨道之外</small></span>
+                <el-switch v-model="showKuiper" size="small" />
+              </label>
+              <label>
+                <span><strong>哈雷彗星</strong><small>高偏心率逆向公转</small></span>
+                <el-switch v-model="showComet" size="small" />
+              </label>
             </div>
-            <div class="planet-desc">
-              <div v-for="(line, li) in focusedInfo.desc.split('\n')" :key="li" class="desc-line"
-                :class="{ 'desc-heading': line.startsWith('【') }">{{ line }}</div>
-            </div>
-          </div>
+          </section>
 
-          <!-- 课本表 1-1 太阳系八大行星主要数据 -->
-          <div id="calc-panel">
-            <strong>📊 表1-1 太阳系八大行星主要数据</strong>
-            <div class="table-wrap">
-              <table class="data-table textbook">
-                <thead>
-                  <tr>
-                    <th>项目</th>
-                    <th>水星</th>
-                    <th>金星</th>
-                    <th>地球</th>
-                    <th>火星</th>
-                    <th>木星</th>
-                    <th>土星</th>
-                    <th>天王星</th>
-                    <th>海王星</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td class="row-name">距日(地=1)</td>
-                    <td v-for="p in planetData" :key="p.id + 'au'">{{ p.au.toFixed(2) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="row-name">公转(年)</td>
-                    <td v-for="p in planetData" :key="p.id + 'y'">{{ p.years.toFixed(2) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="row-name">自转(日)</td>
-                    <td v-for="p in planetData" :key="p.id + 'r'">{{ p.rotation.toFixed(2) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="row-name">轨道倾角(°)</td>
-                    <td v-for="p in planetData" :key="p.id + 't'">{{ p.orbitTilt.toFixed(2) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="row-name">偏心率</td>
-                    <td v-for="p in planetData" :key="p.id + 'e'">{{ p.eccentricity.toFixed(3) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="row-name">体积(地=1)</td>
-                    <td v-for="p in planetData" :key="p.id + 'v'">{{ p.volume.toFixed(2) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="row-name">质量(地=1)</td>
-                    <td v-for="p in planetData" :key="p.id + 'm'">{{ p.mass.toFixed(2) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="row-name">密度(g/cm³)</td>
-                    <td v-for="p in planetData" :key="p.id + 'd'">{{ p.density.toFixed(2) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="row-name">表面温度(°C)</td>
-                    <td v-for="p in planetData" :key="p.id + 'te'">{{ p.temperature }}</td>
-                  </tr>
-                </tbody>
-              </table>
+          <section class="console-section">
+            <div class="console-heading">
+              <div>
+                <span>MOTION</span>
+                <h3>运动模拟</h3>
+              </div>
             </div>
-          </div>
+            <div class="motion-summary">
+              <div><span>模拟天数</span><strong>{{ simulatedDay.toFixed(0) }}</strong></div>
+              <div><span>时间倍率</span><strong>{{ animSpeed }}×</strong></div>
+            </div>
+            <button type="button" class="console-reset" @click="resetTime">重置模拟时间</button>
+          </section>
 
-          <!-- 小行星带知识 -->
-          <div id="asteroid-panel">
-            <h3>☄️ 小行星带与太阳系小天体</h3>
-            <div class="kp-item"><b style="color:#fbbf24;">主小行星带：</b>位于<b>火星</b>与<b>木星</b>轨道之间（2.2~3.3 AU），由数百万颗岩石小天体组成。
+          <details class="console-section minor-bodies">
+            <summary>
+              <span><small>DEEP SPACE</small><strong>小天体探索</strong></span>
+              <i>展开</i>
+            </summary>
+            <div class="minor-actions">
+              <button type="button" :class="{ active: focusedComet }" @click="focusComet('halley')">哈雷彗星</button>
+              <button v-for="a in asteroidData" :key="a.id" type="button" :class="{ active: focusedAsteroid === a.id }"
+                @click="focusAsteroid(a.id)">
+                {{ a.name }}
+              </button>
             </div>
-            <div class="kp-item"><b style="color:#fbbf24;">柯伊伯带：</b>位于<b>海王星</b>轨道之外（30~50 AU），含大量冰质天体，冥王星属此区域。</div>
-            <div class="kp-item"><b style="color:#fbbf24;">奥尔特云：</b>太阳系最外层球壳，长周期彗星的起源地。</div>
-            <div class="kp-item"><b style="color:#10b981;">谷神星：</b>小行星带最大天体，已归为矮行星。</div>
-          </div>
-
-          <!-- 易错点 -->
-          <div id="mistakes-panel">
-            <h3>⚠️ 易错点提醒</h3>
-            <div v-for="(m, i) in mistakes" :key="i" class="mistake-item">
-              <span class="wrong">❌ {{ m.wrong }}</span> → <span class="correct">✅ {{ m.correct }}</span><br>
-              <span style="color:#94a3b8;">💡 {{ m.explain }}</span>
-            </div>
-          </div>
+          </details>
         </div>
-
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
-
-      <button v-if="
-        hasLeftPanel &&
-        leftCollapsed
-      " type="button" class="panel-entry-btn entry-left" v-bind="leftEntryAttrs">
-        ›
-      </button>
-
-      <button v-if="
-        hasRightPanel &&
-        rightCollapsed
-      " type="button" class="panel-entry-btn entry-right" v-bind="rightEntryAttrs">
-        ‹
-      </button>
+      </FloatingFeatureCard>
     </main>
   </div>
 </template>
@@ -519,11 +234,17 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ElIcon, ElSlider, ElSwitch } from 'element-plus'
 import 'element-plus/es/components/icon/style/css'
 import 'element-plus/es/components/slider/style/css'
 import 'element-plus/es/components/switch/style/css'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
 import '@/styles/geo-page-template.css'
 import {
@@ -623,7 +344,11 @@ const planetData: PlanetDef[] = [
   },
 ]
 
-const planetViews = planetData.map(p => ({ id: p.id, name: p.name }))
+const planetViews = planetData.map(p => ({
+  id: p.id,
+  name: p.name,
+  color: `#${p.color.toString(16).padStart(6, '0')}`,
+}))
 
 // ===== 著名小行星数据（用于交互查看和注释） =====
 interface AsteroidDef {
@@ -705,9 +430,23 @@ const asteroidData: AsteroidDef[] = [
 // ===== 页面模板与响应式布局 =====
 const threeContainerRef =
   ref<HTMLElement | null>(null)
+const detailPreviewRef =
+  ref<HTMLElement | null>(null)
 
-const hasLeftPanel = true
-const hasRightPanel = true
+const hasLeftPanel = false
+const hasRightPanel = false
+const controlCardVisible = ref(true)
+const detailPanelOpen = ref(true)
+const panelsReady = ref(false)
+const allFloatingPanelsVisible = computed(
+  () => controlCardVisible.value && detailPanelOpen.value
+)
+
+function toggleFloatingPanels() {
+  const nextVisible = !allFloatingPanelsVisible.value
+  controlCardVisible.value = nextVisible
+  detailPanelOpen.value = nextVisible
+}
 
 const isAnimating = ref(true)
 const animSpeed = ref(8)
@@ -721,7 +460,6 @@ const speedOptions = [
   30,
 ]
 
-const showRotation = ref(true)
 const showOrbits = ref(true)
 const showLabels = ref(true)
 const showAsteroids = ref(true)
@@ -766,28 +504,9 @@ let lastSceneHeight = 0
 const {
   rootRef: pageRef,
   layoutMode,
-
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
-
   draggingSide,
   viewportResizing,
-
   workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-
-  leftResizeAttrs,
-  rightResizeAttrs,
-
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-
-  leftEntryAttrs,
-  rightEntryAttrs,
-
-  toggleAll: toggleAllPanels,
 } = useGeoPanelLayout({
   left: {
     enabled: hasLeftPanel,
@@ -823,6 +542,10 @@ const {
 // 真实偏心率用于开普勒方程和变速规律；
 // 场景椭圆单独压缩，避免真实比例下近日点落入太阳模型。
 const COMET_PHYSICAL_E = 0.967
+const COMET_PHYSICAL_PERIHELION_AU = 0.58597811
+const COMET_PHYSICAL_A =
+  COMET_PHYSICAL_PERIHELION_AU /
+  (1 - COMET_PHYSICAL_E)
 const COMET_PERIOD_YEARS = 75.3
 const COMET_PERIOD_DAYS = COMET_PERIOD_YEARS * 365.25
 const COMET_INCLINATION = 162.2
@@ -862,8 +585,26 @@ const cometData = {
 }
 const activeView = ref('sun')
 const focusedPlanet = ref('')
+const focusedAsteroid = ref<string | null>(null)
+const focusedComet = ref(false)
+const cameraPreset = ref<'orbit' | 'top' | 'side' | 'free'>('orbit')
 const loading = ref(true)
 const simulatedDay = ref(0)
+
+const currentCometDistanceAu = computed(() => {
+  const eccentricAnomaly =
+    solveKeplerEquation(
+      getCometMeanAnomaly(simulatedDay.value),
+      COMET_PHYSICAL_E
+    )
+
+  return COMET_PHYSICAL_A *
+    (
+      1 -
+      COMET_PHYSICAL_E *
+      Math.cos(eccentricAnomaly)
+    )
+})
 
 // 当前聚焦行星信息
 const focusedInfo = computed(() => {
@@ -907,6 +648,295 @@ const focusedAsteroidInfo = computed(() => {
   return null
 })
 
+interface CelestialStat {
+  label: string
+  value: string
+}
+
+interface CelestialDetail {
+  id: string
+  name: string
+  kicker: string
+  subtitle: string
+  texture?: string
+  stats: CelestialStat[]
+  description: string
+}
+
+const celestialTextures: Record<string, string> = {
+  sun: '/geo-resources-folder/images/sun.png',
+  mercury: '/geo-resources-folder/images/mercury.jpg',
+  venus: '/geo-resources-folder/images/venus.jpg',
+  earth: '/geo-resources-folder/images/earth.jpg',
+  mars: '/geo-resources-folder/images/mars.jpg',
+  jupiter: '/geo-resources-folder/images/jupiter.jpg',
+  saturn: '/geo-resources-folder/images/saturn.jpg',
+  uranus: '/geo-resources-folder/images/uranus.jpg',
+  neptune: '/geo-resources-folder/images/neptune.jpg',
+}
+const GALAXY_SKYBOX_URL = '/geo-resources-folder/images/milky-way-6k.jpg'
+
+const selectedBodyInfo = computed<CelestialDetail>(() => {
+  if (focusedComet.value) {
+    return {
+      id: cometData.id,
+      name: cometData.name,
+      kicker: 'PERIODIC COMET',
+      subtitle: '短周期彗星 · 逆向公转',
+      stats: [
+        { label: '当前距太阳', value: `${currentCometDistanceAu.value.toFixed(2)} AU` },
+        { label: '距太阳范围', value: `${cometData.perihelion}–${cometData.aphelion}` },
+        { label: '公转周期', value: cometData.period },
+        { label: '近日点', value: cometData.perihelion },
+        { label: '远日点', value: cometData.aphelion },
+        { label: '轨道偏心率', value: cometData.eccentricity },
+        { label: '轨道倾角', value: cometData.inclination },
+        { label: '下次近日点', value: cometData.nextPerihelion },
+      ],
+      description: cometData.desc,
+    }
+  }
+
+  if (focusedAsteroidInfo.value && focusedAsteroid.value) {
+    const asteroid = focusedAsteroidInfo.value
+    return {
+      id: focusedAsteroid.value,
+      name: asteroid.name,
+      kicker: 'MINOR BODY',
+      subtitle: asteroid.category,
+      stats: [
+        { label: '距太阳', value: `${asteroid.au} AU` },
+        { label: '直径', value: `${asteroid.diameter} km` },
+        { label: '质量', value: asteroid.mass },
+        { label: '平均密度', value: `${asteroid.density} g/cm³` },
+      ],
+      description: asteroid.desc || '暂无更多天体资料。',
+    }
+  }
+
+  const planet = planetData.find(item => item.id === focusedPlanet.value)
+  if (planet) {
+    return {
+      id: planet.id,
+      name: planet.name,
+      kicker: planet.type.toUpperCase(),
+      subtitle: `${planet.type} · ${planet.moons} 颗已知卫星`,
+      texture: celestialTextures[planet.id],
+      stats: [
+        { label: '距太阳', value: `${planet.au} AU` },
+        { label: '公转周期', value: `${planet.years} 年` },
+        { label: '自转周期', value: `${planet.rotation} 日` },
+        { label: '轨道倾角', value: `${planet.orbitTilt}°` },
+        { label: '地球质量比', value: `${planet.mass}` },
+        { label: '表面温度', value: `${planet.temperature} °C` },
+      ],
+      description: planet.desc,
+    }
+  }
+
+  return {
+    id: 'sun',
+    name: '太阳',
+    kicker: 'G-TYPE MAIN-SEQUENCE STAR',
+    subtitle: '太阳系唯一恒星 · 默认轨道控制中心',
+    texture: celestialTextures.sun,
+    stats: [
+      { label: '距太阳', value: '0 AU（轨道中心）' },
+      { label: '直径', value: '139.2 万 km' },
+      { label: '质量', value: '1.989 × 10³⁰ kg' },
+      { label: '表面温度', value: '约 5,500 °C' },
+      { label: '核心温度', value: '约 1,500 万 °C' },
+      { label: '光到地球', value: '约 8 分 20 秒' },
+      { label: '恒星类型', value: 'G2V 黄矮星' },
+      { label: '太阳年龄', value: '约 46 亿年' },
+    ],
+    description: '太阳集中了太阳系约 99.86% 的质量，它的引力维系着行星、小行星与彗星的轨道。\n核心持续进行氢核聚变并释放能量；光球层构成我们看到的明亮表面，外部依次延伸为色球层与日冕。',
+  }
+})
+
+let detailPreviewScene: THREE.Scene | null = null
+let detailPreviewCamera: THREE.PerspectiveCamera | null = null
+let detailPreviewRenderer: THREE.WebGLRenderer | null = null
+let detailPreviewGroup: THREE.Group | null = null
+let detailPreviewTexture: THREE.Texture | null = null
+let detailPreviewFrameId = 0
+
+function disposeDetailPreview() {
+  cancelAnimationFrame(detailPreviewFrameId)
+  detailPreviewFrameId = 0
+
+  detailPreviewScene?.traverse(object => {
+    if (!(object instanceof THREE.Mesh)) return
+
+    object.geometry.dispose()
+    const materials = Array.isArray(object.material)
+      ? object.material
+      : [object.material]
+
+    materials.forEach(material => material.dispose())
+  })
+
+  detailPreviewTexture?.dispose()
+  detailPreviewTexture = null
+
+  if (detailPreviewRenderer) {
+    const canvas = detailPreviewRenderer.domElement
+    detailPreviewRenderer.dispose()
+    canvas.parentElement?.removeChild(canvas)
+  }
+
+  detailPreviewScene = null
+  detailPreviewCamera = null
+  detailPreviewRenderer = null
+  detailPreviewGroup = null
+}
+
+function setupDetailPreview() {
+  disposeDetailPreview()
+
+  const host = detailPreviewRef.value
+  const detail = selectedBodyInfo.value
+
+  if (
+    !host ||
+    !detail.texture ||
+    !detailPanelOpen.value
+  ) {
+    return
+  }
+
+  const previewSize = Math.max(
+    128,
+    Math.round(
+      Math.min(
+        host.clientWidth || 154,
+        host.clientHeight || 154
+      )
+    )
+  )
+
+  detailPreviewScene = new THREE.Scene()
+  detailPreviewCamera = new THREE.PerspectiveCamera(
+    34,
+    1,
+    0.1,
+    20
+  )
+  detailPreviewCamera.position.set(0, 0.08, 3.35)
+
+  detailPreviewRenderer = new THREE.WebGLRenderer({
+    alpha: true,
+    antialias: true,
+    powerPreference: 'high-performance',
+  })
+  detailPreviewRenderer.setPixelRatio(
+    Math.min(window.devicePixelRatio, 1.5)
+  )
+  detailPreviewRenderer.setSize(
+    previewSize,
+    previewSize,
+    false
+  )
+  detailPreviewRenderer.setClearColor(0x000000, 0)
+  detailPreviewRenderer.outputColorSpace = THREE.SRGBColorSpace
+  detailPreviewRenderer.toneMapping = THREE.ACESFilmicToneMapping
+  detailPreviewRenderer.toneMappingExposure = 1.15
+  detailPreviewRenderer.domElement.setAttribute(
+    'aria-hidden',
+    'true'
+  )
+  host.replaceChildren(detailPreviewRenderer.domElement)
+
+  detailPreviewTexture = new THREE.TextureLoader().load(
+    detail.texture
+  )
+  detailPreviewTexture.colorSpace = THREE.SRGBColorSpace
+  detailPreviewTexture.anisotropy = Math.min(
+    8,
+    detailPreviewRenderer.capabilities.getMaxAnisotropy()
+  )
+
+  detailPreviewGroup = new THREE.Group()
+  detailPreviewGroup.rotation.z = -0.12
+  detailPreviewScene.add(detailPreviewGroup)
+
+  const sphereMaterial = detail.id === 'sun'
+    ? new THREE.MeshBasicMaterial({
+      map: detailPreviewTexture,
+      toneMapped: false,
+    })
+    : new THREE.MeshStandardMaterial({
+      map: detailPreviewTexture,
+      roughness: 0.72,
+      metalness: 0.02,
+    })
+
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 64, 64),
+    sphereMaterial
+  )
+  detailPreviewGroup.add(sphere)
+
+  const atmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(1.035, 48, 48),
+    new THREE.MeshBasicMaterial({
+      color: detail.id === 'sun' ? 0xffb45e : 0x7bdcff,
+      transparent: true,
+      opacity: detail.id === 'sun' ? 0.12 : 0.08,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      depthWrite: false,
+    })
+  )
+  detailPreviewGroup.add(atmosphere)
+
+  if (detail.id === 'saturn') {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(1.22, 1.75, 96),
+      new THREE.MeshBasicMaterial({
+        color: 0xd8c49b,
+        transparent: true,
+        opacity: 0.54,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    )
+    ring.rotation.x = Math.PI / 2
+    detailPreviewGroup.add(ring)
+    detailPreviewCamera.position.z = 4.1
+  }
+
+  detailPreviewScene.add(
+    new THREE.AmbientLight(0x91b7d8, 1.55)
+  )
+  const keyLight = new THREE.DirectionalLight(0xffffff, 3.2)
+  keyLight.position.set(-2.8, 2.3, 4)
+  detailPreviewScene.add(keyLight)
+  const rimLight = new THREE.PointLight(0x48bfff, 10, 8)
+  rimLight.position.set(2.8, -1.2, 1.5)
+  detailPreviewScene.add(rimLight)
+
+  const renderPreview = () => {
+    if (
+      !detailPreviewRenderer ||
+      !detailPreviewScene ||
+      !detailPreviewCamera ||
+      !detailPreviewGroup
+    ) {
+      return
+    }
+
+    detailPreviewGroup.rotation.y += 0.0035
+    detailPreviewRenderer.render(
+      detailPreviewScene,
+      detailPreviewCamera
+    )
+    detailPreviewFrameId = requestAnimationFrame(renderPreview)
+  }
+
+  renderPreview()
+}
+
 // 易错点
 const mistakes = computed(() => {
   return [
@@ -924,6 +954,12 @@ let scene: THREE.Scene
 let camera: THREE.PerspectiveCamera
 let renderer: THREE.WebGLRenderer
 let controls: OrbitControls
+let composer: EffectComposer
+let bloomComposer: EffectComposer
+let bloomPass: UnrealBloomPass
+const BLOOM_SCENE_LAYER = 1
+let galaxySkyboxTexture: THREE.Texture | null = null
+let galaxySkyDome: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
 let sunMesh: THREE.Mesh
 let sunGlow: THREE.Sprite
 let sunLight: THREE.PointLight
@@ -966,7 +1002,6 @@ interface InteractiveAsteroidObj {
   beltType: 'main' | 'kuiper'
 }
 const interactiveAsteroids: InteractiveAsteroidObj[] = []
-const focusedAsteroid = ref<string | null>(null)
 let asteroidInteractiveGroup: THREE.Group  // 容纳所有个体小行星的父组，随带旋转
 // 注释精灵已移除（文字不显示在场景中）
 
@@ -1402,7 +1437,10 @@ function createAsteroidBelt(): { main: THREE.Points; kuiper: THREE.Points } {
   mainGeo.setAttribute('color', new THREE.BufferAttribute(mainCol, 3))
   mainGeo.setAttribute('size', new THREE.BufferAttribute(mainSize, 1))
   const mainMat = new THREE.ShaderMaterial({
-    uniforms: { pointTexture: { value: makeCircleTexture() } },
+    uniforms: {
+      pointTexture: { value: makeCircleTexture() },
+      uOpacity: { value: 1 },
+    },
     vertexShader: `
       attribute float size;
       attribute vec3 color;
@@ -1416,9 +1454,10 @@ function createAsteroidBelt(): { main: THREE.Points; kuiper: THREE.Points } {
     `,
     fragmentShader: `
       uniform sampler2D pointTexture;
+      uniform float uOpacity;
       varying vec3 vColor;
       void main() {
-        gl_FragColor = vec4(vColor, 1.0) * texture2D(pointTexture, gl_PointCoord);
+        gl_FragColor = vec4(vColor, uOpacity) * texture2D(pointTexture, gl_PointCoord);
       }
     `,
     transparent: true, depthWrite: false,
@@ -1459,7 +1498,10 @@ function createAsteroidBelt(): { main: THREE.Points; kuiper: THREE.Points } {
   kuipGeo.setAttribute('color', new THREE.BufferAttribute(kuipCol, 3))
   kuipGeo.setAttribute('size', new THREE.BufferAttribute(kuipSize, 1))
   const kuipMat = new THREE.ShaderMaterial({
-    uniforms: { pointTexture: { value: makeCircleTexture() } },
+    uniforms: {
+      pointTexture: { value: makeCircleTexture() },
+      uOpacity: { value: 0.8 },
+    },
     vertexShader: `
       attribute float size;
       attribute vec3 color;
@@ -1473,9 +1515,10 @@ function createAsteroidBelt(): { main: THREE.Points; kuiper: THREE.Points } {
     `,
     fragmentShader: `
       uniform sampler2D pointTexture;
+      uniform float uOpacity;
       varying vec3 vColor;
       void main() {
-        gl_FragColor = vec4(vColor, 1.0) * texture2D(pointTexture, gl_PointCoord);
+        gl_FragColor = vec4(vColor, uOpacity) * texture2D(pointTexture, gl_PointCoord);
       }
     `,
     transparent: true, depthWrite: false, opacity: 0.8,
@@ -2190,6 +2233,7 @@ function createComet() {
       transparent: true,
       opacity: 0.52,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     })
 
   cometOrbitLine =
@@ -2609,16 +2653,259 @@ function createOrbitLine(
 
   const material =
     new THREE.LineBasicMaterial({
-      color: 0x2ec4b6,
+      color: 0x708dff,
       transparent: true,
-      opacity: 0.52,
+      opacity: 0.58,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     })
 
   return new THREE.LineLoop(
     geometry,
     material
   )
+}
+
+function setBloomLayer(
+  object: THREE.Object3D | undefined,
+  enabled: boolean
+) {
+  if (!object) return
+
+  object.traverse(item => {
+    if (enabled) {
+      item.layers.enable(BLOOM_SCENE_LAYER)
+    } else {
+      item.layers.disable(BLOOM_SCENE_LAYER)
+    }
+  })
+}
+
+function setObjectMaterialOpacity(
+  object: THREE.Object3D | undefined,
+  opacityFactor: number
+) {
+  if (!object) return
+
+  object.traverse(item => {
+    if (!(item instanceof THREE.Mesh)) return
+
+    const materials = Array.isArray(item.material)
+      ? item.material
+      : [item.material]
+
+    materials.forEach(material => {
+      if (!('opacity' in material)) return
+
+      const focusMaterial = material as THREE.Material & {
+        opacity: number
+        transparent: boolean
+      }
+      const savedOpacity = material.userData.focusBaseOpacity
+      const baseOpacity =
+        typeof savedOpacity === 'number'
+          ? savedOpacity
+          : focusMaterial.opacity
+
+      material.userData.focusBaseOpacity = baseOpacity
+      focusMaterial.transparent = true
+      focusMaterial.opacity = baseOpacity * opacityFactor
+      material.needsUpdate = true
+    })
+  })
+}
+
+function setBeltOpacity(
+  belt: THREE.Points | undefined,
+  opacity: number
+) {
+  const material = belt?.material
+
+  if (
+    material instanceof THREE.ShaderMaterial &&
+    material.uniforms.uOpacity
+  ) {
+    material.uniforms.uOpacity.value = opacity
+  }
+}
+
+function updateFocusVisuals() {
+  if (!sunMesh || !sunGlow) return
+
+  const activePlanetIndex = planetData.findIndex(
+    item => item.id === focusedPlanet.value
+  )
+  const activeAsteroid = interactiveAsteroids.find(
+    item => item.id === focusedAsteroid.value
+  )
+  const hasFocusedBody =
+    activePlanetIndex >= 0 ||
+    Boolean(activeAsteroid) ||
+    focusedComet.value
+
+  setBloomLayer(sunMesh, true)
+  setBloomLayer(sunGlow, true)
+  setBloomLayer(cometGroup, true)
+
+  planetObjs.forEach((planet, index) => {
+    const selected = index === activePlanetIndex
+    setBloomLayer(planet.axialGroup, selected)
+    setBloomLayer(planet.label, false)
+  })
+
+  orbitLines.forEach((orbit, index) => {
+    const selected = index === activePlanetIndex
+    const material = (orbit as THREE.Line).material
+
+    if (material instanceof THREE.LineBasicMaterial) {
+      material.color.set(selected ? 0x9cecff : 0x5268b6)
+      material.opacity = selected
+        ? 0.96
+        : hasFocusedBody
+          ? 0.11
+          : 0.46
+    }
+
+    setBloomLayer(orbit, selected)
+  })
+
+  if (cometOrbitLine?.material instanceof THREE.LineBasicMaterial) {
+    cometOrbitLine.material.color.set(
+      focusedComet.value ? 0x9cecff : 0x6681c8
+    )
+    cometOrbitLine.material.opacity =
+      focusedComet.value
+        ? 0.94
+        : hasFocusedBody
+          ? 0.1
+          : 0.34
+    setBloomLayer(cometOrbitLine, focusedComet.value)
+  }
+
+  interactiveAsteroids.forEach(asteroid => {
+    const selected = asteroid === activeAsteroid
+    setObjectMaterialOpacity(
+      asteroid.mesh,
+      selected
+        ? 1
+        : hasFocusedBody
+          ? 0.2
+          : 1
+    )
+    setBloomLayer(asteroid.mesh, selected)
+  })
+
+  if (activeAsteroid) {
+    setBeltOpacity(
+      asteroidBelt,
+      activeAsteroid.beltType === 'main' ? 0.78 : 0.1
+    )
+    setBeltOpacity(
+      kuiperBelt,
+      activeAsteroid.beltType === 'kuiper' ? 0.72 : 0.1
+    )
+  } else if (hasFocusedBody) {
+    setBeltOpacity(asteroidBelt, 0.14)
+    setBeltOpacity(kuiperBelt, 0.1)
+  } else {
+    setBeltOpacity(asteroidBelt, 1)
+    setBeltOpacity(kuiperBelt, 0.8)
+  }
+
+  setObjectMaterialOpacity(
+    meteoroidGroup,
+    hasFocusedBody ? 0.18 : 1
+  )
+}
+
+// 与 earth-motion 共用同一张 6K 银河全景天空盒与着色方式。
+function loadGalaxySkybox() {
+  const textureLoader = new THREE.TextureLoader()
+  textureLoader.load(
+    GALAXY_SKYBOX_URL,
+    (texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping
+      texture.colorSpace = THREE.SRGBColorSpace
+      texture.wrapS = THREE.RepeatWrapping
+      texture.wrapT = THREE.ClampToEdgeWrapping
+      texture.generateMipmaps = false
+      texture.minFilter = THREE.LinearFilter
+      texture.magFilter = THREE.LinearFilter
+      texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
+
+      galaxySkyDome?.removeFromParent()
+      galaxySkyDome?.geometry.dispose()
+      galaxySkyDome?.material.dispose()
+      galaxySkyboxTexture?.dispose()
+      galaxySkyboxTexture = texture
+
+      const image = texture.image as HTMLImageElement
+      const textureWidth = Math.max(1, image.naturalWidth || image.width || 6000)
+      const textureHeight = Math.max(1, image.naturalHeight || image.height || 3000)
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          skyMap: { value: texture },
+          texelSize: { value: new THREE.Vector2(1 / textureWidth, 1 / textureHeight) },
+          exposure: { value: 0.105 },
+          sharpness: { value: 1.65 },
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            mat4 viewRotation = mat4(mat3(viewMatrix));
+            gl_Position = projectionMatrix * viewRotation * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D skyMap;
+          uniform vec2 texelSize;
+          uniform float exposure;
+          uniform float sharpness;
+          varying vec2 vUv;
+          void main() {
+            vec2 uv = vec2(1.0 - vUv.x, vUv.y);
+            vec3 center = texture2D(skyMap, uv).rgb;
+            vec3 neighbors = (
+              texture2D(skyMap, uv + vec2(texelSize.x, 0.0)).rgb +
+              texture2D(skyMap, uv - vec2(texelSize.x, 0.0)).rgb +
+              texture2D(skyMap, uv + vec2(0.0, texelSize.y)).rgb +
+              texture2D(skyMap, uv - vec2(0.0, texelSize.y)).rgb
+            ) * 0.25;
+            vec3 color = max(center + (center - neighbors) * sharpness, 0.0) * exposure;
+            gl_FragColor = vec4(color, 1.0);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }
+        `,
+        side: THREE.BackSide,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: true,
+      })
+
+      galaxySkyDome = new THREE.Mesh(
+        new THREE.SphereGeometry(900, 128, 64),
+        material
+      )
+      galaxySkyDome.rotation.x = -0.4
+      galaxySkyDome.frustumCulled = false
+      galaxySkyDome.renderOrder = -10000
+      scene.add(galaxySkyDome)
+    },
+    undefined,
+    (error) => console.warn('银河天空盒加载失败，已保留深色背景', error)
+  )
+}
+
+function renderSceneWithSelectiveBloom() {
+  if (!camera || !bloomComposer || !composer) return
+
+  const activeLayerMask = camera.layers.mask
+  camera.layers.set(BLOOM_SCENE_LAYER)
+  bloomComposer.render()
+  camera.layers.mask = activeLayerMask
+  composer.render()
 }
 
 // ===== 初始化 =====
@@ -2677,6 +2964,10 @@ function initThree() {
     )
   )
 
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.12
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+
   renderer.domElement.className =
     'scene-canvas solar-scene-canvas'
 
@@ -2687,6 +2978,53 @@ function initThree() {
     renderer.domElement
   )
 
+  bloomComposer = new EffectComposer(renderer)
+  bloomComposer.renderToScreen = false
+  bloomComposer.setPixelRatio(renderer.getPixelRatio())
+  bloomComposer.setSize(width, height)
+  bloomComposer.addPass(new RenderPass(scene, camera))
+  bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(width, height),
+    0.82,
+    0.42,
+    0.64
+  )
+  bloomComposer.addPass(bloomPass)
+
+  const bloomMixPass = new ShaderPass(
+    new THREE.ShaderMaterial({
+      uniforms: {
+        baseTexture: { value: null },
+        bloomTexture: { value: bloomComposer.renderTarget2.texture },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D baseTexture;
+        uniform sampler2D bloomTexture;
+        varying vec2 vUv;
+        void main() {
+          gl_FragColor = texture2D(baseTexture, vUv) + texture2D(bloomTexture, vUv);
+        }
+      `,
+    }),
+    'baseTexture'
+  )
+
+  composer = new EffectComposer(renderer)
+  composer.setPixelRatio(renderer.getPixelRatio())
+  composer.setSize(width, height)
+  composer.addPass(new RenderPass(scene, camera))
+  composer.addPass(bloomMixPass)
+  composer.addPass(new OutputPass())
+
+  loadGalaxySkybox()
+
   controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
   controls.dampingFactor = 0.05
@@ -2696,10 +3034,12 @@ function initThree() {
 
   // 环境光（提亮全局）
   const ambient = new THREE.AmbientLight(0x88aadd, 3.0)
+  ambient.layers.enable(BLOOM_SCENE_LAYER)
   scene.add(ambient)
 
   // 半球光（增加方向感——天蓝地暖）
   const hemi = new THREE.HemisphereLight(0x88ccff, 0x553322, 0.8)
+  hemi.layers.enable(BLOOM_SCENE_LAYER)
   scene.add(hemi)
 
   // 太阳系父组（统一放大；银河背景不受影响）
@@ -2711,8 +3051,9 @@ function initThree() {
   const loader = new THREE.TextureLoader()
   const sunGeo = new THREE.SphereGeometry(2.8, 64, 64)
   const sunTex = loader.load('/geo-resources-folder/images/sun.png')
-  const sunMat = new THREE.MeshBasicMaterial({ map: sunTex })
+  const sunMat = new THREE.MeshBasicMaterial({ map: sunTex, toneMapped: false })
   sunMesh = new THREE.Mesh(sunGeo, sunMat)
+  sunMesh.userData.celestialId = 'sun'
   solarGroup.add(sunMesh)
 
   // 太阳光晕
@@ -2724,6 +3065,7 @@ function initThree() {
 
   // 太阳点光源（照亮行星）——置于场景层，位于原点
   sunLight = new THREE.PointLight(0xfff0d0, 6, 800, 0.5)
+  sunLight.layers.enable(BLOOM_SCENE_LAYER)
   scene.add(sunLight)
 
   // 行星（pivot 加入 solarGroup）
@@ -2755,16 +3097,15 @@ function initThree() {
   createComet()
   // 注释精灵已移除（文字不显示在场景中）
 
+  updateFocusVisuals()
+
   /*
    * renderer 已按真实容器尺寸同步创建，
    * 在 loading 消失前先绘制一帧，避免默认小画布被 CSS 拉伸。
    */
   controls.update()
 
-  renderer.render(
-    scene,
-    camera
-  )
+  renderSceneWithSelectiveBloom()
 
   loading.value = false
 }
@@ -2777,6 +3118,9 @@ function focusSun(animated = true) {
   activeView.value = 'sun'
   focusedPlanet.value = ''
   focusedAsteroid.value = null
+  cameraPreset.value = 'orbit'
+  detailPanelOpen.value = true
+  updateFocusVisuals()
 
   const target =
     new THREE.Vector3(0, 0, 0)
@@ -2801,9 +3145,12 @@ function focusPlanet(id: string) {
   activeView.value = id
   focusedPlanet.value = id
   focusedAsteroid.value = null
+  cameraPreset.value = 'orbit'
+  detailPanelOpen.value = true
 
   const obj = planetObjs.find(o => o.def.id === id)
   if (!obj) return
+  updateFocusVisuals()
 
   const worldPos = new THREE.Vector3()
   obj.group.getWorldPosition(worldPos)
@@ -2830,12 +3177,16 @@ function focusAsteroid(id: string) {
   hideAllAnnotations()
   const obj = interactiveAsteroids.find(a => a.id === id)
   if (!obj) return
+  activeView.value = `asteroid-${id}`
   focusedAsteroid.value = id
   focusedPlanet.value = ''
+  cameraPreset.value = 'orbit'
+  detailPanelOpen.value = true
 
   // 高亮
   // @ts-ignore
   obj.mesh.material.emissiveIntensity = 0.6
+  updateFocusVisuals()
 
   // 聚焦相机
   const size = obj.isNamed ? (obj.def?.size || 0.3) : 0.2
@@ -2847,12 +3198,16 @@ function focusAsteroid(id: string) {
 }
 
 // ===== 聚焦哈雷彗星 =====
-let focusedComet = ref(false)
 function focusComet(id: string) {
+  hideAllAnnotations()
+  showComet.value = true
   activeView.value = 'comet'
   focusedComet.value = true
   focusedPlanet.value = ''
   focusedAsteroid.value = null
+  cameraPreset.value = 'orbit'
+  detailPanelOpen.value = true
+  updateFocusVisuals()
   const wp = new THREE.Vector3()
   cometGroup.getWorldPosition(wp)
   animateCamera(wp.clone().add(new THREE.Vector3(10, 6, 10)), wp)
@@ -2866,8 +3221,9 @@ function onClickAsteroid(event: MouseEvent) {
 
   raycaster.setFromCamera(mouse, camera)
 
-  // 检测所有可交互天体网格（行星 + 小行星 + 彗星）
+  // 检测所有可交互天体网格（太阳 + 行星 + 小行星 + 彗星）
   const allMeshes = [
+    sunMesh,
     ...planetObjs.map(p => p.mesh),
     ...interactiveAsteroids.map(a => a.mesh),
   ]
@@ -2876,7 +3232,12 @@ function onClickAsteroid(event: MouseEvent) {
 
   if (intersects.length > 0) {
     const hit = intersects[0]!.object
-    // 优先检测彗星
+    // 太阳也作为可点击的 OrbitControls 控制中心。
+    if (hit.userData.celestialId === 'sun') {
+      focusSun()
+      return
+    }
+    // 再检测彗星
     const cometId = hit.userData.cometId
     if (cometId) {
       focusComet(cometId as string)
@@ -2897,19 +3258,56 @@ function onClickAsteroid(event: MouseEvent) {
   }
 }
 
-// ===== 视角切换 =====
-function setView(viewId: string) {
-  activeView.value = viewId
-  focusedPlanet.value = ''
-  focusedAsteroid.value = null
-  hideAllAnnotations()
+function getCurrentFocusTarget() {
+  if (focusedPlanet.value) {
+    const planet = planetObjs.find(item => item.def.id === focusedPlanet.value)
+    if (planet) {
+      return planet.group.getWorldPosition(new THREE.Vector3())
+    }
+  }
+
+  if (focusedAsteroid.value) {
+    const asteroid = interactiveAsteroids.find(item => item.id === focusedAsteroid.value)
+    if (asteroid) {
+      return asteroid.group.getWorldPosition(new THREE.Vector3())
+    }
+  }
+
+  if (focusedComet.value && cometGroup) {
+    return cometGroup.getWorldPosition(new THREE.Vector3())
+  }
+
+  return new THREE.Vector3(0, 0, 0)
+}
+
+function focusCurrentBody() {
+  if (focusedComet.value) {
+    focusComet('halley')
+    return
+  }
+
+  if (focusedAsteroid.value) {
+    focusAsteroid(focusedAsteroid.value)
+    return
+  }
+
+  if (focusedPlanet.value) {
+    focusPlanet(focusedPlanet.value)
+    return
+  }
+
+  focusSun()
+}
+
+// ===== 视角切换（保持当前 OrbitControls 控制中心） =====
+function setView(viewId: 'top' | 'side' | 'free') {
+  cameraPreset.value = viewId
   let pos: THREE.Vector3
-  const target = new THREE.Vector3(0, 0, 0)
+  const target = getCurrentFocusTarget()
   switch (viewId) {
-    case 'top': pos = new THREE.Vector3(0, 170, 0.1); break
-    case 'side': pos = new THREE.Vector3(0, 11, 125); break
-    case 'galaxy': pos = new THREE.Vector3(150, 80, 150); break
-    case 'free': default: pos = new THREE.Vector3(55, 48, 75); break
+    case 'top': pos = target.clone().add(new THREE.Vector3(0, 170, 0.1)); break
+    case 'side': pos = target.clone().add(new THREE.Vector3(0, 11, 125)); break
+    case 'free': default: pos = target.clone().add(new THREE.Vector3(55, 48, 75)); break
   }
   animateCamera(pos, target)
 }
@@ -2986,6 +3384,26 @@ watch([showOrbits, showLabels, showAsteroids, showKuiper, showComet], () => {
   if (!showAsteroids.value && !showKuiper.value) hideAllAnnotations()
 })
 
+watch(
+  [
+    () => selectedBodyInfo.value.id,
+    detailPanelOpen,
+    panelsReady,
+  ],
+  async () => {
+    disposeDetailPreview()
+
+    if (!detailPanelOpen.value) return
+
+    await nextTick()
+
+    if (detailPreviewRef.value) {
+      setupDetailPreview()
+    }
+  },
+  { flush: 'post' }
+)
+
 // 左右面板交互由 useGeoPanelLayout 统一管理。
 
 function resizeThreeSceneNow() {
@@ -3041,16 +3459,16 @@ function resizeThreeSceneNow() {
     false
   )
 
+  composer?.setSize(width, height)
+  bloomComposer?.setSize(width, height)
+
   /*
    * setSize 后立即补绘一帧，
    * 避免等待下一次动画循环时出现空白。
    */
   controls?.update()
 
-  renderer.render(
-    scene,
-    camera
-  )
+  renderSceneWithSelectiveBloom()
 }
 
 function scheduleSceneResize(
@@ -3120,17 +3538,15 @@ function animate() {
        * 金星轴倾角 177.36°、天王星轴倾角 97.77°，
        * 轴的北端已经翻到黄道面下方，因此视觉上自然呈现逆向自转。
        */
-      if (showRotation.value) {
-        o.mesh.rotation.y =
-          normalizeRadians(
-            TAU *
-            simulatedDay.value /
-            Math.max(
-              0.01,
-              o.def.rotation
-            )
+      o.mesh.rotation.y =
+        normalizeRadians(
+          TAU *
+          simulatedDay.value /
+          Math.max(
+            0.01,
+            o.def.rotation
           )
-      }
+        )
 
       // 月球恒星月约 27.32 天
       if (o.moonPivot) {
@@ -3208,7 +3624,7 @@ function animate() {
   }
 
   controls.update()
-  renderer.render(scene, camera)
+  renderSceneWithSelectiveBloom()
 }
 
 function disposeThreeScene() {
@@ -3241,6 +3657,8 @@ function disposeThreeScene() {
   }
 
   controls?.dispose()
+  composer?.dispose()
+  bloomComposer?.dispose()
 
   const geometries =
     new Set<THREE.BufferGeometry>()
@@ -3367,6 +3785,7 @@ onMounted(async () => {
    */
   initThree()
   focusSun(false)
+  setupDetailPreview()
 
   const container =
     threeContainerRef.value
@@ -3396,6 +3815,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  disposeDetailPreview()
   disposeThreeScene()
 })
 </script>
@@ -3495,6 +3915,19 @@ onUnmounted(() => {
 
 .solar-playback-dock .timeline-copy strong {
   white-space: nowrap;
+}
+
+.scale-note {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border: 1px solid rgba(124, 214, 255, 0.2);
+  border-radius: 999px;
+  color: rgba(188, 226, 244, 0.7);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.02em;
+  background: rgba(32, 105, 139, 0.14);
 }
 
 #right-panel .panel-scroll>div[id] {
@@ -4472,5 +4905,838 @@ input[type="range"]::-moz-range-thumb {
   height: 100% !important;
   min-width: 100%;
   min-height: 100%;
+}
+
+/* ===================== v19：全幅银河探索界面 ===================== */
+.solar-system-container {
+  --space-cyan: #75ddff;
+  --space-blue: #2b86ff;
+  --space-gold: #ffd36a;
+  --space-panel: rgba(4, 15, 29, 0.82);
+  --space-line: rgba(126, 216, 255, 0.2);
+  overflow: hidden;
+  color: #eff9ff;
+  background: #01050c;
+}
+
+.solar-toolbar {
+  z-index: 60;
+  min-height: 62px;
+  border-bottom: 1px solid rgba(119, 207, 255, 0.16);
+  background: linear-gradient(180deg, rgba(2, 12, 24, 0.96), rgba(2, 11, 22, 0.82));
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
+.solar-toolbar .brand-area {
+  min-width: 0;
+}
+
+.title-lockup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  gap: 1px;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.title-lockup>span {
+  color: rgba(130, 218, 255, 0.6);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+}
+
+.title-lockup .page-title {
+  position: static;
+  width: max-content;
+  max-width: none;
+  margin: 0;
+  overflow: visible;
+  color: #f4fbff;
+  font-size: clamp(19px, 1.35vw, 26px);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: 0.12em;
+  background: none;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+  -webkit-text-fill-color: #f4fbff;
+  text-shadow: 0 0 18px rgba(112, 216, 255, 0.24);
+  text-overflow: clip;
+  transform: none;
+}
+
+.focus-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 1px solid rgba(110, 211, 255, 0.2);
+  border-radius: 999px;
+  color: rgba(220, 244, 255, 0.78);
+  font-size: 10px;
+  background: rgba(31, 113, 155, 0.12);
+}
+
+.focus-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--space-gold);
+  box-shadow: 0 0 10px rgba(255, 211, 106, 0.78);
+}
+
+.solar-workspace {
+  position: relative !important;
+  display: block !important;
+  grid-template-columns: 1fr !important;
+  width: 100%;
+  min-width: 0;
+  height: calc(100% - 62px);
+  overflow: hidden;
+}
+
+.solar-workspace>.center-stage {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0;
+  inset: auto !important;
+}
+
+.solar-stage-content,
+.solar-scene-host {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.scene-vignette {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(0, 6, 15, 0.3), transparent 25%, transparent 72%, rgba(0, 5, 13, 0.42)),
+    linear-gradient(180deg, rgba(0, 4, 12, 0.18), transparent 22%, transparent 72%, rgba(0, 3, 10, 0.46));
+}
+
+.solar-control-card {
+  z-index: 48 !important;
+  width: clamp(330px, 21vw, 410px) !important;
+}
+
+.solar-control-card :deep(.feature-card-head) {
+  min-height: 58px;
+  background: linear-gradient(90deg, rgba(10, 52, 77, 0.76), rgba(4, 20, 37, 0.45));
+}
+
+.solar-control-card :deep(.feature-card-content) {
+  max-height: calc(100vh - 162px);
+  padding-bottom: 18px;
+  overscroll-behavior: contain;
+}
+
+.control-console {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.console-section {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(111, 207, 248, 0.13);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(13, 42, 62, 0.46), rgba(4, 17, 31, 0.5));
+}
+
+.console-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.console-heading>div {
+  display: grid;
+  gap: 2px;
+}
+
+.console-heading span,
+.minor-bodies summary small {
+  color: rgba(113, 210, 255, 0.56);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.console-heading h3 {
+  margin: 0;
+  color: #eff9ff;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.console-heading>strong {
+  padding: 4px 7px;
+  border: 1px solid rgba(255, 209, 102, 0.2);
+  border-radius: 999px;
+  color: #ffe39a;
+  font-size: 11px;
+  font-weight: 760;
+  background: rgba(255, 202, 76, 0.08);
+}
+
+.celestial-selector {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.celestial-selector button,
+.camera-grid button,
+.minor-actions button,
+.console-reset {
+  border: 1px solid rgba(116, 211, 250, 0.14);
+  color: rgba(225, 245, 255, 0.74);
+  cursor: pointer;
+  background: rgba(1, 12, 24, 0.56);
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.celestial-selector button:hover,
+.camera-grid button:hover,
+.minor-actions button:hover,
+.console-reset:hover {
+  border-color: rgba(116, 221, 255, 0.42);
+  color: #f4fbff;
+  background: rgba(28, 101, 137, 0.22);
+  transform: translateY(-1px);
+}
+
+.celestial-selector button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 8px;
+  border-radius: 9px;
+}
+
+.celestial-selector button.active,
+.camera-grid button.active,
+.minor-actions button.active {
+  border-color: rgba(99, 213, 255, 0.52);
+  color: #fff;
+  background: linear-gradient(135deg, rgba(24, 140, 185, 0.28), rgba(40, 99, 218, 0.2));
+  box-shadow: 0 0 0 1px rgba(100, 216, 255, 0.06) inset;
+}
+
+.celestial-selector button strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comet-control-button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px 11px;
+  border: 1px solid rgba(122, 201, 255, 0.22);
+  border-radius: 10px;
+  color: rgba(226, 246, 255, 0.84);
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(115deg, rgba(35, 116, 166, 0.2), rgba(55, 72, 164, 0.14));
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.comet-control-button:hover,
+.comet-control-button.active {
+  border-color: rgba(153, 229, 255, 0.68);
+  background: linear-gradient(115deg, rgba(40, 157, 207, 0.3), rgba(82, 91, 220, 0.25));
+  box-shadow: 0 0 20px rgba(85, 182, 255, 0.13), inset 0 0 18px rgba(99, 213, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+.comet-control-icon {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border-radius: 50%;
+  color: #dff8ff;
+  font-size: 19px;
+  background: radial-gradient(circle, rgba(198, 244, 255, 0.34), rgba(64, 143, 224, 0.12));
+  box-shadow: 0 0 14px rgba(112, 210, 255, 0.28);
+}
+
+.comet-control-button>span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.comet-control-button strong {
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.comet-control-button small {
+  color: rgba(166, 207, 227, 0.56);
+  font-size: 10px;
+}
+
+.comet-control-button i {
+  color: rgba(126, 220, 255, 0.64);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.body-dot {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.sun-dot {
+  background: #ffd36a;
+  box-shadow: 0 0 9px rgba(255, 198, 70, 0.9);
+}
+
+.camera-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.camera-grid button {
+  padding: 9px 5px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.layer-list {
+  display: grid;
+  gap: 4px;
+}
+
+.layer-list label {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: rgba(2, 13, 26, 0.38);
+}
+
+.layer-list label:hover {
+  border-color: rgba(112, 208, 247, 0.14);
+}
+
+.layer-list label>span {
+  display: grid;
+  gap: 2px;
+}
+
+.layer-list label strong {
+  color: rgba(235, 249, 255, 0.88);
+  font-size: 12px;
+}
+
+.layer-list label small {
+  color: rgba(157, 196, 215, 0.48);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.layer-list :deep(.el-switch.is-checked .el-switch__core),
+.console-heading :deep(.el-switch.is-checked .el-switch__core) {
+  border-color: transparent;
+  background: linear-gradient(90deg, #2ec4b6, #2a7fff);
+}
+
+.motion-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.motion-summary>div {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid rgba(110, 208, 248, 0.12);
+  border-radius: 9px;
+  background: rgba(1, 12, 24, 0.46);
+}
+
+.motion-summary span {
+  color: rgba(161, 203, 223, 0.52);
+  font-size: 10px;
+}
+
+.motion-summary strong {
+  color: #dff7ff;
+  font-size: 15px;
+}
+
+.console-reset {
+  width: 100%;
+  margin-top: 7px;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.minor-bodies {
+  padding: 0;
+}
+
+.minor-bodies summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.minor-bodies summary::-webkit-details-marker {
+  display: none;
+}
+
+.minor-bodies summary>span {
+  display: grid;
+  gap: 2px;
+}
+
+.minor-bodies summary strong {
+  color: #eff9ff;
+  font-size: 13px;
+}
+
+.minor-bodies summary i {
+  color: rgba(143, 211, 240, 0.58);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.minor-bodies[open] summary i {
+  color: var(--space-cyan);
+}
+
+.minor-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+.minor-actions button {
+  overflow: hidden;
+  padding: 7px 4px;
+  border-radius: 8px;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.celestial-detail-panel {
+  position: fixed;
+  z-index: 47;
+  top: 82px;
+  right: 18px;
+  bottom: auto;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  width: clamp(360px, 25vw, 460px);
+  max-height: calc(100vh - 184px);
+  overflow: hidden;
+  border: 1px solid rgba(112, 211, 255, 0.24);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(3, 15, 29, 0.91), rgba(5, 25, 42, 0.78));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(93, 202, 255, 0.04) inset;
+  backdrop-filter: blur(22px) saturate(145%);
+}
+
+.detail-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 17px 18px 15px;
+  border-bottom: 1px solid rgba(119, 209, 250, 0.13);
+  background: linear-gradient(110deg, rgba(13, 67, 95, 0.54), rgba(7, 27, 45, 0.18));
+}
+
+.detail-kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(105, 216, 255, 0.68);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.detail-hero h2 {
+  margin: 0;
+  color: #f7fcff;
+  font-size: clamp(22px, 1.5vw, 30px);
+  font-weight: 760;
+  letter-spacing: 0.04em;
+}
+
+.detail-hero p {
+  margin: 5px 0 0;
+  color: rgba(189, 224, 239, 0.6);
+  font-size: 12px;
+}
+
+.detail-close {
+  display: grid;
+  flex: 0 0 29px;
+  width: 29px;
+  height: 29px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(112, 210, 250, 0.18);
+  border-radius: 9px;
+  color: rgba(208, 239, 251, 0.72);
+  font-size: 19px;
+  cursor: pointer;
+  background: rgba(20, 84, 114, 0.18);
+}
+
+.detail-close:hover {
+  border-color: rgba(121, 222, 255, 0.5);
+  color: #fff;
+}
+
+.celestial-texture {
+  position: relative;
+  display: grid;
+  min-height: 228px;
+  max-height: none;
+  place-items: center;
+  overflow: hidden;
+  padding: 16px 16px 42px;
+  border-bottom: 1px solid rgba(112, 206, 247, 0.14);
+  background: radial-gradient(circle at 50% 45%, rgba(50, 119, 159, 0.22), rgba(2, 9, 20, 0.94) 66%);
+}
+
+.celestial-texture::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 62%, rgba(1, 9, 18, 0.72));
+}
+
+.celestial-preview-canvas {
+  display: block;
+  position: relative;
+  z-index: 1;
+  width: 154px;
+  height: 154px;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+  border: 1px solid rgba(163, 228, 255, 0.28);
+  border-radius: 50%;
+  box-shadow: 0 0 28px rgba(87, 184, 231, 0.2), 0 14px 34px rgba(0, 0, 0, 0.46);
+}
+
+.celestial-preview-canvas::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset -18px -10px 28px rgba(0, 4, 12, 0.4), inset 8px 8px 18px rgba(179, 231, 255, 0.08);
+}
+
+.celestial-preview-canvas :deep(canvas) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.texture-caption {
+  position: absolute;
+  z-index: 2;
+  right: 16px;
+  bottom: 13px;
+  left: 16px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.texture-caption span {
+  color: rgba(121, 218, 255, 0.6);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.17em;
+}
+
+.texture-caption strong {
+  color: rgba(242, 251, 255, 0.9);
+  font-size: 12px;
+}
+
+.detail-scroll {
+  min-height: 0;
+  max-height: calc(100vh - 420px);
+  padding: 14px 16px 18px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.celestial-detail-panel.without-texture .detail-scroll {
+  max-height: calc(100vh - 240px);
+}
+
+.detail-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.detail-stat {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid rgba(111, 205, 246, 0.12);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(23, 79, 106, 0.16), rgba(2, 14, 27, 0.38));
+}
+
+.detail-stat span {
+  color: rgba(162, 204, 224, 0.55);
+  font-size: 10px;
+}
+
+.detail-stat strong {
+  overflow: hidden;
+  color: #cdefff;
+  font-size: 13px;
+  font-weight: 730;
+  text-overflow: ellipsis;
+}
+
+.detail-description {
+  margin-top: 12px;
+  padding: 12px 13px;
+  border-left: 2px solid rgba(89, 204, 248, 0.46);
+  border-radius: 0 10px 10px 0;
+  background: rgba(2, 13, 25, 0.36);
+}
+
+.detail-description p {
+  margin: 0 0 8px;
+  color: rgba(217, 238, 248, 0.72);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.detail-description p:last-child {
+  margin-bottom: 0;
+}
+
+.celestial-panel-enter-active,
+.celestial-panel-leave-active {
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.celestial-panel-enter-from,
+.celestial-panel-leave-to {
+  opacity: 0;
+  transform: translateX(34px) scale(0.98);
+}
+
+.solar-system-container .center-stage>.solar-playback-dock {
+  z-index: 49 !important;
+  right: auto !important;
+  bottom: 16px !important;
+  left: 50% !important;
+  width: min(680px, calc(100% - 48px)) !important;
+  max-width: calc(100% - 48px) !important;
+  grid-template-columns: auto minmax(0, 1fr) auto !important;
+  margin: 0 !important;
+  transform: translateX(-50%) !important;
+  border-color: rgba(113, 211, 252, 0.24);
+  background: linear-gradient(145deg, rgba(4, 18, 32, 0.9), rgba(7, 31, 49, 0.78));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(18px);
+}
+
+.timeline-speed {
+  min-width: 44px;
+  color: #9ceaff;
+  font-size: 12px;
+  text-align: right;
+}
+
+.loading-mask {
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: #effaff;
+  background: rgba(1, 7, 16, 0.88);
+  backdrop-filter: blur(14px);
+}
+
+.loading-orbit {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(112, 217, 255, 0.28);
+  border-radius: 50%;
+  animation: loading-spin 1.8s linear infinite;
+}
+
+.loading-orbit i {
+  position: absolute;
+  top: -3px;
+  left: 17px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #75ddff;
+  box-shadow: 0 0 12px #55cfff;
+}
+
+.loading-orbit span {
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  background: #ffd36a;
+  box-shadow: 0 0 18px rgba(255, 188, 57, 0.78);
+}
+
+.loading-text {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.loading-text strong {
+  font-size: 15px;
+}
+
+.loading-text span {
+  color: rgba(174, 216, 234, 0.6);
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 980px) {
+  .focus-status {
+    display: none;
+  }
+
+  .celestial-detail-panel {
+    top: auto;
+    right: 12px;
+    bottom: 86px;
+    width: min(390px, calc(100% - 24px));
+    max-height: min(66vh, 620px);
+  }
+
+  .celestial-texture {
+    min-height: 196px;
+    max-height: none;
+  }
+
+  .celestial-preview-canvas {
+    width: 128px;
+    height: 128px;
+    min-height: 0;
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .title-lockup {
+    top: 50%;
+    left: 76px;
+    align-items: start;
+    text-align: left;
+    transform: translateY(-50%);
+  }
+
+  .title-lockup>span {
+    display: none;
+  }
+
+  .title-lockup .page-title {
+    font-size: 16px;
+  }
+
+  .solar-toolbar .toolbar-actions .toolbar-btn {
+    padding-inline: 8px;
+    font-size: 9px;
+  }
+
+  .solar-control-card {
+    width: calc(100vw - 20px) !important;
+  }
+
+  .celestial-detail-panel {
+    right: 9px;
+    bottom: 78px;
+    width: calc(100% - 18px);
+    max-height: 58vh;
+  }
+
+  .celestial-texture {
+    display: none;
+  }
+
+  .detail-hero {
+    padding: 12px 14px;
+  }
+
+  .detail-hero h2 {
+    font-size: 20px;
+  }
+
+  .solar-system-container .center-stage>.solar-playback-dock {
+    bottom: 8px !important;
+    width: calc(100% - 16px) !important;
+    max-width: calc(100% - 16px) !important;
+  }
 }
 </style>

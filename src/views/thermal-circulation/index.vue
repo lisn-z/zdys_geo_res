@@ -10,6 +10,9 @@
       <h1 class="page-title">热力环流</h1>
 
       <div class="toolbar-actions">
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="togglePanelsVisibility">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
+        </button>
         <button type="button" class="theme-btn toolbar-btn" @click="resetView">
           重置视角
         </button>
@@ -68,7 +71,7 @@
       </button>
     </main>
 
-    <FloatingFeatureCard v-model:collapsed="stageCardCollapsed" class="thermal-stage-feature-card" title="阶段控制"
+    <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="stageCardCollapsed" class="thermal-stage-feature-card" title="阶段控制"
       :subtitle="currentStage.title" variant="track" :initial-top="118" :initial-right="16" :bottom-inset="86"
       :min-width="460" :min-height="300">
       <template #header-meta>
@@ -109,7 +112,7 @@
               <button type="button" class="theme-btn option-btn" @click="playAllStages">连续演示</button>
               <button type="button" class="theme-btn option-btn thermal-stage-loop-btn"
                 :class="{ active: isPlaying && playbackMode === 'loop' }" @click="toggleStageLoop">
-                {{ isPlaying && playbackMode === 'loop' ? '停止阶段循环' : '循环演示 1→5' }}
+                {{ isPlaying && playbackMode === 'loop' ? '停止阶段循环' : '循环演示 1→6' }}
               </button>
               <button type="button" class="theme-btn option-btn thermal-loop-btn"
                 :class="{ active: continuousLoopMode }" @click="toggleContinuousLoop">
@@ -119,8 +122,8 @@
       </div>
     </FloatingFeatureCard>
 
-    <FloatingFeatureCard v-model:collapsed="insightCardCollapsed" class="thermal-insight-feature-card" title="热力环流解读"
-      :subtitle="currentStage.insightTitle" variant="data" :initial-left="16" initial-center-y :bottom-inset="86"
+    <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="insightCardCollapsed" class="thermal-insight-feature-card" title="热力环流解读"
+      :subtitle="currentStage.insightTitle" variant="data" :initial-bottom="96" :initial-right="16" :bottom-inset="86"
       :min-width="330" :min-height="280">
       <div class="thermal-insight-content">
         <p class="thermal-insight-lead">{{ currentStage.insight }}</p>
@@ -129,7 +132,7 @@
           <i>→</i>
           <span :class="{ active: currentStageIndex >= 1 }">空气垂直运动</span>
           <i>→</i>
-          <span :class="{ active: currentStageIndex >= 2 }">气压差形成</span>
+          <span :class="{ active: currentStageIndex >= 3 }">气压差形成</span>
           <i>→</i>
           <span :class="{ active: currentStageIndex >= 4 }">水平气流闭合</span>
         </div>
@@ -205,8 +208,13 @@ const playbackStopAt = ref(100)
 const playbackMode = ref<'all' | 'stage' | 'loop' | null>(null)
 const continuousLoopMode = ref(false)
 const stageCardCollapsed = ref(false)
-const insightCardCollapsed = ref(typeof window !== 'undefined' && window.innerWidth < 1100)
+const insightCardCollapsed = ref(true)
+const panelsVisible = ref(true)
 const speedOptions = [0.5, 1, 2, 5]
+
+function togglePanelsVisibility() {
+  panelsVisible.value = !panelsVisible.value
+}
 
 const IMAGE_BASE_URL = '/geo-resources-folder/images/'
 const SUN_TEXTURE_URL = `${IMAGE_BASE_URL}sun.png`
@@ -216,56 +224,67 @@ const stageDefinitions = [
     id: 'heating',
     shortName: '受热',
     start: 0,
-    end: 18,
+    end: 16,
     title: '① 太阳辐射 · 近地面升温',
     description: '太阳光辉逐渐照向地面，近地面吸收热量并由暗转暖。',
-    focus: '观察热地面颜色、温度计液柱和橙红色波纹的同步变化。',
+    focus: '先观察热地面颜色、橙红色波纹和植物状态的同步变化。',
     insightTitle: '冷热不均是环流的起点',
     insight: '地表吸收太阳辐射的能力不同，首先造成温度差；温度差进一步转化为空气密度差。',
   },
   {
     id: 'rising',
     shortName: '上升',
-    start: 18,
-    end: 40,
+    start: 16,
+    end: 32,
     title: '② 暖空气膨胀上升',
-    description: '受热空气密度减小并持续上升，近地面逐渐形成低压。',
-    focus: '箭头沿暖色烟流向上，热区温度计液柱继续升高。',
+    description: '受热空气密度减小并持续上升，先形成热端的垂直运动。',
+    focus: '观察橙红箭头沿暖色烟流向上，此时水平气流尚未出现。',
     insightTitle: '受热使空气密度减小',
     insight: '空气受热膨胀后，单位体积内的质量减小，因此相对周围空气更轻并产生上升运动。',
   },
   {
-    id: 'upper-flow',
-    shortName: '高空流',
-    start: 40,
-    end: 61,
-    title: '③ 高空补偿气流',
-    description: '上升空气在高空由热区流向冷区，热量随之输送。',
-    focus: '观察高空箭头由热区指向冷区，而不是保持竖直。',
-    insightTitle: '高空先完成质量补偿',
-    insight: '热区上空空气堆积后形成水平气压梯度，空气向冷区上空输送，构成环流的上支。',
-  },
-  {
     id: 'sinking',
     shortName: '下沉',
-    start: 61,
-    end: 82,
-    title: '④ 冷却收缩 · 空气下沉',
-    description: '空气在冷区上空冷却、密度增大并下沉，冷地面逐渐形成高压。',
-    focus: '冷地面由暗转蓝，温度计液柱下降，并出现冰蓝色波纹。',
+    start: 32,
+    end: 48,
+    title: '③ 冷空气收缩下沉',
+    description: '冷端空气密度增大并下沉，与暖端上升共同构成垂直运动。',
+    focus: '观察冰蓝箭头向下、冷地面渐变和冰蓝波纹，仍不提前展示水平气流。',
     insightTitle: '冷却使空气密度增大',
     insight: '空气冷却收缩后变重并下沉，在冷地面附近堆积，形成相对较高的近地面气压。',
   },
   {
+    id: 'pressure',
+    shortName: '气压差',
+    start: 48,
+    end: 62,
+    title: '④ 垂直运动 · 建立气压差',
+    description: '上升和下沉重新分配空气质量，近地面与高空分别形成相反的高、低压配置。',
+    focus: '热端近地面为低压、上空为高压；冷端近地面为高压、上空为低压。',
+    insightTitle: '垂直运动先造成气压差',
+    insight: '空气上升使热端近地面失去空气、上空空气增多；冷端则相反。这个气压差才是随后水平运动的直接动力。',
+  },
+  {
+    id: 'horizontal-flow',
+    shortName: '水平流',
+    start: 62,
+    end: 84,
+    title: '⑤ 高空与近地面水平运动',
+    description: '气压梯度形成后，高空和近地面空气分别由高压流向低压。',
+    focus: '高空由热端流向冷端，近地面由冷端回到热端，两支气流方向相反。',
+    insightTitle: '气压梯度驱动水平运动',
+    insight: '高空空气从热端上空高压流向冷端上空低压；近地面空气从冷端高压流向热端低压。',
+  },
+  {
     id: 'return-flow',
-    shortName: '回流',
-    start: 82,
+    shortName: '闭合',
+    start: 84,
     end: 100,
-    title: '⑤ 近地面回流 · 环流闭合',
-    description: '空气由冷地面的高压区回流至热地面的低压区，完整环流形成。',
-    focus: '绿色近地面箭头从冷区高压指向热区低压。',
-    insightTitle: '气压差让环流闭合',
-    insight: '近地面空气由高压流向低压，与上升、高空流动和下沉共同构成完整的热力环流。',
+    title: '⑥ 四支气流 · 环流闭合',
+    description: '暖端上升、冷端下沉以及两层水平气流首尾相接，完整热力环流形成。',
+    focus: '沿箭头依次检查上升、高空流动、下沉和近地面回流是否首尾闭合。',
+    insightTitle: '垂直运动在先，水平运动在后',
+    insight: '地表冷热不均先触发垂直运动，垂直运动建立气压差，再驱动水平运动，最终形成闭合环流。',
   },
 ] as const
 
@@ -284,9 +303,9 @@ function smoothRange(value: number, start: number, end: number) {
 const atmosphereStyle = computed(() => {
   const phase = progress.value / 100
   const warmIn = smoothRange(phase, 0.055, 0.13)
-  const warmOut = 1 - smoothRange(phase, 0.35, 0.48)
-  const coldIn = smoothRange(phase, 0.65, 0.73)
-  const coldOut = 1 - smoothRange(phase, 0.91, 1.0)
+  const warmOut = 1 - smoothRange(phase, 0.27, 0.36)
+  const coldIn = smoothRange(phase, 0.32, 0.39)
+  const coldOut = 1 - smoothRange(phase, 0.53, 0.62)
   return {
     '--warm-intensity': (warmIn * warmOut).toFixed(3),
     '--cold-intensity': (coldIn * coldOut * 0.98).toFixed(3),
@@ -1122,20 +1141,50 @@ function createTerrain() {
 
   createGroundRippleField(warmX, warmY + 0.075, 0xff4e2d, 0xffb15d, 2.10, 0.82, 0.92, 0.07, 0.16)
   createGroundRippleField(0, middleY + 0.070, 0x32dcb0, 0xa1ffe1, 2.72, 0.48, 0.72, 0.84, 0.94)
-  createGroundRippleField(coldX, coldY + 0.075, 0x3d98ff, 0xbfeaff, 2.14, 0.62, 0.82, 0.67, 0.77)
+  createGroundRippleField(coldX, coldY + 0.075, 0x3d98ff, 0xbfeaff, 2.14, 0.62, 0.82, 0.34, 0.45)
 
   const labelZ = TERRAIN_DEPTH * 0.48
   const labelSampleZ = TERRAIN_DEPTH * 0.40
   createLabelSprite('热地面', '#ff6538', new THREE.Vector3(warmX, terrainWorldY(warmX, labelSampleZ) + 0.34, labelZ), 0.52)
   createLabelSprite('近地面', '#5de0aa', new THREE.Vector3(0, terrainWorldY(0, labelSampleZ) + 0.34, labelZ), 0.48)
   createLabelSprite('冷地面', '#3298ff', new THREE.Vector3(coldX, terrainWorldY(coldX, labelSampleZ) + 0.38, labelZ), 0.52)
-  createLabelSprite('低压', '#ff4b2b', new THREE.Vector3(warmX, warmY + 0.52, 0.65), 0.43)
-  createLabelSprite('高压', '#258eff', new THREE.Vector3(coldX, coldY + 0.55, 0.65), 0.43)
+  createLabelSprite(
+    '近地面低压 L',
+    '#ff4b2b',
+    new THREE.Vector3(warmX, warmY + 0.30, 1.62),
+    0.42,
+    0.48,
+    0.58,
+  )
+  createLabelSprite(
+    '近地面高压 H',
+    '#258eff',
+    new THREE.Vector3(coldX, coldY + 0.32, 1.62),
+    0.42,
+    0.48,
+    0.58,
+  )
+  createLabelSprite(
+    '高空高压 H',
+    '#56c8ff',
+    new THREE.Vector3(warmX, 5.72, 0.72),
+    0.44,
+    0.48,
+    0.58,
+  )
+  createLabelSprite(
+    '高空低压 L',
+    '#ff8068',
+    new THREE.Vector3(coldX, 5.72, 0.72),
+    0.44,
+    0.48,
+    0.58,
+  )
 
   // 三段区域中心增加很轻的地面光，避免盖住 shader 纹理。
   createRegionGlow(warmX, warmY + 0.05, 0xff5f2e, 0.15, 0.055, 0.15)
   createRegionGlow(0, middleY + 0.045, 0x53e7b0, 0.07, 0.84, 0.94)
-  createRegionGlow(coldX, coldY + 0.05, 0x2b8cff, 0.13, 0.65, 0.76)
+  createRegionGlow(coldX, coldY + 0.05, 0x2b8cff, 0.13, 0.32, 0.44)
 
   createVegetationReference('warm', warmX - 1.25, -1.86, 1.05, 21)
   createVegetationReference('warm', warmX + 1.24, 1.78, 0.82, 32)
@@ -2122,8 +2171,8 @@ function createAirCirculation() {
     0.60,
     1.08,
     0.15,
-    0.18,
-    0.29,
+    0.16,
+    0.28,
   )
 
   const upperCurves = createSmokeFlowFamily(
@@ -2142,8 +2191,8 @@ function createAirCirculation() {
     0.56,
     0.96,
     1.62,
-    0.38,
-    0.49,
+    0.62,
+    0.73,
   )
 
   const coldDownCurves = createSmokeFlowFamily(
@@ -2163,8 +2212,8 @@ function createAirCirculation() {
     0.60,
     1.04,
     3.05,
-    0.59,
-    0.72,
+    0.32,
+    0.44,
   )
 
   const surfaceCurves = createSmokeFlowFamily(
@@ -2190,8 +2239,8 @@ function createAirCirculation() {
     0.54,
     1.00,
     4.28,
-    0.80,
-    0.92,
+    0.68,
+    0.79,
   )
 
   const warmMain = warmUpCurves[Math.floor(warmUpCurves.length / 2)]!
@@ -2199,27 +2248,27 @@ function createAirCirculation() {
   const coldMain = coldDownCurves[Math.floor(coldDownCurves.length / 2)]!
   const surfaceMain = surfaceCurves[Math.floor(surfaceCurves.length / 2)]!
 
-  createMovingArrows(warmMain, FLOW_COLORS.warmLight, 5, 1.0, 0.78, 0.08, 0.18, 0.29)
-  createMovingArrows(upperMain, 0xc9dff0, 6, 1.0, 0.74, 0.02, 0.38, 0.49)
-  createMovingArrows(coldMain, FLOW_COLORS.cold, 5, 1.0, 0.78, 0.10, 0.59, 0.72)
-  createMovingArrows(surfaceMain, FLOW_COLORS.surface, 6, 1.0, 0.72, 0.04, 0.80, 0.92)
+  createMovingArrows(warmMain, FLOW_COLORS.warmLight, 5, 1.0, 0.78, 0.08, 0.16, 0.28)
+  createMovingArrows(coldMain, FLOW_COLORS.cold, 5, 1.0, 0.78, 0.10, 0.32, 0.44)
+  createMovingArrows(upperMain, 0xc9dff0, 6, 1.0, 0.74, 0.02, 0.62, 0.73)
+  createMovingArrows(surfaceMain, FLOW_COLORS.surface, 6, 1.0, 0.72, 0.04, 0.68, 0.79)
 
-  createLabelSprite('空气受热上升', '#ff6337', new THREE.Vector3(warmX - 1.72, 3.18, 0.8), 0.46, 0.20, 0.30)
-  createLabelSprite('高空气流', '#e5b6b0', new THREE.Vector3(0, 6.12, 0.3), 0.46, 0.40, 0.50)
-  createLabelSprite('空气冷却下沉', '#8bd7ff', new THREE.Vector3(coldX + 1.72, 3.20, 0.8), 0.46, 0.61, 0.72)
-  createLabelSprite('近地面气流', '#53e7b0', new THREE.Vector3(0, terrainWorldY(0, 3.05) + 0.64, 3.05), 0.46, 0.82, 0.92)
+  createLabelSprite('空气受热上升', '#ff6337', new THREE.Vector3(warmX - 1.72, 3.18, 0.8), 0.46, 0.18, 0.29)
+  createLabelSprite('空气冷却下沉', '#8bd7ff', new THREE.Vector3(coldX + 1.72, 3.20, 0.8), 0.46, 0.34, 0.45)
+  createLabelSprite('高空气流：高压 → 低压', '#e5b6b0', new THREE.Vector3(0, 6.12, 0.3), 0.46, 0.63, 0.74)
+  createLabelSprite('近地面气流：高压 → 低压', '#53e7b0', new THREE.Vector3(0, terrainWorldY(0, 3.05) + 0.64, 3.05), 0.46, 0.69, 0.80)
 
   createOfficialVolumeCloud(
     new THREE.Vector3(warmTopX, 6.08, -0.12),
     new THREE.Vector3(2.68, 0.94, 1.28),
     0xffeadc,
     1200,
-    0.29,
-    0.39,
+    0.26,
+    0.36,
   )
 
   createGlowSprite('#ff6a38', new THREE.Vector3(warmX, warmGroundY + 0.18, 0), 2.5, 0.18, 0.06, 0.16)
-  createGlowSprite('#66c7ff', new THREE.Vector3(coldX, coldGroundY + 0.18, 0), 2.5, 0.16, 0.65, 0.76)
+  createGlowSprite('#66c7ff', new THREE.Vector3(coldX, coldGroundY + 0.18, 0), 2.5, 0.16, 0.32, 0.44)
 }
 
 function addAtmosphereWisps() {
@@ -2268,7 +2317,7 @@ function addAtmosphereWisps() {
     const cs = 0.75 + seededRandom(i + 1940) * 1.4
     cold.scale.set(cs, cs * 1.75, 1)
     rootGroup.add(cold)
-    registerOpacityReveal(coldMat, coldOpacity, 0.61, 0.72)
+    registerOpacityReveal(coldMat, coldOpacity, 0.32, 0.44)
     pulseObjects.push({ object: cold, baseScale: cs, strength: 0.09, offset: i * 0.45 })
   }
 }
@@ -2303,29 +2352,34 @@ const cameraShots = [
     target: new THREE.Vector3(0, 2.65, 0),
   },
   {
-    phase: 0.14,
+    phase: 0.13,
     position: new THREE.Vector3(-2.2, 5.4, 13.0),
     target: new THREE.Vector3(HOT_CENTER_X, 1.05, 0),
   },
   {
-    phase: 0.34,
+    phase: 0.27,
     position: new THREE.Vector3(-9.2, 5.3, 10.8),
     target: new THREE.Vector3(HOT_CENTER_X, 3.15, 0),
   },
   {
-    phase: 0.54,
-    position: new THREE.Vector3(0.2, 8.1, 15.0),
-    target: new THREE.Vector3(0, 5.25, 0),
-  },
-  {
-    phase: 0.75,
+    phase: 0.43,
     position: new THREE.Vector3(9.1, 5.5, 10.8),
     target: new THREE.Vector3(COLD_CENTER_X, 3.0, 0),
   },
   {
-    phase: 0.91,
-    position: new THREE.Vector3(0.4, 8.6, 14.8),
-    target: new THREE.Vector3(0, 0.92, 0),
+    phase: 0.58,
+    position: new THREE.Vector3(0.4, 7.5, 13.2),
+    target: new THREE.Vector3(0, 3.15, 0),
+  },
+  {
+    phase: 0.76,
+    position: new THREE.Vector3(0.2, 8.0, 13.8),
+    target: new THREE.Vector3(0, 4.15, 0),
+  },
+  {
+    phase: 0.90,
+    position: new THREE.Vector3(0.4, 7.7, 13.4),
+    target: new THREE.Vector3(0, 2.65, 0),
   },
   {
     phase: 1,
@@ -2401,7 +2455,7 @@ function updateSceneFromProgress(ambientElapsed = 0) {
   })
 
   const hotHeat = smoothRange(phase, 0.045, 0.16)
-  const coldChill = smoothRange(phase, 0.63, 0.76)
+  const coldChill = smoothRange(phase, 0.32, 0.45)
   const beamReveal = smoothRange(phase, 0.015, 0.12)
   const beamFade = 1 - smoothRange(phase, 0.18, 0.29)
   if (terrainMaterial?.uniforms.uHotHeat) terrainMaterial.uniforms.uHotHeat.value = hotHeat
@@ -2989,7 +3043,7 @@ onBeforeUnmount(() => {
 
 .thermal-stage-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
 }
 

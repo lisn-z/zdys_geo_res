@@ -836,6 +836,10 @@
     var(--stage-background);
 }
 
+.center-stage>.stage-content {
+  height: 100%;
+}
+
 .stage-placeholder {
   position: absolute;
   z-index: 5;

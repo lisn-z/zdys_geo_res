@@ -356,6 +356,51 @@ export const routes = [
     component: () =>
       import('@/views/thermal-circulation/index.vue'),
   },
+  {
+    path: '/sea-and-land-breezes',
+    name: 'sea-and-land-breezes',
+    meta: {
+      title: '海陆风',
+    },
+    component: () =>
+      import('@/views/sea-and-land-breezes/index.vue'),
+  },
+  {
+    path: '/valley-breeze',
+    name: 'valley-breeze',
+    meta: {
+      title: '山谷风',
+    },
+    component: () =>
+      import('@/views/valley-breeze/index.vue'),
+  },
+  {
+    path: '/city-breezes',
+    name: 'city-breezes',
+    meta: {
+      title: '城市风 · 城市热岛环流',
+    },
+    component: () =>
+      import('@/views/city-breezes/index.vue'),
+  },
+  {
+    path: '/the-process-of-atmospheric-heating',
+    name: 'the-process-of-atmospheric-heating',
+    meta: {
+      title: '大气受热过程',
+    },
+    component: () =>
+      import('@/views/the-process-of-atmospheric-heating/index.vue'),
+  },
+  {
+    path: '/thermal-circulation-laboratory',
+    name: 'thermal-circulation-laboratory',
+    meta: {
+      title: '热力环流实验室',
+    },
+    component: () =>
+      import('@/views/thermal-circulation-laboratory/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {
