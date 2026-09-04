@@ -302,7 +302,7 @@ export const routes = [
     name: 'karst-landform',
     meta: {
       title: '喀斯特地貌',
-      tags: ['暂时不上'],
+      tags: ['第三批'],
     },
     component: () =>
       import('@/views/karst-landform/index.vue'),
@@ -332,7 +332,8 @@ export const routes = [
     name: 'volcano',
     meta: {
       title: '火山',
-      tags: ['暂时不上'],
+      tags: ['第三批'],
+
     },
     component: () =>
       import('@/views/volcano/index.vue'),
@@ -352,6 +353,7 @@ export const routes = [
     name: 'thermal-circulation',
     meta: {
       title: '热力环流',
+      tags: ['第三批'],
     },
     component: () =>
       import('@/views/thermal-circulation/index.vue'),
@@ -361,6 +363,7 @@ export const routes = [
     name: 'sea-and-land-breezes',
     meta: {
       title: '海陆风',
+      tags: ['第三批'],
     },
     component: () =>
       import('@/views/sea-and-land-breezes/index.vue'),
@@ -370,6 +373,7 @@ export const routes = [
     name: 'valley-breeze',
     meta: {
       title: '山谷风',
+      tags: ['第三批'],
     },
     component: () =>
       import('@/views/valley-breeze/index.vue'),
@@ -379,6 +383,7 @@ export const routes = [
     name: 'city-breezes',
     meta: {
       title: '城市风 · 城市热岛环流',
+      tags: ['第三批'],
     },
     component: () =>
       import('@/views/city-breezes/index.vue'),
@@ -388,6 +393,7 @@ export const routes = [
     name: 'the-process-of-atmospheric-heating',
     meta: {
       title: '大气受热过程',
+      tags: ['暂时不上'],
     },
     component: () =>
       import('@/views/the-process-of-atmospheric-heating/index.vue'),
@@ -397,6 +403,7 @@ export const routes = [
     name: 'thermal-circulation-laboratory',
     meta: {
       title: '热力环流实验室',
+      tags: ['第三批'],
     },
     component: () =>
       import('@/views/thermal-circulation-laboratory/index.vue'),

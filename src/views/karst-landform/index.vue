@@ -65,6 +65,16 @@
         </article>
       </Transition>
     </main>
+
+    <footer class="model-attribution" aria-label="3D 模型版权信息">
+      <span>3D 模型</span>
+      <a href="https://sketchfab.com/3d-models/the-krast-landforms-and-cycle-of-erosion-9e57c48cd6114ebcbefda45a7ee4174b"
+        target="_blank" rel="noopener noreferrer">The Krast Landforms and Cycle of Erosion</a>
+      <span>by</span>
+      <a href="https://sketchfab.com/arloopa" target="_blank" rel="noopener noreferrer">arloopapro</a>
+      <span>·</span>
+      <a href="https://sketchfab.com/licenses" target="_blank" rel="noopener noreferrer">Sketchfab Free Standard</a>
+    </footer>
   </div>
 </template>
 
@@ -621,6 +631,40 @@ onBeforeUnmount(disposeScene)
   inset: 70px 0 0;
 }
 
+.model-attribution {
+  position: absolute;
+  left: 18px;
+  bottom: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100vw - 104px);
+  padding: 7px 10px;
+  border: 1px solid rgba(139, 204, 214, 0.15);
+  border-radius: 8px;
+  color: rgba(197, 221, 224, 0.6);
+  background: rgba(3, 18, 27, 0.62);
+  box-shadow: 0 6px 20px rgba(0, 7, 12, 0.18);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+}
+
+.model-attribution a {
+  overflow: hidden;
+  color: rgba(137, 222, 218, 0.82);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  transition: color 160ms ease;
+}
+
+.model-attribution a:hover {
+  color: #a6fff4;
+  text-decoration: underline;
+}
+
 .three-host,
 .three-host :deep(.three-canvas),
 .three-host :deep(.karst-label-layer) {
@@ -920,6 +964,20 @@ onBeforeUnmount(disposeScene)
 
   .stage {
     inset: 62px 0 0;
+  }
+
+  .model-attribution {
+    left: 10px;
+    bottom: 10px;
+    max-width: calc(100vw - 76px);
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+
+  .model-attribution span:first-child,
+  .model-attribution span:nth-of-type(2),
+  .model-attribution a:last-child {
+    display: none;
   }
 
   .feature-detail-card {

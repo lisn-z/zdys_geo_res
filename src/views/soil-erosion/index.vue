@@ -1,5 +1,5 @@
 <template>
-  <div class="soil-erosion-container geo-template-page geo-page theme-dark layout-floating">
+  <div class="soil-erosion-container geo-template-page geo-page theme-dark layout-large">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -45,129 +45,132 @@
       </section>
 
       <Transition name="panel-stack">
-        <div v-if="panelsVisible" class="floating-panel-stack" aria-label="功能面板">
-          <FloatingFeatureCard title="实验变量调控" subtitle="调整参数观察水土流失变化" variant="control"
-            :initial-collapsed="true" :draggable="false" :resizable="false" class="soil-floating-card">
+        <div v-show="panelsVisible" class="floating-panel-stack" aria-label="功能面板">
+          <FloatingFeatureCard title="实验变量调控" subtitle="调整参数观察水土流失变化" variant="control" :initial-collapsed="true"
+            :initial-top="82" :initial-right="14" :bottom-inset="82" class="soil-floating-card">
             <section class="geo-card control-section">
-            <h3 class="section-title">🌳 植被覆盖</h3>
-            <div class="section-title-row">
-              <span class="mini-control-label">覆盖度</span>
-              <strong class="control-value">{{ vegState }}%</strong>
-            </div>
-            <el-slider v-model="vegState" :min="0" :max="100" :step="1" :show-tooltip="false" @input="onParamChange" />
+              <h3 class="section-title">🌳 植被覆盖</h3>
+              <div class="section-title-row">
+                <span class="mini-control-label">覆盖度</span>
+                <strong class="control-value">{{ vegState }}%</strong>
+              </div>
+              <el-slider v-model="vegState" :min="0" :max="100" :step="1" :show-tooltip="false"
+                @input="onParamChange" />
 
-            <h3 class="section-title">🌧️ 降雨强度</h3>
-            <div class="section-title-row">
-              <span class="mini-control-label">强度</span>
-              <strong class="control-value">{{ rainLabel }}</strong>
-            </div>
-            <el-slider v-model="rainState" :min="0" :max="100" :step="1" :show-tooltip="false" @input="onParamChange" />
+              <h3 class="section-title">🌧️ 降雨强度</h3>
+              <div class="section-title-row">
+                <span class="mini-control-label">强度</span>
+                <strong class="control-value">{{ rainLabel }}</strong>
+              </div>
+              <el-slider v-model="rainState" :min="0" :max="100" :step="1" :show-tooltip="false"
+                @input="onParamChange" />
 
-            <h3 class="section-title">⛰️ 地形坡度</h3>
-            <div class="section-title-row">
-              <span class="mini-control-label">坡度</span>
-              <strong class="control-value">{{ slopeState }}°</strong>
-            </div>
-            <el-slider v-model="slopeState" :min="5" :max="45" :step="1" :show-tooltip="false" @input="onParamChange" />
+              <h3 class="section-title">⛰️ 地形坡度</h3>
+              <div class="section-title-row">
+                <span class="mini-control-label">坡度</span>
+                <strong class="control-value">{{ slopeState }}°</strong>
+              </div>
+              <el-slider v-model="slopeState" :min="5" :max="45" :step="1" :show-tooltip="false"
+                @input="onParamChange" />
 
-            <div class="color-control-row first-control-row">
-              <div class="control-copy"><strong>🌱 土壤质地</strong><span>不同质地对侵蚀的影响</span></div>
-            </div>
-            <div class="soil-type-grid">
-              <button v-for="s in soilOptions" :key="s.value" type="button" class="theme-btn option-btn"
-                :class="{ active: soilTypeState === s.value }" @click="selectSoil(s.value)">
-                {{ s.icon }} {{ s.label }}
-              </button>
-            </div>
-          </section>
+              <div class="color-control-row first-control-row">
+                <div class="control-copy"><strong>🌱 土壤质地</strong><span>不同质地对侵蚀的影响</span></div>
+              </div>
+              <div class="soil-type-grid">
+                <button v-for="s in soilOptions" :key="s.value" type="button" class="theme-btn option-btn"
+                  :class="{ active: soilTypeState === s.value }" @click="selectSoil(s.value)">
+                  {{ s.icon }} {{ s.label }}
+                </button>
+              </div>
+            </section>
 
-          <section class="geo-card control-section">
-            <h3 class="section-title">⚡ 快速预设场景</h3>
-            <div class="preset-grid">
-              <button type="button" class="theme-btn option-btn" :class="{ active: activePreset === 'forest' }"
-                @click="applyPreset('forest')">
-                🌲 生态林区 · 高覆盖 / 缓坡 / 壤土
-              </button>
-              <button type="button" class="theme-btn option-btn" :class="{ active: activePreset === 'plateau' }"
-                @click="applyPreset('plateau')">
-                🏜️ 黄土高原 · 低覆盖 / 陡坡 / 黏土
-              </button>
-            </div>
-          </section>
+            <section class="geo-card control-section">
+              <h3 class="section-title">⚡ 快速预设场景</h3>
+              <div class="preset-grid">
+                <button type="button" class="theme-btn option-btn" :class="{ active: activePreset === 'forest' }"
+                  @click="applyPreset('forest')">
+                  🌲 生态林区 · 高覆盖 / 缓坡 / 壤土
+                </button>
+                <button type="button" class="theme-btn option-btn" :class="{ active: activePreset === 'plateau' }"
+                  @click="applyPreset('plateau')">
+                  🏜️ 黄土高原 · 低覆盖 / 陡坡 / 黏土
+                </button>
+              </div>
+            </section>
 
-          <section class="geo-card control-section">
-            <h3 class="section-title">🎬 模拟控制</h3>
-            <div class="sim-control-row">
-              <button type="button" class="theme-btn option-btn" :class="{ 'sim-active': isRaining }"
-                @click="toggleSimulation">{{ simulateButtonText }}</button>
-              <button type="button" class="theme-btn option-btn" @click="resetAll">重置场景</button>
-            </div>
-            <div v-if="isRaining || progress > 0" class="timer-display">
-              <span class="timer-icon">⏱️</span><span class="timer-text">模拟剩余 {{ remainingSeconds }}s</span>
-            </div>
-            <div class="switch-row sound-switch-row">
-              <div class="control-copy"><strong>🔊 雨声音效</strong><span>随降雨强度动态变化</span></div>
-              <el-switch v-model="soundEnabled" @change="onSoundToggle" />
-            </div>
+            <section class="geo-card control-section">
+              <h3 class="section-title">🎬 模拟控制</h3>
+              <div class="sim-control-row">
+                <button type="button" class="theme-btn option-btn" :class="{ 'sim-active': isRaining }"
+                  @click="toggleSimulation">{{ simulateButtonText }}</button>
+                <button type="button" class="theme-btn option-btn" @click="resetAll">重置场景</button>
+              </div>
+              <div v-if="isRaining || progress > 0" class="timer-display">
+                <span class="timer-icon">⏱️</span><span class="timer-text">模拟剩余 {{ remainingSeconds }}s</span>
+              </div>
+              <div class="switch-row sound-switch-row">
+                <div class="control-copy"><strong>🔊 雨声音效</strong><span>随降雨强度动态变化</span></div>
+                <el-switch v-model="soundEnabled" @change="onSoundToggle" />
+              </div>
             </section>
           </FloatingFeatureCard>
 
-          <FloatingFeatureCard title="模拟结果" subtitle="实时水土流失监测数据" variant="data"
-            :initial-collapsed="true" :draggable="false" :resizable="false" class="soil-floating-card">
+          <FloatingFeatureCard title="模拟结果" subtitle="实时水土流失监测数据" variant="data" :initial-collapsed="true"
+            :initial-top="144" :initial-right="14" :bottom-inset="82" class="soil-floating-card">
             <div class="data-grid">
-            <article class="geo-card data-card" :class="dataCardClass(0)"><span>💧 地表径流量</span><strong>{{
-              simStats.runoff }}</strong><small>L/s · 水流强度</small></article>
-            <article class="geo-card data-card" :class="dataCardClass(1)"><span>⛰️ 流失土壤量</span><strong>{{
-              simStats.erosion.toFixed(1) }}</strong><small>kg · 土壤损失</small></article>
-            <article class="geo-card data-card" :class="dataCardClass(2)"><span>🟠 河流含沙量</span><strong>{{
-              simStats.sediment }}</strong><small>% · 浑浊度</small></article>
+              <article class="geo-card data-card" :class="dataCardClass(0)"><span>💧 地表径流量</span><strong>{{
+                simStats.runoff }}</strong><small>L/s · 水流强度</small></article>
+              <article class="geo-card data-card" :class="dataCardClass(1)"><span>⛰️ 流失土壤量</span><strong>{{
+                simStats.erosion.toFixed(1) }}</strong><small>kg · 土壤损失</small></article>
+              <article class="geo-card data-card" :class="dataCardClass(2)"><span>🟠 河流含沙量</span><strong>{{
+                simStats.sediment }}</strong><small>% · 浑浊度</small></article>
             </div>
             <div class="erosion-level-card geo-card">
-            <div class="level-header"><span>流失等级评估</span><span class="level-badge" :class="levelClass">{{ levelText
-                }}</span></div>
-            <div class="level-track">
-              <div class="level-fill" :style="{ width: levelPercent + '%' }"></div>
-            </div>
-            <div class="level-labels"><span>轻度</span><span>中度</span><span>重度</span></div>
+              <div class="level-header"><span>流失等级评估</span><span class="level-badge" :class="levelClass">{{ levelText
+                  }}</span></div>
+              <div class="level-track">
+                <div class="level-fill" :style="{ width: levelPercent + '%' }"></div>
+              </div>
+              <div class="level-labels"><span>轻度</span><span>中度</span><span>重度</span></div>
             </div>
             <el-collapse v-model="activePanels" class="analysis-collapse">
-            <el-collapse-item title="🌍 什么是水土流失" name="concept">
-              <div class="collapse-content principle-content">
-                <p><strong>定义：</strong>水土流失是指土壤在<strong>水力、风力、重力</strong>等外力作用下，被破坏、剥蚀、搬运和沉积的过程。</p>
-                <p>
-                  <strong>主要分布区：</strong>我国水土流失主要发生在<strong>山区、丘陵区和风沙区</strong>，尤其是<strong>黄土高原</strong>。我国是世界上水土流失最严重的国家之一。
-                </p>
-                <p><strong>发生过程：</strong>降雨落在地面→土壤被雨滴打散→地表水汇成径流→冲刷土壤→携带泥沙流入河流→在低洼处沉积。</p>
-              </div>
-            </el-collapse-item>
-            <el-collapse-item title="⛰️ 以黄土高原为例" name="loess">
-              <div class="collapse-content principle-content">
-                <p><strong>自然原因：</strong></p>
-                <p>① <strong>黄土特性：</strong>由风积形成，<strong>土质疏松</strong>，遇水易崩解。</p>
-                <p>② <strong>气候：</strong>温带季风气候，<strong>夏季降水集中</strong>且多暴雨。</p>
-                <p>③ <strong>地形：</strong>坡度大，<strong>沟壑纵横</strong>，利于水流冲刷。</p>
-                <p>④ <strong>植被：</strong>天然植被<strong>覆盖率低</strong>，保护作用弱。</p>
-                <p>
-                  <strong>人为原因：</strong><strong>过度开垦</strong>陡坡、<strong>过度放牧</strong>、<strong>过度砍伐</strong>、<strong>露天开矿</strong>等破坏地表植被。
-                </p>
-              </div>
-            </el-collapse-item>
-            <el-collapse-item title="⚠️ 水土流失的危害" name="harm">
-              <div class="collapse-content principle-content">
-                <p><strong>① 土地资源：</strong>土壤肥力下降，土地变得<strong>贫瘠</strong>，农业减产。</p>
-                <p><strong>② 河流含沙量：</strong>大量泥沙涌入河流，<strong>淤塞河道、水库、渠道</strong>。</p>
-                <p><strong>③ 生态环境：</strong>加剧<strong>干旱、洪涝、滑坡</strong>等自然灾害。</p>
-                <p><strong>④ 经济发展：</strong>影响农业生产，制约区域可持续发展。</p>
-              </div>
-            </el-collapse-item>
-            <el-collapse-item title="🌱 治理措施" name="treatment">
-              <div class="collapse-content principle-content">
-                <p><strong>① 工程措施（修）：</strong>修建<strong>梯田</strong>减缓坡度；修建<strong>淤地坝</strong>拦截泥沙。</p>
-                <p><strong>② 生物措施（种）：</strong><strong>植树种草</strong>恢复植被；陡坡耕地<strong>退耕还林还草</strong>。</p>
-                <p><strong>③ 农业技术措施（养）：</strong><strong>轮作、间作</strong>合理利用土地；<strong>秸秆还田</strong>增加有机质。</p>
-                <p><strong>④ 综合治理：</strong><strong>小流域综合治理</strong>，把工程、生物、农业措施结合起来。</p>
-              </div>
-            </el-collapse-item>
+              <el-collapse-item title="🌍 什么是水土流失" name="concept">
+                <div class="collapse-content principle-content">
+                  <p><strong>定义：</strong>水土流失是指土壤在<strong>水力、风力、重力</strong>等外力作用下，被破坏、剥蚀、搬运和沉积的过程。</p>
+                  <p>
+                    <strong>主要分布区：</strong>我国水土流失主要发生在<strong>山区、丘陵区和风沙区</strong>，尤其是<strong>黄土高原</strong>。我国是世界上水土流失最严重的国家之一。
+                  </p>
+                  <p><strong>发生过程：</strong>降雨落在地面→土壤被雨滴打散→地表水汇成径流→冲刷土壤→携带泥沙流入河流→在低洼处沉积。</p>
+                </div>
+              </el-collapse-item>
+              <el-collapse-item title="⛰️ 以黄土高原为例" name="loess">
+                <div class="collapse-content principle-content">
+                  <p><strong>自然原因：</strong></p>
+                  <p>① <strong>黄土特性：</strong>由风积形成，<strong>土质疏松</strong>，遇水易崩解。</p>
+                  <p>② <strong>气候：</strong>温带季风气候，<strong>夏季降水集中</strong>且多暴雨。</p>
+                  <p>③ <strong>地形：</strong>坡度大，<strong>沟壑纵横</strong>，利于水流冲刷。</p>
+                  <p>④ <strong>植被：</strong>天然植被<strong>覆盖率低</strong>，保护作用弱。</p>
+                  <p>
+                    <strong>人为原因：</strong><strong>过度开垦</strong>陡坡、<strong>过度放牧</strong>、<strong>过度砍伐</strong>、<strong>露天开矿</strong>等破坏地表植被。
+                  </p>
+                </div>
+              </el-collapse-item>
+              <el-collapse-item title="⚠️ 水土流失的危害" name="harm">
+                <div class="collapse-content principle-content">
+                  <p><strong>① 土地资源：</strong>土壤肥力下降，土地变得<strong>贫瘠</strong>，农业减产。</p>
+                  <p><strong>② 河流含沙量：</strong>大量泥沙涌入河流，<strong>淤塞河道、水库、渠道</strong>。</p>
+                  <p><strong>③ 生态环境：</strong>加剧<strong>干旱、洪涝、滑坡</strong>等自然灾害。</p>
+                  <p><strong>④ 经济发展：</strong>影响农业生产，制约区域可持续发展。</p>
+                </div>
+              </el-collapse-item>
+              <el-collapse-item title="🌱 治理措施" name="treatment">
+                <div class="collapse-content principle-content">
+                  <p><strong>① 工程措施（修）：</strong>修建<strong>梯田</strong>减缓坡度；修建<strong>淤地坝</strong>拦截泥沙。</p>
+                  <p><strong>② 生物措施（种）：</strong><strong>植树种草</strong>恢复植被；陡坡耕地<strong>退耕还林还草</strong>。</p>
+                  <p><strong>③ 农业技术措施（养）：</strong><strong>轮作、间作</strong>合理利用土地；<strong>秸秆还田</strong>增加有机质。</p>
+                  <p><strong>④ 综合治理：</strong><strong>小流域综合治理</strong>，把工程、生物、农业措施结合起来。</p>
+                </div>
+              </el-collapse-item>
             </el-collapse>
           </FloatingFeatureCard>
         </div>
@@ -907,7 +910,7 @@ onBeforeUnmount(() => {
 .sim-status-badge {
   position: absolute;
   top: 18px;
-  right: 18px;
+  right: 250px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1123,27 +1126,11 @@ onBeforeUnmount(() => {
 .floating-panel-stack {
   position: absolute;
   z-index: 45;
-  top: var(--floating-panel-top-offset, 82px);
-  right: 14px;
-  bottom: 88px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 14px;
-  max-width: calc(100% - 28px);
-  padding: 2px 6px 8px 2px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  inset: 0;
   pointer-events: none;
-  scrollbar-width: thin;
 }
 
 .floating-panel-stack :deep(.floating-feature-card) {
-  position: relative !important;
-  top: auto !important;
-  left: auto !important;
-  flex: 0 0 auto;
-  max-width: 100%;
   pointer-events: auto;
 }
 
@@ -1152,11 +1139,11 @@ onBeforeUnmount(() => {
 }
 
 .floating-panel-stack :deep(.variant-control:not(.collapsed)) {
-  height: min(640px, calc(100vh - 176px));
+  height: min(720px, calc(100vh - 164px));
 }
 
 .floating-panel-stack :deep(.variant-data:not(.collapsed)) {
-  height: min(520px, calc(100vh - 176px));
+  height: min(680px, calc(100vh - 226px));
 }
 
 .panel-stack-enter-active,
@@ -1171,11 +1158,17 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 760px) {
-  .floating-panel-stack {
-    right: 8px;
-    bottom: 82px;
-    gap: 10px;
-    max-width: calc(100% - 16px);
+  .sim-status-badge {
+    right: auto;
+    left: 12px;
   }
+
+  .floating-panel-stack :deep(.floating-feature-card) {
+    max-width: calc(100vw - 20px);
+  }
+}
+
+.timeline-dock {
+  bottom: 56px !important;
 }
 </style>

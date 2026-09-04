@@ -1,57 +1,31 @@
 <template>
-  <div
-    ref="pageRef"
-    class="fold-fault-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="fold-fault-container geo-template-page geo-page theme-dark" :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
       <h1 class="page-title">褶皱断层</h1>
 
       <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="toggleAllPanels"
-        >
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="panelsVisible = !panelsVisible">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside
-        id="left-panel"
-        class="side-panel left-panel"
-        v-bind="leftPanelAttrs"
-      >
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>模型控制</h2>
-              <p>切换地质构造并控制形成过程</p>
-            </div>
-            <span class="panel-badge">CONTROL</span>
-          </div>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlCardCollapsed"
+        class="fold-fault-floating-card fold-fault-control-card" title="模型控制" subtitle="切换地质构造并控制形成过程" variant="control"
+        :initial-top="92" :initial-right="18" :initial-collapsed="true" :min-width="320" :min-height="320">
+        <div class="floating-card-body">
 
           <section class="geo-card control-section">
             <h3 class="section-title">构造类型</h3>
             <div class="option-grid mode-option-grid">
-              <button
-                v-for="item in modeOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn"
-                :class="{ active: activeMode === item.value }"
-                @click="switchMode(item.value)"
-              >
+              <button v-for="item in modeOptions" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: activeMode === item.value }" @click="switchMode(item.value)">
                 {{ item.label }}
               </button>
             </div>
@@ -62,38 +36,20 @@
               <h3 class="section-title">挤压强度</h3>
               <strong class="control-value">{{ Math.round(compressionStrength * 100) }}%</strong>
             </div>
-            <el-slider
-              v-model="compressionPercent"
-              :min="0"
-              :max="100"
-              :step="1"
-              :show-tooltip="false"
-              @input="onManualFoldControl"
-            />
+            <el-slider v-model="compressionPercent" :min="0" :max="100" :step="1" :show-tooltip="false"
+              @input="onManualFoldControl" />
 
             <div class="section-title-row compact-title-row">
               <span class="mini-control-label">侵蚀强度</span>
               <strong class="control-value">{{ Math.round(erosionStrength * 100) }}%</strong>
             </div>
-            <el-slider
-              v-model="erosionPercent"
-              :min="0"
-              :max="100"
-              :step="1"
-              :show-tooltip="false"
-              @input="onManualFoldControl"
-            />
+            <el-slider v-model="erosionPercent" :min="0" :max="100" :step="1" :show-tooltip="false"
+              @input="onManualFoldControl" />
 
             <h3 class="section-title fold-preset-title">过程预设</h3>
             <div class="option-grid fold-preset-grid">
-              <button
-                v-for="item in foldPresets"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn"
-                :class="{ active: foldPreset === item.value }"
-                @click="applyFoldPreset(item.value)"
-              >
+              <button v-for="item in foldPresets" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: foldPreset === item.value }" @click="applyFoldPreset(item.value)">
                 {{ item.label }}
               </button>
             </div>
@@ -102,14 +58,9 @@
           <section v-else class="geo-card control-section">
             <h3 class="section-title">断层类型</h3>
             <div class="option-grid fault-type-grid">
-              <button
-                v-for="item in faultTypeOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn fault-type-btn"
-                :class="{ active: faultType === item.value }"
-                @click="setFaultType(item.value)"
-              >
+              <button v-for="item in faultTypeOptions" :key="item.value" type="button"
+                class="theme-btn option-btn fault-type-btn" :class="{ active: faultType === item.value }"
+                @click="setFaultType(item.value)">
                 {{ item.label }}
               </button>
             </div>
@@ -118,26 +69,14 @@
               <span class="mini-control-label">断层错动量</span>
               <strong class="control-value">{{ Math.round(faultDisplacement * 100) }}%</strong>
             </div>
-            <el-slider
-              v-model="faultDisplacementPercent"
-              :min="0"
-              :max="100"
-              :step="1"
-              :show-tooltip="false"
-              @input="onManualFaultControl"
-            />
+            <el-slider v-model="faultDisplacementPercent" :min="0" :max="100" :step="1" :show-tooltip="false"
+              @input="onManualFaultControl" />
 
             <div class="section-title-row compact-title-row">
               <span class="mini-control-label">断层面倾角</span>
               <strong class="control-value">{{ Math.round(faultDip) }}°</strong>
             </div>
-            <el-slider
-              v-model="faultDip"
-              :min="45"
-              :max="80"
-              :step="1"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="faultDip" :min="45" :max="80" :step="1" :show-tooltip="false" />
 
           </section>
 
@@ -172,37 +111,20 @@
           <section class="geo-card control-section">
             <h3 class="section-title">观察视角</h3>
             <div class="option-grid view-option-grid">
-              <button
-                v-for="item in viewOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn view-option-btn"
-                :class="{ active: currentView === item.value }"
-                @click="setView(item.value)"
-              >
+              <button v-for="item in viewOptions" :key="item.value" type="button"
+                class="theme-btn option-btn view-option-btn" :class="{ active: currentView === item.value }"
+                @click="setView(item.value)">
                 {{ item.label }}
               </button>
             </div>
 
-            <button
-              type="button"
-              class="theme-btn reset-scene-btn reset-full-btn"
-              @click="resetControls"
-            >
+            <button type="button" class="theme-btn reset-scene-btn reset-full-btn" @click="resetControls">
               恢复默认参数
             </button>
           </section>
         </div>
 
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-left"
-          v-bind="leftCollapseAttrs"
-        >
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content fold-stage-content">
@@ -211,15 +133,8 @@
           <section class="stage-stratum-legend" aria-label="岩层图例">
             <h3>岩层图例</h3>
             <div class="stage-stratum-legend-list">
-              <div
-                v-for="item in rockLegend"
-                :key="item.label"
-                class="stage-stratum-legend-item"
-              >
-                <span
-                  class="stage-stratum-swatch"
-                  :style="{ backgroundColor: item.color }"
-                ></span>
+              <div v-for="item in rockLegend" :key="item.label" class="stage-stratum-legend-item">
+                <span class="stage-stratum-swatch" :style="{ backgroundColor: item.color }"></span>
                 <div>
                   <strong>{{ item.label }}</strong>
                   <small>{{ item.note }}</small>
@@ -236,14 +151,8 @@
         </div>
 
         <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="togglePlayback"
-          >
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlayback">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -255,52 +164,27 @@
               <span>{{ activeMode === 'fold' ? '褶皱—侵蚀演示进度' : '断层错动演示进度' }}</span>
               <strong>{{ Math.round(progress) }}%</strong>
             </div>
-            <el-slider
-              v-model="progress"
-              :min="0"
-              :max="100"
-              :step="1"
-              :show-tooltip="false"
-              @input="onTimelineInput"
-            />
+            <el-slider v-model="progress" :min="0" :max="100" :step="1" :show-tooltip="false"
+              @input="onTimelineInput" />
           </div>
 
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
         </div>
       </section>
 
-      <aside
-        id="right-panel"
-        class="side-panel right-panel"
-        v-bind="rightPanelAttrs"
-      >
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>实时数据</h2>
-              <p>{{ activeMode === 'fold' ? '褶皱形态与侵蚀结果' : '断层位移与构造判读' }}</p>
-            </div>
-            <span class="panel-badge">DATA</span>
-          </div>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="dataCardCollapsed"
+        class="fold-fault-floating-card fold-fault-data-card" title="实时数据"
+        :subtitle="activeMode === 'fold' ? '褶皱形态与侵蚀结果' : '断层位移与构造判读'" variant="data" :initial-top="164"
+        :initial-right="18" :initial-collapsed="true" :min-width="300" :min-height="260">
+        <div class="floating-card-body">
 
           <div class="data-grid">
-            <article
-              v-for="item in dataCards"
-              :key="item.label"
-              class="geo-card data-card"
-              :class="item.className"
-            >
+            <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="item.className">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
               <small>{{ item.description }}</small>
@@ -331,33 +215,7 @@
           </el-collapse>
         </div>
 
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-right"
-          v-bind="rightCollapseAttrs"
-        >
-          ›
-        </button>
-      </aside>
-
-      <button
-        v-if="hasLeftPanel && leftCollapsed"
-        type="button"
-        class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs"
-      >
-        ›
-      </button>
-
-      <button
-        v-if="hasRightPanel && rightCollapsed"
-        type="button"
-        class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs"
-      >
-        ‹
-      </button>
+      </FloatingFeatureCard>
     </main>
   </div>
 </template>
@@ -373,6 +231,7 @@ import {
 } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -387,32 +246,19 @@ type FeatureInfo = {
   description: string
 }
 
-const hasLeftPanel = true
-const hasRightPanel = true
+const panelsVisible = ref(true)
+const controlCardCollapsed = ref(true)
+const dataCardCollapsed = ref(true)
 
 const {
   rootRef: pageRef,
   layoutMode,
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
   draggingSide,
   viewportResizing,
   workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-  leftResizeAttrs,
-  rightResizeAttrs,
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-  leftEntryAttrs,
-  rightEntryAttrs,
-  setAllCollapsed,
-  resetWidths,
-  toggleAll: toggleAllPanels,
 } = useGeoPanelLayout({
-  left: { enabled: hasLeftPanel },
-  right: { enabled: hasRightPanel },
+  left: { enabled: false },
+  right: { enabled: false },
   onLayoutChange(state) {
     if (state.resizing) return
     scheduleSceneResize(90)
@@ -1427,16 +1273,16 @@ function initScene() {
   if (!container) return
 
   scene = new THREE.Scene()
-  scene.background = new THREE.Color('#061526')
 
   camera = new THREE.PerspectiveCamera(42, 1, 0.1, 120)
   camera.position.set(11.8, 7.1, 15.5)
 
   renderer = new THREE.WebGLRenderer({
     antialias: true,
-    alpha: false,
+    alpha: true,
     powerPreference: 'high-performance',
   })
+  renderer.setClearColor(0x061526, 0)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.shadowMap.enabled = false
   renderer.outputColorSpace = THREE.SRGBColorSpace
@@ -1529,9 +1375,6 @@ function animateTimeline(time: number) {
 }
 
 function resetControls() {
-  setAllCollapsed(false)
-  resetWidths()
-
   activeMode.value = 'fold'
   foldPreset.value = 'flat'
   faultType.value = 'normal'
@@ -1650,13 +1493,26 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.fold-fault-container .workspace.panel-resizing,
-.fold-fault-container .workspace.layout-resizing,
-.fold-fault-container .workspace.panel-resizing .side-panel,
-.fold-fault-container .workspace.layout-resizing .side-panel,
-.fold-fault-container .workspace.panel-resizing .center-stage,
-.fold-fault-container .workspace.layout-resizing .center-stage {
-  transition: none !important;
+.floating-card-body {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 12px;
+}
+
+.floating-card-body>* {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.fold-fault-floating-card:deep(.feature-card-content) {
+  overscroll-behavior: contain;
+}
+
+.fold-fault-data-card {
+  width: clamp(320px, 22vw, 440px);
 }
 
 /*
@@ -1673,9 +1529,13 @@ onBeforeUnmount(() => {
   min-height: 100%;
   overflow: hidden;
   isolation: isolate;
+  background:
+    linear-gradient(180deg, rgba(2, 10, 19, 0.08), rgba(2, 9, 17, 0.34)),
+    radial-gradient(circle at 50% 48%, rgba(16, 50, 68, 0.04), rgba(1, 7, 14, 0.3) 74%),
+    url('/geo-resources-folder/images/fold-fault-geology-background.png') center / cover no-repeat;
 }
 
-.fold-stage-content > .three-host {
+.fold-stage-content>.three-host {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -1754,8 +1614,8 @@ onBeforeUnmount(() => {
 
 .stage-stratum-legend {
   position: absolute;
-  top: 18px;
-  right: 18px;
+  bottom: clamp(96px, 12vh, 128px);
+  left: 18px;
   z-index: 5;
   width: min(230px, calc(100% - 36px));
   box-sizing: border-box;
@@ -1853,11 +1713,12 @@ onBeforeUnmount(() => {
   line-height: 1.7;
 }
 
-.recognition-list p + p {
+.recognition-list p+p {
   margin-top: 7px;
 }
 
 @media (max-width: 860px) {
+
   .fault-type-grid,
   .view-option-grid {
     grid-template-columns: 1fr;

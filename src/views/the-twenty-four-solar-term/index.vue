@@ -1,6 +1,6 @@
 <template>
-  <div ref="pageRef" class="solar-terms-container geo-template-page geo-page theme-dark"
-    :class="['layout-' + layoutMode, 'season-theme-' + currentTerm.season]">
+  <div class="solar-terms-container geo-template-page geo-page theme-dark layout-floating"
+    :class="'season-theme-' + currentTerm.season">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -10,23 +10,34 @@
       <h1 class="page-title" :style="seasonTitleStyle">二十四节气 · 地球公转</h1>
 
       <div class="toolbar-actions">
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :aria-pressed="panelsVisible"
+          @click="panelsVisible = !panelsVisible">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
-    <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>四时节律</h2>
-              <p>循日行天，观四时流转</p>
-            </div>
-            <span class="panel-badge">四时</span>
+    <Teleport to="body">
+      <Transition name="page-loading-fade">
+        <div v-if="pageLoading" class="solar-page-loading" role="status" aria-live="polite"
+          aria-label="正在加载二十四节气场景">
+          <div class="solar-page-loading-card">
+            <el-icon class="solar-page-loading-icon" :size="36">
+              <Loading />
+            </el-icon>
+            <strong>正在加载二十四节气</strong>
+            <span>地球与太阳纹理加载中…</span>
           </div>
+        </div>
+      </Transition>
+    </Teleport>
 
+    <main class="workspace">
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlPanelCollapsed"
+        class="solar-terms-floating-card" title="四时节律" :subtitle="`${activeSeasonLabel} · ${currentTerm.name}`"
+        variant="control" :initial-top="84" :initial-right="18" :bottom-inset="96" :min-width="320" :min-height="320"
+        draggable resizable>
+        <div class="panel-scroll">
           <section class="geo-card control-section view-control-section">
             <div class="section-title-row view-title-row">
               <h3 class="section-title">观察视角</h3>
@@ -67,7 +78,7 @@
             <div class="term-button-grid">
               <button v-for="term in currentSeasonTerms" :key="term.name" type="button"
                 class="theme-btn option-btn term-option-btn" :class="{ active: currentTerm.name === term.name }"
-                @click="selectTerm(term.index, true)">
+                @click="selectTerm(term.index)">
                 <span>{{ term.name }}</span>
                 <small>{{ term.date }}</small>
               </button>
@@ -111,14 +122,83 @@
           </section>
 
         </div>
+      </FloatingFeatureCard>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="infoPanelCollapsed"
+        class="solar-terms-floating-card solar-terms-info-floating-card" :class="'season-' + currentTerm.season"
+        :title="currentTerm.name" :subtitle="`${currentTerm.date} · 太阳黄经 ${currentTerm.solarLongitude}°`" variant="data"
+        :initial-top="148" :initial-right="18" :bottom-inset="96" :min-width="330" :min-height="260" draggable
+        resizable>
+        <template #title-prefix>
+          <span class="term-season-seal compact-season-seal">{{ seasonSingleMap[currentTerm.season] }}</span>
+        </template>
+        <div class="term-info-body">
+          <div class="term-info-kicker">
+            {{ seasonLabelMap[currentTerm.season] }} · 第{{ currentTerm.index + 1 }}个节气
+          </div>
+          <div class="term-info-metrics">
+            <div>
+              <span>所属季节</span>
+              <strong>{{ seasonLabelMap[currentTerm.season] }}</strong>
+            </div>
+            <div>
+              <span>太阳黄经</span>
+              <strong>{{ currentTerm.solarLongitude }}°</strong>
+            </div>
+            <div>
+              <span>公转序位</span>
+              <strong>{{ currentTerm.index + 1 }}/24</strong>
+            </div>
+          </div>
 
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
+          <section class="info-section meaning-section">
+            <h3>节气含义</h3>
+            <p>{{ currentTerm.summary }}</p>
+          </section>
 
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+          <el-collapse v-model="activeInfoSections" class="analysis-collapse term-info-collapse">
+            <el-collapse-item name="astronomy" class="term-collapse-item astronomy-item">
+              <template #title>
+                <span class="term-collapse-title">天文与昼夜</span>
+              </template>
+              <div class="term-collapse-content astronomy-section">
+                <p>{{ currentTerm.astronomy }}</p>
+                <p>{{ currentTermExtended.geography }}</p>
+              </div>
+            </el-collapse-item>
 
+            <el-collapse-item name="climate" class="term-collapse-item climate-item">
+              <template #title>
+                <span class="term-collapse-title">气候与物候</span>
+              </template>
+              <div class="term-collapse-content climate-section">
+                <h4>气候特征</h4>
+                <p>{{ currentTerm.climate }}</p>
+                <h4>自然物候</h4>
+                <p>{{ currentTerm.phenology }}</p>
+                <p>{{ currentTermExtended.observation }}</p>
+              </div>
+            </el-collapse-item>
+
+            <el-collapse-item name="agriculture" class="term-collapse-item agriculture-item">
+              <template #title>
+                <span class="term-collapse-title">农业活动</span>
+              </template>
+              <div class="term-collapse-content agriculture-section">
+                <p>{{ currentTerm.agriculture }}</p>
+              </div>
+            </el-collapse-item>
+
+            <el-collapse-item name="culture" class="term-collapse-item culture-item">
+              <template #title>
+                <span class="term-collapse-title">民俗文化</span>
+              </template>
+              <div class="term-collapse-content culture-section">
+                <p>{{ currentTerm.culture }}</p>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
+      </FloatingFeatureCard>
       <section class="center-stage">
         <div class="stage-content solar-stage-content" :class="'season-' + currentTerm.season">
           <div ref="threeContainerRef" class="scene-host three-host"></div>
@@ -152,7 +232,7 @@
                 active: currentTerm.index === term.index,
                 major: term.major,
                 ['season-' + term.season]: true,
-              }" @click="selectTerm(term.index, true)">
+              }" @click="selectTerm(term.index)">
               {{ term.name }}
             </button>
           </div>
@@ -164,91 +244,7 @@
             </div>
           </transition>
 
-          <transition name="info-card-fade">
-            <article v-if="infoCardVisible" class="term-info-card" :class="'season-' + currentTerm.season">
-              <header class="term-info-head">
-                <div class="term-heading-main">
-                  <span class="term-season-seal">{{ seasonSingleMap[currentTerm.season] }}</span>
-                  <div>
-                    <div class="term-info-kicker">
-                      {{ seasonLabelMap[currentTerm.season] }} · 第{{ currentTerm.index + 1 }}个节气
-                    </div>
-                    <h2>{{ currentTerm.name }}</h2>
-                    <p>{{ currentTerm.date }} · 太阳黄经 {{ currentTerm.solarLongitude }}°</p>
-                  </div>
-                </div>
-                <button type="button" class="info-close-btn" aria-label="关闭节气介绍" title="关闭"
-                  @click="infoCardVisible = false">
-                  ×
-                </button>
-              </header>
 
-              <div class="term-info-body">
-                <div class="term-info-metrics">
-                  <div>
-                    <span>所属季节</span>
-                    <strong>{{ seasonLabelMap[currentTerm.season] }}</strong>
-                  </div>
-                  <div>
-                    <span>太阳黄经</span>
-                    <strong>{{ currentTerm.solarLongitude }}°</strong>
-                  </div>
-                  <div>
-                    <span>公转序位</span>
-                    <strong>{{ currentTerm.index + 1 }}/24</strong>
-                  </div>
-                </div>
-
-                <section class="info-section meaning-section">
-                  <h3>节气含义</h3>
-                  <p>{{ currentTerm.summary }}</p>
-                </section>
-
-                <el-collapse v-model="activeInfoSections" class="analysis-collapse term-info-collapse">
-                  <el-collapse-item name="astronomy" class="term-collapse-item astronomy-item">
-                    <template #title>
-                      <span class="term-collapse-title">天文与昼夜</span>
-                    </template>
-                    <div class="term-collapse-content astronomy-section">
-                      <p>{{ currentTerm.astronomy }}</p>
-                      <p>{{ currentTermExtended.geography }}</p>
-                    </div>
-                  </el-collapse-item>
-
-                  <el-collapse-item name="climate" class="term-collapse-item climate-item">
-                    <template #title>
-                      <span class="term-collapse-title">气候与物候</span>
-                    </template>
-                    <div class="term-collapse-content climate-section">
-                      <h4>气候特征</h4>
-                      <p>{{ currentTerm.climate }}</p>
-                      <h4>自然物候</h4>
-                      <p>{{ currentTerm.phenology }}</p>
-                      <p>{{ currentTermExtended.observation }}</p>
-                    </div>
-                  </el-collapse-item>
-
-                  <el-collapse-item name="agriculture" class="term-collapse-item agriculture-item">
-                    <template #title>
-                      <span class="term-collapse-title">农业活动</span>
-                    </template>
-                    <div class="term-collapse-content agriculture-section">
-                      <p>{{ currentTerm.agriculture }}</p>
-                    </div>
-                  </el-collapse-item>
-
-                  <el-collapse-item name="culture" class="term-collapse-item culture-item">
-                    <template #title>
-                      <span class="term-collapse-title">民俗文化</span>
-                    </template>
-                    <div class="term-collapse-content culture-section">
-                      <p>{{ currentTerm.culture }}</p>
-                    </div>
-                  </el-collapse-item>
-                </el-collapse>
-              </div>
-            </article>
-          </transition>
 
           <div class="scene-legend">
             <span><i class="legend-dot normal-dot"></i>普通节气</span>
@@ -291,11 +287,6 @@
           </div>
         </div>
       </section>
-
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
     </main>
   </div>
 </template>
@@ -310,11 +301,12 @@ import {
   watch,
 } from 'vue'
 import {
+  Loading,
   VideoPause,
   VideoPlay,
 } from '@element-plus/icons-vue'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import '@/styles/geo-page-template.css'
-import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
@@ -336,38 +328,6 @@ type SolarTerm = {
   culture: string
   teaching: string
 }
-
-const hasLeftPanel = true
-const hasRightPanel = false
-
-const {
-  rootRef: pageRef,
-  layoutMode,
-  leftCollapsed,
-  allPanelsCollapsed,
-  draggingSide,
-  viewportResizing,
-  workspaceAttrs,
-  leftPanelAttrs,
-  leftResizeAttrs,
-  leftCollapseAttrs,
-  leftEntryAttrs,
-  setAllCollapsed,
-  resetWidths,
-  toggleAll: toggleAllPanels,
-} = useGeoPanelLayout({
-  left: { enabled: hasLeftPanel },
-  right: { enabled: hasRightPanel },
-  onLayoutChange(state) {
-    if (state.resizing) return
-    scheduleSceneResize(90)
-  },
-  onResize(payload) {
-    if (payload.phase === 'end' || payload.phase === 'reset') {
-      scheduleSceneResize(0)
-    }
-  },
-})
 
 const seasonLabelMap: Record<SeasonKey, string> = {
   spring: '春季',
@@ -1049,7 +1009,10 @@ const showOrbitLabels = ref(true)
 const showSeasonArcs = ref(true)
 const showEarthAxis = ref(true)
 const activeView = ref<ViewKey>('orbit')
-const infoCardVisible = ref(true)
+const panelsVisible = ref(true)
+const controlPanelCollapsed = ref(true)
+const infoPanelCollapsed = ref(true)
+const pageLoading = ref(true)
 const activeInfoSections = ref<string[]>([])
 const hoveredTermIndex = ref<number | null>(null)
 const hoverTooltipX = ref(0)
@@ -1122,28 +1085,15 @@ const playButtonStyle = computed(() => ({
 function selectSeason(season: SeasonKey) {
   activeSeason.value = season
   const firstTerm = solarTerms.find(term => term.season === season)
-  if (firstTerm) selectTerm(firstTerm.index, true)
+  if (firstTerm) selectTerm(firstTerm.index)
 }
 
-function selectTerm(index: number, openCard = true) {
+function selectTerm(index: number) {
   const safeIndex = ((index % 24) + 24) % 24
   orbitProgress.value = safeIndex
   activeSeason.value = solarTerms[safeIndex].season
   activeInfoSections.value = []
   hoveredTermIndex.value = null
-
-  if (infoCardRevealTimer) {
-    clearTimeout(infoCardRevealTimer)
-    infoCardRevealTimer = null
-  }
-
-  if (openCard) {
-    infoCardVisible.value = false
-    infoCardRevealTimer = window.setTimeout(() => {
-      infoCardVisible.value = true
-      infoCardRevealTimer = null
-    }, 360)
-  }
 
   startTermSelectionTransition(safeIndex)
   updateSelectedMarker()
@@ -1173,7 +1123,6 @@ function handleTimelineChange() {
   )
   activeSeason.value = currentTerm.value.season
   activeInfoSections.value = []
-  infoCardVisible.value = true
   hoveredTermIndex.value = null
   startOrbitProgressTransition(target)
   updateSelectedMarker()
@@ -1231,8 +1180,6 @@ let sunGlowMaterial: THREE.ShaderMaterial | null = null
 let sunCoronaMaterial: THREE.SpriteMaterial | null = null
 let spaceBackdropMaterial: THREE.ShaderMaterial | null = null
 let seasonAmbientLight: THREE.HemisphereLight | null = null
-let infoCardRevealTimer: ReturnType<typeof setTimeout> | null = null
-
 let displayedOrbitProgress = 3
 let termSelectionTransition: {
   start: number
@@ -2712,7 +2659,6 @@ function scheduleSceneResize(delay = 110) {
   cancelAnimationFrame(sceneResizeSettleFrame)
   sceneResizeTimer = setTimeout(() => {
     sceneResizeTimer = null
-    if (draggingSide.value || viewportResizing.value) return
     sceneResizeFrame = requestAnimationFrame(() => {
       sceneResizeSettleFrame = requestAnimationFrame(() => resizeThreeSceneNow())
     })
@@ -2739,7 +2685,7 @@ function onScenePointerUp(event: PointerEvent) {
   const hits = raycaster.intersectObjects(markerMeshes, false)
   if (!hits.length) return
   const index = hits[0].object.userData.termIndex as number
-  selectTerm(index, true)
+  selectTerm(index)
 }
 
 function updateHoveredMarker(event: PointerEvent) {
@@ -2873,12 +2819,13 @@ async function initScene() {
 
   resizeThreeSceneNow()
   threeResizeObserver = new ResizeObserver(() => {
-    if (draggingSide.value || viewportResizing.value) return
     scheduleSceneResize(110)
   })
   threeResizeObserver.observe(container)
 
   lastAnimationTime = performance.now()
+  renderer.render(scene, camera)
+  pageLoading.value = false
   animateScene(lastAnimationTime)
 }
 
@@ -3086,8 +3033,6 @@ function animateScene(time: number) {
 }
 
 function resetControls() {
-  setAllCollapsed(false)
-  resetWidths()
   isPlaying.value = false
   orbitProgress.value = 3
   displayedOrbitProgress = 3
@@ -3098,7 +3043,6 @@ function resetControls() {
   showSeasonArcs.value = true
   showEarthAxis.value = true
   activeSeason.value = 'spring'
-  infoCardVisible.value = true
   activeInfoSections.value = []
   hoveredTermIndex.value = null
   manualCameraOverride = false
@@ -3113,10 +3057,6 @@ watch([showOrbitLabels, showSeasonArcs, showEarthAxis], updateSceneVisibility)
 function disposeScene() {
   cancelAnimationFrame(sceneAnimationFrameId)
   if (sceneResizeTimer) clearTimeout(sceneResizeTimer)
-  if (infoCardRevealTimer) {
-    clearTimeout(infoCardRevealTimer)
-    infoCardRevealTimer = null
-  }
   cancelAnimationFrame(sceneResizeFrame)
   cancelAnimationFrame(sceneResizeSettleFrame)
   threeResizeObserver?.disconnect()
@@ -3177,8 +3117,14 @@ function disposeScene() {
 
 onMounted(async () => {
   componentDestroyed = false
+  pageLoading.value = true
   await nextTick()
-  await initScene()
+  try {
+    await initScene()
+  } catch (error) {
+    console.error('[24节气] 场景初始化失败：', error)
+    if (!componentDestroyed) pageLoading.value = false
+  }
 })
 
 onBeforeUnmount(() => {
@@ -4826,5 +4772,145 @@ onBeforeUnmount(() => {
 
 .solar-terms-container .term-info-collapse :deep(.el-collapse-item__header) {
   margin-bottom: 0 !important;
+}
+
+.solar-page-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  color: rgba(239, 255, 248, 0.96);
+  background:
+    radial-gradient(circle at 50% 42%, rgba(31, 116, 91, 0.28), transparent 34%),
+    #03131c;
+  pointer-events: all;
+}
+
+.solar-page-loading-card {
+  display: grid;
+  min-width: 240px;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px 34px;
+  border: 1px solid rgba(118, 230, 165, 0.26);
+  border-radius: 16px;
+  background: rgba(6, 35, 35, 0.88);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(18px);
+}
+
+.solar-page-loading-icon {
+  color: #76e6a5;
+  animation: solar-loading-spin 1s linear infinite;
+}
+
+.solar-page-loading-card strong {
+  font-size: 17px;
+  letter-spacing: 0.1em;
+}
+
+.solar-page-loading-card span {
+  color: rgba(197, 232, 220, 0.68);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.page-loading-fade-leave-active {
+  transition: opacity 0.35s ease;
+}
+
+.page-loading-fade-leave-to {
+  opacity: 0;
+}
+
+@keyframes solar-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 浮动面板沿用当前节气的主题色，颜色变量会随春夏秋冬自动更新。 */
+.solar-terms-container .solar-terms-floating-card {
+  --feature-bg:
+    linear-gradient(155deg,
+      rgba(var(--season-ui-panel-rgb), 0.88),
+      rgba(var(--season-ui-deep-rgb), 0.92));
+  --feature-head-bg:
+    linear-gradient(90deg,
+      rgba(var(--season-ui-accent-rgb), 0.16),
+      rgba(var(--season-ui-deep-rgb), 0.36));
+  --feature-border: rgba(var(--season-ui-accent-rgb), 0.38);
+  --feature-divider: rgba(var(--season-ui-accent-rgb), 0.20);
+  --feature-title: var(--season-ui-accent);
+  --feature-text: rgba(245, 252, 255, 0.94);
+  --feature-muted: var(--season-ui-text-soft);
+  --feature-button-bg: rgba(var(--season-ui-accent-rgb), 0.12);
+  --feature-button-border: rgba(var(--season-ui-accent-rgb), 0.36);
+  height: min(62vh, 680px);
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(var(--season-ui-accent-rgb), 0.10);
+  transition:
+    background 0.65s ease,
+    border-color 0.55s ease,
+    box-shadow 0.55s ease;
+}
+
+.solar-terms-container .solar-terms-info-floating-card {
+  height: min(58vh, 620px);
+}
+
+.solar-terms-container .solar-terms-floating-card.collapsed {
+  height: auto !important;
+}
+
+.solar-terms-container .solar-terms-floating-card .panel-scroll {
+  height: 100%;
+  padding: 12px 12px 6px;
+}
+
+.solar-terms-container .solar-terms-info-floating-card.season-spring {
+  --term-accent: #66df9a;
+  --term-accent-soft: rgba(74, 210, 137, 0.14);
+}
+
+.solar-terms-container .solar-terms-info-floating-card.season-summer {
+  --term-accent: #ffd05c;
+  --term-accent-soft: rgba(255, 192, 66, 0.14);
+}
+
+.solar-terms-container .solar-terms-info-floating-card.season-autumn {
+  --term-accent: #ff9368;
+  --term-accent-soft: rgba(255, 125, 80, 0.14);
+}
+
+.solar-terms-container .solar-terms-info-floating-card.season-winter {
+  --term-accent: #79c7ff;
+  --term-accent-soft: rgba(87, 171, 255, 0.14);
+}
+
+.compact-season-seal {
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+}
+
+.solar-terms-container.layout-floating .term-chapter-title {
+  top: clamp(76px, 9vh, 92px);
+}
+
+.solar-terms-container.layout-floating .scene-legend {
+  bottom: clamp(92px, 12vh, 124px);
+}
+
+@media (max-width: 1100px) {
+  .solar-terms-container .solar-terms-floating-card {
+    height: min(56vh, 560px);
+  }
+
+  .solar-terms-container .solar-terms-info-floating-card {
+    height: min(52vh, 500px);
+  }
 }
 </style>

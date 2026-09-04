@@ -14,23 +14,18 @@
           恢复全景
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="panelsVisible = !panelsVisible">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>场景控制</h2>
-              <p>控制图层、标注、动画与观察视角</p>
-            </div>
-
-            <span class="panel-badge">CONTROL</span>
-          </div>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlCardCollapsed"
+        class="atmosphere-floating-card atmosphere-control-card" title="场景控制" subtitle="控制图层、标注、动画与观察视角"
+        variant="control" :initial-top="76" :initial-right="18" :initial-collapsed="true" :min-width="320"
+        :min-height="320">
+        <div class="floating-card-body">
 
           <section class="geo-card control-section">
             <h3 class="section-title">显示内容</h3>
@@ -156,13 +151,7 @@
             </button>
           </section>
         </div>
-
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section ref="centerStageRef" class="center-stage atmosphere-center-stage">
         <div ref="stageContentRef" class="stage-content atmosphere-stage-content" :style="stageContentStyle">
@@ -189,9 +178,6 @@
             </div>
           </div>
 
-          <div class="interaction-tip">
-            拖动旋转 · 滚轮缩放 · 点击大气层查看详情
-          </div>
         </div>
 
         <div ref="timelineDockRef" class="timeline-dock">
@@ -221,16 +207,11 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>分层解读</h2>
-              <p>选择大气层，查看高度、温度和典型现象</p>
-            </div>
-
-            <span class="panel-badge">LEARN</span>
-          </div>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="learningCardCollapsed"
+        class="atmosphere-floating-card atmosphere-learning-card" title="分层解读" subtitle="选择大气层，查看高度、温度和典型现象"
+        variant="control" :initial-top="142" :initial-right="18" :initial-collapsed="true" :min-width="340"
+        :min-height="360">
+        <div class="floating-card-body">
 
           <section class="geo-card layer-selector-card">
             <div class="layer-button-grid">
@@ -386,23 +367,7 @@
             </el-collapse-item>
           </el-collapse>
         </div>
-
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
-
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
-
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
-      </button>
+      </FloatingFeatureCard>
     </main>
   </div>
 </template>
@@ -423,6 +388,8 @@ import {
 } from '@element-plus/icons-vue'
 
 import '@/styles/geo-page-template.css'
+
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
 import {
   useGeoPanelLayout,
@@ -680,9 +647,6 @@ const pressureExamples = [
   { altitude: '85 km', pressure: '约 0.01 hPa', width: 7 },
 ]
 
-const hasLeftPanel = true
-const hasRightPanel = true
-
 const centerStageRef = ref<HTMLElement | null>(null)
 const stageContentRef = ref<HTMLElement | null>(null)
 const timelineDockRef = ref<HTMLElement | null>(null)
@@ -701,6 +665,9 @@ const showWeather = ref(true)
 const showVehicles = ref(true)
 const particleDensity = ref(80)
 const atmosphereOpacity = ref(0.58)
+const panelsVisible = ref(true)
+const controlCardCollapsed = ref(true)
+const learningCardCollapsed = ref(true)
 const SCENE_ANIMATION_SPEED = 1
 
 const currentLayer = ref<LayerKey>('troposphere')
@@ -2656,7 +2623,7 @@ function applyView(view: ViewKey) {
   }
 
   startCameraTween(
-    new THREE.Vector3(15.8, 11.7, 22.5),
+    new THREE.Vector3(20.8, 12.4, 29.8),
     new THREE.Vector3(0, 10.5, 0),
   )
 }
@@ -2905,27 +2872,15 @@ async function ensureInitialSceneSize() {
 const {
   rootRef: pageRef,
   layoutMode,
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
   draggingSide,
   viewportResizing,
   workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-  leftResizeAttrs,
-  rightResizeAttrs,
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-  leftEntryAttrs,
-  rightEntryAttrs,
-  toggleAll: toggleAllPanels,
 } = useGeoPanelLayout({
   left: {
-    enabled: hasLeftPanel,
+    enabled: false,
   },
   right: {
-    enabled: hasRightPanel,
+    enabled: false,
   },
   onLayoutChange(state) {
     if (state.resizing) {
@@ -3132,16 +3087,17 @@ async function initScene() {
 
   try {
     scene = new THREE.Scene()
-    scene.background = new THREE.Color('#020815')
+    scene.background = null
 
     camera = new THREE.PerspectiveCamera(42, 1, 0.1, 140)
-    camera.position.set(15.8, 11.7, 22.5)
+    camera.position.set(20.8, 12.4, 29.8)
 
     renderer = new THREE.WebGLRenderer({
       antialias: true,
-      alpha: false,
+      alpha: true,
       powerPreference: 'high-performance',
     })
+    renderer.setClearColor(0x020815, 0)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.shadowMap.enabled = true
@@ -3366,6 +3322,38 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.atmosphere-vertical-layers-container {
+  background:
+    linear-gradient(180deg, rgba(1, 7, 20, 0.18), rgba(1, 8, 22, 0.46)),
+    url('/geo-resources-folder/images/atmosphere-space-bg.png') center / cover no-repeat;
+}
+
+.atmosphere-vertical-layers-container .workspace {
+  background: transparent;
+}
+
+.floating-card-body {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 12px;
+}
+
+.floating-card-body>* {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.atmosphere-learning-card {
+  width: clamp(360px, 24vw, 480px);
+}
+
+.atmosphere-floating-card:deep(.feature-card-content) {
+  overscroll-behavior: contain;
+}
+
 .atmosphere-center-stage {
   min-width: 0;
   min-height: 0;
@@ -3383,6 +3371,9 @@ onBeforeUnmount(() => {
   min-height: 180px;
   overflow: hidden;
   isolation: isolate;
+  background:
+    radial-gradient(circle at 48% 36%, rgba(45, 128, 255, 0.12), transparent 35%),
+    linear-gradient(180deg, rgba(2, 8, 21, 0.08), rgba(2, 8, 21, 0.24));
 }
 
 /*
@@ -3447,8 +3438,7 @@ onBeforeUnmount(() => {
 }
 
 .stage-title-card,
-.stage-legend,
-.interaction-tip {
+.stage-legend {
   position: absolute;
   z-index: 4;
   pointer-events: none;
@@ -3483,7 +3473,7 @@ onBeforeUnmount(() => {
 
 .stage-legend {
   top: clamp(12px, 1vw, 18px);
-  right: clamp(12px, 1vw, 18px);
+  left: clamp(12px, 1vw, 18px);
   display: grid;
   gap: 6px;
   padding: 10px 12px;
@@ -3507,17 +3497,6 @@ onBeforeUnmount(() => {
   height: 5px;
   border-radius: 999px;
   box-shadow: 0 0 9px currentColor;
-}
-
-.interaction-tip {
-  right: clamp(12px, 1vw, 18px);
-  bottom: clamp(12px, 1vw, 18px);
-  padding: 7px 10px;
-  color: rgba(222, 241, 255, 0.72);
-  font-size: clamp(9px, 0.68vw, 11px);
-  background: rgba(4, 16, 34, 0.58);
-  border: 1px solid rgba(120, 218, 255, 0.14);
-  border-radius: 9px;
 }
 
 .view-option-grid,
@@ -3945,13 +3924,16 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
+
+  .atmosphere-learning-card,
+  .atmosphere-control-card {
+    width: min(320px, calc(100vw - 22px));
+  }
+
   .stage-title-card {
     min-width: 150px;
     padding: 7px 12px;
   }
 
-  .interaction-tip {
-    display: none;
-  }
 }
 </style>

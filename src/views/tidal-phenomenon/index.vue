@@ -1,8 +1,6 @@
 <template>
   <div
-    ref="pageRef"
-    class="tidal-phenomenon-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
+    class="tidal-phenomenon-container geo-template-page geo-page theme-dark layout-floating"
   >
     <header class="top-toolbar">
       <div class="brand-area">
@@ -27,28 +25,31 @@
         <button
           type="button"
           class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="toggleAllPanels"
+          :aria-pressed="panelsVisible"
+          @click="panelsVisible = !panelsVisible"
         >
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
-    <main class="workspace" v-bind="workspaceAttrs">
-      <aside
-        id="left-panel"
-        class="side-panel left-panel"
-        v-bind="leftPanelAttrs"
+    <main class="workspace">
+      <FloatingFeatureCard
+        v-show="panelsVisible"
+        v-model:collapsed="controlPanelCollapsed"
+        class="tidal-floating-card control-floating-card"
+        title="模拟控制"
+        subtitle="地月运动 · 潮汐形变 · 辅助图层"
+        variant="control"
+        :initial-top="84"
+        :initial-right="18"
+        :bottom-inset="96"
+        :min-width="320"
+        :min-height="260"
+        draggable
+        resizable
       >
         <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>模拟控制</h2>
-              <p>控制地月运动、潮汐形变与辅助图层</p>
-            </div>
-            <span class="panel-badge">CONTROL</span>
-          </div>
-
           <section class="geo-card control-section">
             <h3 class="section-title">天体运动</h3>
 
@@ -181,17 +182,7 @@
             </button>
           </section>
         </div>
-
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-left"
-          v-bind="leftCollapseAttrs"
-        >
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content tide-stage-content">
@@ -241,7 +232,6 @@
             <p>太阳影响和月球轨道倾角暂未计入，形变为教学放大示意。</p>
           </div>
 
-          <div class="stage-help">拖拽旋转 · 滚轮缩放 · 点击天体查看数据</div>
         </div>
 
         <div class="timeline-dock">
@@ -290,20 +280,22 @@
         </div>
       </section>
 
-      <aside
-        id="right-panel"
-        class="side-panel right-panel"
-        v-bind="rightPanelAttrs"
+      <FloatingFeatureCard
+        v-show="panelsVisible"
+        v-model:collapsed="dataPanelCollapsed"
+        class="tidal-floating-card data-floating-card"
+        title="实时数据"
+        subtitle="潮汐位置 · 当前对象 · 判定结果"
+        variant="data"
+        :initial-top="148"
+        :initial-right="18"
+        :bottom-inset="96"
+        :min-width="320"
+        :min-height="220"
+        draggable
+        resizable
       >
         <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>实时数据</h2>
-              <p>统一展示潮汐位置、当前对象与判定结果</p>
-            </div>
-            <span class="panel-badge">DATA</span>
-          </div>
-
           <div class="data-grid tide-data-grid">
             <article
               v-for="item in dataCards"
@@ -320,35 +312,7 @@
             </article>
           </div>
         </div>
-
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-right"
-          v-bind="rightCollapseAttrs"
-        >
-          ›
-        </button>
-      </aside>
-
-      <button
-        v-if="hasLeftPanel && leftCollapsed"
-        type="button"
-        class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs"
-      >
-        ›
-      </button>
-
-      <button
-        v-if="hasRightPanel && rightCollapsed"
-        type="button"
-        class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs"
-      >
-        ‹
-      </button>
+      </FloatingFeatureCard>
     </main>
   </div>
 </template>
@@ -368,11 +332,9 @@ import {
   VideoPlay,
 } from '@element-plus/icons-vue'
 
-import '@/styles/geo-page-template.css'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
-import {
-  useGeoPanelLayout,
-} from '@/hooks/useGeoPanelLayout'
+import '@/styles/geo-page-template.css'
 
 import * as THREE from 'three'
 import {
@@ -399,9 +361,6 @@ const EARTH_SAME_ORIGIN_TEXTURE =
 
 const MOON_SAME_ORIGIN_TEXTURE =
   SAME_ORIGIN_TEXTURE_BASE + 'moon.jpg'
-
-const hasLeftPanel = true
-const hasRightPanel = true
 
 const threeContainerRef = ref<HTMLElement | null>(null)
 
@@ -432,6 +391,9 @@ const playbackSpeed = ref(1)
 const isPlaying = ref(true)
 const currentView = ref('overview')
 const selectedObject = ref<'earth' | 'moon' | 'tide' | 'barycenter'>('earth')
+const panelsVisible = ref(true)
+const controlPanelCollapsed = ref(true)
+const dataPanelCollapsed = ref(true)
 
 const speedOptions = [0.25, 0.5, 1, 2]
 
@@ -441,46 +403,6 @@ const viewOptions = [
   { label: '侧视', value: 'side' },
   { label: '地球近景', value: 'earth' },
 ]
-
-const {
-  rootRef: pageRef,
-  layoutMode,
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
-  draggingSide,
-  viewportResizing,
-  workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-  leftResizeAttrs,
-  rightResizeAttrs,
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-  leftEntryAttrs,
-  rightEntryAttrs,
-  setAllCollapsed,
-  resetWidths,
-  toggleAll: toggleAllPanels,
-} = useGeoPanelLayout({
-  left: {
-    enabled: hasLeftPanel,
-  },
-  right: {
-    enabled: hasRightPanel,
-  },
-  onLayoutChange(state) {
-    if (state.resizing) {
-      return
-    }
-    scheduleSceneResize(90)
-  },
-  onResize(payload) {
-    if (payload.phase === 'end' || payload.phase === 'reset') {
-      scheduleSceneResize(0)
-    }
-  },
-})
 
 const normalizedMoonAngle = computed(() => {
   const value = moonAngleDeg.value % 360
@@ -1943,10 +1865,6 @@ function scheduleSceneResize(delay = 110) {
 
   resizeTimer = setTimeout(() => {
     resizeTimer = null
-    if (draggingSide.value || viewportResizing.value) {
-      return
-    }
-
     resizeFrame = requestAnimationFrame(() => {
       resizeSettleFrame = requestAnimationFrame(() => {
         resizeSceneNow()
@@ -2072,9 +1990,6 @@ function initScene() {
   renderer.domElement.addEventListener('pointerup', handleCanvasPointerUp)
 
   resizeObserver = new ResizeObserver(() => {
-    if (draggingSide.value || viewportResizing.value) {
-      return
-    }
     scheduleSceneResize(110)
   })
   resizeObserver.observe(container)
@@ -2103,9 +2018,6 @@ function togglePlay() {
 }
 
 function resetControls() {
-  setAllCollapsed(false)
-  resetWidths()
-
   moonOrbitEnabled.value = true
   earthRotationEnabled.value = false
   showTideLayer.value = true
@@ -2252,7 +2164,30 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #020711;
+  background-color: #020711;
+  background-image:
+    linear-gradient(rgba(2, 7, 19, 0.48), rgba(2, 7, 19, 0.48)),
+    url('/geo-resources-folder/images/milky-way-6k.jpg');
+  background-position: center, center 46%;
+  background-repeat: no-repeat;
+  background-size: cover, cover;
+}
+
+.tidal-floating-card.control-floating-card {
+  height: min(58vh, 620px);
+}
+
+.tidal-floating-card.data-floating-card {
+  height: min(42vh, 440px);
+}
+
+.tidal-floating-card.collapsed {
+  height: auto !important;
+}
+
+.tidal-floating-card .panel-scroll {
+  height: 100%;
+  padding: 12px 12px 6px;
 }
 
 .celestial-texture-layer {
@@ -2374,9 +2309,9 @@ onBeforeUnmount(() => {
 
 .stage-status-badge {
   position: absolute;
-  top: clamp(14px, 1.4vw, 22px);
+  top: clamp(74px, 9vh, 92px);
   left: 50%;
-  z-index: 6;
+  z-index: 35;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2413,8 +2348,9 @@ onBeforeUnmount(() => {
 
 .stage-legend {
   position: absolute;
-  top: clamp(16px, 1.5vw, 24px);
-  right: clamp(16px, 1.6vw, 26px);
+  top: auto;
+  bottom: clamp(92px, 12vh, 124px);
+  left: clamp(16px, 1.6vw, 26px);
   z-index: 6;
   width: min(290px, 31%);
   padding: 13px 15px;
@@ -2473,16 +2409,6 @@ onBeforeUnmount(() => {
   background: #38f1d6;
 }
 
-.stage-help {
-  position: absolute;
-  right: clamp(15px, 1.5vw, 24px);
-  bottom: clamp(12px, 1.2vw, 18px);
-  z-index: 4;
-  color: rgba(203, 229, 238, 0.72);
-  font-size: clamp(10px, 0.72vw, 12px);
-  pointer-events: none;
-}
-
 .wide-data-card {
   grid-column: 1 / -1;
 }
@@ -2508,6 +2434,14 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1100px) {
+  .tidal-floating-card.control-floating-card {
+    height: min(54vh, 500px);
+  }
+
+  .tidal-floating-card.data-floating-card {
+    height: min(40vh, 360px);
+  }
+
   .stage-status-badge {
     max-width: 44%;
   }

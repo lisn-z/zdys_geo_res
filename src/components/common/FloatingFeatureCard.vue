@@ -9,7 +9,10 @@
     }" @pointerdown.capture="bringToFront">
     <header class="feature-card-head" :class="{ draggable }" @pointerdown.stop.prevent="startDrag">
       <div class="feature-card-title">
-        <span :title="title">{{ title }}</span>
+        <div class="feature-card-title-line">
+          <slot name="title-prefix"></slot>
+          <span class="feature-card-title-label" :title="title">{{ title }}</span>
+        </div>
         <strong v-if="subtitle">{{ subtitle }}</strong>
       </div>
 
@@ -209,7 +212,15 @@ function setInitialPosition() {
 
 function toggleCollapsed() {
   collapsed.value = !collapsed.value
-  nextTick(applyRelativePosition)
+  nextTick(() => {
+    const currentY = position.y
+    const { width, height } = getCardSize()
+    const bounds = getPositionBounds(width, height)
+
+    position.x = bounds.minX + (bounds.maxX - bounds.minX) * relativePosition.x
+    position.y = Math.max(bounds.minY, Math.min(currentY, bounds.maxY))
+    updateRelativePosition()
+  })
 }
 
 function startDrag(event: PointerEvent) {
@@ -413,7 +424,14 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.feature-card-title span {
+.feature-card-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.feature-card-title-label {
   display: block;
   min-width: 0;
   overflow: hidden;

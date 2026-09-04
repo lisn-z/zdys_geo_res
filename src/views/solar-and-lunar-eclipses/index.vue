@@ -4,6 +4,30 @@
     class="solar-lunar-eclipse-container geo-template-page geo-page theme-dark layout-floating"
     :class="'layout-' + layoutMode"
   >
+    <Transition name="page-loading-fade">
+      <div
+        v-if="pageLoading"
+        class="eclipse-page-loading"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="loading-celestial-mark" aria-hidden="true">
+          <i class="loading-sun"></i>
+          <i class="loading-orbit"></i>
+          <i class="loading-moon"></i>
+        </div>
+        <div class="loading-copy">
+          <span>CELESTIAL SIMULATION</span>
+          <strong>正在构建日月食场景</strong>
+          <small>{{ loadingStatus }}</small>
+        </div>
+        <div class="loading-progress" aria-hidden="true">
+          <i :style="{ width: `${loadingProgress}%` }"></i>
+        </div>
+        <b>{{ loadingProgress }}%</b>
+      </div>
+    </Transition>
+
     <header class="top-toolbar">
       <div class="brand-area">
         <img
@@ -706,6 +730,105 @@ const moonDomTextureReady = ref(false)
 const sunWebglTextureReady = ref(false)
 const earthWebglTextureReady = ref(false)
 const moonWebglTextureReady = ref(false)
+const pageLoading = ref(true)
+const loadingProgress = ref(0)
+const loadingStatus = ref('正在初始化渲染环境')
+
+type CelestialLoadAttempt = {
+  domSettled: boolean
+  webglSettled: boolean
+  usable: boolean
+}
+
+const celestialLoadAttempts: Record<CelestialTextureKey, CelestialLoadAttempt> = {
+  sun: { domSettled: false, webglSettled: false, usable: false },
+  earth: { domSettled: false, webglSettled: false, usable: false },
+  moon: { domSettled: false, webglSettled: false, usable: false },
+}
+let skyboxLoadSettled = false
+let nightTextureLoadSettled = false
+let loadingRevealTimer: ReturnType<typeof setTimeout> | null = null
+let loadingSafetyTimer: ReturnType<typeof setTimeout> | null = null
+
+function updatePageLoadingProgress() {
+  const celestialReadyCount = (['sun', 'earth', 'moon'] as CelestialTextureKey[])
+    .filter((textureKey) => {
+      const attempt = celestialLoadAttempts[textureKey]
+      return attempt.usable || (attempt.domSettled && attempt.webglSettled)
+    }).length
+  const completedCount = celestialReadyCount +
+    Number(skyboxLoadSettled) +
+    Number(nightTextureLoadSettled)
+
+  loadingProgress.value = Math.round(completedCount / 5 * 100)
+  loadingStatus.value = completedCount < 5
+    ? `正在加载核心纹理 ${completedCount} / 5`
+    : '纹理已就绪，正在建立光照'
+
+  if (completedCount < 5 || loadingRevealTimer) {
+    return
+  }
+
+  if (loadingSafetyTimer) {
+    clearTimeout(loadingSafetyTimer)
+    loadingSafetyTimer = null
+  }
+
+  loadingRevealTimer = setTimeout(() => {
+    requestAnimationFrame(() => {
+      renderScene()
+      pageLoading.value = false
+      loadingRevealTimer = null
+    })
+  }, 260)
+}
+
+function markCelestialLoadAttempt(
+  textureKey: CelestialTextureKey,
+  source: 'dom' | 'webgl',
+  usable: boolean
+) {
+  const attempt = celestialLoadAttempts[textureKey]
+  if (source === 'dom') {
+    attempt.domSettled = true
+  } else {
+    attempt.webglSettled = true
+  }
+  attempt.usable ||= usable
+  updatePageLoadingProgress()
+}
+
+function resetPageLoadingState() {
+  pageLoading.value = true
+  loadingProgress.value = 0
+  loadingStatus.value = '正在初始化渲染环境'
+  skyboxLoadSettled = false
+  nightTextureLoadSettled = false
+
+  ;(['sun', 'earth', 'moon'] as CelestialTextureKey[]).forEach((textureKey) => {
+    Object.assign(celestialLoadAttempts[textureKey], {
+      domSettled: false,
+      webglSettled: false,
+      usable: false,
+    })
+  })
+
+  if (loadingRevealTimer) {
+    clearTimeout(loadingRevealTimer)
+    loadingRevealTimer = null
+  }
+  if (loadingSafetyTimer) {
+    clearTimeout(loadingSafetyTimer)
+  }
+
+  // 网络请求异常悬挂时仍允许使用程序化备用材质进入场景。
+  loadingSafetyTimer = setTimeout(() => {
+    loadingStatus.value = '部分纹理使用备用资源'
+    loadingProgress.value = 100
+    pageLoading.value = false
+    loadingSafetyTimer = null
+  }, 15000)
+}
 
 const moonOrbitEnabled = ref(true)
 const earthRotationEnabled = ref(false)
@@ -2092,10 +2215,14 @@ function loadGalaxySkybox() {
       galaxySkyDome.frustumCulled = false
       galaxySkyDome.renderOrder = -10000
       scene.add(galaxySkyDome)
+      skyboxLoadSettled = true
+      updatePageLoadingProgress()
     },
     undefined,
     () => {
       // 保留程序化星空作为天空盒资源不可用时的降级背景。
+      skyboxLoadSettled = true
+      updatePageLoadingProgress()
     },
   )
 }
@@ -2113,10 +2240,14 @@ function loadEarthNightTexture() {
 
       celestialUniforms.earth.uNightMap.value =
         configureCelestialTexture(texture)
+      nightTextureLoadSettled = true
+      updatePageLoadingProgress()
     },
     undefined,
     () => {
       // 夜间贴图不可用时保留无灯光的背光面。
+      nightTextureLoadSettled = true
+      updatePageLoadingProgress()
     },
   )
 }
@@ -2262,11 +2393,13 @@ function preloadDomCelestialTexture(
     readyState.value = true
     syncCelestialSurfaceMode()
     updateMainTextureOverlays()
+    markCelestialLoadAttempt(textureKey, 'dom', true)
   }
 
   image.onerror = () => {
     readyState.value = false
     syncCelestialSurfaceMode()
+    markCelestialLoadAttempt(textureKey, 'dom', false)
   }
 
   /*
@@ -2313,6 +2446,7 @@ async function loadSameOriginCelestialTexture(
     ) {
       readyState.value = false
       syncCelestialSurfaceMode()
+      markCelestialLoadAttempt(textureKey, 'webgl', false)
       return
     }
 
@@ -2344,6 +2478,7 @@ async function loadSameOriginCelestialTexture(
 
     readyState.value = true
     syncCelestialSurfaceMode()
+    markCelestialLoadAttempt(textureKey, 'webgl', true)
   } catch {
     /*
      * 同源映射不存在时保持静默，
@@ -2351,6 +2486,7 @@ async function loadSameOriginCelestialTexture(
      */
     readyState.value = false
     syncCelestialSurfaceMode()
+    markCelestialLoadAttempt(textureKey, 'webgl', false)
   }
 }
 
@@ -4127,6 +4263,7 @@ function initScene() {
   }
 
   container.replaceChildren()
+  resetPageLoadingState()
 
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x020713)
@@ -4787,6 +4924,16 @@ watch(
 function disposeScene() {
   cancelAnimationFrame(sceneAnimationFrameId)
 
+  if (loadingRevealTimer) {
+    clearTimeout(loadingRevealTimer)
+    loadingRevealTimer = null
+  }
+
+  if (loadingSafetyTimer) {
+    clearTimeout(loadingSafetyTimer)
+    loadingSafetyTimer = null
+  }
+
   if (sceneResizeTimer) {
     clearTimeout(sceneResizeTimer)
     sceneResizeTimer = null
@@ -4946,6 +5093,187 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.eclipse-page-loading {
+  position: fixed;
+  z-index: 3000;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  overflow: hidden;
+  color: #e8fbff;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(22, 141, 175, 0.2), transparent 24%),
+    radial-gradient(circle at 50% 50%, #071c29 0, #020914 44%, #01040a 100%);
+  isolation: isolate;
+}
+
+.eclipse-page-loading::before,
+.eclipse-page-loading::after {
+  position: absolute;
+  z-index: -1;
+  content: '';
+  border-radius: 50%;
+  filter: blur(1px);
+  opacity: 0.48;
+}
+
+.eclipse-page-loading::before {
+  width: min(72vw, 860px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(82, 219, 238, 0.09);
+  box-shadow:
+    0 0 90px rgba(18, 157, 197, 0.1),
+    inset 0 0 90px rgba(18, 157, 197, 0.05);
+}
+
+.eclipse-page-loading::after {
+  width: 520px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(111, 231, 242, 0.45), transparent);
+  box-shadow: 0 0 22px rgba(73, 216, 237, 0.42);
+}
+
+.loading-celestial-mark {
+  position: relative;
+  width: 112px;
+  height: 112px;
+}
+
+.loading-sun,
+.loading-orbit,
+.loading-moon {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+}
+
+.loading-sun {
+  top: 50%;
+  left: 50%;
+  width: 34px;
+  height: 34px;
+  background: radial-gradient(circle at 36% 32%, #fff5bc 0, #ffc14f 32%, #f06b21 72%, #b72e0b 100%);
+  box-shadow:
+    0 0 16px rgba(255, 173, 60, 0.95),
+    0 0 42px rgba(255, 106, 34, 0.5);
+  transform: translate(-50%, -50%);
+  animation: loading-sun-pulse 1.7s ease-in-out infinite;
+}
+
+.loading-orbit {
+  inset: 8px;
+  border: 1px solid rgba(103, 229, 239, 0.44);
+  box-shadow: inset 0 0 18px rgba(50, 192, 218, 0.08);
+  transform: rotate(-18deg) scaleY(0.48);
+}
+
+.loading-moon {
+  top: 50%;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px;
+  background: radial-gradient(circle at 35% 32%, #edfaff, #8bb0bc 62%, #304853);
+  box-shadow: 0 0 10px rgba(188, 243, 255, 0.72);
+  animation: loading-moon-orbit 2s linear infinite;
+}
+
+.loading-copy {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  text-align: center;
+}
+
+.loading-copy span {
+  color: rgba(111, 224, 238, 0.64);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.loading-copy strong {
+  font-size: clamp(20px, 1.7vw, 26px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 18px rgba(87, 223, 241, 0.22);
+}
+
+.loading-copy small {
+  min-height: 18px;
+  color: rgba(196, 229, 235, 0.68);
+  font-size: 12px;
+}
+
+.loading-progress {
+  width: min(310px, 70vw);
+  height: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(91, 211, 229, 0.16);
+  border-radius: 999px;
+  background: rgba(109, 178, 195, 0.1);
+}
+
+.loading-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #20c7c7, #42a7ff);
+  box-shadow: 0 0 12px rgba(54, 203, 238, 0.74);
+  transition: width 0.35s ease;
+}
+
+.eclipse-page-loading > b {
+  color: #75dce8;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.page-loading-fade-leave-active {
+  transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+
+.page-loading-fade-leave-to {
+  visibility: hidden;
+  opacity: 0;
+}
+
+@keyframes loading-moon-orbit {
+  from {
+    transform: rotate(0deg) translateX(48px) rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg) translateX(48px) rotate(-360deg);
+  }
+}
+
+@keyframes loading-sun-pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.94);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-sun,
+  .loading-moon {
+    animation: none;
+  }
+
+  .loading-moon {
+    transform: translateX(48px);
+  }
+}
+
 .eclipse-shortcut-btn {
   position: relative;
   padding-left: 24px;

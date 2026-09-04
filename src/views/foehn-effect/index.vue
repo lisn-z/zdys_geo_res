@@ -1,6 +1,6 @@
 <!-- FoehnEffectTemplate_v2：调整干热化卡片间距并改用 OSS 水面法线贴图 -->
 <template>
-  <div ref="pageRef" class="foehn-effect-container geo-template-page geo-page theme-light layout-floating"
+  <div ref="pageRef" class="foehn-effect-container geo-template-page geo-page theme-dark"
     :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
@@ -11,24 +11,18 @@
       <h1 class="page-title">焚风效应</h1>
 
       <div class="toolbar-actions">
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :aria-pressed="panelsVisible"
+          @click="panelsVisible = !panelsVisible">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
+      <FloatingFeatureCard v-if="panelsVisible" v-model:collapsed="leftFloatingCollapsed" title="模拟控制"
+        subtitle="调整地形、来风与水汽条件" variant="control" :initial-top="82" :initial-right="18" :draggable="true"
+        :resizable="true" class="foehn-control-card">
         <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>模拟控制</h2>
-              <p>调整地形、来风与水汽条件</p>
-            </div>
-
-            <span class="panel-badge">CONTROL</span>
-          </div>
-
           <section class="geo-card control-section">
             <h3 class="section-title">参数预设</h3>
 
@@ -124,12 +118,7 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content">
@@ -182,17 +171,10 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
+      <FloatingFeatureCard v-if="panelsVisible" v-model:collapsed="rightFloatingCollapsed" title="实时过程"
+        subtitle="温度、降水、湿度与干热判断" variant="data" :initial-top="144" :initial-right="18" :draggable="true"
+        :resizable="true" class="foehn-data-card">
         <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>实时过程</h2>
-              <p>温度、降水、湿度与干热判断</p>
-            </div>
-
-            <span class="panel-badge">DATA</span>
-          </div>
-
           <div class="data-grid">
             <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="item.className">
               <span>{{ item.label }}</span>
@@ -261,22 +243,7 @@
           </el-collapse>
         </div>
 
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
-
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
-
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
-      </button>
+      </FloatingFeatureCard>
     </main>
   </div>
 </template>
@@ -285,6 +252,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -293,34 +261,20 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js'
 
 const WATER_NORMALS_URL = '/geo-resources-folder/images/waternormals.jpg'
 
-const hasLeftPanel = true
-const hasRightPanel = true
+const hasLeftPanel = false
+const hasRightPanel = false
+const panelsVisible = ref(true)
+const leftFloatingCollapsed = ref(true)
+const rightFloatingCollapsed = ref(true)
 
 const {
   rootRef: pageRef,
   layoutMode,
 
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
-
   draggingSide,
   viewportResizing,
 
   workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-
-  leftResizeAttrs,
-  rightResizeAttrs,
-
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-
-  leftEntryAttrs,
-  rightEntryAttrs,
-
-  toggleAll: toggleAllPanels,
 } = useGeoPanelLayout({
   left: {
     enabled: hasLeftPanel,
@@ -1057,8 +1011,8 @@ function resetProcess() {
 
 function createBlueSkyBackgroundTexture() {
   const canvas = document.createElement('canvas')
-  canvas.width = 16
-  canvas.height = 512
+  canvas.width = 1536
+  canvas.height = 768
 
   const ctx = canvas.getContext('2d')
   if (!ctx) {
@@ -1066,23 +1020,48 @@ function createBlueSkyBackgroundTexture() {
   }
 
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
-  gradient.addColorStop(0.00, '#4caeed')
-  gradient.addColorStop(0.22, '#79c9f6')
-  gradient.addColorStop(0.48, '#aee0fb')
-  gradient.addColorStop(0.72, '#d9effc')
-  gradient.addColorStop(1.00, '#eef7fb')
+  gradient.addColorStop(0, '#245f9c')
+  gradient.addColorStop(0.36, '#4b9bd0')
+  gradient.addColorStop(0.7, '#88c7e5')
+  gradient.addColorStop(1, '#c6e5ef')
 
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  // 轻微太阳辉光，不能太白，否则又会把场景洗白。
-  const glow = ctx.createRadialGradient(8, 86, 0, 8, 86, 150)
-  glow.addColorStop(0.00, 'rgba(255, 236, 184, 0.32)')
-  glow.addColorStop(0.34, 'rgba(255, 236, 184, 0.14)')
-  glow.addColorStop(1.00, 'rgba(255, 236, 184, 0.00)')
-
-  ctx.fillStyle = glow
+  const horizon = ctx.createRadialGradient(
+    canvas.width * 0.5,
+    canvas.height * 0.9,
+    10,
+    canvas.width * 0.5,
+    canvas.height * 0.9,
+    canvas.width * 0.52,
+  )
+  horizon.addColorStop(0, 'rgba(236,248,250,.58)')
+  horizon.addColorStop(0.46, 'rgba(194,229,239,.2)')
+  horizon.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = horizon
   ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  const cloudSpecs: Array<[number, number, number, number]> = [
+    [260, 225, 180, 32],
+    [585, 178, 220, 28],
+    [1040, 250, 250, 34],
+    [1320, 150, 170, 24],
+  ]
+
+  cloudSpecs.forEach(([x, y, radiusX, radiusY]) => {
+    const cloud = ctx.createRadialGradient(x, y, 4, x, y, radiusX)
+    cloud.addColorStop(0, 'rgba(255,255,255,.18)')
+    cloud.addColorStop(0.55, 'rgba(235,248,253,.08)')
+    cloud.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(1, radiusY / radiusX)
+    ctx.translate(-x, -y)
+    ctx.fillStyle = cloud
+    ctx.fillRect(x - radiusX, y - radiusX, radiusX * 2, radiusX * 2)
+    ctx.restore()
+  })
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
@@ -4281,6 +4260,34 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.foehn-control-card:not(.collapsed) {
+  width: min(390px, calc(100vw - 28px));
+  height: min(720px, calc(100vh - 98px));
+}
+
+.foehn-control-card :deep(.feature-card-content) {
+  padding-bottom: 0;
+}
+
+.foehn-control-card .panel-scroll {
+  height: 100%;
+  padding: 12px;
+}
+
+.foehn-data-card:not(.collapsed) {
+  width: min(390px, calc(100vw - 28px));
+  height: min(680px, calc(100vh - 98px));
+}
+
+.foehn-data-card :deep(.feature-card-content) {
+  padding-bottom: 0;
+}
+
+.foehn-data-card .panel-scroll {
+  height: 100%;
+  padding: 12px;
+}
+
 .foehn-effect-container .three-canvas {
   display: block;
   width: 100% !important;

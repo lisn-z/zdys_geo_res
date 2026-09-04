@@ -1,5 +1,5 @@
 <template>
-  <div class="water-recycle-container geo-template-page geo-page theme-dark layout-floating">
+  <div class="water-recycle-container geo-template-page geo-page theme-dark">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -8,9 +8,6 @@
       <h1 class="page-title">水循环</h1>
       <div class="toolbar-actions">
         <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="resetView">重置视角</button>
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleFullscreen">
-          {{ isFullscreen ? '退出全屏' : '全屏显示' }}
-        </button>
         <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :aria-pressed="panelsVisible"
           @click="togglePanelsVisibility">
           {{ panelsVisible ? '隐藏面板' : '显示面板' }}
@@ -29,14 +26,13 @@
             </div>
           </div>
         </div>
-        <div class="footer-tip">拖拽旋转 · 滚轮缩放 · 右键平移</div>
       </section>
     </main>
 
     <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlPanelCollapsed"
-      class="water-floating-card water-control-panel" title="控制面板" subtitle="场景、图层与教学提示"
-      variant="control" :initial-top="108" :initial-right="18" :bottom-inset="14" :draggable="true"
-      :resizable="true" :min-width="340" :min-height="420">
+      class="water-floating-card water-control-panel" title="控制面板" subtitle="场景、图层与教学提示" variant="control"
+      :initial-top="108" :initial-right="18" :bottom-inset="14" :draggable="true" :resizable="true" :min-width="340"
+      :min-height="420">
       <section class="geo-card control-section floating-card-section">
         <h3 class="panel-section-title">场景切换</h3>
         <div class="urban-toggle">
@@ -146,19 +142,20 @@ interface ShaderSmokeFlow {
   materials: THREE.ShaderMaterial[]
 }
 
-interface RainDropLine {
-  line: THREE.Line
+interface RainDropParticle {
+  mesh: THREE.Mesh<THREE.LatheGeometry, THREE.MeshPhysicalMaterial>
   x: number
   z: number
   offset: number
-  length: number
+  scale: number
+  drift: number
 }
 
 interface RainSystem {
   key: string
   scene: SceneKey
   group: THREE.Group
-  drops: RainDropLine[]
+  drops: RainDropParticle[]
   topY: number
   bottomY: number
 }
@@ -180,6 +177,7 @@ interface InfiltrationPulseOptions {
   scaleMultiplier?: number
   opacityMultiplier?: number
   fadeOutStart?: number
+  toggleKey?: 'infiltration' | 'runoff'
 }
 
 interface ArrowPlaneData {
@@ -237,7 +235,7 @@ interface TerrainData {
 const layerDefs: LayerDef[] = [
   { key: 'evaporation', label: '蒸发', desc: '海洋 / 地表蒸发', color: '#ff8a72' },
   { key: 'transport', label: '水汽输送', desc: '水汽在海洋与陆地上空输送', color: '#d7efff' },
-  { key: 'precipitation', label: '降水', desc: '蓝色竖线降水', color: '#9fd1ff' },
+  { key: 'precipitation', label: '降水', desc: '三维水滴降水', color: '#9fd1ff' },
   { key: 'transpiration', label: '蒸腾', desc: '植被蒸腾上升', color: '#ff9f7a' },
   { key: 'runoff', label: '地表径流', desc: '地表汇流、环城排水与入海河流', color: '#54d7d0' },
   { key: 'infiltration', label: '下渗', desc: '山体或地表向下渗透', color: '#b6a7ff' },
@@ -302,7 +300,7 @@ const SUN_TEXTURE_URL = '/geo-resources-folder/images/sun.png'
 const SUN_SCENE_POSITION = new THREE.Vector3(18, 13, -14)
 
 const cameraPresets: Record<SceneKey, { pos: THREE.Vector3; target: THREE.Vector3 }> = {
-  seaLand: { pos: new THREE.Vector3(8.5, 12.6, 36), target: new THREE.Vector3(6.2, 4.3, 0) },
+  seaLand: { pos: new THREE.Vector3(10.2, 16.0, 52), target: new THREE.Vector3(6.2, 4.3, 0) },
   landBefore: { pos: new THREE.Vector3(0, 17.5, 59), target: new THREE.Vector3(0.0, 2.3, 0) },
   landAfter: { pos: new THREE.Vector3(0, 17.5, 59), target: new THREE.Vector3(0.0, 2.3, 0) },
 }
@@ -622,6 +620,86 @@ function terrainYAt(data: TerrainData, worldX: number, worldZ: number) {
   const h01 = data.heights[idx(x0, z1)]
   const h11 = data.heights[idx(x1, z1)]
   return lerp(lerp(h00, h10, tx), lerp(h01, h11, tx), tz)
+}
+
+const RIVER_SURFACE_SEGMENTS = 180
+
+function carveDownhillRiverChannel(
+  data: TerrainData,
+  curve: THREE.Curve<THREE.Vector3>,
+  widthStart: number,
+  widthEnd: number,
+) {
+  const points: THREE.Vector3[] = []
+  const surfaceHeights = new Array<number>(RIVER_SURFACE_SEGMENTS + 1)
+
+  for (let i = 0; i <= RIVER_SURFACE_SEGMENTS; i++) {
+    const point = curve.getPointAt(i / RIVER_SURFACE_SEGMENTS)
+    points.push(point)
+    const terrainHeight = terrainYAt(data, point.x, point.z)
+    const localSurface = terrainHeight + 0.028
+    surfaceHeights[i] = i === 0
+      ? localSurface
+      : Math.min(localSurface, surfaceHeights[i - 1]! - 0.0008)
+  }
+
+  for (let zi = 0; zi <= data.segZ; zi++) {
+    const z = data.zMin + (zi / data.segZ) * data.depth
+    for (let xi = 0; xi <= data.segX; xi++) {
+      const x = data.xMin + (xi / data.segX) * data.width
+      let nearestIndex = 0
+      let nearestDistanceSq = Number.POSITIVE_INFINITY
+
+      for (let sampleIndex = 0; sampleIndex <= RIVER_SURFACE_SEGMENTS; sampleIndex++) {
+        const point = points[sampleIndex]!
+        const dx = x - point.x
+        const dz = z - point.z
+        const distanceSq = dx * dx + dz * dz
+        if (distanceSq < nearestDistanceSq) {
+          nearestDistanceSq = distanceSq
+          nearestIndex = sampleIndex
+        }
+      }
+
+      const t = nearestIndex / RIVER_SURFACE_SEGMENTS
+      const riverHalfWidth = lerp(widthStart, widthEnd, t) * 0.5
+      const channelCore = riverHalfWidth + 0.08
+      const channelOuter = channelCore + 0.52
+      const distance = Math.sqrt(nearestDistanceSq)
+      if (distance >= channelOuter) continue
+
+      const index = zi * (data.segX + 1) + xi
+      const currentHeight = data.heights[index]!
+      const bedHeight = surfaceHeights[nearestIndex]! - 0.06
+      const carveStrength = 1 - smoothstep(channelCore, channelOuter, distance)
+      data.heights[index] = Math.min(currentHeight, lerp(currentHeight, bedHeight, carveStrength))
+    }
+  }
+
+  return surfaceHeights
+}
+
+function syncTerrainSurfaceGeometry(data: TerrainData) {
+  const geometry = data.mesh.geometry as THREE.BufferGeometry
+  const positions = geometry.attributes.position as THREE.BufferAttribute
+  const index = geometry.index
+  const topGroup = geometry.groups.find((group) => group.materialIndex === 2)
+  if (!index || !topGroup) return
+
+  const topVertexIndices = new Set<number>()
+  for (let offset = topGroup.start; offset < topGroup.start + topGroup.count; offset++) {
+    topVertexIndices.add(index.getX(offset))
+  }
+  topVertexIndices.forEach((vertexIndex) => {
+    const worldX = positions.getX(vertexIndex) + data.mesh.position.x
+    const worldZ = positions.getZ(vertexIndex) + data.mesh.position.z
+    const worldY = terrainYAt(data, worldX, worldZ)
+    positions.setY(vertexIndex, worldY - data.mesh.position.y)
+  })
+  positions.needsUpdate = true
+  geometry.computeVertexNormals()
+  geometry.computeBoundingBox()
+  geometry.computeBoundingSphere()
 }
 
 function buildDeformedLandBox(width: number, depth: number, segX: number, segZ: number) {
@@ -1205,6 +1283,7 @@ function createIrregularInfiltrationPulse(
   seed: number,
   options: InfiltrationPulseOptions = {},
 ) {
+  const toggleKey = options.toggleKey ?? 'infiltration'
   const shape = new THREE.Shape()
   const pointCount = 20
   for (let i = 0; i < pointCount; i++) {
@@ -1231,7 +1310,7 @@ function createIrregularInfiltrationPulse(
   mesh.scale.setScalar(0.08)
   mesh.renderOrder = 5
   infiltrationPulses.push({
-    key: 'infiltration',
+    key: toggleKey,
     scene: sceneKey,
     mesh,
     phaseOffset,
@@ -1240,7 +1319,7 @@ function createIrregularInfiltrationPulse(
     baseOpacity: (0.42 + hash2(seed * 1.73, 3.4) * 0.14) * (options.opacityMultiplier ?? 1),
     fadeOutStart: options.fadeOutStart ?? 0.48,
   })
-  registerToggle('infiltration', mesh)
+  registerToggle(toggleKey, mesh)
   return mesh
 }
 
@@ -1272,17 +1351,40 @@ function createInfiltrationPulseCluster(
 
 function createRainSystem(key: string, sceneKey: SceneKey, xCenter: number, zCenter: number, topY: number, bottomY: number, width: number, depth: number, count: number) {
   const group = new THREE.Group()
-  const drops: RainDropLine[] = []
+  const drops: RainDropParticle[] = []
+  const dropProfile = [
+    new THREE.Vector2(0.0, 0.24),
+    new THREE.Vector2(0.026, 0.13),
+    new THREE.Vector2(0.052, 0.015),
+    new THREE.Vector2(0.058, -0.07),
+    new THREE.Vector2(0.038, -0.15),
+    new THREE.Vector2(0.0, -0.18),
+  ]
+  const dropGeometry = new THREE.LatheGeometry(dropProfile, 10)
+  dropGeometry.computeVertexNormals()
+  const dropMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x8fdcff,
+    emissive: 0x1c78a4,
+    emissiveIntensity: 0.2,
+    transparent: true,
+    opacity: 0.78,
+    roughness: 0.08,
+    metalness: 0,
+    transmission: 0.16,
+    thickness: 0.12,
+    depthWrite: false,
+  })
   for (let i = 0; i < count; i++) {
     const x = xCenter + (hash2(i, 7.3) - 0.5) * width
     const z = zCenter + (hash2(i + 3.1, 5.9) - 0.5) * depth
-    const length = 0.48 + hash2(i + 0.4, 2.9) * 0.6
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.Float32BufferAttribute([x, topY, z, x, topY - length, z], 3))
-    const mat = new THREE.LineBasicMaterial({ color: 0xa8d7ff, transparent: true, opacity: 0.85 })
-    const line = new THREE.Line(geo, mat)
-    group.add(line)
-    drops.push({ line, x, z, offset: hash2(i * 1.2, 9.1), length })
+    const scale = 0.72 + hash2(i + 0.4, 2.9) * 0.58
+    const drift = (hash2(i + 1.7, 8.4) - 0.5) * 0.16
+    const mesh = new THREE.Mesh(dropGeometry, dropMaterial)
+    mesh.position.set(x, topY, z)
+    mesh.scale.set(scale, scale * (1.25 + hash2(i + 2.8, 4.1) * 0.55), scale)
+    mesh.renderOrder = 5
+    group.add(mesh)
+    drops.push({ mesh, x, z, offset: hash2(i * 1.2, 9.1), scale, drift })
   }
   rainSystems.push({ key, scene: sceneKey, group, drops, topY, bottomY })
   registerToggle(key, group)
@@ -1309,7 +1411,7 @@ function createGradientArrowMaterial(colorA: number, colorB: number) {
   const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
     uniforms: {
       uTime: { value: 0 },
       uColorA: { value: new THREE.Color(colorA) },
@@ -1332,8 +1434,8 @@ function createGradientArrowMaterial(colorA: number, colorB: number) {
         float cycle = fract(along - uTime);
         float pulse = exp(-pow((cycle - 0.16) / 0.13, 2.0));
         vec3 base = mix(uColorA, uColorB, along);
-        vec3 color = base + pulse * vec3(0.72, 0.72, 0.90);
-        float alpha = 0.34 + pulse * 0.66;
+        vec3 color = base + pulse * vec3(0.24, 0.34, 0.38);
+        float alpha = 0.06 + pulse * 0.48;
         gl_FragColor = vec4(color, alpha);
       }
     `,
@@ -1367,8 +1469,8 @@ function createDynamicCurveArrow(
     new THREE.MeshBasicMaterial({
       color: options.colorB,
       transparent: true,
-      opacity: 0.98,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.76,
+      blending: THREE.NormalBlending,
       depthWrite: false,
     }),
   )
@@ -1394,16 +1496,21 @@ function createSurfaceRiverRibbon(
   widthStart: number,
   widthEnd: number,
   heightSampler: (x: number, z: number) => number,
+  prescribedSurfaceHeights?: number[],
+  showArtificialBed = true,
 ) {
-  const segments = 180
+  const segments = RIVER_SURFACE_SEGMENTS
   const crossSegments = 8
   const surfaceOffset = 0.075
+  const minimumDropPerSegment = 0.0015
   const positions: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
   const previous = new THREE.Vector3()
   const next = new THREE.Vector3()
   const side = new THREE.Vector3()
+  const sections: Array<{ point: THREE.Vector3; vertices: THREE.Vector3[]; terrainTop: number }> = []
+  const surfaceHeights = new Array<number>(segments + 1)
 
   for (let i = 0; i <= segments; i++) {
     const t = i / segments
@@ -1412,17 +1519,41 @@ function createSurfaceRiverRibbon(
     curve.getPointAt(Math.min(1, t + 0.005), next)
     side.set(-(next.z - previous.z), 0, next.x - previous.x).normalize()
     const halfWidth = lerp(widthStart, widthEnd, t) * 0.5
-    // 每个截面使用多个独立贴地顶点。仅采样左右边缘会让河面在起伏较大的
-    // 山区跨过中间高点，从而被地形切出缺块。
+    const vertices: THREE.Vector3[] = []
+    let terrainTop = Number.NEGATIVE_INFINITY
     for (let crossIndex = 0; crossIndex <= crossSegments; crossIndex++) {
       const crossT = crossIndex / crossSegments
       const lateralOffset = lerp(halfWidth, -halfWidth, crossT)
       const vertex = point.clone().addScaledVector(side, lateralOffset)
-      vertex.y = heightSampler(vertex.x, vertex.z) + surfaceOffset
-      positions.push(vertex.x, vertex.y, vertex.z)
-      uvs.push(t, crossT)
+      terrainTop = Math.max(terrainTop, heightSampler(vertex.x, vertex.z))
+      vertices.push(vertex)
+    }
+    sections.push({ point, vertices, terrainTop })
+  }
+
+  if (prescribedSurfaceHeights?.length === segments + 1) {
+    for (let i = 0; i <= segments; i++) surfaceHeights[i] = prescribedSurfaceHeights[i]!
+  } else {
+    // 平坦场景没有可下切山体时，仍保证水面沿流向缓慢降低且不穿模。
+    surfaceHeights[segments] = sections[segments]!.terrainTop + surfaceOffset
+    for (let i = segments - 1; i >= 0; i--) {
+      surfaceHeights[i] = Math.max(
+        sections[i]!.terrainTop + surfaceOffset,
+        surfaceHeights[i + 1]! + minimumDropPerSegment,
+      )
     }
   }
+
+  const flowPoints: THREE.Vector3[] = []
+  sections.forEach((section, sectionIndex) => {
+    const t = sectionIndex / segments
+    const surfaceY = surfaceHeights[sectionIndex]!
+    section.vertices.forEach((vertex, crossIndex) => {
+      positions.push(vertex.x, surfaceY, vertex.z)
+      uvs.push(t, crossIndex / crossSegments)
+    })
+    flowPoints.push(new THREE.Vector3(section.point.x, surfaceY + 0.035, section.point.z))
+  })
 
   for (let i = 0; i < segments; i++) {
     const row = crossSegments + 1
@@ -1441,22 +1572,13 @@ function createSurfaceRiverRibbon(
   geometry.setIndex(indices)
   geometry.computeVertexNormals()
 
-  const bedGeometry = geometry.clone()
-  const bedPos = bedGeometry.attributes.position as THREE.BufferAttribute
-  for (let i = 0; i < bedPos.count; i++) bedPos.setY(i, bedPos.getY(i) - 0.045)
-  bedPos.needsUpdate = true
-  bedGeometry.computeVertexNormals()
-
-  const bed = new THREE.Mesh(
-    bedGeometry,
-    new THREE.MeshStandardMaterial({ color: 0x53634d, roughness: 1, metalness: 0 }),
-  )
-
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uDeep: { value: new THREE.Color(0x6fe3ff) },
-      uShallow: { value: new THREE.Color(0xf1ffff) },
+      uDeep: { value: new THREE.Color(0x176f8a) },
+      uMid: { value: new THREE.Color(0x36aeb8) },
+      uShallow: { value: new THREE.Color(0x8bd7c9) },
+      uFoam: { value: new THREE.Color(0xdaf6e9) },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -1471,25 +1593,27 @@ function createSurfaceRiverRibbon(
     fragmentShader: `
       uniform float uTime;
       uniform vec3 uDeep;
+      uniform vec3 uMid;
       uniform vec3 uShallow;
+      uniform vec3 uFoam;
       varying vec2 vUv;
       varying vec3 vWorldPosition;
-      float hash21(vec2 p) {
-        p = fract(p * vec2(123.34, 456.21));
-        p += dot(p, p + 45.32);
-        return fract(p.x * p.y);
-      }
       void main() {
-        float edge = smoothstep(0.0, 0.16, vUv.y) * smoothstep(0.0, 0.16, 1.0 - vUv.y);
-        float center = 1.0 - abs(vUv.y - 0.5) * 2.0;
-        float flowA = sin(vUv.x * 34.0 - uTime * 5.2 + vUv.y * 4.0) * 0.5 + 0.5;
-        float flowB = sin(vUv.x * 15.0 - uTime * 3.1 - vUv.y * 8.0) * 0.5 + 0.5;
-        float movingBand = pow(0.5 + 0.5 * sin(vUv.x * 9.0 - uTime * 4.0), 8.0);
-        float sparkle = pow(max(flowA * 0.60 + flowB * 0.30 + movingBand * 0.34 - 0.66, 0.0), 1.8);
-        vec3 color = mix(uShallow, uDeep, center * 0.42);
-        color += vec3(0.82, 0.92, 1.0) * sparkle * 1.15;
-        float alpha = (0.93 + sparkle * 0.07) * edge;
-        if (alpha < 0.02) discard;
+        float edgeDistance = min(vUv.y, 1.0 - vUv.y);
+        float edgeFade = smoothstep(0.012, 0.075, edgeDistance);
+        float depth = smoothstep(0.02, 0.46, edgeDistance);
+        float broadFlow = sin(vUv.x * 42.0 - uTime * 3.0 + vUv.y * 5.0) * 0.5 + 0.5;
+        float fineFlow = sin(vUv.x * 116.0 - uTime * 5.6 - vUv.y * 13.0) * 0.5 + 0.5;
+        float currentLine = smoothstep(0.78, 0.98, broadFlow * 0.68 + fineFlow * 0.32) * depth;
+        float bankRipple = sin(vUv.x * 61.0 - uTime * 2.1 + vUv.y * 18.0) * 0.5 + 0.5;
+        float foam = (1.0 - smoothstep(0.025, 0.16, edgeDistance))
+          * smoothstep(0.54, 0.92, bankRipple) * 0.48;
+        vec3 color = mix(uShallow, uMid, depth);
+        color = mix(color, uDeep, depth * depth * 0.5);
+        color += vec3(0.14, 0.28, 0.27) * currentLine;
+        color = mix(color, uFoam, foam);
+        float alpha = (0.68 + depth * 0.18 + foam * 0.12) * edgeFade;
+        if (alpha < 0.025) discard;
         gl_FragColor = vec4(color, alpha);
       }
     `,
@@ -1497,14 +1621,25 @@ function createSurfaceRiverRibbon(
     depthWrite: true,
     side: THREE.DoubleSide,
   })
-  material.toneMapped = false
   riverShaderMaterials.push(material)
 
   const water = new THREE.Mesh(geometry, material)
   water.renderOrder = 3
   const group = new THREE.Group()
-  group.add(bed, water)
-  return { mesh: group, material }
+  if (showArtificialBed) {
+    const bedGeometry = geometry.clone()
+    const bedPos = bedGeometry.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < bedPos.count; i++) bedPos.setY(i, bedPos.getY(i) - 0.045)
+    bedPos.needsUpdate = true
+    bedGeometry.computeVertexNormals()
+    group.add(new THREE.Mesh(
+      bedGeometry,
+      new THREE.MeshStandardMaterial({ color: 0x486656, roughness: 0.94, metalness: 0 }),
+    ))
+  }
+  group.add(water)
+  const flowCurve = new THREE.CatmullRomCurve3(flowPoints, false, 'centripetal', 0.5)
+  return { mesh: group, material, flowCurve }
 }
 
 function createSideRiverRibbon(
@@ -1565,8 +1700,11 @@ function createSideRiverRibbon(
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uDeep: { value: new THREE.Color(0x6fe3ff) },
-      uShallow: { value: new THREE.Color(0xf1ffff) },
+      // 与山体地表河流共用同一套水体配色，避免地下河带突兀发白。
+      uDeep: { value: new THREE.Color(0x176f8a) },
+      uMid: { value: new THREE.Color(0x36aeb8) },
+      uShallow: { value: new THREE.Color(0x8bd7c9) },
+      uFoam: { value: new THREE.Color(0xdaf6e9) },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -1578,18 +1716,26 @@ function createSideRiverRibbon(
     fragmentShader: `
       uniform float uTime;
       uniform vec3 uDeep;
+      uniform vec3 uMid;
       uniform vec3 uShallow;
+      uniform vec3 uFoam;
       varying vec2 vUv;
       void main() {
-        float edge = smoothstep(0.0, 0.18, vUv.y) * smoothstep(0.0, 0.18, 1.0 - vUv.y);
-        float center = 1.0 - abs(vUv.y - 0.5) * 2.0;
-        float flowA = sin(vUv.x * 27.0 - uTime * 4.2 + vUv.y * 5.0) * 0.5 + 0.5;
-        float flowB = sin(vUv.x * 12.0 - uTime * 2.5 - vUv.y * 6.0) * 0.5 + 0.5;
-        float highlight = pow(max(flowA * 0.58 + flowB * 0.34 - 0.62, 0.0), 1.8);
-        vec3 color = mix(uShallow, uDeep, center * 0.62);
-        color += vec3(0.82, 0.92, 1.0) * highlight * 1.05;
-        float alpha = (0.93 + highlight * 0.07) * edge;
-        if (alpha < 0.02) discard;
+        float edgeDistance = min(vUv.y, 1.0 - vUv.y);
+        float edgeFade = smoothstep(0.012, 0.075, edgeDistance);
+        float depth = smoothstep(0.02, 0.46, edgeDistance);
+        float broadFlow = sin(vUv.x * 42.0 - uTime * 3.0 + vUv.y * 5.0) * 0.5 + 0.5;
+        float fineFlow = sin(vUv.x * 116.0 - uTime * 5.6 - vUv.y * 13.0) * 0.5 + 0.5;
+        float currentLine = smoothstep(0.78, 0.98, broadFlow * 0.68 + fineFlow * 0.32) * depth;
+        float bankRipple = sin(vUv.x * 61.0 - uTime * 2.1 + vUv.y * 18.0) * 0.5 + 0.5;
+        float foam = (1.0 - smoothstep(0.025, 0.16, edgeDistance))
+          * smoothstep(0.54, 0.92, bankRipple) * 0.48;
+        vec3 color = mix(uShallow, uMid, depth);
+        color = mix(color, uDeep, depth * depth * 0.5);
+        color += vec3(0.14, 0.28, 0.27) * currentLine;
+        color = mix(color, uFoam, foam);
+        float alpha = (0.68 + depth * 0.18 + foam * 0.12) * edgeFade;
+        if (alpha < 0.025) discard;
         gl_FragColor = vec4(color, alpha);
       }
     `,
@@ -1597,7 +1743,6 @@ function createSideRiverRibbon(
     depthWrite: true,
     side: THREE.DoubleSide,
   })
-  material.toneMapped = false
   riverShaderMaterials.push(material)
 
   const water = new THREE.Mesh(geometry, material)
@@ -2136,63 +2281,72 @@ function buildSeaLandScene(root: THREE.Group) {
   })
   root.add(town)
 
-  // 只保留一条主河道，河口止于弯曲海岸线内侧，不再延伸到海洋中。
+  // 河道只用 x/z 描述走向；纵向高程由下游约束的河床剖面统一生成。
   const riverMouthZ = -2.55
   const riverMouthX = coastXAt(riverMouthZ) - 0.30
   const mainRiverCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-11.9, terrainYAt(landData, -11.9, -0.55), -0.55),
-    new THREE.Vector3(-10.9, terrainYAt(landData, -10.9, -1.1), -1.1),
-    new THREE.Vector3(-9.8, terrainYAt(landData, -9.8, -1.8), -1.8),
-    new THREE.Vector3(-8.6, terrainYAt(landData, -8.6, -2.45), -2.45),
-    new THREE.Vector3(-7.5, terrainYAt(landData, -7.5, -2.95), -2.95),
-    new THREE.Vector3(-6.9, terrainYAt(landData, -6.9, -3.0), -3.0),
-    new THREE.Vector3(-4.5, terrainYAt(landData, -4.5, -3.6), -3.6),
-    new THREE.Vector3(-1.7, terrainYAt(landData, -1.7, -3.1), -3.1),
-    new THREE.Vector3(1.4, terrainYAt(landData, 1.4, -3.7), -3.7),
-    new THREE.Vector3(2.8, terrainYAt(landData, 2.8, -4.2), -4.2),
-    new THREE.Vector3(4.6, terrainYAt(landData, 4.6, -4.0), -4.0),
-    new THREE.Vector3(5.8, terrainYAt(landData, 5.8, -3.55), -3.55),
-    new THREE.Vector3(riverMouthX, terrainYAt(landData, riverMouthX, riverMouthZ), riverMouthZ),
+    new THREE.Vector3(-11.9, 0, -0.55),
+    new THREE.Vector3(-10.9, 0, -1.1),
+    new THREE.Vector3(-9.8, 0, -1.8),
+    new THREE.Vector3(-8.6, 0, -2.45),
+    new THREE.Vector3(-7.5, 0, -2.95),
+    new THREE.Vector3(-6.9, 0, -3.0),
+    new THREE.Vector3(-4.5, 0, -3.6),
+    new THREE.Vector3(-1.7, 0, -3.1),
+    new THREE.Vector3(1.4, 0, -3.7),
+    new THREE.Vector3(2.8, 0, -4.2),
+    new THREE.Vector3(4.6, 0, -4.0),
+    new THREE.Vector3(5.8, 0, -3.55),
+    new THREE.Vector3(riverMouthX, 0, riverMouthZ),
   ], false, 'centripetal', 0.5)
-  const { mesh: river } = createSurfaceRiverRibbon(
+  const branchRiverCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-11.3, 0, 0.5),
+    new THREE.Vector3(-10.5, 0, 1.3),
+    new THREE.Vector3(-9.5, 0, 2.35),
+    new THREE.Vector3(-8.1, 0, 3.65),
+    new THREE.Vector3(-6.1, 0, 4.9),
+    new THREE.Vector3(-3.5, 0, 6.1),
+    new THREE.Vector3(-0.8, 0, 7.2),
+    new THREE.Vector3(1.2, 0, 8.0),
+    new THREE.Vector3(2.3, 0, 8.75),
+    new THREE.Vector3(2.6, 0, 8.96),
+  ], false, 'centripetal', 0.5)
+
+  const mainRiverSurface = carveDownhillRiverChannel(landData, mainRiverCurve, 0.32, 0.70)
+  const branchRiverSurface = carveDownhillRiverChannel(landData, branchRiverCurve, 0.22, 0.56)
+  syncTerrainSurfaceGeometry(landData)
+
+  const { mesh: river, flowCurve: mainRiverFlowCurve } = createSurfaceRiverRibbon(
     mainRiverCurve,
     0.32,
     0.70,
     (x, z) => terrainYAt(landData, x, z),
+    mainRiverSurface,
+    false,
   )
   root.add(river)
-  const branchRiverCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-11.3, terrainYAt(landData, -11.3, 0.5), 0.5),
-    new THREE.Vector3(-10.5, terrainYAt(landData, -10.5, 1.3), 1.3),
-    new THREE.Vector3(-9.5, terrainYAt(landData, -9.5, 2.35), 2.35),
-    new THREE.Vector3(-8.1, terrainYAt(landData, -8.1, 3.65), 3.65),
-    new THREE.Vector3(-6.1, terrainYAt(landData, -6.1, 4.9), 4.9),
-    new THREE.Vector3(-3.5, terrainYAt(landData, -3.5, 6.1), 6.1),
-    new THREE.Vector3(-0.8, terrainYAt(landData, -0.8, 7.2), 7.2),
-    new THREE.Vector3(1.2, terrainYAt(landData, 1.2, 8.0), 8.0),
-    new THREE.Vector3(2.3, terrainYAt(landData, 2.3, 8.75), 8.75),
-    new THREE.Vector3(2.6, terrainYAt(landData, 2.6, 8.96), 8.96),
-  ], false, 'centripetal', 0.5)
-  const { mesh: branchRiver } = createSurfaceRiverRibbon(
+  const { mesh: branchRiver, flowCurve: branchRiverFlowCurve } = createSurfaceRiverRibbon(
     branchRiverCurve,
     0.22,
     0.56,
     (x, z) => terrainYAt(landData, x, z),
+    branchRiverSurface,
+    false,
   )
   root.add(branchRiver)
-  const riverFlowArrow = createDynamicCurveArrow('runoff', 'seaLand', mainRiverCurve, {
-    colorA: 0x9defff,
-    colorB: 0xffffff,
-    radius: 0.03,
+  const riverFlowArrow = createDynamicCurveArrow('runoff', 'seaLand', mainRiverFlowCurve, {
+    colorA: 0x43b7c2,
+    colorB: 0xc5f0e8,
+    radius: 0.016,
     rate: 0.24,
-    headScale: 0.62,
+    headScale: 0.48,
   })
-  const branchRiverFlowArrow = createDynamicCurveArrow('runoff', 'seaLand', branchRiverCurve, {
-    colorA: 0x9defff,
-    colorB: 0xffffff,
-    radius: 0.024,
+  const branchRiverFlowArrow = createDynamicCurveArrow('runoff', 'seaLand', branchRiverFlowCurve, {
+    colorA: 0x43b7c2,
+    colorB: 0xc5f0e8,
+    radius: 0.013,
     rate: 0.22,
-    headScale: 0.56,
+    headScale: 0.44,
   })
   root.add(riverFlowArrow, branchRiverFlowArrow)
   registerToggle('runoff', river)
@@ -2380,22 +2534,38 @@ function buildSeaLandScene(root: THREE.Group) {
   root.add(rechargeLabel)
   registerLabel('recharge-sea', 'groundwater', '补给', 'lbl-gw', rechargeLabel, ['seaLand'])
 
-  const groundwaterCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-13.6, -3.05, sideFrontZ + 0.03),
-    new THREE.Vector3(-9.2, -3.16, sideFrontZ + 0.03),
-    new THREE.Vector3(-3.6, -3.23, sideFrontZ + 0.03),
-    new THREE.Vector3(1.8, -3.12, sideFrontZ + 0.03),
-    new THREE.Vector3(5.8, -2.92, sideFrontZ + 0.03),
-    new THREE.Vector3(8.4, -2.62, sideFrontZ + 0.03),
-    new THREE.Vector3(9.2, -2.42, sideFrontZ + 0.03),
-  ])
-  const { mesh: groundwaterRiver } = createSideRiverRibbon(groundwaterCurve, 0.28, 0.38, 0.018)
-  root.add(groundwaterRiver)
-  registerToggle('groundwater', groundwaterRiver)
+  // 地下径流沿含水层由高水头向海侧低水头缓慢流动：连续水带表达含水层，箭头表达方向。
+  const groundwaterPath = [
+    new THREE.Vector3(-12.8, -1.78, sideFrontZ + 0.06),
+    new THREE.Vector3(-6.5, -1.91, sideFrontZ + 0.06),
+    new THREE.Vector3(-0.4, -2.08, sideFrontZ + 0.06),
+    new THREE.Vector3(5.2, -2.30, sideFrontZ + 0.06),
+    new THREE.Vector3(8.8, -2.48, sideFrontZ + 0.06),
+  ]
+  const groundwaterCurve = new THREE.CatmullRomCurve3(groundwaterPath, false, 'centripetal', 0.5)
+  const { mesh: groundwaterBand } = createSideRiverRibbon(groundwaterCurve, 0.22, 0.30, 0.018)
+  root.add(groundwaterBand)
+  registerToggle('groundwater', groundwaterBand)
+  for (let i = 0; i < groundwaterPath.length - 1; i++) {
+    const start = groundwaterPath[i]!
+    const end = groundwaterPath[i + 1]!
+    const angle = Math.atan2(end.y - start.y, end.x - start.x) - Math.PI * 0.5
+    root.add(createArrowEmitter(
+      'groundwater',
+      'seaLand',
+      start,
+      end,
+      2,
+      0.48,
+      0.12,
+      false,
+      [0, 0, angle],
+    ))
+  }
   const gwLabel = new THREE.Object3D()
-  gwLabel.position.set(2.2, -2.72, sideFrontZ + 0.24)
+  gwLabel.position.set(2.2, -2.06, sideFrontZ + 0.24)
   root.add(gwLabel)
-  registerLabel('gw-sea', 'groundwater', '地下径流', 'lbl-gw', gwLabel, ['seaLand'])
+  registerLabel('gw-sea', 'groundwater', '地下河带', 'lbl-gw', gwLabel, ['seaLand'])
 
   const oceanLabel = new THREE.Object3D()
   oceanLabel.position.set(15.9, 0.75, -2.5)
@@ -2619,23 +2789,36 @@ function buildLandCycleScene(root: THREE.Group, mode: LandUrbanMode) {
         new THREE.Vector3(14.48, 0.205, -4.8),
         new THREE.Vector3(14.50, 0.205, -0.72),
       ], false, 'centripetal', 0.45),
+      // 城市降水落区通过浅排水支渠接入外围排水系统。
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-5.0, 0.245, 3.65),
+        new THREE.Vector3(-5.0, 0.235, 5.9),
+        new THREE.Vector3(-5.0, 0.222, 8.3),
+        new THREE.Vector3(-5.0, 0.205, 10.55),
+      ], false, 'centripetal', 0.5),
       // 环城排水渠在右侧草地带留出出口，汇流至底座边缘，不再形成完全闭环。
       new THREE.CatmullRomCurve3([
         new THREE.Vector3(14.49, 0.205, -0.72),
-        new THREE.Vector3(14.62, 0.205, -0.95),
-        new THREE.Vector3(14.76, 0.205, -1.28),
-        new THREE.Vector3(14.88, 0.205, -1.68),
+        new THREE.Vector3(14.62, 0.19, -0.95),
+        new THREE.Vector3(14.76, 0.175, -1.28),
+        new THREE.Vector3(14.88, 0.16, -1.68),
       ], false, 'centripetal', 0.5),
     ]
   runoffCurves.forEach((curve, index) => {
-    const isUrbanOutlet = mode === 'after' && index === 1
-    const widthStart = mode === 'before' ? 0.10 : isUrbanOutlet ? 0.12 : 0.16
-    const widthEnd = mode === 'before' ? 0.18 : isUrbanOutlet ? 0.18 : 0.26
+    const isUrbanCollector = mode === 'after' && index === 1
+    const isUrbanOutlet = mode === 'after' && index === 2
+    const widthStart = mode === 'before' ? 0.10 : isUrbanOutlet ? 0.12 : isUrbanCollector ? 0.10 : 0.16
+    const widthEnd = mode === 'before' ? 0.18 : isUrbanOutlet ? 0.18 : isUrbanCollector ? 0.16 : 0.26
+    const prescribedSurfaceHeights = Array.from(
+      { length: RIVER_SURFACE_SEGMENTS + 1 },
+      (_, segmentIndex) => curve.getPointAt(segmentIndex / RIVER_SURFACE_SEGMENTS).y,
+    )
     const { mesh } = createSurfaceRiverRibbon(
       curve,
       widthStart + index * 0.006,
       widthEnd + index * 0.006,
       () => 0.155,
+      prescribedSurfaceHeights,
     )
     root.add(mesh)
     registerToggle('runoff', mesh)
@@ -2727,7 +2910,7 @@ function buildLandCycleScene(root: THREE.Group, mode: LandUrbanMode) {
   // 城镇化前后都补充完整的陆地内循环：蒸发/蒸腾上升后形成水汽输送，并在另一侧形成云和降水。
   const landCycleCloudCenter = mode === 'before'
     ? new THREE.Vector3(-4.3, 9.55, -0.35)
-    : new THREE.Vector3(-6.4, 9.85, 4.9)
+    : new THREE.Vector3(-5.0, 9.85, 3.65)
   const landCycleTransportStart = mode === 'before'
     ? new THREE.Vector3(8.65, 6.95, 4.78)
     : new THREE.Vector3(0.65, 6.95, 0.10)
@@ -2735,7 +2918,7 @@ function buildLandCycleScene(root: THREE.Group, mode: LandUrbanMode) {
     landCycleTransportStart.clone(),
     mode === 'before' ? new THREE.Vector3(6.0, 8.15, 4.0) : new THREE.Vector3(-1.1, 7.9, 1.25),
     mode === 'before' ? new THREE.Vector3(2.3, 9.0, 2.3) : new THREE.Vector3(-3.2, 8.75, 2.9),
-    mode === 'before' ? new THREE.Vector3(-1.0, 9.35, 0.75) : new THREE.Vector3(-5.0, 9.45, 4.1),
+    mode === 'before' ? new THREE.Vector3(-1.0, 9.35, 0.75) : new THREE.Vector3(-4.4, 9.45, 3.35),
     landCycleCloudCenter.clone(),
   ], false, 'centripetal', 0.5)
   root.add(createSmokeFlow('transport', landSceneKey, landCycleTransportCurve, 0xeaf6ff, mode === 'before' ? 28 : 30, 0.92, 0.19))
@@ -2778,11 +2961,12 @@ function buildLandCycleScene(root: THREE.Group, mode: LandUrbanMode) {
       scaleMultiplier: 1.42,
       opacityMultiplier: 1.05,
       fadeOutStart: 0.72,
+      toggleKey: 'runoff',
     })
     const urbanPuddleLabel = new THREE.Object3D()
     urbanPuddleLabel.position.set(landCycleCloudCenter.x, 0.96, landCycleCloudCenter.z + 0.45)
     root.add(urbanPuddleLabel)
-    registerLabel('rain-puddle-after', 'infiltration', '地表积水', 'lbl-inf', urbanPuddleLabel, ['landAfter'])
+    registerLabel('rain-puddle-after', 'runoff', '地表积水', 'lbl-runoff', urbanPuddleLabel, ['landAfter'])
   }
 
   const landTransportLabel = new THREE.Object3D()
@@ -2798,7 +2982,7 @@ function buildLandCycleScene(root: THREE.Group, mode: LandUrbanMode) {
   landRainLabel.position.copy(
     mode === 'before'
       ? new THREE.Vector3(-4.3, 6.65, -0.35)
-      : new THREE.Vector3(-6.4, 6.9, 4.9),
+      : new THREE.Vector3(-5.0, 6.9, 3.65),
   )
   root.add(landRainLabel)
   registerLabel(`rain-${mode}`, 'precipitation', '降水', 'lbl-prec', landRainLabel, [landSceneKey])
@@ -3186,23 +3370,27 @@ function updateSmokeFlows(elapsed: number) {
 }
 
 function updateRainSystems(elapsed: number) {
-  const active = currentSceneKey()
   rainSystems.forEach((system) => {
     if (!isSceneActive(system.scene) || !system.group.visible) return
     const total = system.topY - system.bottomY
     system.drops.forEach((drop, i) => {
-      const phase = (drop.offset + elapsed * 0.56 * speed.value + i * 0.015) % 1
-      const headY = system.topY - phase * total
-      const tailY = Math.max(system.bottomY, headY - drop.length)
-      const arr = drop.line.geometry.attributes.position.array as Float32Array
-      arr[0] = drop.x
-      arr[1] = headY
-      arr[2] = drop.z
-      arr[3] = drop.x
-      arr[4] = tailY
-      arr[5] = drop.z
-      drop.line.geometry.attributes.position.needsUpdate = true
-        ; (drop.line.material as THREE.LineBasicMaterial).opacity = headY <= system.bottomY + 0.1 ? 0 : 0.85
+      const phase = (drop.offset + elapsed * (0.42 + drop.scale * 0.1) * speed.value + i * 0.012) % 1
+      const fallEase = phase * phase * (3 - 2 * phase)
+      const y = system.topY - fallEase * total
+      drop.mesh.position.set(
+        drop.x + Math.sin(elapsed * 0.7 + i * 1.7) * drop.drift,
+        y,
+        drop.z + Math.cos(elapsed * 0.55 + i * 1.1) * drop.drift * 0.45,
+      )
+      const fadeIn = smoothstep(0.0, 0.08, phase)
+      const fadeOut = 1 - smoothstep(0.86, 1.0, phase)
+      drop.mesh.visible = fadeIn * fadeOut > 0.08
+      const pulseScale = 0.88 + Math.sin(phase * Math.PI) * 0.18
+      drop.mesh.scale.set(
+        drop.scale * pulseScale,
+        drop.scale * (1.28 + fallEase * 0.72),
+        drop.scale * pulseScale,
+      )
     })
   })
 }
@@ -3468,7 +3656,7 @@ onBeforeUnmount(() => {
   padding: 14px 16px !important;
 }
 
-.floating-card-section + .floating-card-section {
+.floating-card-section+.floating-card-section {
   border-top: 1px solid rgba(82, 206, 255, 0.16);
 }
 
@@ -3630,6 +3818,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 760px) {
+
   .layer-list,
   .knowledge-content {
     grid-template-columns: 1fr;

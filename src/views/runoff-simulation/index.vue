@@ -20,22 +20,18 @@
           重新演示
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="panelsVisible = !panelsVisible">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>模拟控制</h2>
-              <p>改变降水、地表覆盖与土壤条件</p>
-            </div>
-            <span class="panel-badge">CONTROL</span>
-          </div>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlCardCollapsed"
+        class="runoff-floating-card runoff-control-card" title="模拟控制"
+        subtitle="改变降水、地表覆盖与土壤条件" variant="control" :initial-top="76" :initial-right="18"
+        :initial-collapsed="true" :min-width="320" :min-height="320">
+        <div class="floating-card-body">
 
           <section class="geo-card control-section">
             <div class="section-title-row">
@@ -132,13 +128,7 @@
             </button>
           </section>
         </div>
-
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content runoff-stage-content">
@@ -296,15 +286,11 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>水量平衡</h2>
-              <p>汇总当前情景的水分去向与判定</p>
-            </div>
-            <span class="panel-badge">DATA</span>
-          </div>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="dataCardCollapsed"
+        class="runoff-floating-card runoff-data-card" title="水量平衡"
+        subtitle="汇总当前情景的水分去向与判定" variant="data" :initial-top="136" :initial-right="18"
+        :initial-collapsed="true" :min-width="300" :min-height="260">
+        <div class="floating-card-body">
 
           <section class="geo-card balance-summary-card">
             <div class="balance-summary-head">
@@ -394,23 +380,7 @@
             </div>
           </section>
         </div>
-
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
-
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
-
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
-      </button>
+      </FloatingFeatureCard>
     </main>
   </div>
 </template>
@@ -431,6 +401,8 @@ import {
 } from '@element-plus/icons-vue'
 
 import '@/styles/geo-page-template.css'
+
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
 import {
   useGeoPanelLayout,
@@ -893,35 +865,22 @@ const viewOptions: Array<{ label: string; value: CameraView }> = [
   { label: '全景', value: 'wide' },
 ]
 
-const hasLeftPanel = true
-const hasRightPanel = true
+const panelsVisible = ref(true)
+const controlCardCollapsed = ref(true)
+const dataCardCollapsed = ref(true)
 
 const {
   rootRef: pageRef,
   layoutMode,
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
   draggingSide,
   viewportResizing,
   workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-  leftResizeAttrs,
-  rightResizeAttrs,
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-  leftEntryAttrs,
-  rightEntryAttrs,
-  setAllCollapsed,
-  resetWidths,
-  toggleAll: toggleAllPanels,
 } = useGeoPanelLayout({
   left: {
-    enabled: hasLeftPanel,
+    enabled: false,
   },
   right: {
-    enabled: hasRightPanel,
+    enabled: false,
   },
   onLayoutChange(state) {
     if (state.resizing) {
@@ -1775,8 +1734,6 @@ function restartSimulation() {
 }
 
 function resetControls() {
-  setAllCollapsed(false)
-  resetWidths()
   precipitationIndex.value = 2
   selectedLandCover.value = 'developedLow'
   selectedSoilGroup.value = 'a'
@@ -1871,6 +1828,28 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.floating-card-body {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 12px;
+}
+
+.floating-card-body > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.runoff-floating-card:deep(.feature-card-content) {
+  overscroll-behavior: contain;
+}
+
+.runoff-data-card {
+  width: clamp(320px, 22vw, 440px);
+}
+
 .runoff-oss-surface {
   display: block;
   background-repeat: no-repeat;
@@ -2714,26 +2693,8 @@ onBeforeUnmount(() => {
   line-height: 1.55;
 }
 
-.runoff-simulation-container .right-panel .panel-heading h2 {
-  font-size: clamp(20px, 1.28vw, 24px);
-}
-
-.runoff-simulation-container .right-panel .panel-heading p {
-  font-size: clamp(12px, 0.82vw, 14px);
-  line-height: 1.65;
-}
-
 .compact-balance-equation b {
   font-size: clamp(14px, 0.92vw, 16px);
-}
-
-.runoff-simulation-container .workspace.panel-resizing,
-.runoff-simulation-container .workspace.layout-resizing,
-.runoff-simulation-container .workspace.panel-resizing .side-panel,
-.runoff-simulation-container .workspace.layout-resizing .side-panel,
-.runoff-simulation-container .workspace.panel-resizing .center-stage,
-.runoff-simulation-container .workspace.layout-resizing .center-stage {
-  transition: none !important;
 }
 
 @keyframes runoff-alert-pulse {

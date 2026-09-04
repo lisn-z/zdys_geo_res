@@ -1,46 +1,26 @@
 <template>
-  <div
-    ref="pageRef"
-    class="sponge-city-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div class="sponge-city-container geo-template-page geo-page theme-dark">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
       <h1 class="page-title">海绵城市</h1>
 
       <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="toggleAllPanels"
-        >
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :aria-pressed="panelsVisible"
+          @click="panelsVisible = !panelsVisible">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
-    <main class="workspace" v-bind="workspaceAttrs">
-      <aside
-        id="left-panel"
-        class="side-panel left-panel"
-        v-bind="leftPanelAttrs"
-      >
+    <main class="workspace">
+      <FloatingFeatureCard v-if="panelsVisible" v-model:collapsed="controlPanelCollapsed" title="场景控制"
+        subtitle="设施模型与降雨演示" variant="control" :initial-top="82" :initial-right="18" :draggable="true" :resizable="true"
+        class="sponge-floating-card control-floating-card">
         <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>场景控制</h2>
-              <p>切换不同海绵城市设施模型并控制降雨演示</p>
-            </div>
-            <span class="panel-badge">CONTROL</span>
-          </div>
-
           <section class="geo-card control-section">
             <div class="section-title-row">
               <h3 class="section-title">模型场景</h3>
@@ -48,14 +28,9 @@
             </div>
 
             <div class="option-grid scene-option-grid">
-              <button
-                v-for="item in sceneOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn scene-option-btn"
-                :class="{ active: selectedScene === item.value }"
-                @click="switchScene(item.value)"
-              >
+              <button v-for="item in sceneOptions" :key="item.value" type="button"
+                class="theme-btn option-btn scene-option-btn" :class="{ active: selectedScene === item.value }"
+                @click="switchScene(item.value)">
                 <span class="scene-btn-order">{{ String(item.order).padStart(2, '0') }}</span>
                 <span>{{ item.label }}</span>
               </button>
@@ -77,13 +52,7 @@
               <span class="mini-control-label">降雨强度</span>
               <strong class="control-value">{{ rainfallIntensity }} mm/h</strong>
             </div>
-            <el-slider
-              v-model="rainfallIntensity"
-              :min="10"
-              :max="120"
-              :step="5"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="rainfallIntensity" :min="10" :max="120" :step="5" :show-tooltip="false" />
 
             <div class="switch-row">
               <div class="control-copy">
@@ -121,44 +90,24 @@
           <section class="geo-card control-section">
             <h3 class="section-title">观察视角</h3>
             <div class="option-grid view-option-grid">
-              <button
-                v-for="item in viewOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn view-option-btn"
-                :class="{ active: currentView === item.value }"
-                @click="setCameraView(item.value)"
-              >
+              <button v-for="item in viewOptions" :key="item.value" type="button"
+                class="theme-btn option-btn view-option-btn" :class="{ active: currentView === item.value }"
+                @click="setCameraView(item.value)">
                 {{ item.label }}
               </button>
             </div>
 
-            <button
-              type="button"
-              class="theme-btn reset-scene-btn scene-reset-btn"
-              @click="resetControls"
-            >
+            <button type="button" class="theme-btn reset-scene-btn scene-reset-btn" @click="resetControls">
               恢复默认状态
             </button>
           </section>
         </div>
 
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-left"
-          v-bind="leftCollapseAttrs"
-        >
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content sponge-stage-content">
-          <div
-            ref="threeContainerRef"
-            class="scene-host three-host sponge-three-host"
-          ></div>
+          <div ref="threeContainerRef" class="scene-host three-host sponge-three-host"></div>
 
           <div v-if="sceneError" class="scene-error-card">
             <strong>Three.js 场景初始化失败</strong>
@@ -186,14 +135,8 @@
         </div>
 
         <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="togglePlay"
-          >
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlay">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -205,52 +148,28 @@
               <span>{{ currentScene.label }} · 海绵过程演示</span>
               <strong>{{ Math.round(progress) }}%</strong>
             </div>
-            <el-slider
-              v-model="progress"
-              :min="0"
-              :max="100"
-              :show-tooltip="false"
-            />
+            <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" />
             <div class="timeline-phase-labels">
-              <span
-                v-for="phase in processPhases"
-                :key="phase.label"
-                :class="{ active: currentPhase.label === phase.label }"
-              >
+              <span v-for="phase in processPhases" :key="phase.label"
+                :class="{ active: currentPhase.label === phase.label }">
                 {{ phase.label }}
               </span>
             </div>
           </div>
 
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
         </div>
       </section>
 
-      <aside
-        id="right-panel"
-        class="side-panel right-panel"
-        v-bind="rightPanelAttrs"
-      >
+      <FloatingFeatureCard v-if="panelsVisible" v-model:collapsed="dataPanelCollapsed" title="实时数据" subtitle="雨水过程与设施作用"
+        variant="data" :initial-top="144" :initial-right="18" :draggable="true" :resizable="true"
+        class="sponge-floating-card data-floating-card">
         <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>实时数据</h2>
-              <p>观察当前场景中的雨水过程与设施作用</p>
-            </div>
-            <span class="panel-badge">DATA</span>
-          </div>
-
           <div class="data-grid">
             <article class="geo-card data-card cyan-card">
               <span>降雨强度</span>
@@ -303,33 +222,7 @@
           </el-collapse>
         </div>
 
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-right"
-          v-bind="rightCollapseAttrs"
-        >
-          ›
-        </button>
-      </aside>
-
-      <button
-        v-if="hasLeftPanel && leftCollapsed"
-        type="button"
-        class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs"
-      >
-        ›
-      </button>
-
-      <button
-        v-if="hasRightPanel && rightCollapsed"
-        type="button"
-        class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs"
-      >
-        ‹
-      </button>
+      </FloatingFeatureCard>
     </main>
   </div>
 </template>
@@ -345,7 +238,7 @@ import {
 } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
-import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
@@ -388,8 +281,14 @@ type FlowAnimation = {
   offset: number
 }
 
-const hasLeftPanel = true
-const hasRightPanel = true
+type RainDropParticle = {
+  x: number
+  z: number
+  offset: number
+  scale: number
+  drift: number
+  stretch: number
+}
 
 const selectedScene = ref<SceneKey>('road')
 const currentView = ref<ViewKey>('bird')
@@ -405,6 +304,9 @@ const isPlaying = ref(false)
 const selectedFacilityKey = ref('road-storage')
 const activePanels = ref(['strategy'])
 const sceneError = ref('')
+const panelsVisible = ref(true)
+const controlPanelCollapsed = ref(true)
+const dataPanelCollapsed = ref(true)
 const speedOptions = [0.5, 1, 2]
 
 const processPhases = [
@@ -729,9 +631,11 @@ let modelRoot: THREE.Group | null = null
 let undergroundGroup: THREE.Group | null = null
 let flowGroup: THREE.Group | null = null
 let labelGroup: THREE.Group | null = null
-let rainPoints: THREE.Points | null = null
-let rainGeometry: THREE.BufferGeometry | null = null
-let rainPositions: Float32Array | null = null
+let rainMesh: THREE.InstancedMesh<THREE.LatheGeometry, THREE.MeshPhysicalMaterial> | null = null
+let rainDropGeometry: THREE.LatheGeometry | null = null
+let rainDropMaterial: THREE.MeshPhysicalMaterial | null = null
+const rainDrops: RainDropParticle[] = []
+const rainDropTransform = new THREE.Object3D()
 let animationFrameId = 0
 let timelineAnimationFrameId = 0
 let timelineLastTime = 0
@@ -775,40 +679,6 @@ const palette = {
   buildingSide: 0xc8cecb,
   orange: 0xeaa146,
 }
-
-const {
-  rootRef: pageRef,
-  layoutMode,
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
-  draggingSide,
-  viewportResizing,
-  workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-  leftResizeAttrs,
-  rightResizeAttrs,
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-  leftEntryAttrs,
-  rightEntryAttrs,
-  setAllCollapsed,
-  resetWidths,
-  toggleAll: toggleAllPanels,
-} = useGeoPanelLayout({
-  left: { enabled: hasLeftPanel },
-  right: { enabled: hasRightPanel },
-  onLayoutChange(state) {
-    if (state.resizing) return
-    scheduleSceneResize(90)
-  },
-  onResize(payload) {
-    if (payload.phase === 'end' || payload.phase === 'reset') {
-      scheduleSceneResize(0)
-    }
-  },
-})
 
 function makeMaterial(
   color: THREE.ColorRepresentation,
@@ -2803,55 +2673,103 @@ function updateLayerVisibility() {
 
 function createRainSystem() {
   if (!scene) return
-  const maxCount = 1800
-  rainGeometry = new THREE.BufferGeometry()
-  rainPositions = new Float32Array(maxCount * 3)
-  for (let i = 0; i < maxCount; i += 1) {
-    const i3 = i * 3
-    rainPositions[i3] = (Math.random() - 0.5) * 30
-    rainPositions[i3 + 1] = Math.random() * 18 + 1
-    rainPositions[i3 + 2] = (Math.random() - 0.5) * 24
-  }
-  rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3))
-  const material = new THREE.PointsMaterial({
-    color: 0xc5e8ff,
-    size: 0.065,
+
+  const maxCount = 420
+  const topY = 20
+  const dropProfile = [
+    new THREE.Vector2(0.0, 0.24),
+    new THREE.Vector2(0.026, 0.13),
+    new THREE.Vector2(0.052, 0.015),
+    new THREE.Vector2(0.058, -0.07),
+    new THREE.Vector2(0.038, -0.15),
+    new THREE.Vector2(0.0, -0.18),
+  ]
+
+  rainDropGeometry = new THREE.LatheGeometry(dropProfile, 10)
+  rainDropGeometry.computeVertexNormals()
+  rainDropMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x8fdcff,
+    emissive: 0x1c78a4,
+    emissiveIntensity: 0.2,
     transparent: true,
-    opacity: 0.66,
-    sizeAttenuation: true,
+    opacity: 0.78,
+    roughness: 0.08,
+    metalness: 0,
+    transmission: 0.16,
+    thickness: 0.12,
     depthWrite: false,
   })
-  rainPoints = new THREE.Points(rainGeometry, material)
-  rainPoints.renderOrder = 8
-  scene.add(rainPoints)
+
+  rainDrops.length = 0
+  for (let i = 0; i < maxCount; i += 1) {
+    rainDrops.push({
+      x: (Math.random() - 0.5) * 30,
+      z: (Math.random() - 0.5) * 24,
+      offset: Math.random(),
+      scale: 0.62 + Math.random() * 0.5,
+      drift: (Math.random() - 0.5) * 0.18,
+      stretch: 1.25 + Math.random() * 0.55,
+    })
+  }
+
+  rainMesh = new THREE.InstancedMesh(rainDropGeometry, rainDropMaterial, maxCount)
+  rainMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+  rainMesh.frustumCulled = false
+  rainMesh.renderOrder = 8
+
+  rainDrops.forEach((drop, index) => {
+    rainDropTransform.position.set(drop.x, topY, drop.z)
+    rainDropTransform.scale.set(drop.scale, drop.scale * drop.stretch, drop.scale)
+    rainDropTransform.updateMatrix()
+    rainMesh?.setMatrixAt(index, rainDropTransform.matrix)
+  })
+  rainMesh.instanceMatrix.needsUpdate = true
+  scene.add(rainMesh)
   updateRainVisual()
 }
 
 function updateRainVisual() {
-  if (!rainPoints || !rainGeometry) return
-  rainPoints.visible = rainfallEnabled.value
+  if (!rainMesh) return
+  rainMesh.visible = rainfallEnabled.value
   const ratio = THREE.MathUtils.clamp((rainfallIntensity.value - 10) / 110, 0, 1)
-  rainGeometry.setDrawRange(0, Math.round(520 + ratio * 1280))
-  const material = rainPoints.material as THREE.PointsMaterial
-  material.opacity = 0.48 + ratio * 0.34
-  material.size = 0.05 + ratio * 0.035
+  rainMesh.count = Math.round(90 + ratio * 330)
 }
 
-function animateRain(delta: number) {
-  if (!rainPoints?.visible || !rainPositions || !rainGeometry) return
-  const speed = 7.5 + rainfallIntensity.value * 0.06
-  const count = rainGeometry.drawRange.count
+function animateRain(elapsed: number) {
+  if (!rainMesh?.visible) return
+
+  const topY = 20
+  const bottomY = -5.4
+  const total = topY - bottomY
+  const intensityRatio = THREE.MathUtils.clamp((rainfallIntensity.value - 10) / 110, 0, 1)
+  const fallSpeed = 0.72 + intensityRatio * 1.08
+  const count = rainMesh.count
+
   for (let i = 0; i < count; i += 1) {
-    const i3 = i * 3
-    rainPositions[i3 + 1] -= speed * delta
-    rainPositions[i3] += 0.18 * delta
-    if (rainPositions[i3 + 1] < -5.4) {
-      rainPositions[i3 + 1] = 14 + Math.random() * 7
-      rainPositions[i3] = (Math.random() - 0.5) * 30
-      rainPositions[i3 + 2] = (Math.random() - 0.5) * 24
-    }
+    const drop = rainDrops[i]
+    if (!drop) continue
+
+    const phase = (drop.offset + elapsed * (0.42 + drop.scale * 0.1) * fallSpeed + i * 0.012) % 1
+    const fallEase = phase * phase * (3 - 2 * phase)
+    const fadeIn = THREE.MathUtils.smoothstep(phase, 0, 0.08)
+    const fadeOut = 1 - THREE.MathUtils.smoothstep(phase, 0.86, 1)
+    const fadeScale = fadeIn * fadeOut > 0.08 ? 1 : 0.001
+    const pulseScale = (0.88 + Math.sin(phase * Math.PI) * 0.18) * fadeScale
+
+    rainDropTransform.position.set(
+      drop.x + Math.sin(elapsed * 0.7 + i * 1.7) * drop.drift,
+      topY - fallEase * total,
+      drop.z + Math.cos(elapsed * 0.55 + i * 1.1) * drop.drift * 0.45,
+    )
+    rainDropTransform.scale.set(
+      drop.scale * pulseScale,
+      drop.scale * (1.28 + fallEase * 0.72) * fadeScale,
+      drop.scale * pulseScale,
+    )
+    rainDropTransform.updateMatrix()
+    rainMesh.setMatrixAt(i, rainDropTransform.matrix)
   }
-  ;(rainGeometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
+  rainMesh.instanceMatrix.needsUpdate = true
 }
 
 function animateFlow(elapsed: number) {
@@ -3008,8 +2926,6 @@ function togglePlay() {
 }
 
 function resetControls() {
-  setAllCollapsed(false)
-  resetWidths()
   rainfallEnabled.value = true
   rainfallIntensity.value = 50
   showFlowPath.value = true
@@ -3029,7 +2945,6 @@ function resetControls() {
 function resizeThreeSceneNow(force = false) {
   const container = threeContainerRef.value
   if (!container || !camera || !renderer) return
-  if (draggingSide.value || viewportResizing.value) return
 
   const width = Math.max(1, Math.round(container.clientWidth))
   const height = Math.max(1, Math.round(container.clientHeight))
@@ -3055,7 +2970,6 @@ function scheduleSceneResize(delay = 110) {
 
   sceneResizeTimer = setTimeout(() => {
     sceneResizeTimer = null
-    if (draggingSide.value || viewportResizing.value) return
     sceneResizeFrame = requestAnimationFrame(() => {
       sceneResizeSettleFrame = requestAnimationFrame(() => {
         resizeThreeSceneNow()
@@ -3100,7 +3014,7 @@ function animateScene(now = performance.now()) {
   sceneLastFrameTime = now
   sceneElapsedTime += delta
 
-  animateRain(delta)
+  animateRain(sceneElapsedTime)
   animateFlow(sceneElapsedTime)
   animateDynamicMeshes(sceneElapsedTime)
 
@@ -3170,7 +3084,7 @@ function initScene() {
 
   try {
     scene = new THREE.Scene()
-    scene.background = new THREE.Color(0x858b8e)
+    scene.background = null
     scene.fog = null
 
     camera = new THREE.PerspectiveCamera(43, 1, 0.3, 140)
@@ -3178,9 +3092,10 @@ function initScene() {
 
     renderer = new THREE.WebGLRenderer({
       antialias: true,
-      alpha: false,
+      alpha: true,
       powerPreference: 'high-performance',
     })
+    renderer.setClearColor(0x000000, 0)
     renderer.setSize(2, 2, false)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.shadowMap.enabled = true
@@ -3235,7 +3150,6 @@ function initScene() {
     renderer.domElement.addEventListener('pointerup', onPointerUp)
 
     threeResizeObserver = new ResizeObserver(() => {
-      if (draggingSide.value || viewportResizing.value) return
       scheduleSceneResize(90)
     })
     threeResizeObserver.observe(container)
@@ -3275,13 +3189,10 @@ function disposeScene() {
   orbitControls?.dispose()
   clearModelRoot()
 
-  rainGeometry?.dispose()
-  if (rainPoints) {
-    const material = rainPoints.material
-    if (Array.isArray(material)) material.forEach((item) => item.dispose())
-    else material.dispose()
-    scene?.remove(rainPoints)
-  }
+  rainDropGeometry?.dispose()
+  rainDropMaterial?.dispose()
+  if (rainMesh) scene?.remove(rainMesh)
+  rainDrops.length = 0
 
   generatedTextures.forEach((texture) => texture.dispose())
   generatedTextures.length = 0
@@ -3299,9 +3210,9 @@ function disposeScene() {
   camera = null
   renderer = null
   orbitControls = null
-  rainPoints = null
-  rainGeometry = null
-  rainPositions = null
+  rainMesh = null
+  rainDropGeometry = null
+  rainDropMaterial = null
   lastSceneWidth = 0
   lastSceneHeight = 0
   sceneLastFrameTime = 0
@@ -3340,6 +3251,45 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.sponge-city-container {
+  background: #071522;
+}
+
+.sponge-city-container .workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sponge-city-container .sponge-stage-content {
+  background:
+    linear-gradient(180deg, rgba(3, 14, 25, 0.18), rgba(3, 14, 25, 0.44)),
+    url('/geo-resources-folder/images/sponge-city-background.png') center / cover no-repeat !important;
+}
+
+.sponge-floating-card:not(.collapsed) {
+  width: min(390px, calc(100vw - 28px));
+}
+
+.control-floating-card:not(.collapsed) {
+  height: min(50vh, 560px);
+}
+
+.data-floating-card:not(.collapsed) {
+  height: min(34vh, 380px);
+}
+
+.sponge-floating-card.collapsed {
+  width: 182px;
+}
+
+.sponge-floating-card :deep(.feature-card-content) {
+  padding-bottom: 0;
+}
+
+.sponge-floating-card .panel-scroll {
+  height: 100%;
+  padding: 12px;
+}
+
 .scene-option-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -3386,7 +3336,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.sponge-city-container .center-stage > .sponge-stage-content {
+.sponge-city-container .center-stage>.sponge-stage-content {
   position: absolute !important;
   inset: 0 !important;
   z-index: 0;
@@ -3398,7 +3348,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.sponge-city-container .sponge-stage-content > .sponge-three-host {
+.sponge-city-container .sponge-stage-content>.sponge-three-host {
   position: absolute !important;
   inset: 0 !important;
   z-index: 1 !important;
@@ -3558,7 +3508,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
 }
 
-.facility-focus-card > p {
+.facility-focus-card>p {
   margin: 10px 0 0;
   color: var(--text-secondary);
   font-size: clamp(11px, 0.76vw, 13px);
@@ -3620,16 +3570,6 @@ onBeforeUnmount(() => {
 
 
 
-/* 面板拖拽 / 浏览器缩放期间不让布局 transition 追赶指针。 */
-.sponge-city-container .workspace.panel-resizing,
-.sponge-city-container .workspace.layout-resizing,
-.sponge-city-container .workspace.panel-resizing .side-panel,
-.sponge-city-container .workspace.layout-resizing .side-panel,
-.sponge-city-container .workspace.panel-resizing .center-stage,
-.sponge-city-container .workspace.layout-resizing .center-stage {
-  transition: none !important;
-}
-
 .sponge-city-container .sponge-three-canvas {
   display: block;
   width: 100% !important;
@@ -3642,6 +3582,14 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
+  .control-floating-card:not(.collapsed) {
+    height: 48vh;
+  }
+
+  .data-floating-card:not(.collapsed) {
+    height: 32vh;
+  }
+
   .stage-legend,
   .timeline-phase-labels {
     display: none;

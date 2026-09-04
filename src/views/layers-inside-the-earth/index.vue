@@ -1,6 +1,5 @@
 <template>
-  <div ref="pageRef" class="layers-inside-the-earth-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode">
+  <div class="layers-inside-the-earth-container geo-template-page geo-page theme-dark">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -14,22 +13,23 @@
           恢复默认
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :class="{ active: panelsVisible }"
+          :aria-pressed="panelsVisible" @click="panelsVisible = !panelsVisible">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
-    <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>场景控制</h2>
-              <p>切换教学模型并控制动态演示</p>
-            </div>
-            <span class="panel-badge">CONTROL</span>
-          </div>
+    <main class="workspace floating-feature-workspace">
+      <FloatingFeatureCard v-if="panelsVisible" :key="`control-${panelLayoutKey}`"
+        v-model:collapsed="controlPanelCollapsed" class="earth-floating-card control-floating-card" title="场景控制"
+        subtitle="切换教学模型并控制动态演示" variant="control" :initial-top="88" :initial-right="18" :min-width="320"
+        :min-height="360">
+        <template #header-meta>
+          <span class="panel-badge floating-panel-badge">CONTROL</span>
+        </template>
+
+        <div class="panel-scroll floating-panel-scroll">
 
           <section class="geo-card control-section">
             <h3 class="section-title">教学功能</h3>
@@ -129,12 +129,7 @@
             </button>
           </section>
         </div>
-
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content earth-stage-content">
@@ -272,15 +267,15 @@
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>知识点与数据</h2>
-              <p>圈层结构、地震波与课堂结论</p>
-            </div>
-            <span class="panel-badge">KNOWLEDGE</span>
-          </div>
+      <FloatingFeatureCard v-if="panelsVisible" :key="`knowledge-${panelLayoutKey}`"
+        v-model:collapsed="knowledgePanelCollapsed" class="earth-floating-card knowledge-floating-card" title="知识点与数据"
+        subtitle="圈层结构、地震波与课堂结论" variant="control" :initial-top="166" :initial-right="18" :min-width="320"
+        :min-height="320">
+        <template #header-meta>
+          <span class="panel-badge floating-panel-badge">KNOWLEDGE</span>
+        </template>
+
+        <div class="panel-scroll floating-panel-scroll">
 
           <section class="geo-card knowledge-selector-card">
             <h3 class="section-title">地球内部三大圈层</h3>
@@ -347,22 +342,7 @@
             </el-collapse-item>
           </el-collapse>
         </div>
-
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
-
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
-
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
-      </button>
+      </FloatingFeatureCard>
     </main>
   </div>
 </template>
@@ -378,7 +358,7 @@ import {
 } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
-import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
@@ -443,10 +423,8 @@ const IMAGE_BASE_URL =
 
 const SEISMIC_REFERENCE_IMAGE =
   IMAGE_BASE_URL + 'layers-inside-earth-seismic-reference-v6.png'
-
-
-const hasLeftPanel = true
-const hasRightPanel = true
+const EARTH_INTERIOR_BACKGROUND = '/geo-resources-folder/images/earth-interior-background.png'
+const WATER_NORMALS_URL = '/geo-resources-folder/images/waternormals.jpg'
 
 const wedgeContainerRef = ref<HTMLElement | null>(null)
 const seismogramCanvasRef = ref<HTMLCanvasElement | null>(null)
@@ -468,6 +446,10 @@ const waveFrequency = ref(1)
 const isPlaying = ref(true)
 const progress = ref(0)
 const playbackSpeed = ref(1)
+const panelsVisible = ref(true)
+const controlPanelCollapsed = ref(true)
+const knowledgePanelCollapsed = ref(true)
+const panelLayoutKey = ref(0)
 const showSeismicPropagationDemo = ref(false)
 const seismicDemoPlaying = ref(true)
 const seismicDemoProgress = ref(0)
@@ -644,40 +626,6 @@ const dataCards = computed(() => {
   ]
 })
 
-const {
-  rootRef: pageRef,
-  layoutMode,
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
-  draggingSide,
-  viewportResizing,
-  workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-  leftResizeAttrs,
-  rightResizeAttrs,
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-  leftEntryAttrs,
-  rightEntryAttrs,
-  setAllCollapsed,
-  resetWidths,
-  toggleAll: toggleAllPanels,
-} = useGeoPanelLayout({
-  left: { enabled: hasLeftPanel },
-  right: { enabled: hasRightPanel },
-  onLayoutChange(state) {
-    if (state.resizing) return
-    scheduleSceneResize(80)
-  },
-  onResize(payload) {
-    if (payload.phase === 'end' || payload.phase === 'reset') {
-      scheduleSceneResize(0)
-    }
-  },
-})
-
 let wedgeBundle: SceneBundle | null = null
 let waveBundle: SceneBundle | null = null
 let lithosphereBundle: SceneBundle | null = null
@@ -703,75 +651,23 @@ let seismicDemoElapsed = 0
 const sceneClock = new THREE.Clock()
 
 function createBackgroundTexture() {
-  const canvas = document.createElement('canvas')
-  canvas.width = 1024
-  canvas.height = 1024
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-
-  const gradient = ctx.createRadialGradient(540, 420, 20, 540, 420, 720)
-  gradient.addColorStop(0, '#12364f')
-  gradient.addColorStop(0.5, '#071a2c')
-  gradient.addColorStop(1, '#020b14')
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-  for (let i = 0; i < 260; i += 1) {
-    const alpha = 0.15 + Math.random() * 0.65
-    const radius = 0.4 + Math.random() * 1.6
-    ctx.fillStyle = `rgba(215,240,255,${alpha})`
-    ctx.beginPath()
-    ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, radius, 0, Math.PI * 2)
-    ctx.fill()
-  }
-
-  const texture = new THREE.CanvasTexture(canvas)
+  const texture = new THREE.TextureLoader().load(EARTH_INTERIOR_BACKGROUND)
   texture.colorSpace = THREE.SRGBColorSpace
   return texture
 }
 
-function createCanvasWaterNormals(size = 512) {
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return new THREE.CanvasTexture(canvas)
-
-  const image = ctx.createImageData(size, size)
-  const data = image.data
-  const heightAt = (x: number, y: number) => {
-    const nx = x / size
-    const ny = y / size
-    return (
-      Math.sin((nx * 11 + ny * 2.2) * Math.PI * 2) * 0.34 +
-      Math.sin((ny * 15 - nx * 1.8) * Math.PI * 2) * 0.26 +
-      Math.sin((nx + ny) * 25 * Math.PI * 2) * 0.12 +
-      Math.cos((nx * 31 - ny * 19) * Math.PI * 2) * 0.08
-    )
-  }
-
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const left = heightAt((x - 1 + size) % size, y)
-      const right = heightAt((x + 1) % size, y)
-      const down = heightAt(x, (y - 1 + size) % size)
-      const up = heightAt(x, (y + 1) % size)
-      const normal = new THREE.Vector3(left - right, down - up, 0.38).normalize()
-      const index = (y * size + x) * 4
-      data[index] = Math.round((normal.x * 0.5 + 0.5) * 255)
-      data[index + 1] = Math.round((normal.y * 0.5 + 0.5) * 255)
-      data[index + 2] = Math.round((normal.z * 0.5 + 0.5) * 255)
-      data[index + 3] = 255
-    }
-  }
-
-  ctx.putImageData(image, 0, 0)
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.wrapS = THREE.RepeatWrapping
-  texture.wrapT = THREE.RepeatWrapping
-  texture.repeat.set(6, 6)
-  texture.colorSpace = THREE.NoColorSpace
-  texture.needsUpdate = true
+function createSeaAndLandWaterNormals(renderer: THREE.WebGLRenderer) {
+  const texture = new THREE.TextureLoader().load(
+    WATER_NORMALS_URL,
+    (loadedTexture) => {
+      loadedTexture.wrapS = loadedTexture.wrapT = THREE.RepeatWrapping
+      loadedTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8)
+      loadedTexture.needsUpdate = true
+    },
+    undefined,
+    () => console.warn('水体法线纹理加载失败：', WATER_NORMALS_URL),
+  )
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping
   return texture
 }
 
@@ -1299,27 +1195,22 @@ function initWedgeScene() {
   const oceanTopCover = new THREE.Mesh(
     new THREE.PlaneGeometry(oceanEndX - oceanStartX, oceanDepthZ),
     new THREE.MeshStandardMaterial({
-      color: '#9ed3f5',
-      roughness: 0.22,
-      metalness: 0.02,
-      transparent: true,
-      opacity: 0.99,
+      color: 0x0b2934,
+      roughness: 0.86,
+      metalness: 0.04,
       side: THREE.DoubleSide,
     }),
   )
   oceanTopCover.rotation.x = -Math.PI / 2
-  oceanTopCover.position.set((oceanStartX + oceanEndX) / 2, oceanSurfaceY + 0.016, 0)
+  oceanTopCover.position.set((oceanStartX + oceanEndX) / 2, oceanSurfaceY + 0.012, 0)
   wedgeTerrainGroup.add(oceanTopCover)
 
   const oceanVolume = new THREE.Mesh(
     new THREE.BoxGeometry(oceanEndX - oceanStartX, oceanSurfaceY - oceanBottomY, oceanDepthZ),
-    new THREE.MeshPhysicalMaterial({
-      color: '#8bc8f0',
-      transparent: true,
-      opacity: 0.92,
-      roughness: 0.14,
-      metalness: 0.03,
-      transmission: 0.02,
+    new THREE.MeshStandardMaterial({
+      color: 0x0b2934,
+      roughness: 0.86,
+      metalness: 0.04,
       side: THREE.DoubleSide,
     }),
   )
@@ -1328,23 +1219,25 @@ function initWedgeScene() {
   wedgeTerrainGroup.add(oceanVolume)
   root.add(wedgeTerrainGroup)
 
-  const waterNormals = createCanvasWaterNormals(512)
-  waterNormals.anisotropy = renderer.capabilities.getMaxAnisotropy()
+  const waterNormals = createSeaAndLandWaterNormals(renderer)
 
-  wedgeWater = new Water(new THREE.PlaneGeometry(oceanEndX - oceanStartX, oceanDepthZ, 32, 32), {
+  wedgeWater = new Water(new THREE.PlaneGeometry(oceanEndX - oceanStartX, oceanDepthZ), {
     textureWidth: 1024,
     textureHeight: 1024,
     waterNormals,
-    sunDirection: new THREE.Vector3(0.6, 0.75, 0.4).normalize(),
+    sunDirection: new THREE.Vector3(8, 13, 10).normalize(),
     sunColor: 0xffffff,
-    waterColor: 0x72bce6,
-    distortionScale: 2.2,
+    waterColor: 0x0b6680,
+    distortionScale: 3.45,
     fog: false,
-    alpha: 0.97,
   })
   wedgeWater.rotation.x = -Math.PI / 2
-  wedgeWater.position.set((oceanStartX + oceanEndX) / 2, oceanSurfaceY + 0.022, 0)
+  wedgeWater.position.set((oceanStartX + oceanEndX) / 2, oceanSurfaceY + 0.035, 0)
   wedgeWater.receiveShadow = true
+  wedgeWater.renderOrder = 2
+  wedgeWater.material.polygonOffset = true
+  wedgeWater.material.polygonOffsetFactor = -2
+  wedgeWater.material.polygonOffsetUnits = -2
   root.add(wedgeWater)
 
   addWedgeLabels(root)
@@ -1362,7 +1255,6 @@ function initWedgeScene() {
   }
 
   const observer = new ResizeObserver(() => {
-    if (draggingSide.value || viewportResizing.value) return
     scheduleSceneResize(100)
   })
   observer.observe(container)
@@ -2356,7 +2248,6 @@ function initWaveScene() {
   }
 
   const observer = new ResizeObserver(() => {
-    if (draggingSide.value || viewportResizing.value) return
     scheduleSceneResize(100)
   })
   observer.observe(container)
@@ -2659,31 +2550,29 @@ function addLithosphereProfile(root: THREE.Group, renderer: THREE.WebGLRenderer)
   const waterSurfaceY = 0.18
   const oceanVolume = new THREE.Mesh(
     new THREE.BoxGeometry(3.45, waterSurfaceY - waterBottomY, 2.17),
-    new THREE.MeshBasicMaterial({
-      color: '#8dc5ea',
-      transparent: true,
-      opacity: 0.88,
+    new THREE.MeshStandardMaterial({
+      color: 0x0b2934,
+      roughness: 0.86,
+      metalness: 0.04,
     }),
   )
   oceanVolume.position.set(3.48, (waterSurfaceY + waterBottomY) / 2, 0)
   profile.add(oceanVolume)
 
-  const normals = createCanvasWaterNormals(384)
-  normals.repeat.set(4, 4)
-  normals.anisotropy = renderer.capabilities.getMaxAnisotropy()
-  lithosphereWater = new Water(new THREE.PlaneGeometry(3.45, 2.17, 24, 24), {
-    textureWidth: 512,
-    textureHeight: 512,
+  const normals = createSeaAndLandWaterNormals(renderer)
+  lithosphereWater = new Water(new THREE.PlaneGeometry(3.45, 2.17), {
+    textureWidth: 1024,
+    textureHeight: 1024,
     waterNormals: normals,
-    sunDirection: new THREE.Vector3(0.55, 0.8, 0.35).normalize(),
+    sunDirection: new THREE.Vector3(8, 13, 10).normalize(),
     sunColor: 0xffffff,
-    waterColor: 0x168fb9,
-    distortionScale: 2.4,
+    waterColor: 0x0b6680,
+    distortionScale: 3.45,
     fog: false,
-    alpha: 0.94,
   })
   lithosphereWater.rotation.x = -Math.PI / 2
-  lithosphereWater.position.set(3.48, waterSurfaceY + 0.012, 0)
+  lithosphereWater.position.set(3.48, waterSurfaceY + 0.006, 0)
+  lithosphereWater.renderOrder = 2
   profile.add(lithosphereWater)
 
   const labels = [
@@ -2844,7 +2733,6 @@ function initLithosphereScene() {
   }
 
   const observer = new ResizeObserver(() => {
-    if (draggingSide.value || viewportResizing.value) return
     scheduleSceneResize(100)
   })
   observer.observe(container)
@@ -2898,7 +2786,6 @@ function scheduleSceneResize(delay = 80) {
 
   sceneResizeTimer = setTimeout(() => {
     sceneResizeTimer = null
-    if (draggingSide.value || viewportResizing.value) return
 
     sceneResizeFrame = requestAnimationFrame(() => {
       sceneResizeSettleFrame = requestAnimationFrame(() => {
@@ -3109,8 +2996,10 @@ function setWaveMode(mode: WaveMode) {
 }
 
 function resetScene() {
-  setAllCollapsed(false)
-  resetWidths()
+  panelsVisible.value = true
+  controlPanelCollapsed.value = true
+  knowledgePanelCollapsed.value = true
+  panelLayoutKey.value += 1
   stageMode.value = 'earth'
   waveMode.value = 'body'
   selectedKnowledge.value = 'crust'
@@ -3155,7 +3044,7 @@ function animate() {
   if (wedgeWater) {
     const material = wedgeWater.material as THREE.ShaderMaterial
     if (material.uniforms.time) {
-      material.uniforms.time.value += delta * 0.72 * effectiveSpeed
+      material.uniforms.time.value += delta * 0.55 * effectiveSpeed
     }
   }
 
@@ -3247,7 +3136,6 @@ onMounted(async () => {
   updateVisibility()
 
   surfaceResizeObserver = new ResizeObserver(() => {
-    if (draggingSide.value || viewportResizing.value) return
     scheduleSceneResize(100)
   })
   if (surfaceWaveCanvasRef.value?.parentElement) {
@@ -3255,7 +3143,6 @@ onMounted(async () => {
   }
 
   seismicCanvasResizeObserver = new ResizeObserver(() => {
-    if (draggingSide.value || viewportResizing.value) return
     scheduleSceneResize(100)
   })
   if (seismogramCanvasRef.value?.parentElement) {
@@ -3294,6 +3181,34 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* .layers-inside-the-earth-container {
+  --page-background:
+    linear-gradient(rgba(2, 10, 20, 0.34), rgba(2, 10, 20, 0.5)),
+    url('/geo-resources-folder/images/earth-interior-background.png') center / cover no-repeat;
+} */
+
+.floating-feature-workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.earth-floating-card {
+  max-width: calc(100vw - 24px);
+}
+
+.floating-panel-scroll {
+  height: 100%;
+  box-sizing: border-box;
+  padding: clamp(10px, 0.85vw, 14px);
+  row-gap: clamp(10px, 0.85vw, 14px);
+}
+
+.floating-panel-badge {
+  padding: 3px 7px;
+  border: 1px solid rgba(98, 214, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(28, 112, 150, 0.16);
+}
+
 .layers-inside-the-earth-container .workspace.panel-resizing,
 .layers-inside-the-earth-container .workspace.layout-resizing,
 .layers-inside-the-earth-container .workspace.panel-resizing .side-panel,
