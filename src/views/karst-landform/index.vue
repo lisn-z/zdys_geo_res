@@ -1,2619 +1,937 @@
-<!-- 喀斯特地貌 3D 动态模型 · Version 4 -->
 <template>
-  <div
-    ref="pageRef"
-    class="karst-landform-container geo-template-page geo-page theme-dark layout-floating"
-    :class="'layout-' + layoutMode"
-  >
-    <header class="top-toolbar">
-      <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
-      </div>
+  <div ref="pageRef" class="karst-page">
+    <div class="scene-backdrop" aria-hidden="true"></div>
 
-      <h1 class="page-title">
-        喀斯特地貌
-        <span class="page-subtitle">
-          溶蚀作用 · 地表与地下双形态
-        </span>
-      </h1>
-
-      <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          @click="toggleAllPanels"
-        >
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
-        </button>
-        <button
-          type="button"
-          class="theme-btn reset-scene-btn"
-          @click="resetControls"
-          title="恢复默认视角"
-        >
-          重置
-        </button>
+    <header class="topbar">
+      <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+        alt="智地有申" />
+      <div class="title-lockup">
+        <h1>喀斯特地貌</h1>
+        <span>溶蚀作用 · 地表与地下双形态</span>
       </div>
+      <button type="button" class="reset-button" title="恢复默认视角" @click="resetView">
+        重置
+      </button>
     </header>
 
-    <main
-      class="workspace"
-      v-bind="workspaceAttrs"
-    >
-      <section class="center-stage">
-        <div class="stage-content">
-          <div
-            ref="threeContainerRef"
-            class="scene-host three-host"
-          ></div>
-
-          <!-- 左上角：阶段信息卡片 -->
-          <div class="stage-overlay">
-            <div class="overlay-card">
-              <div class="overlay-title">
-                <span class="overlay-tag">KARST · 4-7</span>
-                <strong>{{ activeStage.label.split('·')[0] }}</strong>
-              </div>
-              <p>
-                {{ activeStage.description }}
-              </p>
-              <div class="overlay-keypoints">
-                <span
-                  v-for="point in activeStage.points"
-                  :key="point"
-                >{{ point }}</span>
-              </div>
-            </div>
-
-          </div>
+    <main class="stage">
+      <div ref="threeContainerRef" class="three-host">
+        <div v-if="modelLoadState !== 'ready'" class="model-loading" :class="{ error: modelLoadState === 'error' }">
+          <span class="model-loading-ring"></span>
+          <strong>{{ modelLoadState === 'error' ? '模型加载失败' : '正在加载喀斯特地貌模型' }}</strong>
+          <small v-if="modelLoadState === 'loading'">{{ modelLoadProgress }}%</small>
+          <small v-else>{{ modelLoadError }}</small>
         </div>
+      </div>
 
-        <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="isPlaying = !isPlaying"
-          >
-            <el-icon>
-              <VideoPause v-if="isPlaying" />
-              <VideoPlay v-else />
-            </el-icon>
+      <Transition name="feature-card">
+        <article v-if="activeKarstFeature" class="feature-detail-card" aria-live="polite">
+          <button type="button" class="feature-detail-close" aria-label="关闭地貌说明" title="关闭"
+            @click="selectKarstFeature(null)">
+            ×
           </button>
 
-          <div class="timeline-main">
-            <div class="timeline-copy">
-              <span>演化进度</span>
-              <strong>{{ Math.round(evolutionProgress) }}%</strong>
-            </div>
-
-            <div class="timeline-stages">
-              <button
-                v-for="(stage, idx) in timelineStages"
-                :key="stage.id"
-                type="button"
-                class="timeline-stage-node"
-                :class="{ active: activeStageIdx === idx, passed: activeStageIdx > idx }"
-                :style="{ left: stage.left + '%' }"
-                @click="onStageNodeClick(idx)"
-                @mouseenter="hoverStageIdx = idx"
-                @mouseleave="hoverStageIdx = null"
-              >
-                <span class="timeline-stage-dot"></span>
-                <span class="timeline-stage-label">{{ stage.label }}</span>
-              </button>
-              <div
-                class="timeline-progress-fill"
-                :style="{ width: evolutionProgress + '%' }"
-              ></div>
-            </div>
-          </div>
-
-          <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >
-              {{ item }}×
-            </button>
-          </div>
-        </div>
-
-        <!-- 底部 tab 切换 -->
-        <div class="bottom-tabs-dock">
-          <button
-            v-for="tab in bottomTabs"
-            :key="tab.id"
-            type="button"
-            class="bottom-tab-btn"
-            :class="{ active: activeBottomTab === tab.id }"
-            @click="activeBottomTab = tab.id"
-          >
-            <el-icon v-if="tab.icon">
-              <component :is="tab.icon" />
-            </el-icon>
-            <span>{{ tab.label }}</span>
-          </button>
-        </div>
-
-        <!-- 右下角：复位/全屏 -->
-        <div class="bottom-right-actions">
-          <button
-            type="button"
-            class="theme-btn icon-action-btn"
-            title="复位"
-            @click="resetControls"
-          >
-            <el-icon><RefreshRight /></el-icon>
-          </button>
-          <button
-            type="button"
-            class="theme-btn icon-action-btn"
-            :title="isFullscreen ? '退出全屏' : '全屏'"
-            @click="toggleFullscreen"
-          >
-            <el-icon><FullScreen v-if="!isFullscreen" /><Aim v-else /></el-icon>
-          </button>
-        </div>
-      </section>
-
-      <!-- 右侧数据/说明面板 -->
-      <aside
-        id="right-panel"
-        class="side-panel right-panel"
-        v-bind="rightPanelAttrs"
-      >
-        <div class="panel-scroll">
-          <div class="panel-heading">
+          <header class="feature-detail-header">
+            <span class="feature-detail-category"
+              :class="activeKarstFeature.category === '地下形态' ? 'underground' : 'surface'">
+              {{ activeKarstFeature.category }}
+            </span>
             <div>
-              <h2>地貌与配图</h2>
-              <p>典型形态 · 代表景观</p>
+              <h2>{{ activeKarstFeature.name }}</h2>
+              <small>{{ activeKarstFeature.english }}</small>
             </div>
-            <span class="panel-badge">KARST</span>
-          </div>
+          </header>
 
-          <div class="data-grid">
-            <article
-              v-for="card in dataCards"
-              :key="card.label"
-              class="geo-card data-card"
-              :class="card.className"
-            >
-              <span>{{ card.label }}</span>
-              <strong>{{ card.value }}</strong>
-              <small>{{ card.description }}</small>
-            </article>
-          </div>
+          <p class="feature-detail-summary">{{ activeKarstFeature.summary }}</p>
 
-          <el-collapse
-            v-model="activePanels"
-            class="analysis-collapse"
-          >
-            <el-collapse-item
-              title="喀斯特作用过程"
-              name="process"
-            >
-              <ul class="feature-list">
-                <li>
-                  <strong>溶蚀作用</strong>
-                  <span>含 CO₂ 的水对可溶性岩石（石灰岩为主）进行化学溶蚀，是喀斯特地貌发育的根本动力。</span>
-                </li>
-                <li>
-                  <strong>淀积作用</strong>
-                  <span>含 Ca(HCO₃)₂ 的水在压力降低或温度升高时，CO₂ 逸出，CaCO₃ 重新沉淀形成钟乳石、石笋等。</span>
-                </li>
-                <li>
-                  <strong>机械崩塌</strong>
-                  <span>地下溶洞扩大后顶部岩层失稳崩塌，形成天坑、漏斗等塌陷地貌。</span>
-                </li>
-              </ul>
-            </el-collapse-item>
-
-            <el-collapse-item
-              title="中国典型分布"
-              name="china"
-            >
-              <ul class="feature-list">
-                <li>
-                  <strong>重庆武隆</strong>
-                  <span>天坑群与天生三桥，塌陷型喀斯特典型。</span>
-                </li>
-                <li>
-                  <strong>云南路南</strong>
-                  <span>剑状石林与剑状喀斯特。</span>
-                </li>
-                <li>
-                  <strong>广西桂林</strong>
-                  <span>峰林、峰丛、溶蚀盆地组合景观。</span>
-                </li>
-                <li>
-                  <strong>浙江桐庐</strong>
-                  <span>瑶琳洞，溶洞与钟乳石发育典型。</span>
-                </li>
-              </ul>
-            </el-collapse-item>
-          </el-collapse>
-
-          <section class="geo-card example-card">
-            <header class="example-header">
-              <div>
-                <h3>典型景观</h3>
-                <p>当前阶段 {{ activeStage.label.split('·')[0] }}</p>
-              </div>
-            </header>
-            <div class="example-grid">
-              <figure
-                v-for="item in landscapeExamples"
-                :key="item.title"
-                class="example-figure"
-              >
-                <img
-                  :src="item.image"
-                  :alt="item.title"
-                />
-                <figcaption>
-                  <strong>{{ item.title }}</strong>
-                  <span>{{ item.location }}</span>
-                </figcaption>
-              </figure>
+          <dl class="feature-detail-grid">
+            <div>
+              <dt>形成过程</dt>
+              <dd>{{ activeKarstFeature.formation }}</dd>
             </div>
-          </section>
-        </div>
+            <div>
+              <dt>辨识要点</dt>
+              <dd>{{ activeKarstFeature.identification }}</dd>
+            </div>
+            <div>
+              <dt>科学提示</dt>
+              <dd>{{ activeKarstFeature.scienceNote }}</dd>
+            </div>
+          </dl>
 
-        <div
-          class="resize-handle resize-left"
-          v-bind="rightResizeAttrs"
-        ></div>
-
-        <button
-          type="button"
-          class="panel-collapse-btn collapse-right"
-          v-bind="rightCollapseAttrs"
-        >
-          ›
-        </button>
-      </aside>
-
-      <button
-        v-if="hasRightPanel && rightCollapsed"
-        type="button"
-        class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs"
-      >
-        ‹
-      </button>
+          <div v-if="activeKarstFeature.formula" class="feature-detail-formula">
+            {{ activeKarstFeature.formula }}
+          </div>
+        </article>
+      </Transition>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ElIcon } from 'element-plus'
-import {
-  Aim,
-  FullScreen,
-  Histogram,
-  RefreshRight,
-  VideoPause,
-  VideoPlay,
-} from '@element-plus/icons-vue'
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
-import '@/styles/geo-page-template.css'
+import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 
-/* ============================================================
-   数据：演化阶段
-   ============================================================ */
-
-interface ExampleImage {
-  title: string
-  location: string
-  image: string
-}
-
-interface EvolutionStage {
+interface KarstFeature {
   id: string
-  label: string
-  description: string
-  points: string[]
-  peakCount: number
-  sinkholeCount: number
-  showStoneTeeth: boolean
-  showTiankeng: boolean
-  showBasin: boolean
-  examples: ExampleImage[]
+  meshName: string
+  name: string
+  english: string
+  category: '地表形态' | '地下形态'
+  summary: string
+  formation: string
+  identification: string
+  scienceNote: string
+  formula?: string
 }
 
-const evolutionStages: EvolutionStage[] = [
+const karstFeatures: KarstFeature[] = [
   {
-    id: 'juvenile',
-    label: '幼年·石芽溶沟',
-    description: '溶洞崩塌形成天坑，地形起伏较高。',
-    points: ['天坑', '石林', '落水洞', '溶水盆地'],
-    peakCount: 0,
-    sinkholeCount: 0,
-    showStoneTeeth: true,
-    showTiankeng: false,
-    showBasin: false,
-    examples: [],
+    id: 'residual-hill',
+    meshName: '文本008',
+    name: '残丘',
+    english: 'Residual karst hill',
+    category: '地表形态',
+    summary: '长期岩溶剥蚀后保留在较平缓地面上的低矮、孤立碳酸盐岩丘体。',
+    formation: '流水沿裂隙溶蚀岩体，坡面持续崩解、退缩；周围岩体被降低后，抗蚀能力相对较强的部分残留下来。',
+    identification: '高度较低、轮廓浑圆或不规则，孤立分布于溶蚀平原或盆地边缘；相较孤峰，其相对高度和坡度通常更小。',
+    scienceNote: '“残丘”强调残余地貌属性，并非所有孤立小山都属于喀斯特残丘，还要结合碳酸盐岩基底与溶蚀证据判断。',
   },
   {
-    id: 'early-mature',
-    label: '壮年早期·天坑',
-    description: '溶洞崩塌形成天坑，石林发育，地形起伏剧烈。',
-    points: ['天坑', '石林', '落水洞', '溶蚀洼地'],
-    peakCount: 14,
-    sinkholeCount: 6,
-    showStoneTeeth: true,
-    showTiankeng: true,
-    showBasin: false,
-    examples: [
-      {
-        title: '重庆武隆天坑',
-        location: '天生三桥 · 塌陷特典型',
-        image: 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/karst/tiankeng.png',
-      },
-      {
-        title: '云南路南石林',
-        location: '石林 · 剑状喀斯特',
-        image: 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/karst/stoneForest.png',
-      },
-    ],
+    id: 'peak-forest',
+    meshName: '文本002',
+    name: '峰林',
+    english: 'Karst peak forest',
+    category: '地表形态',
+    summary: '基座彼此分离的陡峭岩溶峰体成群耸立，是湿润热带、亚热带喀斯特的典型正地形。',
+    formation: '峰丛之间的洼地和谷地持续受溶蚀、流水侵蚀与坡面退缩作用扩大，峰体基座逐渐分开，形成相互独立的峰林。',
+    identification: '峰体密集但基座不再连成整体，峰间常见较平坦的溶蚀平原、谷地或河流。',
+    scienceNote: '峰林与峰丛不是简单按山峰数量区分，关键在于峰体基座是否分离以及峰间负地形的发育程度。',
   },
   {
-    id: 'mature-mid',
-    label: '壮年中期·峰丛',
-    description: '溶蚀加深，峰丛逐渐明显，地下溶洞与暗河系统进一步发育。',
-    points: ['峰丛', '落水洞', '溶洞', '地下河'],
-    peakCount: 16,
-    sinkholeCount: 5,
-    showStoneTeeth: true,
-    showTiankeng: true,
-    showBasin: true,
-    examples: [
-      {
-        title: '广西桂林山水',
-        location: '峰丛 · 峰林',
-        image: 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/karst/peakForest.png',
-      },
-    ],
+    id: 'isolated-peak',
+    meshName: '文本',
+    name: '孤峰',
+    english: 'Isolated karst peak',
+    category: '地表形态',
+    summary: '孤立耸立在岩溶平原或盆地中的单个碳酸盐岩峰体，是长期剥蚀后的残余正地形。',
+    formation: '峰林继续遭受溶蚀、河流侧蚀和坡脚侵蚀，部分峰体消失，仅少数较坚硬或位置有利的峰体保留下来。',
+    identification: '单峰突起、四周基座与其他峰体明显分离，周围地面相对低平；峰坡常陡，岩壁与溶蚀裂隙较发育。',
+    scienceNote: '孤峰代表形态上的孤立，不等于岩体内部没有洞穴、裂隙或地下水通道。',
   },
   {
-    id: 'mature-late',
-    label: '壮年晚期·峰林盆地',
-    description: '峰林与溶蚀盆地广布，地形分异强烈，是喀斯特发育最盛时期。',
-    points: ['峰林', '溶蚀盆地', '天坑', '落水洞'],
-    peakCount: 18,
-    sinkholeCount: 4,
-    showStoneTeeth: false,
-    showTiankeng: true,
-    showBasin: true,
-    examples: [
-      {
-        title: '广西桂林山水',
-        location: '峰林 · 峰丛',
-        image: 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/karst/peakForest.png',
-      },
-    ],
+    id: 'tiankeng',
+    meshName: '文本001',
+    name: '天坑',
+    english: 'Karst tiankeng',
+    category: '地表形态',
+    summary: '四周多为陡壁、深度和口径都很大的封闭岩溶负地形，常与大型洞穴或地下河系统相通。',
+    formation: '地下河持续溶蚀、侵蚀并搬运物质，使洞腔扩大；当顶板失稳后发生重力崩塌，可形成深陷的天坑。',
+    identification: '平面多呈封闭或近封闭形态，坑壁陡峭、垂直落差显著，底部可能有落水洞、崩塌堆积和地下水出口。',
+    scienceNote: '天坑是大型岩溶陷落地貌，不能把所有溶斗、洼地或普通塌陷坑都称为天坑；模型为结构示意，并非尺度判定图。',
   },
   {
-    id: 'old-age',
-    label: '老年·孤峰',
-    description: '峰林被进一步溶蚀降低，仅剩少数孤峰散布于准平原上。',
-    points: ['孤峰', '溶蚀盆地'],
-    peakCount: 4,
-    sinkholeCount: 0,
-    showStoneTeeth: false,
-    showTiankeng: false,
-    showBasin: true,
-    examples: [],
+    id: 'peak-cluster',
+    meshName: '文本003',
+    name: '峰丛',
+    english: 'Karst peak cluster',
+    category: '地表形态',
+    summary: '多座锥状或塔状峰体基座相连、峰间由洼地或鞍部相隔的岩溶山地。',
+    formation: '地表水和地下水沿节理裂隙向下溶蚀，把连续的碳酸盐岩山体切割成成簇峰体，但峰脚尚未完全分离。',
+    identification: '峰顶各自独立，峰脚仍连成大片山体；峰间常发育漏斗、洼地和落水洞。',
+    scienceNote: '峰丛通常反映较强的垂向溶蚀和切割作用；随着基准面降低、洼地扩展，可向基座分离的峰林演化。',
+  },
+  {
+    id: 'stalactite',
+    meshName: '文本005',
+    name: '石钟乳',
+    english: 'Stalactite',
+    category: '地下形态',
+    summary: '由洞顶向下生长的洞穴次生碳酸钙沉积物，常呈管状、锥状或帘状。',
+    formation: '含碳酸氢钙的滴水到达洞穴空气后逸出二氧化碳，方解石在洞顶沉淀；沉积不断叠加，使石钟乳向下延伸。',
+    identification: '附着在洞顶或岩棚下方，尖端通常朝下；早期可形成中空、细长的“鹅管”。',
+    scienceNote: '生长速度受滴水量、二氧化碳分压、温度和水化学控制，体积大不一定代表年龄必然更老。',
+    formula: 'Ca²⁺ + 2HCO₃⁻ ⇌ CaCO₃↓ + CO₂↑ + H₂O',
+  },
+  {
+    id: 'column',
+    meshName: '文本006',
+    name: '石柱',
+    english: 'Cave column',
+    category: '地下形态',
+    summary: '石钟乳与下方石笋持续生长并最终连接形成的柱状洞穴沉积体。',
+    formation: '同一滴水点在洞顶沉积石钟乳、在洞底沉积石笋；二者不断接近并接合后，形成连接洞顶与洞底的石柱。',
+    identification: '上下连续、贯通洞顶与洞底，表面常保留滴水沉积形成的层纹、瘤状或流石结构。',
+    scienceNote: '石柱是化学沉积物，不是支撑洞穴的人工柱；其形成意味着滴水路径在相当长时间内较稳定。',
+    formula: '石钟乳向下生长 + 石笋向上生长 → 石柱',
+  },
+  {
+    id: 'stalagmite',
+    meshName: '文本004',
+    name: '石笋',
+    english: 'Stalagmite',
+    category: '地下形态',
+    summary: '由洞底向上生长的碳酸钙沉积物，位置通常对应上方洞顶的滴水点。',
+    formation: '滴水落到洞底后发生飞溅并继续逸出二氧化碳，方解石在落点附近沉淀，逐层堆高形成石笋。',
+    identification: '根部位于洞底，顶部多较圆钝，通常比对应石钟乳更粗；内部一般没有贯通的中空管。',
+    scienceNote: '石笋生长层可记录过去的降水、温度和植被变化，是古气候研究的重要材料，但取样必须严格保护洞穴。',
+    formula: 'Ca²⁺ + 2HCO₃⁻ ⇌ CaCO₃↓ + CO₂↑ + H₂O',
+  },
+  {
+    id: 'underground-river',
+    meshName: '文本007',
+    name: '地下暗河',
+    english: 'Underground karst river',
+    category: '地下形态',
+    summary: '水流集中在可溶岩洞穴或管道中形成的地下河流，是喀斯特含水系统的重要组成部分。',
+    formation: '降水经裂隙、落水洞和天坑快速下渗，溶蚀通道逐渐扩大并彼此连通，地下水由分散渗流转变为集中管道流。',
+    identification: '具有明确流向和补给—径流—排泄过程，常连接地表落水点与泉口；水位和流量可随降雨迅速变化。',
+    scienceNote: '地下暗河不是封闭的“地下水池”。管道流速快、自然过滤弱，因此污染物也可能快速传播到下游泉口。',
   },
 ]
 
-const speedOptions = [0.5, 1, 2, 5]
-
-/* 5 段时间轴（与图片下方的 5 个 marker 一致） */
-const timelineStages = [
-  { id: 'juvenile', label: '幼年期', left: 5 },
-  { id: 'early-mature', label: '壮年早期', left: 30 },
-  { id: 'mature-mid', label: '壮年中期', left: 55 },
-  { id: 'mature-late', label: '壮年晚期', left: 80 },
-  { id: 'old-age', label: '老年期', left: 95 },
-]
-
-/* 底部 tab */
-interface BottomTab {
-  id: string
-  label: string
-  icon?: any
-}
-
-const bottomTabs = computed<BottomTab[]>(() => [
-  { id: 'surface', label: '地表形态', icon: Histogram },
-  { id: 'underground', label: '地下结构', icon: Histogram },
-  { id: 'hydrology', label: '水文系统', icon: Histogram },
-  { id: 'formation', label: '形成过程', icon: Histogram },
-])
-
-/* ============================================================
-   状态
-   ============================================================ */
-
-const currentStage = ref('early-mature')
-const evolutionProgress = ref(45)
-const rotationSpeed = ref(0.10)
-const playbackSpeed = ref(1)
-const isPlaying = ref(false)
-const activePanels = ref<string[]>(['process'])
-const activeBottomTab = ref('surface')
-const hoverStageIdx = ref<number | null>(null)
-const isFullscreen = ref(false)
-
-const activeStageIdx = computed(() => {
-  const total = timelineStages.length - 1
-  const floatIdx = (evolutionProgress.value / 100) * total
-  return Math.round(floatIdx)
-})
-
-const activeStage = computed<EvolutionStage>(() => {
-  const found = evolutionStages.find(
-    (item) => item.id === currentStage.value
-  )
-  return found ?? evolutionStages[0]!
-})
-
-const featuredPhoto = computed<ExampleImage>(() => {
-  return activeStage.value.examples[0] ?? {
-    title: '重庆武隆天坑',
-    location: '天生三桥 · 塌陷特典型',
-    image: 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/karst/tiankeng.png',
-  }
-})
-
-const landscapeExamples = computed<ExampleImage[]>(() => {
-  if (activeStage.value.examples.length >= 2) {
-    return activeStage.value.examples.slice(0, 2)
-  }
-  return [
-    {
-      title: '重庆武隆天坑',
-      location: '天生三桥 · 塌陷特典型',
-      image: 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/karst/tiankeng.png',
-    },
-    {
-      title: '云南路南石林',
-      location: '石林 · 剑状喀斯特',
-      image: 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/karst/stoneForest.png',
-    },
-  ]
-})
-
-const dataCards = computed(() => {
-  const stage = activeStage.value
-  const [headPart, tailPart] = stage.label.split('·')
-  return [
-    {
-      label: '当前阶段',
-      value: (headPart ?? '').trim(),
-      description: tailPart?.trim() || '',
-      className: 'cyan-card',
-    },
-    {
-      label: '典型形态',
-      value: '4 种',
-      description: '天坑 · 石林 · 落水洞 · 落水盆地',
-      className: 'blue-card',
-    },
-    {
-      label: '峰丛数量',
-      value: '14 座',
-      description: '当前阶段的峰丛估算',
-      className: 'purple-card',
-    },
-    {
-      label: '演化进度',
-      value: Math.round(evolutionProgress.value) + '%',
-      description: isPlaying.value
-        ? '正在演示发育过程'
-        : '可手动拖动控制',
-      className: 'orange-card',
-    },
-  ]
-})
-
-/* ============================================================
-   面板布局
-   ============================================================ */
-
-const hasRightPanel = true
-
-const {
-  rootRef: pageRef,
-  layoutMode,
-
-  rightCollapsed,
-  allPanelsCollapsed,
-
-  draggingSide,
-  viewportResizing,
-
-  workspaceAttrs,
-  rightPanelAttrs,
-
-  rightResizeAttrs,
-
-  rightCollapseAttrs,
-
-  rightEntryAttrs,
-
-  setAllCollapsed,
-  resetWidths,
-
-  toggleAll: toggleAllPanels,
-} = useGeoPanelLayout({
-  right: {
-    enabled: hasRightPanel,
-  },
-
-  onLayoutChange(state) {
-    if (state.resizing) {
-      return
-    }
-    scheduleSceneResize(90)
-  },
-
-  onResize(payload) {
-    if (
-      payload.phase === 'end' ||
-      payload.phase === 'reset'
-    ) {
-      scheduleSceneResize(0)
-    }
-  },
-})
-
-/* ============================================================
-   Three.js 场景对象
-   ============================================================ */
-
+const pageRef = ref<HTMLElement | null>(null)
 const threeContainerRef = ref<HTMLElement | null>(null)
+const modelLoadState = ref<'loading' | 'ready' | 'error'>('loading')
+const modelLoadProgress = ref(0)
+const modelLoadError = ref('请刷新页面后重试')
+const activeFeatureId = ref<string | null>(null)
 
-let threeResizeObserver: ResizeObserver | null = null
-let sceneResizeTimer: ReturnType<typeof setTimeout> | null = null
-let sceneResizeFrame = 0
-let sceneResizeSettleFrame = 0
+const activeKarstFeature = computed(() => (
+  karstFeatures.find((feature) => feature.id === activeFeatureId.value) ?? null
+))
 
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let renderer: THREE.WebGLRenderer | null = null
+let labelRenderer: CSS2DRenderer | null = null
 let orbitControls: OrbitControls | null = null
-
-let mainLight: THREE.DirectionalLight | null = null
-
 let terrainGroup: THREE.Group | null = null
-let terrainMesh: THREE.Mesh | null = null
-let strataGroup: THREE.Group | null = null
-let sinkholeGroup: THREE.Group | null = null
-let peakGroup: THREE.Group | null = null
-let stoneToothGroup: THREE.Group | null = null
-let basinGroup: THREE.Group | null = null
-let waterGroup: THREE.Group | null = null
-let stalactiteGroup: THREE.Group | null = null
-let undergroundRiverMesh: THREE.Mesh | null = null
-let caveGroup: THREE.Group | null = null
-let permeationGroup: THREE.Group | null = null
-let labelGroup: THREE.Group | null = null
-let leaderLineMesh: THREE.LineSegments | null = null
+let resizeObserver: ResizeObserver | null = null
+let animationFrameId = 0
+let disposed = false
+let isFeatureLabelHovered = false
+let lastWidth = 0
+let lastHeight = 0
 
-interface DropletRecord {
-  mesh: THREE.Mesh
-  startY: number
-  endY: number
-  speed: number
-  offset: number
-}
-const permeationDroplets: DropletRecord[] = []
+const sceneMaterials = new Set<THREE.Material>()
+const sceneGeometries = new Set<THREE.BufferGeometry>()
+const sceneTextures = new Set<THREE.Texture>()
+const modelFeatureLabels: CSS2DObject[] = []
+const clock = new THREE.Clock()
 
-interface PeakRecord {
-  mesh: THREE.Mesh
-  baseHeight: number
-  targetScale: number
+function selectKarstFeature(featureId: string | null) {
+  activeFeatureId.value = featureId
+  modelFeatureLabels.forEach((label) => {
+    label.element.classList.toggle('active', label.userData.featureId === featureId)
+  })
 }
 
-const peakRecords: PeakRecord[] = []
-
-const sceneMaterials: THREE.Material[] = []
-const sceneGeometries: THREE.BufferGeometry[] = []
-const sceneTextures: THREE.CanvasTexture[] = []
-
-let sceneAnimationFrameId = 0
-let lastSceneWidth = 0
-let lastSceneHeight = 0
-
-const sceneClock = new THREE.Clock()
-
-/* ============================================================
-   工具方法
-   ============================================================ */
-
-function createRandom(seed: number) {
-  let t = seed >>> 0
-  return function () {
-    t = (t + 0x6D2B79F5) >>> 0
-    let r = Math.imul(t ^ (t >>> 15), 1 | t)
-    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296
-  }
+function getVisibleModelBounds(model: THREE.Object3D) {
+  const result = new THREE.Box3()
+  const meshBox = new THREE.Box3()
+  model.updateMatrixWorld(true)
+  model.traverse((object) => {
+    const mesh = object as THREE.Mesh
+    if (!mesh.isMesh || !mesh.visible) return
+    mesh.geometry.computeBoundingBox()
+    if (!mesh.geometry.boundingBox) return
+    meshBox.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld)
+    result.union(meshBox)
+  })
+  return result
 }
 
-/**
- * 创建标签纹理 —— 用 Canvas 绘制圆角矩形 + 文字 + 引导线
- */
-function createLabelTexture(text: string, color: string): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas')
-  canvas.width = 256
-  canvas.height = 96
-  const ctx = canvas.getContext('2d')!
-
-  // 圆角矩形背景
-  ctx.fillStyle = 'rgba(13, 28, 48, 0.85)'
-  const roundRect = (ctx as any).roundRect
-  if (typeof roundRect === 'function') {
-    roundRect.call(ctx, 4, 8, 248, 56, 20)
-  } else {
-    ctx.rect(4, 8, 248, 56)
-  }
-  ctx.fill()
-
-  // 边框
-  ctx.strokeStyle = color
-  ctx.lineWidth = 2
-  if (typeof roundRect === 'function') {
-    roundRect.call(ctx, 4, 8, 248, 56, 20)
-  } else {
-    ctx.rect(4, 8, 248, 56)
-  }
-  ctx.stroke()
-
-  // 文字
-  ctx.font = 'bold 32px "Microsoft YaHei", "PingFang SC", sans-serif'
-  ctx.fillStyle = '#ffffff'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(text, 128, 36)
-
-  // 底部小圆点
-  ctx.fillStyle = color
-  ctx.beginPath()
-  ctx.arc(128, 80, 5, 0, Math.PI * 2)
-  ctx.fill()
-
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.colorSpace = THREE.SRGBColorSpace
-  tex.needsUpdate = true
-  sceneTextures.push(tex)
-  return tex
+function trackMaterialTextures(material: THREE.Material) {
+  Object.values(material).forEach((value) => {
+    if (value instanceof THREE.Texture) sceneTextures.add(value)
+  })
 }
 
-/* ============================================================
-   场景构建
-   ============================================================ */
-
-function buildTerrain() {
+function buildFeatureLabels(model: THREE.Object3D) {
   if (!terrainGroup) return
+  model.updateMatrixWorld(true)
 
-  /*
-   * V2：按教材剖面图重构为“立体地块 + 绿色地表 + 分层石灰岩剖面”。
-   * 正面保留可观察的岩层切面，顶部使用高低起伏网格表现喀斯特峰丛。
-   */
-  const blockW = 18
-  const blockD = 10
-  const topY = 0.55
-  const layerH = 0.62
+  const textMeshes = new Map<string, THREE.Mesh>()
+  model.traverse((object) => {
+    const mesh = object as THREE.Mesh
+    if (mesh.isMesh) textMeshes.set(mesh.name.replaceAll('.', ''), mesh)
+  })
 
-  strataGroup = new THREE.Group()
-  terrainGroup.add(strataGroup)
+  karstFeatures.forEach((feature) => {
+    const sourceMesh = textMeshes.get(feature.meshName)
+    if (!sourceMesh) return
+    sourceMesh.geometry.computeBoundingBox()
+    if (!sourceMesh.geometry.boundingBox) return
 
-  // 地块底座：正面/侧面形成教材式剖面框
-  const strataColors = ['#b18c5f', '#9a744c', '#805c3d', '#62452f']
-  strataColors.forEach((color, idx) => {
-    const geo = new THREE.BoxGeometry(blockW, layerH, blockD)
-    const mat = new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.88,
-      metalness: 0.02,
-      flatShading: true,
+    const worldCenter = sourceMesh.geometry.boundingBox
+      .getCenter(new THREE.Vector3())
+      .applyMatrix4(sourceMesh.matrixWorld)
+
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = `karst-model-label ${feature.category === '地下形态' ? 'underground' : 'surface'}`
+    button.setAttribute('aria-label', `查看${feature.name}的科学解释`)
+    button.innerHTML = `
+      <span class="karst-label-indicator" aria-hidden="true"></span>
+      <span class="karst-label-category">${feature.category === '地下形态' ? '地下' : '地表'}</span>
+      <strong>${feature.name}</strong>
+    `
+    button.addEventListener('pointerdown', (event) => event.stopPropagation())
+    button.addEventListener('pointerenter', () => { isFeatureLabelHovered = true })
+    button.addEventListener('pointerleave', () => { isFeatureLabelHovered = false })
+    button.addEventListener('focus', () => { isFeatureLabelHovered = true })
+    button.addEventListener('blur', () => { isFeatureLabelHovered = false })
+    button.addEventListener('click', (event) => {
+      event.stopPropagation()
+      selectKarstFeature(feature.id)
     })
-    sceneGeometries.push(geo)
-    sceneMaterials.push(mat)
 
-    const slab = new THREE.Mesh(geo, mat)
-    slab.position.set(0, -0.05 - idx * layerH - layerH / 2, 0)
-    slab.receiveShadow = true
-    slab.castShadow = true
-    strataGroup?.add(slab)
-  })
-
-  // 顶部绿色地表
-  const segmentsX = 96
-  const segmentsZ = 72
-  const geometry = new THREE.PlaneGeometry(
-    blockW - 0.08,
-    blockD - 0.08,
-    segmentsX,
-    segmentsZ,
-  )
-  const material = new THREE.MeshStandardMaterial({
-    color: '#4e8f55',
-    roughness: 0.82,
-    metalness: 0.02,
-    flatShading: true,
-  })
-  sceneGeometries.push(geometry)
-  sceneMaterials.push(material)
-
-  terrainMesh = new THREE.Mesh(geometry, material)
-  terrainMesh.rotation.x = -Math.PI / 2
-  terrainMesh.position.y = topY
-  terrainMesh.receiveShadow = true
-  terrainMesh.castShadow = true
-  terrainGroup.add(terrainMesh)
-
-  const positionAttr = terrainMesh.geometry.getAttribute('position') as THREE.BufferAttribute
-  const rng = createRandom(20260715)
-
-  for (let i = 0; i < positionAttr.count; i++) {
-    const x = positionAttr.getX(i)
-    const z = positionAttr.getY(i)
-
-    let h =
-      Math.sin(x * 0.55) * Math.cos(z * 0.48) * 0.20 +
-      Math.sin(x * 1.18 + 1.1) * Math.cos(z * 1.35) * 0.11 +
-      Math.sin(x * 0.22 - z * 0.32) * 0.18
-
-    // 中央峰丛区抬高，左右两侧向河谷过渡
-    const ridge = Math.exp(-((x - 1.0) ** 2) / 18 - ((z + 0.8) ** 2) / 9)
-    h += ridge * 0.45
-
-    // 教材式落水盆地/洼地区域
-    const basin1 = Math.exp(-((x - 3.4) ** 2) / 5 - ((z - 1.2) ** 2) / 2.6)
-    const basin2 = Math.exp(-((x + 4.2) ** 2) / 4 - ((z + 1.0) ** 2) / 2.5)
-    h -= basin1 * 0.28 + basin2 * 0.22
-
-    // 边缘略低，形成台地轮廓
-    h -= Math.max(0, Math.abs(x) - 7.2) * 0.08
-    h -= Math.max(0, Math.abs(z) - 3.7) * 0.06
-    h += (rng() - 0.5) * 0.035
-
-    positionAttr.setZ(i, h)
-  }
-
-  positionAttr.needsUpdate = true
-  terrainMesh.geometry.computeVertexNormals()
-
-  // 正面岩层细纹：用细线条增强教材剖面辨识度
-  for (let idx = 0; idx < 4; idx++) {
-    const y = -0.18 - idx * layerH
-    const pts = [
-      new THREE.Vector3(-blockW / 2 + 0.1, y, blockD / 2 + 0.012),
-      new THREE.Vector3(-blockW / 2 + 3.0, y + 0.05, blockD / 2 + 0.012),
-      new THREE.Vector3(-1.8, y - 0.03, blockD / 2 + 0.012),
-      new THREE.Vector3(2.8, y + 0.04, blockD / 2 + 0.012),
-      new THREE.Vector3(blockW / 2 - 0.1, y - 0.02, blockD / 2 + 0.012),
-    ]
-    const geo = new THREE.BufferGeometry().setFromPoints(pts)
-    const mat = new THREE.LineBasicMaterial({
-      color: '#5b3e2b',
-      transparent: true,
-      opacity: 0.52,
-    })
-    sceneGeometries.push(geo)
-    sceneMaterials.push(mat)
-    const line = new THREE.Line(geo, mat)
-    strataGroup?.add(line)
-  }
-}
-
-function buildStoneTeeth() {
-  if (!terrainGroup) return
-
-  stoneToothGroup = new THREE.Group()
-  terrainGroup.add(stoneToothGroup)
-
-  const toothMat = new THREE.MeshStandardMaterial({
-    color: '#7d786f',
-    roughness: 0.68,
-    metalness: 0.03,
-    flatShading: true,
-  })
-  sceneMaterials.push(toothMat)
-
-  // 石芽：前左侧较低、密集的小型锥状岩柱
-  const rng = createRandom(771)
-  for (let i = 0; i < 24; i++) {
-    const x = -7.0 + rng() * 4.4
-    const z = -2.7 + rng() * 3.6
-    const h = 0.18 + rng() * 0.42
-    const r = 0.09 + rng() * 0.11
-    const geo = new THREE.ConeGeometry(r, h, 5)
-    sceneGeometries.push(geo)
-    const m = new THREE.Mesh(geo, toothMat)
-    m.position.set(x, 0.72 + h / 2, z)
-    m.rotation.y = rng() * Math.PI
-    m.castShadow = true
-    m.receiveShadow = true
-    stoneToothGroup.add(m)
-  }
-
-  // 石林：中央偏后方的剑状喀斯特
-  const forestMat = new THREE.MeshStandardMaterial({
-    color: '#8c877e',
-    roughness: 0.66,
-    metalness: 0.04,
-    flatShading: true,
-  })
-  sceneMaterials.push(forestMat)
-
-  const forestRng = createRandom(881)
-  const clusters = [
-    { x: -1.1, z: -1.0, n: 9 },
-    { x: 0.6, z: -0.5, n: 11 },
-    { x: 2.0, z: -0.7, n: 8 },
-  ]
-
-  clusters.forEach((c) => {
-    for (let i = 0; i < c.n; i++) {
-      const cx = c.x + (forestRng() - 0.5) * 2.1
-      const cz = c.z + (forestRng() - 0.5) * 2.0
-      const h = 0.75 + forestRng() * 2.25
-      const radius = 0.16 + forestRng() * 0.24
-      const geo = new THREE.ConeGeometry(
-        radius,
-        h,
-        5 + Math.floor(forestRng() * 3),
-      )
-      sceneGeometries.push(geo)
-      const m = new THREE.Mesh(geo, forestMat)
-      m.position.set(cx, 0.7 + h / 2, cz)
-      m.rotation.y = forestRng() * Math.PI
-      m.castShadow = true
-      m.receiveShadow = true
-      stoneToothGroup.add(m)
-    }
-  })
-
-  // 右侧峰林：体量更大，呼应教材右侧典型景观
-  const rightForestMat = new THREE.MeshStandardMaterial({
-    color: '#77766f',
-    roughness: 0.7,
-    metalness: 0.02,
-    flatShading: true,
-  })
-  sceneMaterials.push(rightForestMat)
-
-  const rightRng = createRandom(913)
-  for (let i = 0; i < 10; i++) {
-    const x = 4.2 + rightRng() * 2.8
-    const z = -1.8 + rightRng() * 3.1
-    const h = 0.8 + rightRng() * 1.7
-    const r = 0.18 + rightRng() * 0.24
-    const geo = new THREE.ConeGeometry(r, h, 6)
-    sceneGeometries.push(geo)
-    const m = new THREE.Mesh(geo, rightForestMat)
-    m.position.set(x, 0.72 + h / 2, z)
-    m.castShadow = true
-    m.receiveShadow = true
-    stoneToothGroup.add(m)
-  }
-}
-
-function buildSinkholes() {
-  if (!terrainGroup) return
-
-  sinkholeGroup?.traverse((obj) => {
-    const mesh = obj as THREE.Mesh
-    mesh.geometry?.dispose()
-    if (Array.isArray(mesh.material)) mesh.material.forEach((m) => m.dispose())
-    else mesh.material?.dispose()
-  })
-  if (sinkholeGroup) terrainGroup.remove(sinkholeGroup)
-
-  sinkholeGroup = new THREE.Group()
-  terrainGroup.add(sinkholeGroup)
-
-  const darkMat = new THREE.MeshStandardMaterial({
-    color: '#07130f',
-    roughness: 0.98,
-    metalness: 0,
-    side: THREE.DoubleSide,
-  })
-  const rimMat = new THREE.MeshStandardMaterial({
-    color: '#345e45',
-    roughness: 0.9,
-    metalness: 0,
-  })
-  sceneMaterials.push(darkMat, rimMat)
-
-  // 溶蚀洼地 / 落水洞
-  const small = [
-    [-5.1, 1.0, 0.48],
-    [-4.0, 0.15, 0.42],
-    [-3.4, -1.25, 0.35],
-    [-2.3, 0.85, 0.42],
-    [1.8, 1.8, 0.36],
-  ] as Array<[number, number, number]>
-
-  small.forEach(([x, z, r]) => {
-    const geo = new THREE.SphereGeometry(r, 28, 18)
-    sceneGeometries.push(geo)
-    const m = new THREE.Mesh(geo, darkMat)
-    m.position.set(x, 0.68, z)
-    m.scale.y = 0.32
-    m.castShadow = true
-    sinkholeGroup!.add(m)
-
-    const ringGeo = new THREE.TorusGeometry(r * 1.05, 0.045, 7, 28)
-    sceneGeometries.push(ringGeo)
-    const ring = new THREE.Mesh(ringGeo, rimMat)
-    ring.position.set(x, 0.71, z)
-    ring.rotation.x = Math.PI / 2
-    sinkholeGroup!.add(ring)
-  })
-
-  // 两处典型天坑：做成较深的黑色凹口
-  const tiankengs = [
-    { x: -3.9, z: 1.05, rx: 0.9, rz: 0.72 },
-    { x: -0.8, z: 0.65, rx: 0.72, rz: 0.58 },
-  ]
-
-  tiankengs.forEach((t) => {
-    const geo = new THREE.SphereGeometry(1, 40, 24)
-    sceneGeometries.push(geo)
-    const m = new THREE.Mesh(geo, darkMat)
-    m.position.set(t.x, 0.72, t.z)
-    m.scale.set(t.rx, 0.30, t.rz)
-    m.castShadow = true
-    sinkholeGroup!.add(m)
-
-    const rimGeo = new THREE.TorusGeometry(1, 0.055, 8, 40)
-    sceneGeometries.push(rimGeo)
-    const rim = new THREE.Mesh(rimGeo, rimMat)
-    rim.position.set(t.x, 0.74, t.z)
-    rim.scale.set(t.rx, 1, t.rz)
-    rim.rotation.x = Math.PI / 2
-    sinkholeGroup!.add(rim)
+    const label = new CSS2DObject(button)
+    label.name = `FeatureLabel-${feature.id}`
+    label.userData.featureId = feature.id
+    label.userData.featureCategory = feature.category
+    label.position.copy(terrainGroup.worldToLocal(worldCenter.clone()))
+    label.position.y += feature.category === '地下形态' ? 0.08 : 0.16
+    terrainGroup.add(label)
+    modelFeatureLabels.push(label)
+    sourceMesh.removeFromParent()
   })
 }
 
-function buildPeaks() {
-  if (!terrainGroup) return
-
-  peakGroup?.traverse((obj) => {
-    const mesh = obj as THREE.Mesh
-    mesh.geometry?.dispose()
-    if (Array.isArray(mesh.material)) mesh.material.forEach((m) => m.dispose())
-    else mesh.material?.dispose()
+function updateFeatureLabelVisibility() {
+  if (!terrainGroup || !camera) return
+  const cameraLocal = terrainGroup.worldToLocal(camera.getWorldPosition(new THREE.Vector3())).normalize()
+  modelFeatureLabels.forEach((label) => {
+    const radialDirection = label.position.clone().normalize()
+    const facingCamera = radialDirection.dot(cameraLocal)
+    const isUnderground = label.userData.featureCategory === '地下形态'
+    const visibility = THREE.MathUtils.smoothstep(
+      facingCamera,
+      isUnderground ? -0.42 : -0.28,
+      isUnderground ? 0.16 : 0.22,
+    )
+    label.element.style.opacity = String(visibility)
+    label.element.style.pointerEvents = visibility > 0.42 ? 'auto' : 'none'
   })
-  if (peakGroup) terrainGroup.remove(peakGroup)
-
-  peakGroup = new THREE.Group()
-  terrainGroup.add(peakGroup)
-  peakRecords.length = 0
-
-  const peakMat = new THREE.MeshStandardMaterial({
-    color: '#4e8759',
-    roughness: 0.72,
-    metalness: 0.03,
-    flatShading: true,
-  })
-  const rockMat = new THREE.MeshStandardMaterial({
-    color: '#827d73',
-    roughness: 0.66,
-    metalness: 0.03,
-    flatShading: true,
-  })
-  sceneMaterials.push(peakMat, rockMat)
-
-  const rng = createRandom(99821)
-
-  // 峰丛：后侧形成连续的山体群，体量比石林更大
-  for (let i = 0; i < 14; i++) {
-    const x = 2.2 + rng() * 4.6
-    const z = -3.0 + rng() * 1.8
-    const h = 0.8 + rng() * 2.3
-    const radius = 0.34 + rng() * 0.42
-
-    const geo = new THREE.ConeGeometry(radius, h, 7 + Math.floor(rng() * 3))
-    sceneGeometries.push(geo)
-    const mesh = new THREE.Mesh(geo, peakMat)
-    mesh.position.set(x, 0.68 + h / 2, z)
-    mesh.rotation.y = rng() * Math.PI
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    peakGroup.add(mesh)
-    peakRecords.push({ mesh, baseHeight: h, targetScale: 1 })
-  }
-
-  // 远端大型峰体，形成教材右上方峰林轮廓
-  for (let i = 0; i < 6; i++) {
-    const x = 4.2 + rng() * 3.2
-    const z = 0.2 + rng() * 2.7
-    const h = 1.2 + rng() * 1.8
-    const radius = 0.38 + rng() * 0.34
-    const geo = new THREE.ConeGeometry(radius, h, 7)
-    sceneGeometries.push(geo)
-    const mesh = new THREE.Mesh(geo, rockMat)
-    mesh.position.set(x, 0.68 + h / 2, z)
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    peakGroup.add(mesh)
-  }
-}
-
-function buildBasin() {
-  if (!terrainGroup) return
-
-  basinGroup = new THREE.Group()
-  terrainGroup.add(basinGroup)
-
-  const lakeMat = new THREE.MeshPhysicalMaterial({
-    color: '#168dc2',
-    roughness: 0.18,
-    metalness: 0.15,
-    transmission: 0.08,
-    transparent: true,
-    opacity: 0.9,
-  })
-  sceneMaterials.push(lakeMat)
-
-  const lakeGeo = new THREE.CircleGeometry(1.25, 48)
-  sceneGeometries.push(lakeGeo)
-  const lake = new THREE.Mesh(lakeGeo, lakeMat)
-  lake.rotation.x = -Math.PI / 2
-  lake.position.set(2.6, 0.72, 1.65)
-  lake.scale.set(1.25, 0.9, 1)
-  lake.receiveShadow = true
-  basinGroup.add(lake)
-
-  // 地表河流：从高地进入盆地，再向右侧流出
-  const riverMat = new THREE.MeshPhysicalMaterial({
-    color: '#2ba6d6',
-    roughness: 0.12,
-    metalness: 0.18,
-    transparent: true,
-    opacity: 0.9,
-  })
-  sceneMaterials.push(riverMat)
-
-  const riverCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-8.4, 0.73, 3.2),
-    new THREE.Vector3(-6.5, 0.73, 1.9),
-    new THREE.Vector3(-4.8, 0.73, 2.8),
-    new THREE.Vector3(-2.5, 0.73, 1.4),
-    new THREE.Vector3(-0.8, 0.73, 2.2),
-    new THREE.Vector3(1.4, 0.73, 1.8),
-    new THREE.Vector3(2.6, 0.73, 1.65),
-    new THREE.Vector3(4.1, 0.73, 2.0),
-    new THREE.Vector3(6.2, 0.73, 1.0),
-    new THREE.Vector3(8.3, 0.73, -0.2),
-  ])
-  const riverGeo = new THREE.TubeGeometry(riverCurve, 120, 0.16, 10, false)
-  sceneGeometries.push(riverGeo)
-  const riverMesh = new THREE.Mesh(riverGeo, riverMat)
-  riverMesh.receiveShadow = true
-  basinGroup.add(riverMesh)
-
-  // 右侧小瀑布
-  const fallCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(7.0, 0.72, 1.0),
-    new THREE.Vector3(7.1, 0.25, 1.0),
-    new THREE.Vector3(7.15, -0.25, 1.0),
-  ])
-  const fallGeo = new THREE.TubeGeometry(fallCurve, 24, 0.12, 8, false)
-  sceneGeometries.push(fallGeo)
-  const fall = new THREE.Mesh(fallGeo, riverMat)
-  basinGroup.add(fall)
-}
-
-function buildCave() {
-  if (!terrainGroup) return
-
-  caveGroup = new THREE.Group()
-  terrainGroup.add(caveGroup)
-
-  // 前剖面溶洞：黑色洞腔 + 暖色钟乳石，直接对应教材剖面图
-  const caveMat = new THREE.MeshStandardMaterial({
-    color: '#111814',
-    emissive: '#08130e',
-    emissiveIntensity: 0.35,
-    roughness: 0.94,
-    metalness: 0,
-  })
-  const caveRimMat = new THREE.MeshStandardMaterial({
-    color: '#6d4b32',
-    roughness: 0.9,
-    metalness: 0,
-  })
-  sceneMaterials.push(caveMat, caveRimMat)
-
-  const frontZ = 5.015
-  const openings = [
-    { x: -5.3, y: -0.9, rx: 1.45, ry: 0.65 },
-    { x: -2.3, y: -1.0, rx: 1.65, ry: 0.72 },
-    { x: 1.2, y: -1.05, rx: 1.75, ry: 0.72 },
-    { x: 4.6, y: -0.9, rx: 1.45, ry: 0.62 },
-  ]
-
-  openings.forEach((o) => {
-    const geo = new THREE.SphereGeometry(1, 36, 22)
-    sceneGeometries.push(geo)
-    const m = new THREE.Mesh(geo, caveMat)
-    m.position.set(o.x, o.y, frontZ + 0.025)
-    m.scale.set(o.rx, o.ry, 0.18)
-    caveGroup!.add(m)
-
-    const rimGeo = new THREE.TorusGeometry(1, 0.07, 8, 40)
-    sceneGeometries.push(rimGeo)
-    const rim = new THREE.Mesh(rimGeo, caveRimMat)
-    rim.position.set(o.x, o.y, frontZ + 0.05)
-    rim.scale.set(o.rx, o.ry, 1)
-    rim.rotation.x = Math.PI / 2
-    caveGroup!.add(rim)
-  })
-
-  // 地下洞穴主通道
-  const cavePath = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-7.2, -1.15, 4.7),
-    new THREE.Vector3(-5.0, -1.28, 3.1),
-    new THREE.Vector3(-2.0, -1.38, 2.0),
-    new THREE.Vector3(0.5, -1.45, 1.2),
-    new THREE.Vector3(3.0, -1.42, 2.0),
-    new THREE.Vector3(6.6, -1.2, 3.6),
-  ])
-  const caveGeo = new THREE.TubeGeometry(cavePath, 120, 0.55, 18, false)
-  sceneGeometries.push(caveGeo)
-  const caveTube = new THREE.Mesh(caveGeo, caveMat)
-  caveGroup.add(caveTube)
-
-  // 钟乳石 / 石笋
-  stalactiteGroup = new THREE.Group()
-  caveGroup.add(stalactiteGroup)
-
-  const stalactiteMat = new THREE.MeshStandardMaterial({
-    color: '#d6a15b',
-    roughness: 0.56,
-    metalness: 0.02,
-  })
-  const stalagmiteMat = new THREE.MeshStandardMaterial({
-    color: '#e0bd7b',
-    roughness: 0.58,
-    metalness: 0.02,
-  })
-  sceneMaterials.push(stalactiteMat, stalagmiteMat)
-
-  const rng = createRandom(6677)
-  for (let i = 0; i < 26; i++) {
-    const x = -6.9 + rng() * 13.8
-    const y = -0.85 - rng() * 0.6
-    const z = 4.82 + (rng() - 0.5) * 0.35
-    const h = 0.18 + rng() * 0.62
-    const r = 0.055 + rng() * 0.085
-
-    const topGeo = new THREE.ConeGeometry(r, h, 8)
-    sceneGeometries.push(topGeo)
-    const top = new THREE.Mesh(topGeo, stalactiteMat)
-    top.position.set(x, y, z)
-    top.rotation.x = Math.PI
-    top.castShadow = true
-    stalactiteGroup.add(top)
-
-    const bottomGeo = new THREE.ConeGeometry(r * 0.85, h * 0.78, 8)
-    sceneGeometries.push(bottomGeo)
-    const bottom = new THREE.Mesh(bottomGeo, stalagmiteMat)
-    bottom.position.set(x, y - 0.62, z)
-    bottom.castShadow = true
-    stalactiteGroup.add(bottom)
-  }
-
-  // 地下暗河：蓝色发光水脉
-  const darkRiverMat = new THREE.MeshPhysicalMaterial({
-    color: '#168fd0',
-    emissive: '#0a4d73',
-    emissiveIntensity: 0.55,
-    roughness: 0.16,
-    metalness: 0.18,
-    transparent: true,
-    opacity: 0.92,
-  })
-  sceneMaterials.push(darkRiverMat)
-
-  const darkRiverCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-8.2, -1.65, 4.9),
-    new THREE.Vector3(-5.4, -1.72, 3.7),
-    new THREE.Vector3(-2.2, -1.8, 2.8),
-    new THREE.Vector3(0.8, -1.82, 2.2),
-    new THREE.Vector3(3.7, -1.76, 3.0),
-    new THREE.Vector3(7.8, -1.58, 4.7),
-  ])
-  const darkRiverGeo = new THREE.TubeGeometry(darkRiverCurve, 100, 0.16, 10, false)
-  sceneGeometries.push(darkRiverGeo)
-  undergroundRiverMesh = new THREE.Mesh(darkRiverGeo, darkRiverMat)
-  caveGroup.add(undergroundRiverMesh)
-}
-
-function buildPermeation() {
-  if (!terrainGroup) return
-
-  permeationGroup = new THREE.Group()
-  terrainGroup.add(permeationGroup)
-
-  // 渗透管道材质（半透明蓝色）
-  const streamMat = new THREE.MeshBasicMaterial({
-    color: '#2ba6d6',
-    transparent: true,
-    opacity: 0.22,
-    side: THREE.DoubleSide,
-  })
-  sceneMaterials.push(streamMat)
-
-  // 水滴材质
-  const dropletMat = new THREE.MeshStandardMaterial({
-    color: '#3fc7f0',
-    emissive: '#1a8cc4',
-    emissiveIntensity: 0.7,
-    roughness: 0.15,
-    metalness: 0.4,
-    transparent: true,
-    opacity: 0.9,
-  })
-  sceneMaterials.push(dropletMat)
-
-  // 渗透点：从落水洞/天坑表面向下到地下河
-  const permeationPoints = [
-    { x: -5.1, z: 0.48, surfaceY: 0.66, undergroundY: -1.62 },
-    { x: -4.0, z: 0.15, surfaceY: 0.66, undergroundY: -1.68 },
-    { x: -3.9, z: 1.05, surfaceY: 0.66, undergroundY: -1.65 },
-    { x: -3.4, z: -1.25, surfaceY: 0.66, undergroundY: -1.72 },
-    { x: -2.3, z: 0.85, surfaceY: 0.66, undergroundY: -1.74 },
-    { x: -0.8, z: 0.65, surfaceY: 0.66, undergroundY: -1.78 },
-    { x: 1.8, z: 1.8, surfaceY: 0.66, undergroundY: -1.76 },
-  ]
-
-  permeationPoints.forEach((pt) => {
-    const height = pt.surfaceY - pt.undergroundY
-
-    // 垂直渗透管道
-    const tubeGeo = new THREE.CylinderGeometry(0.05, 0.03, height, 8, 1, true)
-    sceneGeometries.push(tubeGeo)
-    const tube = new THREE.Mesh(tubeGeo, streamMat)
-    tube.position.set(pt.x, (pt.surfaceY + pt.undergroundY) / 2, pt.z)
-    permeationGroup!.add(tube)
-
-    // 水滴粒子（3个，错开时间）
-    for (let i = 0; i < 3; i++) {
-      const dropGeo = new THREE.SphereGeometry(0.045, 8, 6)
-      sceneGeometries.push(dropGeo)
-      const drop = new THREE.Mesh(dropGeo, dropletMat.clone())
-      drop.position.set(pt.x, pt.surfaceY, pt.z)
-      permeationGroup!.add(drop)
-      permeationDroplets.push({
-        mesh: drop,
-        startY: pt.surfaceY,
-        endY: pt.undergroundY,
-        speed: 0.35 + Math.random() * 0.15,
-        offset: i * 0.33,
-      })
-    }
-  })
-}
-
-function buildWater() {
-  if (!terrainGroup) return
-
-  waterGroup = new THREE.Group()
-  terrainGroup.add(waterGroup)
-
-  // 落水洞水面（小圆）
-  const waterMat = new THREE.MeshStandardMaterial({
-    color: '#3a96c8',
-    roughness: 0.2,
-    metalness: 0.5,
-    transparent: true,
-    opacity: 0.7,
-  })
-  sceneMaterials.push(waterMat)
-
-  const waterLocs = [
-    { x: -3.2, z: 0.5, r: 0.18 },
-    { x: -3.5, z: -0.5, r: 0.16 },
-    { x: -2.8, z: -0.8, r: 0.18 },
-    { x: -3.0, z: 0.9, r: 0.15 },
-    { x: -2.5, z: 0.6, r: 0.17 },
-    { x: -2.6, z: -1.0, r: 0.15 },
-  ]
-  waterLocs.forEach((w) => {
-    const geo = new THREE.CircleGeometry(w.r, 20)
-    sceneGeometries.push(geo)
-    const m = new THREE.Mesh(geo, waterMat)
-    m.rotation.x = -Math.PI / 2
-    m.position.set(w.x, 0.42, w.z)
-    if (waterGroup) waterGroup.add(m)
-  })
-}
-
-/* ============================================================
-   引线标签系统
-   ============================================================ */
-
-interface LabelDef {
-  text: string
-  anchor: THREE.Vector3 /* 锚点（指向地貌） */
-  tag: THREE.Vector3 /* 标签位置 */
-  color: string
-}
-
-const labelDefs: LabelDef[] = [
-  {
-    text: '落水洞',
-    anchor: new THREE.Vector3(-5.1, 0.72, 1.0),
-    tag: new THREE.Vector3(-6.8, 2.1, 2.8),
-    color: '#39d2ff',
-  },
-  {
-    text: '石芽',
-    anchor: new THREE.Vector3(-5.8, 0.82, -1.2),
-    tag: new THREE.Vector3(-7.0, 1.5, -2.8),
-    color: '#39d2ff',
-  },
-  {
-    text: '天坑',
-    anchor: new THREE.Vector3(-3.9, 0.78, 1.05),
-    tag: new THREE.Vector3(-3.6, 2.2, 3.0),
-    color: '#39d2ff',
-  },
-  {
-    text: '石林',
-    anchor: new THREE.Vector3(0.2, 2.0, -0.6),
-    tag: new THREE.Vector3(1.2, 3.2, -2.2),
-    color: '#39d2ff',
-  },
-  {
-    text: '溶蚀洼地',
-    anchor: new THREE.Vector3(2.6, 0.76, 1.65),
-    tag: new THREE.Vector3(3.5, 1.9, 3.2),
-    color: '#39d2ff',
-  },
-  {
-    text: '峰丛',
-    anchor: new THREE.Vector3(5.0, 2.1, -2.3),
-    tag: new THREE.Vector3(6.5, 3.0, -3.4),
-    color: '#39d2ff',
-  },
-  {
-    text: '溶洞',
-    anchor: new THREE.Vector3(-1.8, -1.0, 5.0),
-    tag: new THREE.Vector3(-2.6, -2.0, 6.0),
-    color: '#ffaa44',
-  },
-  {
-    text: '地下河',
-    anchor: new THREE.Vector3(2.0, -1.75, 4.0),
-    tag: new THREE.Vector3(3.5, -2.2, 5.6),
-    color: '#39d2ff',
-  },
-  {
-    text: '渗透水',
-    anchor: new THREE.Vector3(-3.9, -0.3, 1.05),
-    tag: new THREE.Vector3(-5.8, -0.5, 2.8),
-    color: '#3fc7f0',
-  },
-  {
-    text: '云南路南石林',
-    anchor: new THREE.Vector3(0.8, 2.7, -0.8),
-    tag: new THREE.Vector3(0.8, 4.0, -1.8),
-    color: '#7adcff',
-  },
-  {
-    text: '广西桂林山水',
-    anchor: new THREE.Vector3(5.8, 2.0, 1.2),
-    tag: new THREE.Vector3(6.8, 3.2, 2.8),
-    color: '#7adcff',
-  },
-]
-
-function buildLabels() {
-  if (!terrainGroup) return
-
-  labelGroup = new THREE.Group()
-  terrainGroup.add(labelGroup)
-
-  const MAX_LINES = labelDefs.length * 2
-  const linePositions = new Float32Array(MAX_LINES * 2 * 3)
-  const lineColors = new Float32Array(MAX_LINES * 2 * 3)
-  const lineGeo = new THREE.BufferGeometry()
-  lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3))
-  lineGeo.setAttribute('color', new THREE.BufferAttribute(lineColors, 3))
-  lineGeo.setDrawRange(0, 0)
-  sceneGeometries.push(lineGeo)
-
-  const lineMat = new THREE.LineBasicMaterial({
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.85,
-  })
-  sceneMaterials.push(lineMat)
-
-  leaderLineMesh = new THREE.LineSegments(lineGeo, lineMat)
-  terrainGroup.add(leaderLineMesh)
-
-  labelDefs.forEach((def) => {
-    const tex = createLabelTexture(def.text, def.color)
-    const planeGeo = new THREE.PlaneGeometry(1.65, 0.58)
-    sceneGeometries.push(planeGeo)
-    const mat = new THREE.MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-    })
-    sceneMaterials.push(mat)
-    const m = new THREE.Mesh(planeGeo, mat)
-    m.position.copy(def.tag)
-    m.userData = {
-      isLabel: true,
-      texture: tex,
-      text: def.text,
-      color: def.color,
-    }
-    m.renderOrder = 999
-    if (labelGroup) labelGroup.add(m)
-
-    // 引线
-    const start = def.anchor
-    const end = def.tag.clone().add(new THREE.Vector3(0, -0.30, 0))
-    const c = new THREE.Color(def.color)
-    if (!leaderLineMesh) return
-    const positionAttr = leaderLineMesh.geometry.attributes.position
-    const colorAttr = leaderLineMesh.geometry.attributes.color
-    if (!positionAttr || !colorAttr) return
-    const linePositions = positionAttr.array as Float32Array
-    const lineColors = colorAttr.array as Float32Array
-    const dr = leaderLineMesh.geometry.drawRange.count
-    linePositions[dr + 0] = start.x
-    linePositions[dr + 1] = start.y
-    linePositions[dr + 2] = start.z
-    linePositions[dr + 3] = end.x
-    linePositions[dr + 4] = end.y
-    linePositions[dr + 5] = end.z
-    lineColors[dr + 0] = c.r
-    lineColors[dr + 1] = c.g
-    lineColors[dr + 2] = c.b
-    lineColors[dr + 3] = c.r
-    lineColors[dr + 4] = c.g
-    lineColors[dr + 5] = c.b
-    leaderLineMesh.geometry.drawRange.count = dr + 6
-  })
-
-  if (leaderLineMesh) {
-    const positionAttr = leaderLineMesh.geometry.attributes.position
-    const colorAttr = leaderLineMesh.geometry.attributes.color
-    if (positionAttr) positionAttr.needsUpdate = true
-    if (colorAttr) colorAttr.needsUpdate = true
-  }
-}
-
-/* ============================================================
-   场景生命周期
-   ============================================================ */
-
-function initScene() {
-  const container = threeContainerRef.value
-  if (!container) return
-
-  scene = new THREE.Scene()
-  scene.background = new THREE.Color('#0c2034')
-  scene.fog = new THREE.Fog('#0c2034', 28, 80)
-
-  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200)
-  camera.position.set(13.5, 8.8, 18.5)
-
-  renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha: false,
-    powerPreference: 'high-performance',
-  })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-  renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap
-  renderer.outputColorSpace = THREE.SRGBColorSpace
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.08
-  renderer.domElement.className = 'scene-canvas three-canvas'
-  container.appendChild(renderer.domElement)
-
-  orbitControls = new OrbitControls(camera, renderer.domElement)
-  orbitControls.enableDamping = true
-  orbitControls.dampingFactor = 0.08
-  orbitControls.minDistance = 13
-  orbitControls.maxDistance = 38
-  orbitControls.minPolarAngle = 0.2
-  orbitControls.maxPolarAngle = Math.PI / 2 - 0.12
-  orbitControls.target.set(0, -0.05, 0)
-
-  // 光照
-  const hemi = new THREE.HemisphereLight(0xcaf6ff, 0x1a2532, 1.0)
-  scene.add(hemi)
-
-  mainLight = new THREE.DirectionalLight(0xfff5d0, 1.5)
-  mainLight.position.set(8, 14, 8)
-  mainLight.castShadow = true
-  mainLight.shadow.mapSize.set(1024, 1024)
-  scene.add(mainLight)
-
-  const fillLight = new THREE.DirectionalLight(0x74eae5, 0.55)
-  fillLight.position.set(-6, 6, -4)
-  scene.add(fillLight)
-
-  const backLight = new THREE.DirectionalLight(0xffd591, 0.4)
-  backLight.position.set(0, -3, -5)
-  scene.add(backLight)
-
-  terrainGroup = new THREE.Group()
-  scene.add(terrainGroup)
-
-  buildTerrain()
-  buildStoneTeeth()
-  buildSinkholes()
-  buildPeaks()
-  buildBasin()
-  buildCave()
-  buildPermeation()
-  buildWater()
-  buildLabels()
-
-  // V4：先强制确保舞台有真实像素尺寸，再设置相机与渲染器。
-  // 解决 stage-content/布局高度为 0 时 Canvas 被压成 0 高度、模型完全不可见的问题。
-  ensureSceneHostSize()
-  resizeThreeSceneNow(true)
-  frameCameraToModel()
-  resizeThreeSceneNow(true)
-
-  threeResizeObserver = new ResizeObserver(() => {
-    scheduleSceneResize(110)
-  })
-  threeResizeObserver.observe(container)
-
-  sceneClock.start()
-  animateThreeScene()
-}
-
-function animateThreeScene() {
-  sceneAnimationFrameId = requestAnimationFrame(animateThreeScene)
-
-  const delta = Math.min(sceneClock.getDelta(), 0.05)
-
-  if (terrainGroup && rotationSpeed.value > 0) {
-    terrainGroup.rotation.y += delta * rotationSpeed.value * 0.18
-  }
-
-  if (isPlaying.value) {
-    evolutionProgress.value =
-      (evolutionProgress.value + delta * playbackSpeed.value * 4) % 100
-  }
-
-  // 时间轴与当前地貌阶段保持同步
-  const stageIndex = Math.min(
-    timelineStages.length - 1,
-    Math.round((evolutionProgress.value / 100) * (timelineStages.length - 1)),
-  )
-  const stageId = timelineStages[stageIndex]?.id
-  if (stageId && currentStage.value !== stageId) {
-    currentStage.value = stageId
-  }
-
-  // 根据底部模式切换地下/水文/地表图层
-  if (caveGroup) {
-    caveGroup.visible = activeBottomTab.value !== 'surface'
-  }
-  // 地下河始终可见（即使在地表模式也能看到渗透下去的水流）
-  if (undergroundRiverMesh) {
-    undergroundRiverMesh.visible = true
-  }
-  // 渗透水流始终可见
-  if (permeationGroup) {
-    permeationGroup.visible = true
-  }
-  if (waterGroup || basinGroup) {
-    const showWater = activeBottomTab.value !== 'underground'
-    if (waterGroup) waterGroup.visible = showWater
-    if (basinGroup) basinGroup.visible = showWater
-  }
-  if (peakGroup || stoneToothGroup || sinkholeGroup) {
-    const showSurface = activeBottomTab.value !== 'underground'
-    const stage = activeStage.value
-    if (peakGroup) peakGroup.visible = showSurface && stage.peakCount > 0
-    if (stoneToothGroup) stoneToothGroup.visible = showSurface && stage.showStoneTeeth
-    if (sinkholeGroup) sinkholeGroup.visible = showSurface && stage.showTiankeng
-
-    // 峰丛随演化阶段逐渐生长，增强“动态演化”的教学表现
-    const peakRatio = Math.max(0.18, Math.min(1, stage.peakCount / 18))
-    peakRecords.forEach((record, index) => {
-      const visibleRatio = Math.min(1, (index + 1) / Math.max(1, stage.peakCount))
-      const target = Math.min(1, peakRatio / Math.max(visibleRatio, 0.35))
-      record.mesh.scale.y += (target - record.mesh.scale.y) * Math.min(1, delta * 4)
-    })
-  }
-
-  // 渗透水滴动画
-  const elapsed = sceneClock.elapsedTime
-  permeationDroplets.forEach((d) => {
-    const cycle = (elapsed * d.speed + d.offset) % 1
-    d.mesh.position.y = d.startY - (d.startY - d.endY) * cycle
-    const mat = d.mesh.material as THREE.MeshStandardMaterial
-    // 水滴在接近底部时淡出，在顶部淡入
-    const fade = cycle < 0.1 ? cycle / 0.1 : cycle > 0.85 ? (1 - cycle) / 0.15 : 1
-    mat.opacity = 0.9 * fade
-  })
-
-  // 标签始终面向相机
-  if (labelGroup && camera) {
-    const camPos = camera.position
-    labelGroup.traverse((obj) => {
-      const data = obj.userData
-      if (data?.isLabel) {
-        obj.lookAt(camPos)
-      }
-    })
-  }
-
-  orbitControls?.update()
-
-  if (renderer && scene && camera) {
-    renderer.render(scene, camera)
-  }
 }
 
 function frameCameraToModel() {
   if (!terrainGroup || !camera || !orbitControls) return
-
   terrainGroup.updateMatrixWorld(true)
   const box = new THREE.Box3().setFromObject(terrainGroup)
   if (box.isEmpty()) return
 
   const center = box.getCenter(new THREE.Vector3())
   const size = box.getSize(new THREE.Vector3())
-  const maxSize = Math.max(size.x, size.y, size.z)
-
-  // V4：使用当前 Canvas 的真实宽高计算相机距离，并给足边缘留白。
   const aspect = Math.max(0.6, camera.aspect || 1.6)
-  const vFov = THREE.MathUtils.degToRad(camera.fov)
-  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect)
-  const verticalDistance = (size.y * 0.72) / Math.tan(vFov / 2)
-  const horizontalDistance = (size.x * 0.72) / Math.tan(hFov / 2)
-  const depthDistance = size.z * 1.35
-  const distance = Math.max(13, Math.min(34, Math.max(verticalDistance, horizontalDistance, depthDistance)))
-
-  // 教材剖面图：右前方、略高于模型的观察角度。
-  const direction = new THREE.Vector3(0.88, 0.48, 1.18).normalize()
+  const verticalFov = THREE.MathUtils.degToRad(camera.fov)
+  const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect)
+  const distance = Math.max(10, Math.min(30, Math.max(
+    (size.y * 0.62) / Math.tan(verticalFov / 2),
+    (size.x * 0.62) / Math.tan(horizontalFov / 2),
+    size.z * 1.05,
+  )))
+  const direction = new THREE.Vector3(0.5, 0.07, 1.56).normalize()
   camera.position.copy(center).add(direction.multiplyScalar(distance))
   camera.near = 0.05
   camera.far = Math.max(180, distance * 10)
-  camera.lookAt(center)
   camera.updateProjectionMatrix()
-
   orbitControls.target.copy(center)
   orbitControls.minDistance = Math.max(6, distance * 0.38)
   orbitControls.maxDistance = Math.max(38, distance * 2.4)
   orbitControls.update()
 }
 
-function ensureSceneHostSize() {
-  const container = threeContainerRef.value
-  if (!container) return
-
-  const rect = container.getBoundingClientRect()
-  const hostWidth = Math.round(rect.width || container.clientWidth || 0)
-  const hostHeight = Math.round(rect.height || container.clientHeight || 0)
-
-  // 如果上层布局尚未给绝对定位舞台计算高度，使用视口高度作为安全兜底。
-  // 同时把高度写回 host，保证 Canvas 真正拥有可见区域。
-  const fallbackWidth = Math.max(320, Math.round(window.innerWidth * 0.72))
-  const fallbackHeight = Math.max(520, window.innerHeight - 58)
-  const width = Math.max(320, hostWidth || fallbackWidth)
-  const height = Math.max(520, hostHeight || fallbackHeight)
-
-  if (hostWidth < 10 || hostHeight < 10) {
-    container.style.width = `${width}px`
-    container.style.height = `${height}px`
-  }
-}
-
-function resizeThreeSceneNow(force = false) {
-  const container = threeContainerRef.value
-  if (!container || !camera || !renderer) return
-
-  ensureSceneHostSize()
-
-  const rect = container.getBoundingClientRect()
-  const width = Math.max(1, Math.round(rect.width || container.clientWidth))
-  const height = Math.max(1, Math.round(rect.height || container.clientHeight))
-
-  if (!force && width === lastSceneWidth && height === lastSceneHeight) return
-
-  lastSceneWidth = width
-  lastSceneHeight = height
-
+function resizeScene(force = false) {
+  const host = threeContainerRef.value
+  if (!host || !camera || !renderer) return
+  const rect = host.getBoundingClientRect()
+  const width = Math.max(1, Math.round(rect.width))
+  const height = Math.max(1, Math.round(rect.height))
+  if (!force && width === lastWidth && height === lastHeight) return
+  lastWidth = width
+  lastHeight = height
   camera.aspect = width / height
   camera.updateProjectionMatrix()
   renderer.setSize(width, height, false)
-  renderer.domElement.style.width = `${width}px`
-  renderer.domElement.style.height = `${height}px`
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  labelRenderer?.setSize(width, height)
+}
 
-  if (scene) {
+function loadKarstModel() {
+  if (!terrainGroup) return
+  modelLoadState.value = 'loading'
+  modelLoadProgress.value = 4
+  const loader = new GLTFLoader()
+  loader.setMeshoptDecoder(MeshoptDecoder)
+
+  const modelUrl = '/geo-resources-folder/glb/karst-landscape-complete.glb'
+
+  loader.load(modelUrl, (gltf) => {
+    if (disposed || !terrainGroup) return
+    const model = gltf.scene
+    model.name = 'KarstLandscapeModel'
+    model.traverse((object) => {
+      const mesh = object as THREE.Mesh
+      if (!mesh.isMesh) return
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      sceneGeometries.add(mesh.geometry)
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      materials.forEach((material) => {
+        sceneMaterials.add(material)
+        trackMaterialTextures(material)
+      })
+    })
+
+    const labelNames = new Set(karstFeatures.map((feature) => feature.meshName))
+    model.traverse((object) => {
+      const mesh = object as THREE.Mesh
+      if (mesh.isMesh && labelNames.has(mesh.name.replaceAll('.', ''))) mesh.visible = false
+    })
+
+    const initialSize = getVisibleModelBounds(model).getSize(new THREE.Vector3())
+    model.scale.setScalar(14 / Math.max(initialSize.x, initialSize.y, initialSize.z))
+    model.updateMatrixWorld(true)
+    const center = getVisibleModelBounds(model).getCenter(new THREE.Vector3())
+    model.position.set(-center.x, -center.y, -center.z)
+    terrainGroup.add(model)
+    model.updateMatrixWorld(true)
+    buildFeatureLabels(model)
+
+    modelLoadProgress.value = 100
+    modelLoadState.value = 'ready'
+    resizeScene(true)
+    frameCameraToModel()
+  }, (event) => {
+    if (event.total > 0) {
+      modelLoadProgress.value = Math.min(96, Math.max(4, Math.round((event.loaded / event.total) * 96)))
+    }
+  }, (error) => {
+    if (disposed) return
+    console.error('Karst GLB load failed:', error)
+    modelLoadError.value = '喀斯特 GLB 加载失败，请刷新页面后重试'
+    modelLoadState.value = 'error'
+  })
+}
+
+function animateScene() {
+  animationFrameId = requestAnimationFrame(animateScene)
+  const delta = Math.min(clock.getDelta(), 0.05)
+  if (terrainGroup && !isFeatureLabelHovered && !activeFeatureId.value) {
+    terrainGroup.rotation.y += delta * 0.018
+  }
+  orbitControls?.update()
+  updateFeatureLabelVisibility()
+  if (renderer && scene && camera) {
     renderer.render(scene, camera)
+    labelRenderer?.render(scene, camera)
   }
 }
 
-function scheduleSceneResize(delay = 110) {
-  if (sceneResizeTimer) clearTimeout(sceneResizeTimer)
-  cancelAnimationFrame(sceneResizeFrame)
-  cancelAnimationFrame(sceneResizeSettleFrame)
+function initScene() {
+  const host = threeContainerRef.value
+  if (!host) return
+  disposed = false
+  scene = new THREE.Scene()
+  scene.background = null
+  scene.fog = new THREE.Fog('#0b2831', 30, 78)
 
-  sceneResizeTimer = setTimeout(() => {
-    sceneResizeTimer = null
-    if (draggingSide.value || viewportResizing.value) return
+  camera = new THREE.PerspectiveCamera(45, 1, 0.05, 200)
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
+  renderer.setClearColor(0x000000, 0)
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.16
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  renderer.domElement.className = 'three-canvas'
+  host.appendChild(renderer.domElement)
 
-    sceneResizeFrame = requestAnimationFrame(() => {
-      sceneResizeSettleFrame = requestAnimationFrame(() => {
-        resizeThreeSceneNow()
-      })
-    })
-  }, delay)
+  labelRenderer = new CSS2DRenderer()
+  labelRenderer.domElement.className = 'karst-label-layer'
+  labelRenderer.domElement.style.pointerEvents = 'none'
+  host.appendChild(labelRenderer.domElement)
+
+  orbitControls = new OrbitControls(camera, renderer.domElement)
+  orbitControls.enableDamping = true
+  orbitControls.dampingFactor = 0.07
+  orbitControls.enablePan = false
+  orbitControls.minPolarAngle = 0.2
+  orbitControls.maxPolarAngle = Math.PI / 2 - 0.1
+
+  scene.add(new THREE.HemisphereLight(0xd8faff, 0x14211f, 1.25))
+  const keyLight = new THREE.DirectionalLight(0xfff2d1, 1.9)
+  keyLight.position.set(8, 14, 10)
+  keyLight.castShadow = true
+  keyLight.shadow.mapSize.set(1024, 1024)
+  scene.add(keyLight)
+  const fillLight = new THREE.DirectionalLight(0x9fd9d7, 0.62)
+  fillLight.position.set(-7, 7, 4)
+  scene.add(fillLight)
+  const rimLight = new THREE.DirectionalLight(0x4bcfc7, 0.5)
+  rimLight.position.set(-5, 4, -8)
+  scene.add(rimLight)
+  const caveWarmLight = new THREE.PointLight(0xffd39a, 0.92, 22, 2)
+  caveWarmLight.position.set(-4.5, -1.4, 6)
+  scene.add(caveWarmLight)
+  const caveWaterLight = new THREE.PointLight(0x43e4df, 0.72, 18, 2)
+  caveWaterLight.position.set(4.2, -2.4, 5)
+  scene.add(caveWaterLight)
+
+  terrainGroup = new THREE.Group()
+  scene.add(terrainGroup)
+  resizeScene(true)
+  resizeObserver = new ResizeObserver(() => resizeScene())
+  resizeObserver.observe(host)
+  clock.start()
+  loadKarstModel()
+  animateScene()
+}
+
+function resetView() {
+  selectKarstFeature(null)
+  if (terrainGroup) terrainGroup.rotation.set(0, 0, 0)
+  resizeScene(true)
+  frameCameraToModel()
 }
 
 function disposeScene() {
-  cancelAnimationFrame(sceneAnimationFrameId)
-  if (sceneResizeTimer) {
-    clearTimeout(sceneResizeTimer)
-    sceneResizeTimer = null
-  }
-  cancelAnimationFrame(sceneResizeFrame)
-  cancelAnimationFrame(sceneResizeSettleFrame)
-
-  threeResizeObserver?.disconnect()
-  threeResizeObserver = null
-
+  disposed = true
+  cancelAnimationFrame(animationFrameId)
+  resizeObserver?.disconnect()
+  resizeObserver = null
   orbitControls?.dispose()
   orbitControls = null
-
+  modelFeatureLabels.forEach((label) => label.removeFromParent())
+  modelFeatureLabels.length = 0
   sceneMaterials.forEach((material) => material.dispose())
   sceneGeometries.forEach((geometry) => geometry.dispose())
   sceneTextures.forEach((texture) => texture.dispose())
-
-  sceneMaterials.length = 0
-  sceneGeometries.length = 0
-  sceneTextures.length = 0
-  peakRecords.length = 0
-
-  if (renderer?.domElement.parentElement) {
-    renderer.domElement.parentElement.removeChild(renderer.domElement)
-  }
+  sceneMaterials.clear()
+  sceneGeometries.clear()
+  sceneTextures.clear()
+  labelRenderer?.domElement.remove()
+  renderer?.domElement.remove()
   renderer?.dispose()
-
-  scene = null
-  camera = null
+  labelRenderer = null
   renderer = null
-  mainLight = null
+  camera = null
   terrainGroup = null
-  terrainMesh = null
-  strataGroup = null
-  undergroundRiverMesh = null
-  stalactiteGroup = null
-  sinkholeGroup = null
-  peakGroup = null
-  stoneToothGroup = null
-  basinGroup = null
-  waterGroup = null
-  caveGroup = null
-  permeationGroup = null
-  permeationDroplets.length = 0
-  labelGroup = null
-  leaderLineMesh = null
+  scene = null
 }
-
-function resetControls() {
-  setAllCollapsed(false)
-  resetWidths()
-
-  currentStage.value = 'early-mature'
-  evolutionProgress.value = 45
-  rotationSpeed.value = 0.10
-  playbackSpeed.value = 1
-  isPlaying.value = false
-  activeBottomTab.value = 'surface'
-
-  if (camera && orbitControls) {
-    ensureSceneHostSize()
-    resizeThreeSceneNow(true)
-    frameCameraToModel()
-    resizeThreeSceneNow(true)
-  }
-
-  scheduleSceneResize(90)
-}
-
-function onStageNodeClick(idx: number) {
-  const total = timelineStages.length - 1
-  evolutionProgress.value = (idx / total) * 100
-  const stage = timelineStages[idx]
-  if (stage) currentStage.value = stage.id
-}
-
-function toggleFullscreen() {
-  isFullscreen.value = !isFullscreen.value
-  if (isFullscreen.value) {
-    pageRef.value?.requestFullscreen?.().catch(() => {})
-  } else {
-    document.exitFullscreen?.().catch(() => {})
-  }
-}
-
-/* ============================================================
-   生命周期挂载
-   ============================================================ */
 
 onMounted(async () => {
   await nextTick()
   initScene()
 })
 
-onBeforeUnmount(() => {
-  disposeScene()
-})
+onBeforeUnmount(disposeScene)
 </script>
 
 <style scoped>
-.karst-landform-container .page-subtitle {
-  margin-left: 12px;
-  font-size: 0.62em;
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-/* ============================================================
-   左上角overlay：仅卡片上移（让位给底部tabs）
-   ============================================================ */
-.stage-overlay {
-  position: absolute;
-  top: 22px;
-  left: 22px;
-  z-index: 5;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  align-items: flex-start;
-}
-
-.overlay-card {
-  pointer-events: auto;
-  width: min(260px, 78%);
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--panel-background);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(12px);
-}
-
-.overlay-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-
-.overlay-tag {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--theme-on-primary);
-  background: linear-gradient(
-    135deg,
-    var(--theme-primary),
-    var(--theme-secondary)
-  );
-}
-
-.overlay-title strong {
-  font-size: 16px;
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.overlay-card p {
-  margin: 4px 0 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.overlay-keypoints {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.overlay-keypoints span {
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  color: var(--theme-primary-light);
-  background: rgba(46, 196, 182, 0.12);
-  border: 1px solid rgba(46, 196, 182, 0.35);
-}
-
-/* 圆形实景配图气泡 */
-.photo-bubble {
+.karst-page {
   position: relative;
-  pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px 10px;
-  border-radius: 14px;
-  background: var(--panel-background);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(12px);
-}
-
-.photo-bubble-ring {
-  width: 88px;
-  height: 88px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 3px solid var(--theme-primary);
-  box-shadow: 0 0 0 4px rgba(46, 196, 182, 0.18),
-    0 4px 14px rgba(0, 0, 0, 0.35);
-}
-
-.photo-bubble-ring img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+  height: 100vh;
+  min-height: 560px;
+  overflow: hidden;
+  color: #e8fbf8;
+  background: #111b23 url('/geo-resources-folder/images/karst-scene-background.png') center center / cover no-repeat;
 }
 
-.photo-bubble-caption {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.photo-bubble-caption strong {
-  font-size: 12px;
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.photo-bubble-caption span {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-.photo-bubble-tail {
+.scene-backdrop {
   position: absolute;
-  bottom: -8px;
-  left: 24px;
-  width: 14px;
-  height: 14px;
-  background: var(--panel-background);
-  border-right: 1px solid var(--panel-border);
-  border-bottom: 1px solid var(--panel-border);
-  transform: rotate(45deg);
-}
-
-/* ============================================================
-   时间轴（5 阶段）
-   ============================================================ */
-.timeline-dock {
-  position: absolute;
-  bottom: 88px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 6;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 18px;
-  border-radius: 16px;
-  background: var(--panel-background);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(12px);
-  width: min(680px, 80%);
-}
-
-.timeline-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--inactive-border);
-  background: rgba(46, 196, 182, 0.08);
-  color: var(--theme-primary-light);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.timeline-icon-btn:hover,
-.timeline-icon-btn.active {
-  background: linear-gradient(
-    135deg,
-    var(--theme-primary),
-    var(--theme-secondary)
-  );
-  color: var(--theme-on-primary);
-  border-color: transparent;
-}
-
-.timeline-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.timeline-copy {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.timeline-copy strong {
-  color: var(--theme-primary-light);
-  font-weight: 700;
-}
-
-.timeline-stages {
-  position: relative;
-  height: 28px;
-  margin-top: 4px;
-}
-
-.timeline-stages::before {
-  content: '';
-  position: absolute;
-  top: 12px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: rgba(46, 196, 182, 0.18);
-  border-radius: 1px;
-}
-
-.timeline-progress-fill {
-  position: absolute;
-  top: 12px;
-  left: 0;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    var(--theme-primary),
-    var(--theme-secondary)
-  );
-  border-radius: 1px;
-  transition: width 0.15s ease;
+  inset: 0;
   pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 52%, transparent 24%, rgba(4, 13, 18, 0.12) 64%, rgba(2, 8, 12, 0.42) 100%),
+    linear-gradient(180deg, rgba(2, 16, 24, 0.18), rgba(6, 20, 27, 0.08) 42%, rgba(1, 8, 12, 0.24));
 }
 
-.timeline-stage-node {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
+.topbar {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 4px;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 11px;
-  transition: color 0.2s ease;
+  height: 70px;
+  padding: 0 28px;
+  border-bottom: 1px solid rgba(77, 201, 199, 0.18);
+  background: linear-gradient(180deg, rgba(3, 24, 36, 0.92), rgba(4, 31, 43, 0.72));
+  box-shadow: 0 12px 36px rgba(0, 8, 13, 0.18);
+  backdrop-filter: blur(18px);
 }
 
-.timeline-stage-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--panel-background);
-  border: 2px solid var(--inactive-border);
-  transition: all 0.2s ease;
+.brand-logo {
+  width: 140px;
+  max-height: 44px;
+  object-fit: contain;
+  object-position: left center;
 }
 
-.timeline-stage-node.active .timeline-stage-dot,
-.timeline-stage-node.passed .timeline-stage-dot {
-  border-color: var(--theme-primary);
-  background: var(--theme-primary);
-  box-shadow: 0 0 0 4px rgba(46, 196, 182, 0.2);
-}
-
-.timeline-stage-node.active {
-  color: var(--theme-primary-light);
-  font-weight: 700;
-}
-
-.timeline-stage-label {
+.title-lockup {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
   white-space: nowrap;
 }
 
-.speed-options {
-  display: flex;
-  gap: 4px;
-}
-
-.speed-btn {
-  height: 26px;
-  padding: 0 8px;
-  font-size: 11px;
-  border-radius: 6px;
-}
-
-.speed-btn.active {
-  background: linear-gradient(
-    135deg,
-    var(--theme-primary),
-    var(--theme-secondary)
-  );
-  color: var(--theme-on-primary);
-  border-color: transparent;
-}
-
-/* ============================================================
-   底部 tab 切换
-   ============================================================ */
-.bottom-tabs-dock {
-  position: absolute;
-  bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 14px;
-  background: var(--panel-background);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(12px);
-}
-
-.bottom-tab-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  height: 32px;
-  border-radius: 8px;
-  background: transparent;
-  border: 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.bottom-tab-btn:hover {
-  color: var(--text-primary);
-  background: rgba(46, 196, 182, 0.08);
-}
-
-.bottom-tab-btn.active {
-  color: var(--theme-on-primary);
-  background: linear-gradient(
-    135deg,
-    var(--theme-primary),
-    var(--theme-secondary)
-  );
-}
-
-.bottom-tab-btn .el-icon {
-  font-size: 14px;
-}
-
-/* ============================================================
-   右下角 复位 / 全屏
-   ============================================================ */
-.bottom-right-actions {
-  position: absolute;
-  bottom: 22px;
-  right: 22px;
-  z-index: 5;
-  display: flex;
-  gap: 6px;
-  padding: 4px 6px;
-  border-radius: 12px;
-  background: var(--panel-background);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(12px);
-}
-
-.icon-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  font-size: 14px;
-  background: transparent;
-  border: 0;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.icon-action-btn:hover {
-  color: var(--theme-primary-light);
-  background: rgba(46, 196, 182, 0.12);
-}
-
-/* ============================================================
-   右侧面板样式
-   ============================================================ */
-.feature-list {
-  list-style: none;
+.title-lockup h1 {
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  color: #43d6ce;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 22px rgba(49, 208, 202, 0.25);
 }
 
-.feature-list li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(46, 196, 182, 0.08);
-  border: 1px solid rgba(46, 196, 182, 0.22);
-}
-
-.feature-list li strong {
-  font-size: 13px;
-  color: var(--theme-primary-light);
-}
-
-.feature-list li span {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.example-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-}
-
-.example-header h3 {
-  font-size: 14px;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.example-header p {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin: 2px 0 0;
-}
-
-.example-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.example-figure {
-  margin: 0;
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(15, 35, 54, 0.6);
-  border: 1px solid var(--inactive-border);
-}
-
-.example-figure img {
-  display: block;
-  width: 100%;
-  height: 130px;
-  object-fit: cover;
-}
-
-.example-figure figcaption {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-}
-
-.example-figure figcaption strong {
-  font-size: 12px;
-  color: var(--text-primary);
-}
-
-.example-figure figcaption span {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-@media (max-width: 720px) {
-  .overlay-card {
-    width: min(86%, 260px);
-  }
-  .timeline-dock {
-    width: min(94%, 680px);
-    padding: 10px 14px;
-  }
-}
-
-/* ============================================================
-   V2 视觉还原：以教材剖面图为核心的 3D 地块构图
-   ============================================================ */
-.karst-landform-container {
-  background:
-    radial-gradient(circle at 48% 42%, rgba(21, 69, 88, 0.18), transparent 36%),
-    #061b2e;
-}
-
-.karst-landform-container .top-toolbar {
-  background: linear-gradient(180deg, rgba(3, 29, 51, 0.98), rgba(3, 25, 44, 0.92));
-  border-bottom: 1px solid rgba(43, 184, 216, 0.16);
-}
-
-.karst-landform-container .page-title {
+.title-lockup span {
+  color: rgba(117, 196, 205, 0.82);
+  font-size: 15px;
   letter-spacing: 0.03em;
-  text-shadow: 0 0 18px rgba(31, 210, 221, 0.16);
 }
 
-.karst-landform-container .page-subtitle {
-  color: #32a9d1;
+.reset-button {
+  justify-self: end;
+  min-width: 112px;
+  padding: 10px 22px;
+  border: 1px solid rgba(101, 203, 205, 0.2);
+  border-radius: 12px;
+  color: rgba(224, 247, 246, 0.82);
+  background: linear-gradient(180deg, rgba(12, 52, 65, 0.78), rgba(5, 31, 44, 0.64));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
 }
 
-.karst-landform-container .stage-content {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 52% 52%, rgba(18, 79, 91, 0.08), transparent 42%),
-    transparent;
+.reset-button:hover {
+  border-color: rgba(102, 231, 219, 0.55);
+  color: #effffc;
+  background: rgba(15, 72, 82, 0.86);
 }
 
-.karst-landform-container .scene-host {
+.stage {
+  position: absolute;
+  inset: 70px 0 0;
+}
+
+.three-host,
+.three-host :deep(.three-canvas),
+.three-host :deep(.karst-label-layer) {
   position: absolute;
   inset: 0;
-}
-
-.karst-landform-container .three-canvas {
-  display: block;
   width: 100%;
   height: 100%;
 }
 
-.karst-landform-container .stage-overlay {
-  top: 16px;
-  left: 16px;
+.three-host :deep(.three-canvas) {
+  display: block;
+  outline: none;
 }
 
-.karst-landform-container .overlay-card {
-  width: 225px;
-  padding: 12px 14px;
-  border-radius: 13px;
-  background: rgba(4, 28, 48, 0.86);
-  border-color: rgba(39, 159, 192, 0.28);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+.three-host :deep(.karst-label-layer) {
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.karst-landform-container .overlay-title {
-  gap: 8px;
+.three-host :deep(.karst-model-label) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid rgba(76, 220, 204, 0.48);
+  border-radius: 999px;
+  color: #eafffb;
+  background: linear-gradient(135deg, rgba(4, 48, 55, 0.94), rgba(5, 24, 35, 0.92));
+  box-shadow: 0 7px 20px rgba(0, 6, 10, 0.36), 0 0 18px rgba(52, 217, 197, 0.12);
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: opacity 160ms ease, transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.karst-landform-container .overlay-tag {
-  height: 21px;
-  font-size: 10px;
-  padding: 0 8px;
+.three-host :deep(.karst-model-label::after) {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 100%;
+  width: 1px;
+  height: 13px;
+  background: linear-gradient(180deg, rgba(96, 232, 216, 0.72), transparent);
 }
 
-.karst-landform-container .overlay-title strong {
-  font-size: 16px;
+.three-host :deep(.karst-model-label:hover),
+.three-host :deep(.karst-model-label.active) {
+  transform: translateY(-2px);
+  border-color: #8ff7e9;
+  box-shadow: 0 9px 24px rgba(0, 5, 12, 0.42), 0 0 24px rgba(76, 239, 216, 0.3);
 }
 
-.karst-landform-container .overlay-card p {
-  font-size: 11px;
-  line-height: 1.55;
+.three-host :deep(.karst-model-label.underground) {
+  border-color: rgba(99, 182, 255, 0.56);
+  background: linear-gradient(135deg, rgba(8, 47, 75, 0.95), rgba(7, 27, 48, 0.92));
 }
 
-.karst-landform-container .overlay-keypoints span {
-  color: #55d7ea;
-  background: rgba(35, 193, 211, 0.08);
-  border-color: rgba(35, 193, 211, 0.3);
-}
-
-.karst-landform-container .timeline-dock {
-  bottom: 74px;
-  width: min(700px, 66%);
-  background: rgba(5, 28, 48, 0.9);
-  border-color: rgba(40, 168, 207, 0.26);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
-}
-
-.karst-landform-container .bottom-tabs-dock {
-  bottom: 16px;
-  background: rgba(5, 28, 48, 0.92);
-  border-color: rgba(40, 168, 207, 0.26);
-}
-
-.karst-landform-container .bottom-tab-btn {
-  min-width: 104px;
-  justify-content: center;
-}
-
-.karst-landform-container .bottom-right-actions {
-  bottom: 16px;
-  right: 18px;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.karst-landform-container .icon-action-btn {
-  width: 38px;
-  height: 38px;
+.three-host :deep(.karst-label-indicator) {
+  width: 7px;
+  height: 7px;
+  border: 2px solid rgba(225, 255, 250, 0.92);
   border-radius: 50%;
-  background: rgba(5, 39, 64, 0.9);
-  border: 1px solid rgba(45, 178, 215, 0.24);
+  background: #35d9c0;
+  box-shadow: 0 0 10px rgba(53, 217, 192, 0.82);
 }
 
-.karst-landform-container .right-panel {
-  background: linear-gradient(180deg, rgba(4, 29, 49, 0.96), rgba(3, 23, 41, 0.96));
-  border-color: rgba(39, 151, 189, 0.24);
-  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.16);
+.three-host :deep(.karst-model-label.underground .karst-label-indicator) {
+  background: #52abff;
+  box-shadow: 0 0 10px rgba(82, 171, 255, 0.88);
 }
 
-.karst-landform-container .data-card {
-  background: rgba(4, 34, 56, 0.72);
-  border-color: rgba(47, 145, 177, 0.22);
+.three-host :deep(.karst-label-category) {
+  padding-right: 7px;
+  border-right: 1px solid rgba(188, 242, 235, 0.2);
+  color: rgba(167, 231, 223, 0.76);
+  font-size: 9px;
+  letter-spacing: 0.08em;
 }
 
-.karst-landform-container .feature-list li {
-  background: rgba(11, 66, 88, 0.34);
-  border-color: rgba(36, 174, 204, 0.2);
+.three-host :deep(.karst-model-label.underground .karst-label-category) {
+  color: rgba(167, 211, 248, 0.82);
 }
 
-.karst-landform-container .example-figure img {
-  height: 112px;
+.three-host :deep(.karst-model-label strong) {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
 }
 
-@media (max-width: 1200px) {
-  .karst-landform-container .timeline-dock {
-    width: min(680px, 72%);
+.feature-detail-card {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  z-index: 15;
+  width: min(390px, calc(100vw - 48px));
+  max-height: calc(100vh - 116px);
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid rgba(104, 222, 211, 0.38);
+  border-radius: 17px;
+  color: #eaf8f6;
+  background:
+    radial-gradient(circle at 100% 0, rgba(67, 197, 184, 0.11), transparent 38%),
+    linear-gradient(145deg, rgba(7, 42, 51, 0.97), rgba(4, 21, 31, 0.95));
+  box-shadow: 0 24px 64px rgba(0, 5, 10, 0.48), inset 0 1px rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(20px);
+}
+
+.feature-detail-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(103, 238, 218, 0.8), transparent);
+}
+
+.feature-detail-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 29px;
+  height: 29px;
+  border: 1px solid rgba(151, 215, 215, 0.2);
+  border-radius: 50%;
+  color: rgba(210, 239, 238, 0.76);
+  background: rgba(7, 29, 40, 0.7);
+  font-size: 19px;
+  cursor: pointer;
+}
+
+.feature-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 34px;
+}
+
+.feature-detail-category {
+  flex: none;
+  padding: 5px 8px;
+  border: 1px solid rgba(68, 222, 198, 0.4);
+  border-radius: 7px;
+  color: #80ebdc;
+  background: rgba(44, 190, 169, 0.1);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.feature-detail-category.underground {
+  border-color: rgba(92, 177, 255, 0.4);
+  color: #91cbff;
+  background: rgba(63, 151, 236, 0.11);
+}
+
+.feature-detail-header h2 {
+  margin: 0;
+  color: #f1fffc;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.feature-detail-header small {
+  display: block;
+  margin-top: 5px;
+  color: rgba(159, 201, 203, 0.65);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.feature-detail-summary {
+  margin: 15px 0 12px;
+  color: rgba(224, 245, 242, 0.9);
+  font-size: 13px;
+  line-height: 1.72;
+}
+
+.feature-detail-grid {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+
+.feature-detail-grid>div {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(128, 199, 198, 0.11);
+}
+
+.feature-detail-grid dt {
+  color: #6fe0d1;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.feature-detail-grid dd {
+  margin: 0;
+  color: rgba(198, 226, 224, 0.82);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.feature-detail-formula {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border: 1px solid rgba(92, 177, 255, 0.18);
+  border-radius: 9px;
+  color: #a9d7ff;
+  background: rgba(9, 45, 73, 0.42);
+  font-family: Consolas, "Microsoft YaHei", monospace;
+  font-size: 11px;
+  text-align: center;
+}
+
+.model-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: rgba(228, 249, 255, 0.94);
+  pointer-events: none;
+}
+
+.model-loading small {
+  color: rgba(161, 218, 226, 0.8);
+}
+
+.model-loading-ring {
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(88, 214, 221, 0.22);
+  border-top-color: #58d6dd;
+  border-radius: 50%;
+  animation: model-spin 0.85s linear infinite;
+}
+
+.model-loading.error .model-loading-ring {
+  border-color: rgba(255, 153, 117, 0.38);
+  border-top-color: #ff9975;
+  animation: none;
+}
+
+.feature-card-enter-active,
+.feature-card-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.feature-card-enter-from,
+.feature-card-leave-to {
+  opacity: 0;
+  transform: translateX(12px);
+}
+
+@keyframes model-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 780px) {
+  .topbar {
+    grid-template-columns: auto 1fr auto;
+    height: 62px;
+    padding: 0 12px;
   }
 
-  .karst-landform-container .bottom-tab-btn {
-    min-width: 86px;
-    padding-inline: 10px;
+  .brand-logo {
+    width: 96px;
+  }
+
+  .title-lockup {
+    justify-self: center;
+  }
+
+  .title-lockup h1 {
+    font-size: 20px;
+  }
+
+  .title-lockup span {
+    display: none;
+  }
+
+  .reset-button {
+    min-width: auto;
+    padding: 8px 12px;
+  }
+
+  .stage {
+    inset: 62px 0 0;
+  }
+
+  .feature-detail-card {
+    top: 12px;
+    right: 12px;
+    width: min(360px, calc(100vw - 24px));
+    max-height: calc(100vh - 88px);
+    padding: 17px;
+  }
+
+  .three-host :deep(.karst-label-category) {
+    display: none;
   }
 }
-
-
-
-/* ============================================================
-   V3：Three.js 舞台高度/定位修复
-   ============================================================ */
-.karst-landform-container,
-.karst-landform-container .workspace,
-.karst-landform-container .center-stage {
-  min-height: 0;
-}
-
-.karst-landform-container .center-stage {
-  position: relative;
-  overflow: hidden;
-}
-
-.karst-landform-container .stage-content {
-  position: absolute;
-  inset: 0;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.karst-landform-container .scene-host.three-host {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-width: 1px;
-  min-height: 1px;
-  display: block;
-  overflow: hidden;
-  background: #0c2034;
-  z-index: 1;
-}
-
-.karst-landform-container .scene-canvas.three-canvas {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
-  z-index: 1;
-}
-
-.karst-landform-container .stage-overlay,
-.karst-landform-container .timeline-dock,
-.karst-landform-container .bottom-tabs-dock,
-.karst-landform-container .bottom-right-actions {
-  z-index: 8;
-}
-
-/* V4：强制为 Three.js 舞台提供稳定高度，避免绝对定位子元素导致父级高度塌陷。 */
-.karst-landform-container .center-stage {
-  position: relative;
-  min-height: 520px;
-  height: 100%;
-  overflow: hidden;
-}
-
-.karst-landform-container .stage-content {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 520px;
-}
-
-.karst-landform-container .scene-host.three-host {
-  width: 100%;
-  height: 100%;
-  min-height: 520px;
-}
-
-.karst-landform-container .scene-host.three-host canvas {
-  display: block !important;
-  position: absolute !important;
-  left: 0 !important;
-  top: 0 !important;
-}
-
 </style>

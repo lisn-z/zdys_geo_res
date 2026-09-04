@@ -18,24 +18,18 @@
           前视图
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开控制面板' : '收起控制面板' }}
+        <button type="button" class="theme-btn toolbar-btn" @click="togglePanelsVisibility">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>地形控制</h2>
-              <p>调整等高线、投影、标签和随机地形</p>
-            </div>
-
-            <span class="panel-badge">CONTROL</span>
-          </div>
-
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode"
+        class="terrain-control-floating-card" title="地形控制" subtitle="调整等高线、投影、标签和随机地形"
+        variant="data" :initial-top="84" :initial-right="18" :bottom-inset="14"
+        v-model:collapsed="controlCardCollapsed" :resizable="true" :min-width="320" :min-height="420">
+        <div class="terrain-control-card-content">
           <section class="geo-card control-section">
             <div class="section-title-row">
               <h3 class="section-title">等高距</h3>
@@ -75,55 +69,6 @@
             </div>
           </section>
 
-
-          <section class="geo-card control-section panel-terrain-legend-card">
-            <h3 class="section-title">地形判读图例</h3>
-
-            <div class="panel-legend-grid">
-              <div class="panel-legend-item panel-legend-color-scale-item">
-                <div>
-                  <div class="legend-bar"></div>
-                  <div class="legend-labels">
-                    <span>低</span>
-                    <span>高</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="panel-legend-item">
-                <span class="badge" style="background:#ff6b6b"></span>
-                山顶
-              </div>
-              <div class="panel-legend-item">
-                <span class="badge" style="background:#f9ca24"></span>
-                鞍部
-              </div>
-              <div class="panel-legend-item">
-                <span class="badge" style="background:#2bcbba"></span>
-                山脊
-              </div>
-              <div class="panel-legend-item">
-                <span class="badge" style="background:#45aaf2"></span>
-                山谷
-              </div>
-              <div class="panel-legend-item">
-                <span class="badge" style="background:#fd7944"></span>
-                陡崖
-              </div>
-              <div class="panel-legend-item">
-                <span class="badge" style="background:#fd9644"></span>
-                陡坡
-              </div>
-              <div class="panel-legend-item">
-                <span class="badge" style="background:#778ca3"></span>
-                缓坡
-              </div>
-              <div class="panel-legend-item">
-                <span class="badge" style="background:#a78bfa"></span>
-                盆地
-              </div>
-            </div>
-          </section>
 
           <section class="geo-card control-section">
             <h3 class="section-title">投影设置</h3>
@@ -190,13 +135,7 @@
             </button>
           </section>
         </div>
-
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content">
@@ -247,8 +186,8 @@
         </div>
       </section>
 
-      <FloatingFeatureCard v-show="!learningMode" class="terrain-stack-floating-card terrain-status-floating-card"
-        title="地形状态" subtitle="当前参数与工具状态" variant="data" :initial-top="148" :initial-right="84" :bottom-inset="12"
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-stack-floating-card terrain-status-floating-card"
+        title="地形状态" subtitle="当前参数与工具状态" variant="data" :initial-top="152" :initial-right="18" :bottom-inset="12"
         v-model:collapsed="statusCardCollapsed" :resizable="true" :min-width="330" :min-height="190">
         <div class="terrain-status-grid">
           <div class="terrain-status-metric cyan-card">
@@ -270,8 +209,8 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="!learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
-        title="基本地形部位" subtitle="根据等高线弯曲方向判读" variant="data" :initial-top="368" :initial-right="84" :bottom-inset="12"
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
+        title="基本地形部位" subtitle="根据等高线弯曲方向判读" variant="data" :initial-top="220" :initial-right="18" :bottom-inset="12"
         :collapsed="knowledgeCardCollapsed.terrain" :resizable="true" :min-width="280" :min-height="100"
         @update:collapsed="onKnowledgeCardCollapsedChange('terrain', $event)">
         <div class="terrain-floating-copy terrain-knowledge">
@@ -282,8 +221,8 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="!learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
-        title="坡度与设色" subtitle="利用疏密与颜色判断地势" variant="data" :initial-top="436" :initial-right="84" :bottom-inset="12"
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
+        title="坡度与设色" subtitle="利用疏密与颜色判断地势" variant="data" :initial-top="288" :initial-right="18" :bottom-inset="12"
         :collapsed="knowledgeCardCollapsed.slope" :resizable="true" :min-width="280" :min-height="100"
         @update:collapsed="onKnowledgeCardCollapsedChange('slope', $event)">
         <div class="terrain-floating-copy terrain-knowledge">
@@ -294,8 +233,8 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="!learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
-        title="剖面图使用" subtitle="观察沿线海拔变化" variant="data" :initial-top="504" :initial-right="84" :bottom-inset="12"
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
+        title="剖面图使用" subtitle="观察沿线海拔变化" variant="data" :initial-top="356" :initial-right="18" :bottom-inset="12"
         :collapsed="knowledgeCardCollapsed.profile" :resizable="true" :min-width="280" :min-height="100"
         @update:collapsed="onKnowledgeCardCollapsedChange('profile', $event)">
         <div class="terrain-floating-copy terrain-knowledge">
@@ -304,10 +243,30 @@
         </div>
       </FloatingFeatureCard>
 
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode"
+        class="terrain-legend-floating-card" title="地形判读图例" subtitle="颜色对应基本地形部位"
+        variant="data" :initial-top="424" :initial-right="18" :bottom-inset="14"
+        v-model:collapsed="legendCardCollapsed" :resizable="true" :min-width="280" :min-height="220">
+        <div class="panel-legend-grid terrain-floating-legend-grid">
+          <div class="panel-legend-item panel-legend-color-scale-item">
+            <div>
+              <div class="legend-bar"></div>
+              <div class="legend-labels">
+                <span>低</span>
+                <span>高</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel-legend-item"><span class="badge" style="background:#ff6b6b"></span>山顶</div>
+          <div class="panel-legend-item"><span class="badge" style="background:#f9ca24"></span>鞍部</div>
+          <div class="panel-legend-item"><span class="badge" style="background:#2bcbba"></span>山脊</div>
+          <div class="panel-legend-item"><span class="badge" style="background:#45aaf2"></span>山谷</div>
+          <div class="panel-legend-item"><span class="badge" style="background:#fd7944"></span>陡崖</div>
+          <div class="panel-legend-item"><span class="badge" style="background:#fd9644"></span>陡坡</div>
+          <div class="panel-legend-item"><span class="badge" style="background:#778ca3"></span>缓坡</div>
+          <div class="panel-legend-item"><span class="badge" style="background:#a78bfa"></span>盆地</div>
+        </div>
+      </FloatingFeatureCard>
 
     </main>
 
@@ -399,7 +358,10 @@ const profileClicks = ref(0)
 const profileData = ref<{ dist: number; elev: number }[]>([])
 const terrainGenType = ref('all')
 const generatingTerrain = ref(false)
-const statusCardCollapsed = ref(false)
+const panelsVisible = ref(true)
+const controlCardCollapsed = ref(true)
+const legendCardCollapsed = ref(true)
+const statusCardCollapsed = ref(true)
 type KnowledgeCardKey = 'terrain' | 'slope' | 'profile'
 const knowledgeCardCollapsed = ref<Record<KnowledgeCardKey, boolean>>({
   terrain: true,
@@ -415,6 +377,10 @@ function onKnowledgeCardCollapsedChange(
     ...knowledgeCardCollapsed.value,
     [card]: collapsed,
   }
+}
+
+function togglePanelsVisibility() {
+  panelsVisible.value = !panelsVisible.value
 }
 
 // ============================================================
@@ -446,7 +412,7 @@ let currentFeaturePositions: Record<string, TerrainFeaturePosition> =
   )
 let savedFeaturePositions: Record<string, TerrainFeaturePosition> = {}
 
-const hasLeftPanel = true
+const hasLeftPanel = false
 const hasRightPanel = false
 
 let sceneResizeObserver:
@@ -465,34 +431,15 @@ let lastSceneHeight = 0
 let lastSceneDpr = 0
 
 /*
- * 左右悬浮面板统一由公共 Hook 管理：
- * - large / medium / small 默认宽度；
- * - 平板最小宽度与拖拽上限；
- * - 展开、折叠和全部收起；
- * - Pointer Capture 与触控拖拽；
- * - 浏览器连续缩放状态。
+ * 公共 Hook 继续负责页面断点与浏览器连续缩放状态；
+ * 具体控制区已经改为 FloatingFeatureCard，不再启用 aside 面板。
  */
 const {
   rootRef: pageRef,
   layoutMode,
-
-  leftCollapsed,
-  allPanelsCollapsed,
-
   draggingSide,
   viewportResizing,
-
   workspaceAttrs,
-  leftPanelAttrs,
-
-  leftResizeAttrs,
-
-  leftCollapseAttrs,
-
-  leftEntryAttrs,
-
-  toggleAll:
-  toggleAllPanels,
 } = useGeoPanelLayout({
   left: {
     enabled: hasLeftPanel,
@@ -2111,8 +2058,7 @@ function startLearning() {
   savedFeaturePositions = Object.fromEntries(
     Object.entries(currentFeaturePositions).map(([type, position]) => [type, { ...position }])
   )
-  // 自动收起左侧控制面板；知识卡片由 v-show 暂时隐藏。
-  leftCollapsed.value = true
+  // 所有浮动卡片由 v-show 暂时隐藏。
   // 立即隐藏现有地形标签（避免泄露答案）
   while (featureLabelGroup.children.length) {
     const c = featureLabelGroup.children[0]
@@ -2127,8 +2073,7 @@ function endLearning() {
   learningMode.value = false
   quizResult.value = null
   lastAnswer.value = null
-  // 恢复原状态，展开控制面板并切回前视图
-  leftCollapsed.value = false
+  // 恢复原状态并切回前视图
   terrainGenType.value = savedTerrainGenType
   heightsData = savedHeightsData
   maxHeightValue = savedHeightValue
@@ -3284,6 +3229,48 @@ onUnmounted(() => {
     var(--theme-on-primary) !important;
 }
 
+.terrain-control-floating-card {
+  width:
+    min(360px,
+      calc(100vw - 20px));
+  height:
+    min(560px,
+      calc(100vh - 180px));
+  max-height:
+    calc(100vh - 180px);
+}
+
+.terrain-control-floating-card.collapsed {
+  width:
+    min(360px,
+      calc(100vw - 20px));
+  height: 50px;
+}
+
+.terrain-control-card-content {
+  display: grid;
+  gap: 12px;
+  padding: 12px 13px 18px;
+}
+
+.terrain-legend-floating-card {
+  width:
+    min(310px,
+      calc(100vw - 20px));
+  height: 266px;
+}
+
+.terrain-legend-floating-card.collapsed {
+  width:
+    min(310px,
+      calc(100vw - 20px));
+  height: 50px;
+}
+
+.terrain-floating-legend-grid {
+  padding: 14px 16px 18px;
+}
+
 .terrain-stack-floating-card {
   width:
     min(310px,
@@ -3293,35 +3280,29 @@ onUnmounted(() => {
 }
 
 .terrain-stack-floating-card.variant-data.collapsed {
-  width: 230px;
+  width:
+    min(310px,
+      calc(100vw - 20px));
 }
 
 .terrain-status-floating-card {
   width:
     min(350px,
       calc(100vw - 20px));
-  transition:
-    transform 0.18s ease;
 }
 
 .terrain-status-floating-card:not(.collapsed) {
   height: 202px;
-  transform:
-    translateX(-146px);
+}
+
+.terrain-status-floating-card.variant-data.collapsed {
+  width:
+    min(350px,
+      calc(100vw - 20px));
 }
 
 .terrain-default-collapsed-card.collapsed {
   height: 50px;
-}
-
-.terrain-default-collapsed-card {
-  transition:
-    transform 0.18s ease;
-}
-
-.terrain-default-collapsed-card:not(.collapsed) {
-  transform:
-    translateX(-246px);
 }
 
 .terrain-stack-floating-card :deep(.feature-card-content) {
@@ -3419,10 +3400,18 @@ onUnmounted(() => {
   }
 
   .terrain-stack-floating-card.variant-data.collapsed {
-    width: 230px;
+    width:
+      min(300px,
+        calc(100vw - 20px));
   }
 
   .terrain-status-floating-card {
+    width:
+      min(330px,
+        calc(100vw - 20px));
+  }
+
+  .terrain-status-floating-card.variant-data.collapsed {
     width:
       min(330px,
         calc(100vw - 20px));

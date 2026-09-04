@@ -24,99 +24,12 @@
         </button>
 
         <button type="button" class="theme-btn toolbar-btn header-action-btn panel-toolbar-btn"
-          @click="toggleAllPanels">{{
-            allPanelsCollapsed ? '展开面板' : '收起面板' }}</button>
+          :aria-pressed="floatingPanelsVisible" @click="toggleFloatingPanelsVisibility">{{
+            floatingPanelsVisible ? '隐藏面板' : '显示面板' }}</button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>图层探索</h2>
-              <p>分层查看大气环流</p>
-            </div>
-            <span class="panel-badge">LAYERS</span>
-          </div>
-
-          <!-- 三圈环流 -->
-          <section v-if="visibleCellLayerDefs.length" class="geo-card control-section">
-            <h3 class="section-title">🌀 三圈环流</h3>
-            <div class="switch-row" v-for="l in visibleCellLayerDefs" :key="l.key"
-              :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
-              <div class="control-copy">
-                <strong>{{ l.label }}</strong>
-                <span>{{ l.desc }}</span>
-              </div>
-              <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
-            </div>
-          </section>
-
-          <!-- 风向 -->
-          <section v-if="visibleWindLayerDefs.length" class="geo-card control-section">
-            <h3 class="section-title">💨 风向</h3>
-            <div class="switch-row" v-for="l in visibleWindLayerDefs" :key="l.key"
-              :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
-              <div class="control-copy">
-                <strong>{{ l.label }}</strong>
-                <span>{{ l.desc }}</span>
-              </div>
-              <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
-            </div>
-          </section>
-
-          <!-- 气压带 -->
-          <section v-if="visiblePressureLayerDefs.length" class="geo-card control-section">
-            <h3 class="section-title">📊 气压带</h3>
-            <div class="switch-row" v-for="l in visiblePressureLayerDefs" :key="l.key"
-              :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
-              <div class="control-copy">
-                <strong>{{ l.label }}</strong>
-                <span>{{ l.desc }}</span>
-              </div>
-              <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
-            </div>
-          </section>
-
-          <!-- 其他 -->
-          <section v-if="visibleOtherLayerDefs.length" class="geo-card control-section">
-            <h3 class="section-title">🎨 其他</h3>
-            <div class="switch-row" v-for="l in visibleOtherLayerDefs" :key="l.key"
-              :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
-              <div class="control-copy">
-                <strong>{{ l.label }}</strong>
-                <span>{{ l.desc }}</span>
-              </div>
-              <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
-            </div>
-          </section>
-
-          <!-- 图例 -->
-          <section class="geo-card control-section">
-            <h3 class="section-title">📖 当前图例</h3>
-            <div class="legend-groups">
-              <div v-for="group in visibleLegendGroups" :key="group.title" class="legend-group">
-                <div class="legend-group-title">{{ group.title }}</div>
-                <div class="legend-list">
-                  <div v-for="item in group.items" :key="item.label" class="legend-item">
-                    <span class="legend-symbol" :class="`legend-${item.symbol}`"
-                      :style="{ background: item.background, boxShadow: item.glow ? `0 0 9px ${item.glow}` : undefined }"></span>
-                    <span>{{ item.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
-
       <!-- ===== 中心舞台 ===== -->
       <section class="center-stage">
         <div class="stage-content">
@@ -178,8 +91,70 @@
       </section>
     </main>
 
-    <FloatingFeatureCard v-model:collapsed="teachingCardCollapsed" title="教学流程"
-      :subtitle="currentStageData?.title ?? ''" variant="data" :initial-top="76" :initial-right="16" :bottom-inset="82"
+    <section v-if="visibleLegendGroups.length" class="corner-legend" aria-label="当前图例">
+      <div class="corner-legend-heading">
+        <strong>当前图例</strong>
+        <span>{{ currentStageData?.shortName ?? '' }}</span>
+      </div>
+      <div class="legend-groups">
+        <div v-for="group in visibleLegendGroups" :key="group.title" class="legend-group">
+          <div class="legend-group-title">{{ group.title }}</div>
+          <div class="legend-list">
+            <div v-for="item in group.items" :key="item.label" class="legend-item">
+              <span class="legend-symbol" :class="`legend-${item.symbol}`"
+                :style="{ background: item.background, boxShadow: item.glow ? `0 0 9px ${item.glow}` : undefined }"></span>
+              <span>{{ item.label }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <FloatingFeatureCard v-show="floatingPanelsVisible" v-model:collapsed="layerCardCollapsed"
+      class="layer-feature-card" title="控制面板" subtitle="分层查看大气环流" variant="data"
+      :initial-top="196" :initial-right="16" :bottom-inset="82"
+      :min-width="320" :min-height="420">
+      <div class="floating-layer-content">
+        <section v-if="visibleCellLayerDefs.length" class="geo-card control-section">
+          <h3 class="section-title">🌀 三圈环流</h3>
+          <div v-for="l in visibleCellLayerDefs" :key="l.key" class="switch-row"
+            :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
+            <div class="control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
+            <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
+          </div>
+        </section>
+
+        <section v-if="visibleWindLayerDefs.length" class="geo-card control-section">
+          <h3 class="section-title">💨 风向</h3>
+          <div v-for="l in visibleWindLayerDefs" :key="l.key" class="switch-row"
+            :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
+            <div class="control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
+            <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
+          </div>
+        </section>
+
+        <section v-if="visiblePressureLayerDefs.length" class="geo-card control-section">
+          <h3 class="section-title">📊 气压带</h3>
+          <div v-for="l in visiblePressureLayerDefs" :key="l.key" class="switch-row"
+            :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
+            <div class="control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
+            <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
+          </div>
+        </section>
+
+        <section v-if="visibleOtherLayerDefs.length" class="geo-card control-section">
+          <h3 class="section-title">🎨 其他</h3>
+          <div v-for="l in visibleOtherLayerDefs" :key="l.key" class="switch-row"
+            :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
+            <div class="control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
+            <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
+          </div>
+        </section>
+      </div>
+    </FloatingFeatureCard>
+
+    <FloatingFeatureCard v-show="floatingPanelsVisible" v-model:collapsed="teachingCardCollapsed" title="阶段面板"
+      :subtitle="currentStageData?.title ?? ''" variant="data" :initial-top="112" :initial-right="16" :bottom-inset="82"
       :min-width="360" :min-height="360">
       <div class="floating-teaching-content">
         <div class="stage-nav floating-stage-nav">
@@ -213,11 +188,6 @@
         </section>
       </div>
     </FloatingFeatureCard>
-
-    <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-      v-bind="leftEntryAttrs">
-      ›
-    </button>
 
   </div>
 </template>
@@ -838,40 +808,19 @@ const stages: Stage[] = [
 ]
 
 // ==================== 布局状态 ====================
-const hasLeftPanel = true
-const hasRightPanel = false
-
 const {
   rootRef: pageRef,
   layoutMode,
-
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
-
   workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-
-  leftResizeAttrs,
-  rightResizeAttrs,
-
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-
-  leftEntryAttrs,
-  rightEntryAttrs,
-
-  toggleAll: toggleAllPanels,
 } = useGeoPanelLayout({
   left: {
-    enabled: hasLeftPanel,
-    resizable: true,
+    enabled: false,
+    resizable: false,
   },
 
   right: {
-    enabled: hasRightPanel,
-    resizable: true,
+    enabled: false,
+    resizable: false,
   },
 
   /*
@@ -890,17 +839,6 @@ const {
     scheduleSceneResize(90)
   },
 
-  onResize(payload) {
-    /*
-     * 指针松开或恢复默认宽度时，立即做最终尺寸校准。
-     */
-    if (
-      payload.phase === 'end' ||
-      payload.phase === 'reset'
-    ) {
-      scheduleSceneResize(0)
-    }
-  },
 })
 
 const isPlaying = ref(true)
@@ -966,7 +904,26 @@ const layers = reactive<Record<string, boolean>>({
 const currentStage = ref(0)
 const isWorldMapView = ref(false)
 const stepDone = ref<Record<number, boolean>>({})
-const teachingCardCollapsed = ref(false)
+const floatingPanelsVisible = ref(true)
+const teachingCardCollapsed = ref(true)
+const layerCardCollapsed = ref(true)
+
+function toggleFloatingPanelsVisibility() {
+  floatingPanelsVisible.value = !floatingPanelsVisible.value
+}
+
+watch(teachingCardCollapsed, collapsed => {
+  if (!collapsed) {
+    layerCardCollapsed.value = true
+  }
+})
+
+watch(layerCardCollapsed, collapsed => {
+  if (!collapsed) {
+    teachingCardCollapsed.value = true
+  }
+})
+
 const currentStageData = computed(() => stages[currentStage.value])
 const visibleCellLayerDefs = computed(() => (
   isWorldMapView.value ? [] : cellLayerDefs
@@ -9001,7 +8958,7 @@ body.geo-panel-resizing {
   position: relative;
   /* 只保留一套地图尺寸来源：既受中心区域宽度约束，也受视口高度约束。
      浏览器缩放时不会再被文件末尾第二套 width 规则二次覆盖。 */
-  width: min(100%, calc((100vh - 210px) * 2), 1120px);
+  width: min(94vw, calc((100vh - 210px) * 2), 1800px);
   aspect-ratio: 2 / 1;
   max-height: calc(100% - 74px);
   flex: 0 0 auto;
@@ -9145,11 +9102,40 @@ body.geo-panel-resizing {
   }
 }
 
-/* ===================== 教学浮卡、代表月份与全宽二维地图 ===================== */
-.general-atmospheric-circulation-container .floating-teaching-content {
+/* ===================== 右侧悬浮卡、代表月份与全宽二维地图 ===================== */
+.general-atmospheric-circulation-container .floating-feature-card {
+  max-width: calc(100vw - 20px);
+  max-height: calc(100dvh - 154px);
+}
+
+.general-atmospheric-circulation-container .layer-feature-card {
+  max-height: min(72dvh, 760px);
+}
+
+.general-atmospheric-circulation-container .floating-teaching-content,
+.general-atmospheric-circulation-container .floating-layer-content {
   display: grid;
   gap: 12px;
-  padding: 12px 14px 6px;
+  box-sizing: border-box;
+  padding: 12px 14px 8px;
+}
+
+.general-atmospheric-circulation-container .floating-layer-content .control-section {
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.general-atmospheric-circulation-container .floating-layer-content .section-title {
+  color: #e9f8ff;
+}
+
+.general-atmospheric-circulation-container .floating-layer-content .switch-row {
+  min-height: 40px;
+}
+
+.general-atmospheric-circulation-container .floating-layer-content .control-copy strong {
+  color: #cce8f5;
 }
 
 .general-atmospheric-circulation-container .floating-stage-nav {
@@ -9253,10 +9239,83 @@ body.geo-panel-resizing {
   align-self: center;
 }
 
-/* 左侧图例随教学阶段切换，只解释当前画面中实际存在的视觉编码。 */
+/* 左下角常驻图例不参与悬浮面板系统，只解释当前画面中实际存在的视觉编码。 */
+.general-atmospheric-circulation-container .corner-legend {
+  position: fixed;
+  left: clamp(18px, 2vw, 34px);
+  bottom: clamp(118px, 13vh, 170px);
+  z-index: 38;
+  width: min(270px, calc(100vw - 36px));
+  max-height: min(44vh, 470px);
+  padding: 10px 14px 12px;
+  box-sizing: border-box;
+  overflow: auto;
+  color: #d7eef8;
+  border: 0;
+  border-left: 2px solid rgba(91, 220, 248, 0.72);
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(90deg, rgba(2, 17, 32, 0.84), rgba(3, 20, 36, 0.52) 72%, rgba(3, 20, 36, 0.12));
+  box-shadow: 10px 12px 30px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(10px) saturate(125%);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74, 216, 240, 0.64) transparent;
+}
+
+.general-atmospheric-circulation-container .corner-legend-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.general-atmospheric-circulation-container .corner-legend-heading strong {
+  color: #71e4f4;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.general-atmospheric-circulation-container .corner-legend-heading span {
+  overflow: hidden;
+  color: rgba(190, 220, 233, 0.68);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .general-atmospheric-circulation-container .legend-groups {
   display: grid;
   gap: 10px;
+}
+
+.general-atmospheric-circulation-container .corner-legend .legend-groups {
+  gap: 5px;
+}
+
+.general-atmospheric-circulation-container .corner-legend .legend-group {
+  padding: 5px 0 7px;
+  border: 0;
+  border-bottom: 1px solid rgba(109, 207, 236, 0.12);
+  border-radius: 0;
+  background: transparent;
+}
+
+.general-atmospheric-circulation-container .corner-legend .legend-group:last-child {
+  border-bottom: 0;
+}
+
+.general-atmospheric-circulation-container .corner-legend .legend-group-title {
+  margin-bottom: 4px;
+}
+
+.general-atmospheric-circulation-container .corner-legend .legend-group .legend-list {
+  gap: 2px;
+}
+
+.general-atmospheric-circulation-container .corner-legend .legend-group .legend-item {
+  min-height: 21px;
+  padding: 2px 4px;
+  background: transparent;
 }
 
 .general-atmospheric-circulation-container .legend-group {
@@ -9323,6 +9382,13 @@ body.geo-panel-resizing {
 }
 
 @media (max-width: 1180px) {
+  .general-atmospheric-circulation-container .corner-legend {
+    left: 12px;
+    bottom: 132px;
+    width: min(238px, calc(100vw - 24px));
+    max-height: 34vh;
+  }
+
   .general-atmospheric-circulation-container .timeline-dock {
     flex-wrap: wrap;
     justify-content: center;

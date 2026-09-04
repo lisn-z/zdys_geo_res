@@ -33,23 +33,11 @@
             <i class="corner-light bottom-right"></i>
           </div>
 
-          <div class="period-badge" :class="[scenePeriod, { expanded: stageTipVisible }]">
+          <div class="period-badge" :class="scenePeriod">
             <Transition name="period-copy" mode="out-in" appear>
-              <div :key="scenePeriod" class="period-summary">
-                <span>{{ scenePeriod === 'day' ? 'DAY' : 'NIGHT' }}</span>
-                <strong>{{ scenePeriod === 'day' ? '谷风环流' : '山风环流' }}</strong>
-                <small>{{ scenePeriod === 'day' ? '近坡面：谷底 → 山顶' : '近坡面：山顶 → 谷底' }}</small>
+              <div :key="currentStage.id" class="period-summary">
+                <strong>{{ currentStage.title }}</strong>
               </div>
-            </Transition>
-            <Transition name="stage-tip" mode="out-in" appear>
-              <section v-if="stageTipVisible" :key="currentStage.id" class="period-stage-reason">
-                <div class="stage-reason-heading">
-                  <span>WHY · {{ currentStage.title }}</span>
-                  <button type="button" aria-label="关闭阶段解读" @click="dismissStageTip">×</button>
-                </div>
-                <p>{{ currentStage.reason }}</p>
-                <small>观察提示：{{ currentStage.focus }}</small>
-              </section>
             </Transition>
           </div>
 
@@ -88,8 +76,13 @@
     </main>
 
     <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="insightCollapsed" title="山谷风解读" :subtitle="periodCopy.title"
-      variant="data" :initial-bottom="136" :initial-right="16" :bottom-inset="86" :min-width="330" :min-height="300">
+      variant="data" :initial-top="176" :initial-right="16" :bottom-inset="86" :min-width="330" :min-height="300">
       <div class="breeze-insight">
+        <section class="current-stage-insight">
+          <strong>{{ currentStage.title }}</strong>
+          <p>{{ currentStage.reason }}</p>
+          <small>观察提示：{{ currentStage.focus }}</small>
+        </section>
         <p class="insight-lead">{{ periodCopy.summary }}</p>
 
         <div class="contrast-grid">
@@ -161,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
@@ -232,11 +225,9 @@ const continuousMode = ref(false)
 const playbackMode = ref<PlaybackMode>(null)
 const playbackStopAt = ref(100)
 const insightCollapsed = ref(true)
-const stageCollapsed = ref(false)
+const stageCollapsed = ref(true)
 const panelsVisible = ref(true)
 const sceneError = ref('')
-const stageTipVisible = ref(true)
-let stageTipTimer: ReturnType<typeof setTimeout> | null = null
 
 function togglePanelsVisibility() {
   panelsVisible.value = !panelsVisible.value
@@ -320,33 +311,6 @@ const periodCopy = computed(() => scenePeriod.value === 'day'
       summary: '夜间山坡冷却快，冷空气沿坡下沉并在谷底堆积，形成山风和冷池。',
       surfaceWind: '两侧山坡 → 谷底', risingArea: '谷地上空补偿区', upperWind: '谷地上空 → 山脊',
     })
-
-function clearStageTipTimer() {
-  if (stageTipTimer) clearTimeout(stageTipTimer)
-  stageTipTimer = null
-}
-
-function showStageTip() {
-  clearStageTipTimer()
-  stageTipVisible.value = true
-  if (!isPlaying.value) return
-
-  stageTipTimer = setTimeout(() => {
-    stageTipVisible.value = false
-    stageTipTimer = null
-  }, 4800)
-}
-
-function dismissStageTip() {
-  clearStageTipTimer()
-  stageTipVisible.value = false
-}
-
-watch(currentStageIndex, showStageTip, { immediate: true })
-watch(isPlaying, (playing) => {
-  clearStageTipTimer()
-  if (playing && stageTipVisible.value) showStageTip()
-})
 
 const threeContainerRef = ref<HTMLElement | null>(null)
 let scene: THREE.Scene | null = null
@@ -2256,7 +2220,6 @@ function toggleContinuousPlayback() {
   continuousMode.value = true
   cameraFollow = false
   lastCameraPhase = -1
-  stageTipVisible.value = true
 }
 
 function handleScrub() {
@@ -2308,8 +2271,6 @@ function disposeScene() {
   cancelAnimationFrame(timelineFrame)
   cancelAnimationFrame(resizeFrame)
   if (resizeTimer) clearTimeout(resizeTimer)
-  if (stageTipTimer) clearTimeout(stageTipTimer)
-  stageTipTimer = null
   resizeObserver?.disconnect()
   resizeObserver = null
   controls?.dispose()
@@ -2616,6 +2577,19 @@ onBeforeUnmount(disposeScene)
   gap: 12px;
   padding: 14px;
 }
+
+.current-stage-insight {
+  display: grid;
+  gap: 7px;
+  padding: 11px 12px;
+  border: 1px solid rgba(91, 207, 244, 0.26);
+  border-radius: 10px;
+  background: rgba(5, 31, 46, 0.58);
+}
+
+.current-stage-insight > strong { color: #fff; font-size: 14px; }
+.current-stage-insight > p { margin: 0; color: rgba(222, 240, 247, 0.86); font-size: 12px; line-height: 1.65; }
+.current-stage-insight > small { color: rgba(102, 222, 249, 0.86); font-size: 11px; line-height: 1.55; }
 
 .insight-lead,
 .stage-detail p {

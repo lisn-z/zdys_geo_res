@@ -7,7 +7,7 @@
       height: !collapsed && size.height ? `${size.height}px` : undefined,
       zIndex: cardZIndex,
     }" @pointerdown.capture="bringToFront">
-    <header class="feature-card-head" @pointerdown.stop.prevent="startDrag">
+    <header class="feature-card-head" :class="{ draggable }" @pointerdown.stop.prevent="startDrag">
       <div class="feature-card-title">
         <span :title="title">{{ title }}</span>
         <strong v-if="subtitle">{{ subtitle }}</strong>
@@ -15,7 +15,7 @@
 
       <div class="feature-card-actions">
         <slot v-if="!collapsed" name="header-meta"></slot>
-        <span v-if="!collapsed" class="drag-hint">拖动</span>
+        <span v-if="!collapsed && draggable" class="drag-hint">拖动</span>
         <button type="button" class="collapse-btn" :aria-label="collapsed ? `展开${title}` : `收起${title}`"
           :title="collapsed ? `展开${title}` : `收起${title}`" @pointerdown.stop @click.stop="toggleCollapsed">
           {{ collapsed ? '+' : '−' }}
@@ -37,7 +37,7 @@
 <script setup lang="ts">
 import { computed, getCurrentInstance, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 
-type CardVariant = 'data' | 'track'
+type CardVariant = 'control' | 'data' | 'track'
 
 const props = withDefaults(defineProps<{
   title: string
@@ -51,6 +51,7 @@ const props = withDefaults(defineProps<{
   bottomInset?: number
   collapsed?: boolean
   initialCollapsed?: boolean
+  draggable?: boolean
   resizable?: boolean
   minWidth?: number
   minHeight?: number
@@ -62,6 +63,7 @@ const props = withDefaults(defineProps<{
   initialCenterY: false,
   bottomInset: 10,
   initialCollapsed: false,
+  draggable: true,
   resizable: true,
   light: false,
 })
@@ -92,7 +94,7 @@ const position = reactive({ x: 10, y: 76 })
 const size = reactive({ width: 0, height: 0 })
 const resizeFromRight = computed(() => {
   if (typeof window === 'undefined') return props.initialLeft !== undefined
-  const width = size.width || cardRef.value?.offsetWidth || (props.variant === 'data' ? 360 : 620)
+  const width = size.width || cardRef.value?.offsetWidth || getVariantDefaults().width
   return position.x + width * 0.5 <= window.innerWidth * 0.5
 })
 const relativePosition = reactive({
@@ -123,20 +125,32 @@ function bringToFront() {
 }
 
 function getMinimumSize() {
+  const defaults = getVariantDefaults()
   return {
-    width: props.minWidth ?? (props.variant === 'data' ? 280 : 420),
-    height: props.minHeight ?? (props.variant === 'data' ? 190 : 260),
+    width: props.minWidth ?? defaults.minWidth,
+    height: props.minHeight ?? defaults.minHeight,
   }
 }
 
+function getVariantDefaults() {
+  if (props.variant === 'track') {
+    return { width: 620, height: 360, minWidth: 420, minHeight: 260 }
+  }
+  if (props.variant === 'control') {
+    return { width: 380, height: 640, minWidth: 300, minHeight: 320 }
+  }
+  return { width: 360, height: 250, minWidth: 280, minHeight: 190 }
+}
+
 function getCardSize() {
+  const defaults = getVariantDefaults()
   return {
     width: !collapsed.value && size.width
       ? size.width
-      : cardRef.value?.offsetWidth || (props.variant === 'data' ? 360 : 620),
+      : cardRef.value?.offsetWidth || defaults.width,
     height: !collapsed.value && size.height
       ? size.height
-      : cardRef.value?.offsetHeight || (props.variant === 'data' ? 250 : 360),
+      : cardRef.value?.offsetHeight || defaults.height,
   }
 }
 
@@ -178,8 +192,9 @@ function applyRelativePosition() {
 }
 
 function setInitialPosition() {
-  const width = cardRef.value?.offsetWidth || (props.variant === 'data' ? 360 : 620)
-  const height = cardRef.value?.offsetHeight || (props.variant === 'data' ? 250 : 360)
+  const defaults = getVariantDefaults()
+  const width = cardRef.value?.offsetWidth || defaults.width
+  const height = cardRef.value?.offsetHeight || defaults.height
   const x = props.initialLeft === undefined
     ? window.innerWidth - width - props.initialRight
     : props.initialLeft
@@ -198,6 +213,7 @@ function toggleCollapsed() {
 }
 
 function startDrag(event: PointerEvent) {
+  if (!props.draggable) return
   dragState = {
     startX: event.clientX,
     startY: event.clientY,
@@ -362,6 +378,11 @@ onUnmounted(() => {
   width: clamp(310px, 18vw, 420px);
 }
 
+.variant-control {
+  width: clamp(320px, 20vw, 410px);
+  height: min(720px, calc(100vh - 88px));
+}
+
 .variant-track {
   width: min(clamp(460px, 26vw, 600px), calc(100vw - 28px));
 }
@@ -375,11 +396,14 @@ onUnmounted(() => {
   padding: 10px 13px;
   border-bottom: 1px solid var(--feature-divider);
   background: var(--feature-head-bg);
-  cursor: grab;
   user-select: none;
 }
 
-.feature-card-head:active {
+.feature-card-head.draggable {
+  cursor: grab;
+}
+
+.feature-card-head.draggable:active {
   cursor: grabbing;
 }
 
@@ -536,6 +560,11 @@ onUnmounted(() => {
   width: 158px;
 }
 
+.variant-control.collapsed {
+  width: 178px;
+  height: auto;
+}
+
 .variant-track.collapsed {
   width: 224px;
 }
@@ -556,6 +585,10 @@ onUnmounted(() => {
     width: 188px;
   }
 
+  .variant-control.collapsed {
+    width: 208px;
+  }
+
   .variant-track.collapsed {
     width: 268px;
   }
@@ -566,12 +599,20 @@ onUnmounted(() => {
     width: 292px;
   }
 
+  .variant-control {
+    width: min(320px, calc(100vw - 22px));
+  }
+
   .variant-track {
     width: min(460px, calc(100vw - 22px));
   }
 
   .variant-data.collapsed {
     width: 158px;
+  }
+
+  .variant-control.collapsed {
+    width: 178px;
   }
 
   .variant-track.collapsed {

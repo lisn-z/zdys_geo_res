@@ -15,16 +15,20 @@
           重置模型
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开卡片' : '收起卡片' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn"
+          :aria-pressed="panelsVisible" @click="togglePanelsVisibility">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace">
-      <FloatingFeatureCard v-model:collapsed="leftCardCollapsed" title="系统控制" subtitle="切换系统与图层"
-        variant="data" :initial-left="18" :initial-top="82" :bottom-inset="132" :min-width="310"
-        :min-height="360" class="frontal-floating-card control-floating-card">
+      <div v-show="panelsVisible" id="frontal-right-panel-stack" class="right-panel-stack"></div>
+
+      <Teleport defer to="#frontal-right-panel-stack">
+      <FloatingFeatureCard v-model:collapsed="leftCardCollapsed" title="控制面板" subtitle="切换系统与图层"
+        variant="data" :initial-right="400" :initial-top="82" :bottom-inset="132" :min-width="310"
+        :min-height="360" :resizable="false" class="frontal-floating-card control-floating-card">
         <div class="floating-control-content">
 
           <section class="geo-card control-section">
@@ -91,6 +95,7 @@
           </section>
         </div>
       </FloatingFeatureCard>
+      </Teleport>
 
       <section class="center-stage">
         <div class="view-mode-switch" aria-label="场景视角切换">
@@ -285,9 +290,10 @@
         </div>
       </section>
 
+      <Teleport defer to="#frontal-right-panel-stack">
       <FloatingFeatureCard v-model:collapsed="rightCardCollapsed" title="当前演示" :subtitle="currentStage.label"
         variant="data" :initial-right="18" :initial-top="82" :bottom-inset="132" :min-width="300"
-        :min-height="250" class="frontal-floating-card stage-floating-card">
+        :min-height="250" :resizable="false" class="frontal-floating-card stage-floating-card">
         <div class="floating-stage-content">
           <div class="current-stage-heading">
             <span>
@@ -366,6 +372,7 @@
           </article>
         </div>
       </FloatingFeatureCard>
+      </Teleport>
     </main>
   </div>
 </template>
@@ -697,17 +704,12 @@ const displayMode =
 const weatherMapStatus =
   ref<'loading' | 'ready' | 'error'>('loading')
 
-const leftCardCollapsed = ref(false)
-const rightCardCollapsed = ref(false)
+const leftCardCollapsed = ref(true)
+const rightCardCollapsed = ref(true)
+const panelsVisible = ref(true)
 
-const allPanelsCollapsed = computed(() => {
-  return leftCardCollapsed.value && rightCardCollapsed.value
-})
-
-function toggleAllPanels() {
-  const nextCollapsed = !allPanelsCollapsed.value
-  leftCardCollapsed.value = nextCollapsed
-  rightCardCollapsed.value = nextCollapsed
+function togglePanelsVisibility() {
+  panelsVisible.value = !panelsVisible.value
 }
 
 const modelOptions = [
@@ -12116,9 +12118,6 @@ function selectStage(
 }
 
 function resetCurrentModel() {
-  leftCardCollapsed.value = false
-  rightCardCollapsed.value = false
-
   isPlaying.value =
     false
 
@@ -12940,6 +12939,53 @@ onBeforeUnmount(
   --feature-muted: rgba(185, 216, 220, 0.68);
   --feature-button-bg: rgba(25, 96, 103, 0.24);
   --feature-button-border: rgba(103, 221, 214, 0.28);
+}
+
+.right-panel-stack {
+  position: fixed;
+  top: 82px;
+  right: 18px;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 12px;
+  width: clamp(310px, 18vw, 420px);
+  max-height: calc(100vh - 214px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  pointer-events: none;
+  scrollbar-width: none;
+}
+
+.right-panel-stack::-webkit-scrollbar {
+  display: none;
+}
+
+.right-panel-stack .frontal-floating-card {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  flex: 0 0 auto;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.right-panel-stack .frontal-floating-card:not(.collapsed) {
+  width: 100% !important;
+}
+
+.right-panel-stack .floating-control-content,
+.right-panel-stack .floating-stage-content {
+  max-height: max(240px, calc(100vh - 402px));
+}
+
+.right-panel-stack :deep(.drag-hint) {
+  display: none;
+}
+
+.right-panel-stack :deep(.feature-card-head) {
+  cursor: default;
 }
 
 .floating-control-content,

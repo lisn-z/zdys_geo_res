@@ -13,14 +13,17 @@
           重置视角
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :aria-pressed="panelsVisible"
+          @click="togglePanelsVisibility">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
+      <FloatingFeatureCard v-if="panelsVisible" class="control-floating-card" title="控制面板"
+        subtitle="设定纬度、节气、时间和图层，观察太阳视运动规律" variant="data" :initial-top="96"
+        :initial-right="18" :min-width="310" :min-height="360" light v-model:collapsed="controlCardCollapsed">
         <div class="panel-scroll">
           <div class="panel-heading">
             <div>
@@ -169,12 +172,7 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content">
@@ -217,8 +215,8 @@
         </div>
       </section>
 
-      <FloatingFeatureCard title="数据与规律验证" subtitle="读取实时结果，展开查看计算过程与易错提醒" variant="data" :initial-top="76"
-        :initial-right="18" light v-model:collapsed="dataCardCollapsed">
+      <FloatingFeatureCard v-if="panelsVisible" title="数据面板" subtitle="读取实时结果，展开查看计算过程与易错提醒"
+        variant="data" :initial-top="158" :initial-right="18" light v-model:collapsed="dataCardCollapsed">
         <div class="data-grid sun-data-grid" style="padding: 16px;">
           <article v-for="item in sunDataCards" :key="item.label" class="geo-card data-card" :class="item.className">
             <span>{{ item.label }}</span>
@@ -228,10 +226,6 @@
         </div>
       </FloatingFeatureCard>
 
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
     </main>
   </div>
 </template>
@@ -463,8 +457,13 @@ const logoUrl = ref(
 const speedOptions =
   [1, 2, 5, 10, 20]
 
-const hasLeftPanel = true
-const dataCardCollapsed = ref(false)
+const controlCardCollapsed = ref(true)
+const dataCardCollapsed = ref(true)
+const panelsVisible = ref(true)
+
+function togglePanelsVisibility() {
+  panelsVisible.value = !panelsVisible.value
+}
 
 /*
  * 左右面板的宽度、断点、拖拽、展开折叠和事件清理
@@ -478,25 +477,12 @@ const {
   rootRef: pageRef,
   layoutMode,
 
-  leftCollapsed,
-  allPanelsCollapsed,
-
-  draggingSide,
   viewportResizing,
 
   workspaceAttrs,
-  leftPanelAttrs,
-
-  leftResizeAttrs,
-
-  leftCollapseAttrs,
-
-  leftEntryAttrs,
-
-  toggleAll: toggleAllPanels,
 } = useGeoPanelLayout({
   left: {
-    enabled: hasLeftPanel,
+    enabled: false,
   },
 
   right: {
@@ -1852,10 +1838,7 @@ function animate() {
 
 // --- Three.js 容器 resize ---
 function isPanelLayoutResizing() {
-  return (
-    draggingSide.value !== null ||
-    viewportResizing.value
-  )
+  return viewportResizing.value
 }
 
 function applySceneResize(
@@ -2080,6 +2063,10 @@ onUnmounted(() => {
 
 
 <style scoped>
+.control-floating-card:not(.collapsed) {
+  height: min(760px, calc(100vh - 96px));
+}
+
 .apparent-motion-of-the-sun-container {
   font-family:
     "Microsoft YaHei",

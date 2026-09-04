@@ -1,6 +1,7 @@
 <template>
-  <FloatingFeatureCard title="太阳直射点移动" subtitle="南北回归线之间的周年摆动" variant="track" :initial-bottom="bottomInset + 10"
-    :initial-right="18" :bottom-inset="bottomInset">
+  <FloatingFeatureCard title="太阳直射点移动" subtitle="南北回归线之间的周年摆动" variant="track"
+    :initial-top="initialTop" :initial-right="initialRight" :initial-collapsed="initialCollapsed"
+    :bottom-inset="bottomInset">
     <template #header-meta>
       <span class="current-date">{{ currentMonthDay }}</span>
     </template>
@@ -84,6 +85,9 @@ defineProps<{
   solarTermName: string
   dayOfYear: number
   bottomInset: number
+  initialTop?: number
+  initialRight?: number
+  initialCollapsed?: boolean
 }>()
 
 const longitudeTicks = [-180, -135, -90, -45, 0, 45, 90, 135, 180]

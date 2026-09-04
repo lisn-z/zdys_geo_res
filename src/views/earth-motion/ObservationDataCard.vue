@@ -1,5 +1,6 @@
 <template>
-  <FloatingFeatureCard title="实时数据" :subtitle="place" variant="data" :initial-top="76" :initial-right="18">
+  <FloatingFeatureCard title="实时数据" :subtitle="place" variant="data" :initial-top="initialTop"
+    :initial-right="initialRight" :initial-collapsed="initialCollapsed">
     <div v-if="hasObservation" class="data-card-content">
       <div class="data-hero-row">
         <article>
@@ -56,6 +57,9 @@ defineProps<{
   dayNightValue: string
   sunrise: string
   sunset: string
+  initialTop?: number
+  initialRight?: number
+  initialCollapsed?: boolean
 }>()
 </script>
 

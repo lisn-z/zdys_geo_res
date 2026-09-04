@@ -106,9 +106,10 @@
         </div>
       </section>
 
-      <FloatingFeatureCard v-if="controlCardVisible && panelsReady" class="solar-control-card" title="太阳系探索台"
-        :subtitle="`当前控制中心 · ${selectedBodyInfo.name}`" variant="data" :initial-left="18" :initial-top="78"
-        :bottom-inset="92" :min-width="320" :min-height="480">
+      <FloatingFeatureCard v-if="controlCardVisible && panelsReady" class="solar-control-card" title="控制面板"
+        :subtitle="`当前控制中心 · ${selectedBodyInfo.name}`" variant="data" :initial-right="18" :initial-top="78"
+        :bottom-inset="92" :min-width="320" :min-height="480" :collapsed="controlCardCollapsed"
+        @update:collapsed="controlCardCollapsed = $event">
         <div class="control-console">
           <section class="console-section focus-section">
             <div class="console-heading">
@@ -436,15 +437,20 @@ const detailPreviewRef =
 const hasLeftPanel = false
 const hasRightPanel = false
 const controlCardVisible = ref(true)
-const detailPanelOpen = ref(true)
+const controlCardCollapsed = ref(true)
+const detailPanelOpen = ref(false)
 const panelsReady = ref(false)
 const allFloatingPanelsVisible = computed(
-  () => controlCardVisible.value && detailPanelOpen.value
+  () =>
+    controlCardVisible.value &&
+    !controlCardCollapsed.value &&
+    detailPanelOpen.value
 )
 
 function toggleFloatingPanels() {
   const nextVisible = !allFloatingPanelsVisible.value
   controlCardVisible.value = nextVisible
+  controlCardCollapsed.value = !nextVisible
   detailPanelOpen.value = nextVisible
 }
 
@@ -3785,6 +3791,7 @@ onMounted(async () => {
    */
   initThree()
   focusSun(false)
+  detailPanelOpen.value = false
   setupDetailPreview()
 
   const container =
@@ -5027,7 +5034,20 @@ input[type="range"]::-moz-range-thumb {
 
 .solar-control-card {
   z-index: 48 !important;
+}
+
+.solar-control-card:not(.collapsed) {
   width: clamp(330px, 21vw, 410px) !important;
+}
+
+.solar-control-card.collapsed {
+  width: 132px !important;
+}
+
+.solar-control-card.collapsed :deep(.feature-card-head) {
+  min-height: 48px;
+  gap: 8px;
+  padding: 8px 9px;
 }
 
 .solar-control-card :deep(.feature-card-head) {
@@ -5368,7 +5388,7 @@ input[type="range"]::-moz-range-thumb {
   position: fixed;
   z-index: 47;
   top: 82px;
-  right: 18px;
+  right: calc(clamp(330px, 21vw, 410px) + 36px);
   bottom: auto;
   display: grid;
   grid-template-rows: auto auto auto;

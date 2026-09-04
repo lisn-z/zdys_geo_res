@@ -3,8 +3,7 @@
     class="earth-orbit-template earth-orbit-template5 geo-template-page geo-page theme-dark layout-floating"
     :class="'layout-' + layoutMode">
     <Transition name="page-loading-fade">
-      <div v-if="pageLoading" class="page-loading-overlay" role="status" aria-live="polite"
-        aria-label="正在加载地球运动场景">
+      <div v-if="pageLoading" class="page-loading-overlay" role="status" aria-live="polite" aria-label="正在加载地球运动场景">
         <div class="page-loading-content">
           <div class="scene-loading-visual" aria-hidden="true">
             <i class="loading-orbit loading-orbit-outer"></i>
@@ -32,166 +31,119 @@
 
       <div class="toolbar-actions">
 
-        <button type="button" class="theme-btn toolbar-btn" :class="{ active: subSceneVisible }"
-          @click="subSceneVisible = !subSceneVisible">
-          副机位
-        </button>
-
         <button type="button" class="theme-btn toolbar-btn" :class="{ active: timelineDockVisible }"
           @click="timelineDockVisible = !timelineDockVisible">
           时间轴
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn" :class="{ active: floatingVisible.data }"
-          :title="floatingVisible.data ? '隐藏数据卡片' : '显示数据卡片'" @click="toggleFloatingVisibility('data')">
-          数据卡片
-        </button>
-
-        <button type="button" class="theme-btn toolbar-btn" :class="{ active: floatingVisible.track }"
-          :title="floatingVisible.track ? '隐藏直射轨迹' : '显示直射轨迹'" @click="toggleFloatingVisibility('track')">
-          直射轨迹
-        </button>
-
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllControlPanels">
-          {{ allPanelsCollapsed ? '展开控制' : '收起控制' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :class="{ active: panelsVisible }"
+          :title="panelsVisible ? '隐藏全部面板' : '显示全部面板'" @click="panelsVisible = !panelsVisible">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>控制面板</h2>
-              <p>控制视角、速度、图层与观测点</p>
-            </div>
-
-            <span class="panel-badge">CONTROL</span>
-          </div>
-
-          <section class="geo-card control-section">
-            <h3 class="section-title">视角中心</h3>
-
-            <div class="option-grid two-col-option-grid">
-              <button type="button" class="theme-btn option-btn" :class="{ active: focusMode === 'sun' }"
-                @click="switchFocus('sun')">
-                太阳中心
-              </button>
-
-              <button type="button" class="theme-btn option-btn" :class="{ active: focusMode === 'earth' }"
-                @click="switchFocus('earth')">
-                地球中心
-              </button>
-
-              <button type="button" class="theme-btn option-btn" @click="resetCamera">
-                重置视角
-              </button>
-
-              <button type="button" class="theme-btn option-btn" @click="setCameraPreset('top')">
-                俯视
-              </button>
-            </div>
-          </section>
-
-          <section class="geo-card control-section">
-            <h3 class="section-title">观测点</h3>
-
-            <div class="switch-row first-control-row">
-              <div class="control-copy">
-                <strong>允许点击替换</strong>
-                <span>点击地球表面替换当前观测点</span>
+      <FloatingFeatureCard v-if="panelsVisible" title="控制面板" subtitle="视角、速度、图层与观测点" variant="control" :initial-top="76"
+        :initial-right="18" initial-collapsed>
+        <div class="floating-control-body panel-scroll control-dashboard">
+          <section class="geo-card control-section control-quick-section">
+            <div class="control-subgroup">
+              <div class="control-subgroup-head">
+                <span>VIEW</span>
+                <h3 class="section-title">视角中心</h3>
               </div>
-
-              <el-switch v-model="clickAddEnabled" />
+              <div class="option-grid two-col-option-grid quick-option-grid">
+                <button type="button" class="theme-btn option-btn" :class="{ active: focusMode === 'sun' }"
+                  @click="switchFocus('sun')">太阳中心</button>
+                <button type="button" class="theme-btn option-btn" :class="{ active: focusMode === 'earth' }"
+                  @click="switchFocus('earth')">地球中心</button>
+                <button type="button" class="theme-btn option-btn" @click="resetCamera">重置视角</button>
+                <button type="button" class="theme-btn option-btn" @click="setCameraPreset('top')">俯视</button>
+              </div>
             </div>
 
-            <div class="preset-cloud">
-              <button v-for="p in presetPlaces" :key="p.name" type="button"
-                class="theme-btn option-btn place-btn uniform-place-btn" :class="{ active: isPresetActive(p) }"
-                @click="addPreset(p)">
-                {{ p.name }}
-              </button>
-            </div>
-
-            <button type="button" class="theme-btn reset-scene-btn" @click="clearObservationPoints">
-              恢复上海
-            </button>
-          </section>
-
-          <section class="geo-card control-section">
-            <div class="section-title-row">
-              <h3 class="section-title">自转速度</h3>
-              <strong class="control-value">
-                {{ daySpeed.toFixed(2) }}×
-              </strong>
-            </div>
-
-            <el-slider v-model="daySpeed" :min="0.05" :max="8" :step="0.05" :show-tooltip="false" />
-          </section>
-
-          <section class="geo-card control-section">
-            <h3 class="section-title">主要节气</h3>
-
-            <div class="solar-term-shortcuts">
-              <button v-for="term in solarTerms" :key="term.name" type="button"
-                class="theme-btn option-btn solar-term-btn" :class="{ active: isSolarTermActive(term) }"
-                @click="setSolarTerm(term.progress)">
-                <strong>{{ term.name }}</strong>
-              </button>
+            <div class="control-subgroup">
+              <div class="control-subgroup-head">
+                <span>SEASON</span>
+                <h3 class="section-title">主要节气</h3>
+              </div>
+              <div class="solar-term-shortcuts quick-option-grid">
+                <button v-for="term in solarTerms" :key="term.name" type="button"
+                  class="theme-btn option-btn solar-term-btn" :class="{ active: isSolarTermActive(term) }"
+                  @click="setSolarTerm(term.progress)">
+                  <strong>{{ term.name }}</strong>
+                </button>
+              </div>
             </div>
           </section>
 
-          <section class="geo-card control-section">
-            <div class="section-title-row">
-              <h3 class="section-title">定向光强度</h3>
-              <strong class="control-value">
-                {{ sunLightPower.toFixed(2) }}×
-              </strong>
+          <section class="geo-card control-section parameter-section">
+            <div class="section-title-row dashboard-section-head">
+              <h3 class="section-title">运动与光照</h3>
+              <span class="section-hint">实时调节</span>
             </div>
-
-            <el-slider v-model="sunLightPower" :min="0.8" :max="3.5" :step="0.05" :show-tooltip="false" />
-
-            <div class="section-title-row compact-title-row">
-              <span class="mini-control-label">夜间灯光亮度</span>
-              <strong class="control-value">
-                {{ nightLightPower.toFixed(2) }}×
-              </strong>
+            <div class="parameter-grid">
+              <div class="parameter-control">
+                <div class="parameter-head"><span>自转速度</span><strong>{{ daySpeed.toFixed(2) }}×</strong></div>
+                <el-slider v-model="daySpeed" :min="0.05" :max="8" :step="0.05" :show-tooltip="false" />
+              </div>
+              <div class="parameter-control">
+                <div class="parameter-head"><span>定向光强</span><strong>{{ sunLightPower.toFixed(2) }}×</strong></div>
+                <el-slider v-model="sunLightPower" :min="0.8" :max="3.5" :step="0.05" :show-tooltip="false" />
+              </div>
+              <div class="parameter-control">
+                <div class="parameter-head"><span>夜间灯光</span><strong>{{ nightLightPower.toFixed(2) }}×</strong></div>
+                <el-slider v-model="nightLightPower" :min="0.5" :max="4" :step="0.05" :show-tooltip="false" />
+              </div>
+              <div class="parameter-control">
+                <div class="parameter-head"><span>暗面地表</span><strong>{{ darkSideSurfacePower.toFixed(2) }}×</strong>
+                </div>
+                <el-slider v-model="darkSideSurfacePower" :min="0.05" :max="1.2" :step="0.05" :show-tooltip="false" />
+              </div>
             </div>
-
-            <el-slider v-model="nightLightPower" :min="0.5" :max="4" :step="0.05" :show-tooltip="false" />
-
-            <div class="section-title-row compact-title-row">
-              <span class="mini-control-label">暗面地表亮度</span>
-              <strong class="control-value">
-                {{ darkSideSurfacePower.toFixed(2) }}×
-              </strong>
-            </div>
-
-            <el-slider v-model="darkSideSurfacePower" :min="0.05" :max="1.2" :step="0.05" :show-tooltip="false" />
           </section>
 
-          <section class="geo-card control-section">
-            <h3 class="section-title">地球图层</h3>
-
+          <section class="geo-card control-section layer-section">
+            <div class="section-title-row dashboard-section-head">
+              <h3 class="section-title">地球图层</h3>
+              <div class="layer-bulk-actions" aria-label="地球图层批量控制">
+                <button type="button" class="layer-bulk-btn" :class="{ active: allEarthLayersEnabled }"
+                  @click="setAllEarthLayers(true)">全开</button>
+                <button type="button" class="layer-bulk-btn" :class="{ active: allEarthLayersDisabled }"
+                  @click="setAllEarthLayers(false)">全关</button>
+              </div>
+            </div>
             <div class="layer-switch-list">
               <div v-for="item in displayOptions" :key="item.key" class="switch-row compact-switch-row">
-                <div class="control-copy">
-                  <strong>{{ item.label }}</strong>
-                </div>
-
+                <div class="control-copy"><strong>{{ item.label }}</strong></div>
                 <el-switch v-model="toggles[item.key]" />
               </div>
             </div>
           </section>
+
+          <section class="geo-card control-section observation-control-section">
+            <div class="section-title-row dashboard-section-head">
+              <h3 class="section-title">观测点</h3>
+              <span class="section-hint">地表定位</span>
+            </div>
+            <div class="switch-row first-control-row observation-click-row">
+              <div class="control-copy">
+                <strong>允许点击替换</strong>
+                <span>点击地球表面更新当前观测点</span>
+              </div>
+              <el-switch v-model="clickAddEnabled" />
+            </div>
+            <div class="preset-cloud">
+              <button v-for="p in presetPlaces" :key="p.name" type="button"
+                class="theme-btn option-btn place-btn uniform-place-btn" :class="{ active: isPresetActive(p) }"
+                @click="addPreset(p)">{{ p.name }}</button>
+            </div>
+            <button type="button" class="theme-btn reset-scene-btn" @click="clearObservationPoints">恢复上海</button>
+          </section>
         </div>
 
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content">
@@ -215,14 +167,10 @@
             <section v-show="timelineDockVisible" class="timeline-dock orbit-time-dock">
               <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
                 :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
-                <svg v-if="isPlaying" class="timeline-play-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 5h4v14H7z"></path>
-                  <path d="M13 5h4v14h-4z"></path>
-                </svg>
-
-                <svg v-else class="timeline-play-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 5v14l11-7z"></path>
-                </svg>
+                <el-icon>
+                  <VideoPause v-if="isPlaying" />
+                  <VideoPlay v-else />
+                </el-icon>
               </button>
               <div class="timeline-main orbit-timeline-main">
                 <div class="timeline-channel orbit-timeline-channel">
@@ -258,27 +206,26 @@
         </div>
       </section>
 
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
     </main>
 
-    <ObservationDataCard v-if="floatingVisible.data" v-bind="observationCardData" />
+    <ObservationDataCard v-if="panelsVisible" v-bind="observationCardData" :initial-top="138" :initial-right="18"
+      initial-collapsed />
 
-    <SolarTrackCard v-if="floatingVisible.track" :earth-texture="RAW_TEXTURES.earth" :track-path="mapTrackPath"
+    <SolarTrackCard v-if="panelsVisible" :earth-texture="RAW_TEXTURES.earth" :track-path="mapTrackPath"
       :track-area-path="mapTrackAreaPath" :point-x="mapPointX" :point-y="mapPointY" :current-month-day="currentMonthDay"
       :current-latitude="formatLat(currentDeclinationDeg)" :solar-term-name="currentSolarTerm.name"
-      :day-of-year="currentDayOfYear" :bottom-inset="timelineDockVisible ? 112 : 10" />
+      :day-of-year="currentDayOfYear" :bottom-inset="timelineDockVisible ? 112 : 10" :initial-top="200"
+      :initial-right="18" initial-collapsed />
 
-    <section v-show="subSceneVisible" ref="subSceneRef"
-      class="sub-scene-window floating-info-card floating-sub-scene-card scene-float-card"
+    <section v-show="panelsVisible" ref="subSceneRef"
+      class="sub-scene-window floating-feature-card floating-info-card floating-sub-scene-card scene-float-card"
       :class="{ collapsed: subSceneCollapsed }" :style="{
         width: subSceneCollapsed ? '196px' : `${subSceneSize.width}px`,
         height: subSceneCollapsed ? 'auto' : `${subSceneSize.height}px`,
         left: subPosX + 'px',
         top: subPosY + 'px',
-      }">
+        zIndex: subSceneZIndex,
+      }" @pointerdown.capture="bringSubSceneToFront">
       <header class="sub-scene-head floating-card-head" @pointerdown.stop.prevent="onSubDragStart">
         <div class="sub-title">
           <span class="floating-kicker">副机位</span>
@@ -311,14 +258,14 @@ import { ElSlider, ElSwitch, ElSelect, ElOption } from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import ObservationDataCard from './ObservationDataCard.vue'
 import SolarTrackCard from './SolarTrackCard.vue'
 import {
   useGeoPanelLayout,
 } from '@/hooks/useGeoPanelLayout'
-
+import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 type FocusMode = 'sun' | 'earth'
-type FloatingCardKey = 'data' | 'track'
 
 type SubViewMode =
   | 'dawn'
@@ -377,16 +324,20 @@ interface SubResizeState {
 }
 
 interface DisplayToggleMap {
+  orbit: boolean
   terminator: boolean
   grid: boolean
   tropics: boolean
   zones: boolean
-  tiltLabels: boolean
+  eclipticPlane: boolean
+  equatorPlane: boolean
   tiltAngle: boolean
   rotationArrow: boolean
   axis: boolean
-  dayNightArc: boolean
+  dayArc: boolean
+  nightArc: boolean
   sunRays: boolean
+  sunGlow: boolean
   coordLabels: boolean
   [key: string]: boolean
 }
@@ -400,6 +351,11 @@ const POLAR_CIRCLE_DEG = 90 - EARTH_TILT_DEG
 const EARTH_RADIUS = 1.35
 const SUN_RADIUS = 2.45
 const ORBIT_RADIUS = 12.6
+const SOLAR_TERM_COLORS = [0x32d5c4, 0xffc857, 0xff7b54, 0x7f8cff] as const
+const ECLIPTIC_COLOR = 0x9b7cff
+const EQUATOR_PLANE_COLOR = 0x2dd4e8
+const DAY_ARC_COLOR = new THREE.Color(0xffc857)
+const NIGHT_ARC_COLOR = new THREE.Color(0x8d86ff)
 const YEAR_DAYS = 365
 const SPRING_EQUINOX_DAY = 80
 const SPIN_VISUAL_OFFSET = 0
@@ -463,9 +419,6 @@ const subCanvasRef =
 const subSceneRef =
   ref<HTMLElement | null>(null)
 
-const hasLeftPanel = true
-const hasRightPanel = false
-
 /*
  * 左右面板统一交给公共 Hook：
  * - 默认宽度与拖拽边界；
@@ -474,37 +427,21 @@ const hasRightPanel = false
  * - Pointer 事件注册和清理；
  * - 浏览器缩放状态。
  *
- * 副机位和时间轴属于本组件业务，仍由当前组件管理。
+ * 副机位随右上角“显示/隐藏面板”统一控制，时间轴保持独立控制。
  */
 const {
   rootRef,
   layoutMode,
-
-  leftCollapsed,
-
-  allPanelsCollapsed:
-  allSidePanelsCollapsed,
-
   draggingSide,
   viewportResizing,
-
   workspaceAttrs,
-  leftPanelAttrs,
-
-  leftResizeAttrs,
-
-  leftCollapseAttrs,
-
-  leftEntryAttrs,
-
-  setAllCollapsed,
 } = useGeoPanelLayout({
   left: {
-    enabled: hasLeftPanel,
+    enabled: false,
   },
 
   right: {
-    enabled: hasRightPanel,
+    enabled: false,
   },
 
   onLayoutChange(state) {
@@ -528,34 +465,6 @@ const {
     }
   },
 })
-
-const allPanelsCollapsed =
-  computed(() => {
-    return (
-      allSidePanelsCollapsed.value &&
-      !subSceneVisible.value &&
-      !timelineDockVisible.value
-    )
-  })
-
-function toggleAllControlPanels() {
-  const shouldExpand =
-    allPanelsCollapsed.value
-
-  setAllCollapsed(
-    !shouldExpand
-  )
-
-  subSceneVisible.value =
-    shouldExpand
-
-  timelineDockVisible.value =
-    shouldExpand
-
-  nextTick(() => {
-    requestMainResize(true)
-  })
-}
 
 function requestMainResize(
   immediate = false
@@ -698,32 +607,38 @@ const daySpeed = ref(1.4)
 const sunLightPower = ref(1.45)
 const nightMapPower = ref(1.75)
 const nightLightPower = ref(2.15)
-const darkSideSurfacePower = ref(0.25)
+const darkSideSurfacePower = ref(0.05)
 const ambientLightPower = ref(1.15)
 const focusMode = ref<FocusMode>('sun')
 const clickAddEnabled = ref(false)
 const sunTrackVisible = ref(true)
 const observationPanelVisible = ref(true)
 const timelineDockVisible = ref(true)
-const subSceneVisible = ref(false)
 const yearProgress = ref(dayOfYearToCalendarProgress(SPRING_EQUINOX_DAY))
 const solarTermFeedback = ref<SolarTerm | null>(null)
 const solarTermFeedbackKey = ref(0)
 const subViewMode = ref<SubViewMode>('dawn')
-const subSceneSize = reactive({ width: 360, height: 268 })
+const subSceneSize = reactive({ width: 460, height: 330 })
 const subPosX = ref(0)
 const subPosY = ref(0)
 const subRelativePosition = reactive({ x: 0.5, y: 0 })
-const subSceneCollapsed = ref(false)
+const subSceneCollapsed = ref(true)
+const subSceneZIndex = ref(44)
 let subDragState: { startX: number; startY: number; posX: number; posY: number } | null = null
 const referenceSolarHour = ref(3.9)
-const floatingVisible = reactive<Record<FloatingCardKey, boolean>>({
-  data: true,
-  track: true,
-})
+const panelsVisible = ref(true)
 
-function toggleFloatingVisibility(key: FloatingCardKey) {
-  floatingVisible[key] = !floatingVisible[key]
+function bringSubSceneToFront() {
+  const highestZIndex = Array.from(
+    document.querySelectorAll<HTMLElement>('.floating-feature-card'),
+  ).filter((card) => card !== subSceneRef.value).reduce((highest, card) => {
+    const value = Number.parseInt(window.getComputedStyle(card).zIndex, 10)
+    return Number.isFinite(value) ? Math.max(highest, value) : highest
+  }, 44)
+
+  if (subSceneZIndex.value <= highestZIndex) {
+    subSceneZIndex.value = highestZIndex + 1
+  }
 }
 
 function clampSubScenePosition(x: number, y: number) {
@@ -759,7 +674,7 @@ function applySubSceneRelativePosition() {
 }
 
 function constrainSubSceneWindow() {
-  if (!subSceneVisible.value) return
+  if (!panelsVisible.value) return
   nextTick(applySubSceneRelativePosition)
 }
 
@@ -809,32 +724,49 @@ function onSubDragEnd() {
 }
 
 const toggles = reactive<DisplayToggleMap>({
+  orbit: true,
   terminator: true,
   grid: true,
   tropics: true,
   zones: false,
-  tiltLabels: true,
+  eclipticPlane: false,
+  equatorPlane: true,
   tiltAngle: true,
   rotationArrow: true,
   axis: true,
-  dayNightArc: true,
+  dayArc: true,
+  nightArc: true,
   sunRays: true,
+  sunGlow: false,
   coordLabels: true
 })
 
 const displayOptions = [
+  { key: 'orbit', label: '公转轨道' },
   { key: 'terminator', label: '晨昏线' },
   { key: 'grid', label: '经纬网' },
   { key: 'tropics', label: '南北回归线' },
   { key: 'zones', label: '五带划分' },
-  { key: 'tiltLabels', label: '黄道面/赤道面' },
+  { key: 'eclipticPlane', label: '黄道面' },
+  { key: 'equatorPlane', label: '赤道面' },
   { key: 'tiltAngle', label: '黄赤交角标注' },
   { key: 'rotationArrow', label: '自转方向箭头' },
   { key: 'axis', label: '地球自转轴' },
-  { key: 'dayNightArc', label: '昼弧/夜弧' },
-  { key: 'sunRays', label: '太阳直射光来向' },
+  { key: 'dayArc', label: '昼弧' },
+  { key: 'nightArc', label: '夜弧' },
+  { key: 'sunRays', label: '直射光来向' },
+  { key: 'sunGlow', label: '太阳光辉' },
   { key: 'coordLabels', label: '经纬度标签' }
 ]
+
+const allEarthLayersEnabled = computed(() => displayOptions.every((item) => toggles[item.key]))
+const allEarthLayersDisabled = computed(() => displayOptions.every((item) => !toggles[item.key]))
+
+function setAllEarthLayers(enabled: boolean) {
+  displayOptions.forEach((item) => {
+    toggles[item.key] = enabled
+  })
+}
 
 const solarTerms: SolarTerm[] = [
   { name: '春分', progress: dayOfYearToCalendarProgress(80), day: 80, date: '3月21日', directPoint: '赤道' },
@@ -982,7 +914,10 @@ let earthTiltGroup!: THREE.Group
 let earthSpinGroup!: THREE.Group
 let earthMesh!: THREE.Mesh
 let earthAtmosphere: THREE.Mesh | null = null
-let orbitLine: THREE.Line | null = null
+let earthSunGlow: THREE.Mesh | null = null
+let sunGlowBeam: THREE.Mesh | null = null
+let orbitGroup: THREE.Group | null = null
+let orbitAnnotationGroup: THREE.Group | null = null
 let starField: THREE.Points | null = null
 let nebulaGroup: THREE.Group | null = null
 let terminatorLine: THREE.Line | null = null
@@ -1005,23 +940,35 @@ let directionalLight!: THREE.DirectionalLight
 let ambientLight!: THREE.AmbientLight
 let targetFocus = new THREE.Vector3(0, 0, 0)
 
+const atmosphereDayColorUniform = { value: new THREE.Color('#4db2ff') }
+const atmosphereTwilightColorUniform = { value: new THREE.Color('#bc490b') }
+
 const earthUniforms = {
   dayMap: { value: createPlaceholderTexture('#1e88e5', '#45d0ff') },
   nightMap: { value: createPlaceholderTexture('#07111f', '#ffda75') },
   sunDirection: { value: new THREE.Vector3(0, 0, 1) },
   axisDirection: { value: new THREE.Vector3(0, 1, 0) },
   showTerminator: { value: 1 },
-  showDayNightArc: { value: 1 },
+  showDayArc: { value: 1 },
+  showNightArc: { value: 1 },
+  dayArcColor: { value: DAY_ARC_COLOR },
+  nightArcColor: { value: NIGHT_ARC_COLOR },
+  atmosphereDayColor: atmosphereDayColorUniform,
+  atmosphereTwilightColor: atmosphereTwilightColorUniform,
   sunLightPower: { value: 1.45 },
   nightMapPower: { value: 1.75 },
   nightLightPower: { value: 2.15 },
-  darkSideSurfacePower: { value: 0.25 }
+  darkSideSurfacePower: { value: 0.05 }
 }
 
 const earthAtmosphereUniforms = {
   sunDirection: { value: new THREE.Vector3(0, 0, 1) },
-  atmosphereColor: { value: new THREE.Color(0x51cfff) },
-  nightColor: { value: new THREE.Color(0x285eff) },
+  atmosphereDayColor: atmosphereDayColorUniform,
+  atmosphereTwilightColor: atmosphereTwilightColorUniform,
+}
+
+const earthSunGlowUniforms = {
+  sunDirection: { value: new THREE.Vector3(0, 0, 1) },
 }
 
 onMounted(() => {
@@ -1029,16 +976,9 @@ onMounted(() => {
     try {
       initScene()
 
-      subPosX.value =
-        Math.round(
-          (
-            window.innerWidth -
-            subSceneSize.width
-          ) / 2
-        )
-
-      subPosY.value =
-        82 + 12
+      const initialSubSceneWidth = subSceneCollapsed.value ? 196 : subSceneSize.width
+      subPosX.value = Math.max(10, window.innerWidth - initialSubSceneWidth - 18)
+      subPosY.value = 262
 
       updateSubSceneRelativePosition()
 
@@ -1115,7 +1055,7 @@ watch(selectedObservationId, () => {
 watch(focusMode, () => updateFocusTarget())
 watch([sunLightPower, nightMapPower, nightLightPower, darkSideSurfacePower], updateLightUniforms)
 watch(subViewMode, () => updateSubCamera())
-watch(subSceneVisible, (visible) => {
+watch(panelsVisible, (visible) => {
   if (visible) nextTick(applySubSceneRelativePosition)
 })
 
@@ -1275,15 +1215,19 @@ function createEarth() {
   const geo = new THREE.SphereGeometry(EARTH_RADIUS, 96, 96)
   const mat = new THREE.ShaderMaterial({
     uniforms: earthUniforms,
+    toneMapped: true,
     vertexShader: `
       varying vec2 vUv;
       varying vec3 vLocalNormal;
       varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
       void main() {
         vUv = uv;
         vLocalNormal = normalize(normal);
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
         vWorldNormal = normalize(mat3(modelMatrix) * normal);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
       }
     `,
     fragmentShader: `
@@ -1292,7 +1236,12 @@ function createEarth() {
       uniform vec3 sunDirection;
       uniform vec3 axisDirection;
       uniform float showTerminator;
-      uniform float showDayNightArc;
+      uniform float showDayArc;
+      uniform float showNightArc;
+      uniform vec3 dayArcColor;
+      uniform vec3 nightArcColor;
+      uniform vec3 atmosphereDayColor;
+      uniform vec3 atmosphereTwilightColor;
       uniform float sunLightPower;
       uniform float nightMapPower;
       uniform float nightLightPower;
@@ -1300,6 +1249,11 @@ function createEarth() {
       varying vec2 vUv;
       varying vec3 vLocalNormal;
       varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+
+      float earthLuma(vec3 color) {
+        return dot(color, vec3(0.2126, 0.7152, 0.0722));
+      }
 
       float latitudeLineMask(float lat) {
         float stepValue = 3.14159265359 / 12.0;
@@ -1310,30 +1264,67 @@ function createEarth() {
       void main() {
         vec3 nWorld = normalize(vWorldNormal);
         vec3 sWorld = normalize(sunDirection);
+        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
         vec3 dayColor = texture2D(dayMap, vUv).rgb;
-        vec3 nightColor = texture2D(nightMap, vUv).rgb * nightMapPower;
+        dayColor = pow(max(dayColor, vec3(0.0)), vec3(1.08));
+        vec3 nightColor = texture2D(nightMap, vUv).rgb;
         float lightAmount = dot(nWorld, sWorld);
-        float dayMask = smoothstep(-0.08, 0.16, lightAmount);
-        vec3 litDay = dayColor * (0.40 + sunLightPower * 1.28 * max(lightAmount, 0.0));
-        vec3 nightLit = nightColor * ((0.26 + nightLightPower) * (1.0 - dayMask));
+        float dayMask = smoothstep(-0.24, 0.34, lightAmount);
+
+        // 依据现有地表贴图的蓝色占比估算海洋，仅用于控制高光，
+        // 不更换贴图，也不会改变经纬网、五带等业务图层。
+        float surfaceLuma = earthLuma(dayColor);
+        float blueDominance = dayColor.b - max(dayColor.r, dayColor.g);
+        float oceanMask = smoothstep(-0.025, 0.115, blueDominance)
+          * (1.0 - smoothstep(0.48, 0.82, surfaceLuma));
+        float cloudMask = smoothstep(0.64, 0.94, surfaceLuma)
+          * (1.0 - oceanMask * 0.72);
+
+        float directLight = max(lightAmount, 0.0);
+        vec3 litDay = dayColor * (0.18 + sunLightPower * 0.58 * directLight);
+        litDay *= mix(1.0, 1.02, cloudMask);
+        litDay *= mix(vec3(1.0), vec3(0.74, 0.86, 1.0), oceanMask * 0.48);
+
+        vec3 halfDirection = normalize(sWorld + viewDirection);
+        float specularPower = mix(28.0, 105.0, oceanMask);
+        float specular = pow(max(dot(nWorld, halfDirection), 0.0), specularPower)
+          * oceanMask * directLight * dayMask;
+        vec3 oceanGlint = mix(vec3(0.40, 0.64, 0.82), vec3(1.0), specular)
+          * specular * (0.42 + sunLightPower * 0.22);
+
+        vec3 nightLit = nightColor * nightMapPower
+          * (0.26 + nightLightPower) * (1.0 - dayMask);
         float nightSide = 1.0 - dayMask;
-        float rimFill = 0.55 + 0.45 * pow(1.0 - abs(lightAmount), 0.65);
+        float rimFill = 0.48 + 0.52 * pow(1.0 - abs(lightAmount), 0.72);
         vec3 darkSurface = dayColor * darkSideSurfacePower * rimFill * nightSide;
-        vec3 color = mix(darkSurface + nightLit, litDay, dayMask);
+        vec3 color = mix(darkSurface + nightLit, litDay + oceanGlint, dayMask);
 
         float lat = asin(clamp(normalize(vLocalNormal).y, -1.0, 1.0));
-        float latMask = latitudeLineMask(lat) * showDayNightArc;
-        color = mix(color, vec3(1.0, 0.78, 0.28), latMask * dayMask * 0.72);
-        color = mix(color, vec3(0.20, 0.50, 1.0), latMask * (1.0 - dayMask) * 0.68);
+        float latMask = latitudeLineMask(lat);
+        color = mix(color, dayArcColor, latMask * dayMask * showDayArc * 0.78);
+        color = mix(color, nightArcColor, latMask * (1.0 - dayMask) * showNightArc * 0.76);
 
         float terminatorMask = (1.0 - smoothstep(0.0, 0.035, abs(lightAmount))) * showTerminator;
         float dawnSignal = dot(cross(normalize(axisDirection), nWorld), sWorld);
-        vec3 dawnColor = vec3(0.16, 1.0, 0.86);
-        vec3 duskColor = vec3(1.0, 0.44, 0.18);
-        color = mix(color, dawnSignal >= 0.0 ? dawnColor : duskColor, terminatorMask * 0.94);
+        vec3 dawnColor = vec3(0.25, 0.72, 1.0);
+        vec3 duskColor = vec3(1.0, 0.25, 0.43);
+        color = mix(color, dawnSignal >= 0.0 ? dawnColor : duskColor, terminatorMask * 0.90);
 
-        color += vec3(0.08, 0.22, 0.28) * pow(1.0 - abs(lightAmount), 2.0) * 0.25;
+        // 与 three.js 官方案例一致：地表内缘也参与大气颜色混合。
+        // 只在菲涅耳边缘生效，保留厚实层次但不会形成整球透明罩。
+        float atmosphereDayStrength = smoothstep(-0.5, 1.0, lightAmount);
+        float atmosphereFresnel = 1.0 - abs(dot(nWorld, viewDirection));
+        vec3 innerAtmosphereColor = mix(
+          atmosphereTwilightColor,
+          atmosphereDayColor,
+          smoothstep(-0.25, 0.75, lightAmount)
+        );
+        float innerAtmosphereMix = clamp(atmosphereDayStrength * pow(atmosphereFresnel, 2.0) * 0.46, 0.0, 0.46);
+        color = mix(color, innerAtmosphereColor, innerAtmosphereMix);
+
         gl_FragColor = vec4(color, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `
   })
@@ -1343,10 +1334,11 @@ function createEarth() {
   const atmosphereMaterial = new THREE.ShaderMaterial({
     uniforms: earthAtmosphereUniforms,
     transparent: true,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
     depthWrite: false,
+    depthTest: true,
     side: THREE.BackSide,
-    toneMapped: false,
+    toneMapped: true,
     vertexShader: `
       varying vec3 vWorldNormal;
       varying vec3 vWorldPosition;
@@ -1359,26 +1351,130 @@ function createEarth() {
     `,
     fragmentShader: `
       uniform vec3 sunDirection;
-      uniform vec3 atmosphereColor;
-      uniform vec3 nightColor;
+      uniform vec3 atmosphereDayColor;
+      uniform vec3 atmosphereTwilightColor;
       varying vec3 vWorldNormal;
       varying vec3 vWorldPosition;
       void main() {
         vec3 normalDirection = normalize(vWorldNormal);
         vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-        float rim = pow(1.0 - abs(dot(normalDirection, viewDirection)), 3.1);
-        float daylight = smoothstep(-0.28, 0.72, dot(normalDirection, normalize(sunDirection)));
-        vec3 glowColor = mix(nightColor, atmosphereColor, daylight);
-        float alpha = rim * mix(0.22, 0.68, daylight);
-        gl_FragColor = vec4(glowColor * (0.48 + rim * 1.15), alpha);
+        float fresnel = 1.0 - abs(dot(normalDirection, viewDirection));
+        float sunOrientation = dot(normalDirection, normalize(sunDirection));
+        float daylight = smoothstep(-0.5, 1.0, sunOrientation);
+        float atmosphereMix = smoothstep(-0.25, 0.75, sunOrientation);
+        float innerEdge = 1.0 - smoothstep(0.67, 1.0, fresnel);
+        float alpha = pow(innerEdge, 2.65) * daylight;
+        if (alpha < 0.004) discard;
+        vec3 glowColor = mix(atmosphereTwilightColor, atmosphereDayColor, atmosphereMix);
+        gl_FragColor = vec4(glowColor * 1.08, min(alpha * 1.10, 1.0));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `,
   })
   earthAtmosphere = new THREE.Mesh(
-    new THREE.SphereGeometry(EARTH_RADIUS * 1.065, 96, 96),
+    new THREE.SphereGeometry(EARTH_RADIUS * 1.055, 96, 96),
     atmosphereMaterial,
   )
+  earthAtmosphere.renderOrder = 2
   earthSpinGroup.add(earthAtmosphere)
+
+  const sunGlowMaterial = new THREE.ShaderMaterial({
+    uniforms: earthSunGlowUniforms,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.BackSide,
+    toneMapped: true,
+    vertexShader: `
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 sunDirection;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec3 normalDirection = normalize(vWorldNormal);
+        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+        float fresnel = 1.0 - abs(dot(normalDirection, viewDirection));
+        float rim = pow(smoothstep(0.48, 0.99, fresnel), 2.75);
+        float sunOrientation = dot(normalDirection, normalize(sunDirection));
+        float daylight = smoothstep(-0.10, 0.42, sunOrientation);
+        float glow = rim * daylight;
+        if (glow < 0.01) discard;
+        vec3 glowColor = mix(vec3(1.0, 0.66, 0.25), vec3(1.0, 0.94, 0.72), daylight);
+        gl_FragColor = vec4(glowColor * (0.58 + glow * 0.86), glow * 0.56);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  })
+  earthSunGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(EARTH_RADIUS * 1.058, 96, 96),
+    sunGlowMaterial,
+  )
+  earthSunGlow.renderOrder = 3
+  earthSpinGroup.add(earthSunGlow)
+
+  const sunGlowBeamMaterial = new THREE.ShaderMaterial({
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    toneMapped: true,
+    vertexShader: `
+      varying float vBeamProgress;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vBeamProgress = clamp(position.y + 0.5, 0.0, 1.0);
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `,
+    fragmentShader: `
+      varying float vBeamProgress;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+        float sideGlow = pow(1.0 - abs(dot(normalize(vWorldNormal), viewDirection)), 1.75);
+        float startFade = smoothstep(0.0, 0.12, vBeamProgress);
+        float earthwardStrength = mix(0.28, 1.0, smoothstep(0.16, 1.0, vBeamProgress));
+        float alpha = sideGlow * 0.165 * startFade * earthwardStrength;
+        if (alpha < 0.002) discard;
+        vec3 beamColor = mix(vec3(1.0, 0.52, 0.12), vec3(1.0, 0.94, 0.68), vBeamProgress);
+        gl_FragColor = vec4(beamColor * 1.28, alpha);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  })
+  sunGlowBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      EARTH_RADIUS * 1.07,
+      EARTH_RADIUS * 0.54,
+      1,
+      64,
+      1,
+      true,
+    ),
+    sunGlowBeamMaterial,
+  )
+  sunGlowBeam.renderOrder = 1
+  sunGlowBeam.frustumCulled = false
+  scene.add(sunGlowBeam)
 
   zonesGroup = createFiveZones()
   gridGroup = createLatLonGrid()
@@ -1391,32 +1487,42 @@ function createEarth() {
 }
 
 function createOrbit() {
-  const pts = []
-  for (let i = 0; i <= 240; i += 1) {
-    const t = (i / 240) * Math.PI * 2
-    pts.push(new THREE.Vector3(-Math.sin(t) * ORBIT_RADIUS, 0, -Math.cos(t) * ORBIT_RADIUS))
-  }
-  orbitLine = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(pts),
-    new THREE.LineBasicMaterial({ color: 0x2ec4b6, transparent: true, opacity: 0.7 })
-  )
-  scene.add(orbitLine)
+  orbitGroup = new THREE.Group()
+  SOLAR_TERM_COLORS.forEach((color, seasonIndex) => {
+    const points: THREE.Vector3[] = []
+    const start = (seasonIndex / SOLAR_TERM_COLORS.length) * Math.PI * 2
+    const end = ((seasonIndex + 1) / SOLAR_TERM_COLORS.length) * Math.PI * 2
+    for (let i = 0; i <= 84; i += 1) {
+      const t = start + (end - start) * (i / 84)
+      points.push(new THREE.Vector3(-Math.sin(t) * ORBIT_RADIUS, 0, -Math.cos(t) * ORBIT_RADIUS))
+    }
+    const seasonArc = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.92 }),
+    )
+    seasonArc.renderOrder = 2
+    orbitGroup?.add(seasonArc)
+  })
+  scene.add(orbitGroup)
 }
 
 function createTermLabels() {
-  solarTerms.forEach((term) => {
+  orbitAnnotationGroup = new THREE.Group()
+  scene.add(orbitAnnotationGroup)
+  solarTerms.forEach((term, index) => {
+    const termColor = SOLAR_TERM_COLORS[index % SOLAR_TERM_COLORS.length] ?? SOLAR_TERM_COLORS[0]
     const pos = getOrbitPosition(term.progress)
     const marker = new THREE.Mesh(
       new THREE.SphereGeometry(0.12, 18, 18),
-      new THREE.MeshBasicMaterial({ color: 0x2ec4b6 })
+      new THREE.MeshBasicMaterial({ color: termColor })
     )
     marker.position.copy(pos)
-    scene.add(marker)
+    orbitAnnotationGroup?.add(marker)
 
-    const sprite = createTextSprite(term.name, '#dffffb')
+    const sprite = createTextSprite(term.name, `#${termColor.toString(16).padStart(6, '0')}`)
     sprite.position.copy(pos).add(new THREE.Vector3(0, 0.65, 0))
     sprite.scale.set(1.25, 0.42, 1)
-    labelGroup.add(sprite)
+    orbitAnnotationGroup?.add(sprite)
   })
 }
 
@@ -1431,7 +1537,7 @@ function createHelpers() {
   )
   axisCone.position.set(0, EARTH_RADIUS * 1.86, 0)
   axisGroup.add(axisCone)
-  const nLabel = createTextSprite('N', '#eaffff')
+  const nLabel = createTextSprite('N', '#72e7ff')
   nLabel.position.set(0, EARTH_RADIUS * 2.08, 0)
   nLabel.scale.set(0.42, 0.24, 1)
   axisGroup.add(nLabel)
@@ -1447,31 +1553,30 @@ function createHelpers() {
   const arrowDir = new THREE.Vector3(Math.sin(arrowTipAngle), 0, -Math.cos(arrowTipAngle)).normalize()
   const arrow = new THREE.ArrowHelper(arrowDir, arrowOrigin, 0.46, 0xffd166, 0.2, 0.12)
   rotationArrowGroup.add(arrow)
-  const rotationLabel = createTextSprite('自西向东', '#ffd166')
+  const rotationLabel = createTextSprite('自西向东', '#ffca5b')
   rotationLabel.position.set(0, 0.24, -rotationRadius * 0.95)
   rotationLabel.scale.set(0.88, 0.24, 1)
   rotationArrowGroup.add(rotationLabel)
   earthTiltGroup.add(rotationArrowGroup)
 
   planesGroup = new THREE.Group()
-  const eclipticPlane = createDiscPlane(ORBIT_RADIUS * 1.02, 0x2ec4b6, 0.075)
+  const eclipticPlane = createDiscPlane(ORBIT_RADIUS * 1.02, ECLIPTIC_COLOR, 0.062)
   eclipticPlane.rotation.x = -Math.PI / 2
+  eclipticPlane.renderOrder = 0
   planesGroup.add(eclipticPlane)
-  const eclipticRing = createRingLine(ORBIT_RADIUS, 0x2ec4b6, 0.58)
-  planesGroup.add(eclipticRing)
-  const eclipticLabel = createTextSprite('黄道面', '#bffdf7')
+  const eclipticLabel = createTextSprite('黄道面', '#b9a8ff')
   eclipticLabel.position.set(ORBIT_RADIUS * 0.58, 0.08, ORBIT_RADIUS * 0.3)
   eclipticLabel.scale.set(0.9, 0.26, 1)
   planesGroup.add(eclipticLabel)
   scene.add(planesGroup)
 
   equatorPlaneGroup = new THREE.Group()
-  const equatorPlane = createDiscPlane(EARTH_RADIUS * 1.78, 0x48a7ff, 0.12)
+  const equatorPlane = createDiscPlane(EARTH_RADIUS * 1.78, EQUATOR_PLANE_COLOR, 0.052)
   equatorPlane.rotation.x = -Math.PI / 2
   equatorPlaneGroup.add(equatorPlane)
-  const equatorRing = createRingLine(EARTH_RADIUS * 1.78, 0x48a7ff, 0.78)
+  const equatorRing = createRingLine(EARTH_RADIUS * 1.78, EQUATOR_PLANE_COLOR, 0.82)
   equatorPlaneGroup.add(equatorRing)
-  const equatorLabel = createTextSprite('赤道面', '#dffcff')
+  const equatorLabel = createTextSprite('赤道面', '#65efff')
   equatorLabel.position.set(EARTH_RADIUS * 1.9, 0.08, 0)
   equatorLabel.scale.set(0.8, 0.24, 1)
   equatorPlaneGroup.add(equatorLabel)
@@ -1500,8 +1605,8 @@ function createHelpers() {
 function createTiltAngleHelper() {
   const group = new THREE.Group()
   const r = EARTH_RADIUS * 1.95
-  const eclipticMat = new THREE.LineBasicMaterial({ color: 0x2ec4b6, transparent: true, opacity: 0.98 })
-  const equatorMat = new THREE.LineBasicMaterial({ color: 0x48a7ff, transparent: true, opacity: 0.98 })
+  const eclipticMat = new THREE.LineBasicMaterial({ color: ECLIPTIC_COLOR, transparent: true, opacity: 0.98 })
+  const equatorMat = new THREE.LineBasicMaterial({ color: EQUATOR_PLANE_COLOR, transparent: true, opacity: 0.98 })
   const arcMat = new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 1 })
 
   const eclipticLine = new THREE.Line(
@@ -1529,7 +1634,7 @@ function createTiltAngleHelper() {
   arcTip.rotation.z = EARTH_TILT - Math.PI / 2
   group.add(arcTip)
 
-  const label = createTextSprite('黄赤交角 23.44°', '#fff4cb')
+  const label = createTextSprite('黄赤交角 23.44°', '#ffd27a')
   label.position.set(Math.cos(EARTH_TILT * 0.52) * r * 0.92, Math.sin(EARTH_TILT * 0.52) * r * 0.92 - 0.18, 0.18)
   label.scale.set(1.06, 0.26, 1)
   group.add(label)
@@ -1691,13 +1796,22 @@ function loadTexturesAsync() {
     }
   })
   loadTexture(sceneTextureLoader, RAW_TEXTURES.earth, (texture) => {
-    texture.colorSpace = THREE.SRGBColorSpace
+    prepareEarthTexture(texture)
     earthUniforms.dayMap.value = texture
   })
   loadTexture(sceneTextureLoader, RAW_TEXTURES.night, (texture) => {
-    texture.colorSpace = THREE.SRGBColorSpace
+    prepareEarthTexture(texture)
     earthUniforms.nightMap.value = texture
   })
+}
+
+function prepareEarthTexture(texture: THREE.Texture) {
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
+  texture.needsUpdate = true
 }
 
 function loadTexture(loader: THREE.TextureLoader, url: string, onLoad: (texture: THREE.Texture) => void) {
@@ -1886,6 +2000,8 @@ function updateCelestialState() {
   updateLightUniforms()
   earthUniforms.sunDirection.value.copy(sunDir)
   earthAtmosphereUniforms.sunDirection.value.copy(sunDir)
+  earthSunGlowUniforms.sunDirection.value.copy(sunDir)
+  updateSunGlowBeam()
   const axisWorld = new THREE.Vector3(0, 1, 0).applyQuaternion(earthTiltGroup.getWorldQuaternion(new THREE.Quaternion())).normalize()
   earthUniforms.axisDirection.value.copy(axisWorld)
 
@@ -1937,22 +2053,45 @@ function updateSunRays(sunDir: THREE.Vector3) {
   }
 }
 
+function updateSunGlowBeam() {
+  if (!sunGlowBeam || !earthRoot) return
+  const earthPosition = earthRoot.position.clone()
+  const travelDirection = earthPosition.clone().normalize()
+  const beamStart = travelDirection.clone().multiplyScalar(SUN_RADIUS * 1.12)
+  const beamEnd = earthPosition
+  const beamVector = new THREE.Vector3().subVectors(beamEnd, beamStart)
+  const beamLength = beamVector.length()
+
+  sunGlowBeam.position.copy(beamStart).add(beamEnd).multiplyScalar(0.5)
+  sunGlowBeam.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    beamVector.clone().normalize(),
+  )
+  sunGlowBeam.scale.set(1, beamLength, 1)
+  sunGlowBeam.visible = toggles.sunGlow
+}
+
 function updateVisibility() {
   earthUniforms.showTerminator.value = toggles.terminator ? 1 : 0
-  earthUniforms.showDayNightArc.value = toggles.dayNightArc ? 1 : 0
+  earthUniforms.showDayArc.value = toggles.dayArc ? 1 : 0
+  earthUniforms.showNightArc.value = toggles.nightArc ? 1 : 0
   if (terminatorLine) terminatorLine.visible = false
   if (gridGroup) gridGroup.visible = toggles.grid
   if (tropicsGroup) tropicsGroup.visible = toggles.tropics
   if (zonesGroup) zonesGroup.visible = toggles.zones
   if (coordLabelGroup) coordLabelGroup.visible = toggles.coordLabels
-  if (planesGroup) planesGroup.visible = toggles.tiltLabels
-  if (equatorPlaneGroup) equatorPlaneGroup.visible = toggles.tiltLabels
+  if (orbitGroup) orbitGroup.visible = toggles.orbit
+  if (orbitAnnotationGroup) orbitAnnotationGroup.visible = toggles.orbit
+  if (planesGroup) planesGroup.visible = toggles.eclipticPlane
+  if (equatorPlaneGroup) equatorPlaneGroup.visible = toggles.equatorPlane
   if (tiltAngleGroup) tiltAngleGroup.visible = toggles.tiltAngle
   if (axisGroup) axisGroup.visible = toggles.axis
   if (rotationArrowGroup) rotationArrowGroup.visible = toggles.rotationArrow
   if (dayArcLine) dayArcLine.visible = false
   if (nightArcLine) nightArcLine.visible = false
   if (sunRaysGroup) sunRaysGroup.visible = toggles.sunRays
+  if (earthSunGlow) earthSunGlow.visible = toggles.sunGlow
+  if (sunGlowBeam) sunGlowBeam.visible = toggles.sunGlow
 }
 
 function smoothCameraTarget(dt: number) {
@@ -2390,7 +2529,7 @@ function createFiveZones() {
     group.add(mesh)
 
     const labelLatitude = (zone.top + zone.bottom) / 2
-    const label = createTextSprite(zone.name, zone.name === '热带' ? '#ffe394' : '#d8f7ff')
+    const label = createTextSprite(zone.name, zone.name === '热带' ? '#ffcf63' : '#75e9ff')
     label.position.copy(latLonToVector(labelLatitude, -90, EARTH_RADIUS * 1.055))
     label.scale.set(0.46, 0.17, 1)
     label.renderOrder = 5
@@ -2420,13 +2559,13 @@ function createCoordinateLabels() {
   const group = new THREE.Group()
   for (let lat = -60; lat <= 60; lat += 30) {
     if (lat === 0) continue
-    const label = createTextSprite(formatGridLat(lat), '#bffdf7')
+    const label = createTextSprite(formatGridLat(lat), '#6fe7ff')
     label.position.copy(latLonToVector(lat, -165, EARTH_RADIUS * 1.1))
     label.scale.set(0.5, 0.18, 1)
     group.add(label)
   }
   for (let lon = -180; lon < 180; lon += 60) {
-    const label = createTextSprite(formatGridLon(lon), '#d9f7ff')
+    const label = createTextSprite(formatGridLon(lon), '#a7b7ff')
     label.position.copy(latLonToVector(0, lon, EARTH_RADIUS * 1.12))
     label.scale.set(0.5, 0.18, 1)
     group.add(label)
@@ -2470,22 +2609,54 @@ function latLonToVector(latDeg: number, lonDeg: number, radius: number) {
 
 function createTextSprite(text: string, color = '#ffffff') {
   const canvas = document.createElement('canvas')
-  canvas.width = 256
-  canvas.height = 96
+  canvas.width = 384
+  canvas.height = 128
   const ctx = canvas.getContext('2d')
+  if (!ctx) return new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true }))
   ctx.clearRect(0, 0, canvas.width, canvas.height)
-  ctx.font = '600 30px Microsoft YaHei, Arial'
+
+  const panelGradient = ctx.createLinearGradient(24, 20, 360, 108)
+  panelGradient.addColorStop(0, 'rgba(4, 18, 32, 0.96)')
+  panelGradient.addColorStop(0.58, 'rgba(8, 31, 49, 0.92)')
+  panelGradient.addColorStop(1, 'rgba(3, 13, 26, 0.96)')
+  ctx.fillStyle = panelGradient
+  ctx.shadowColor = color
+  ctx.shadowBlur = 12
+  roundRect(ctx, 18, 18, 348, 92, 20)
+  ctx.fill()
+  ctx.shadowBlur = 0
+  ctx.lineWidth = 2
+  ctx.strokeStyle = color
+  ctx.globalAlpha = 0.72
+  ctx.stroke()
+  ctx.globalAlpha = 1
+
+  const accentGradient = ctx.createLinearGradient(56, 0, 328, 0)
+  accentGradient.addColorStop(0, 'rgba(255,255,255,0)')
+  accentGradient.addColorStop(0.2, color)
+  accentGradient.addColorStop(0.8, color)
+  accentGradient.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = accentGradient
+  ctx.fillRect(56, 18, 272, 3)
+
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.arc(38, 64, 4, 0, Math.PI * 2)
+  ctx.arc(346, 64, 4, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.font = '700 35px Microsoft YaHei, Arial'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillStyle = 'rgba(4, 16, 26, 0.62)'
-  roundRect(ctx, 24, 18, 208, 58, 16)
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(46, 196, 182, 0.65)'
-  ctx.stroke()
   ctx.fillStyle = color
-  ctx.fillText(text, 128, 48)
+  ctx.shadowColor = color
+  ctx.shadowBlur = 9
+  ctx.fillText(text, 192, 66)
+  ctx.shadowBlur = 0
   const texture = new THREE.CanvasTexture(canvas)
-  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.needsUpdate = true
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false })
   return new THREE.Sprite(mat)
 }
 
@@ -3300,7 +3471,7 @@ function normalizeLon(value: number) {
 
 .sub-scene-window {
   position: fixed;
-  z-index: 9999;
+  z-index: 44;
   width: auto;
   height: auto;
   display: grid;
@@ -3579,6 +3750,140 @@ function normalizeLon(value: number) {
       minmax(0, 1fr));
 }
 
+.control-dashboard {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.control-dashboard .control-section {
+  min-width: 0;
+  margin: 0;
+  padding: 11px;
+  border-radius: 13px;
+}
+
+.control-quick-section {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.control-subgroup {
+  min-width: 0;
+}
+
+.control-subgroup+.control-subgroup {
+  padding-left: 12px;
+  border-left: 1px solid rgba(var(--theme-primary-light-rgb), 0.13);
+}
+
+.control-subgroup-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 9px;
+}
+
+.control-subgroup-head>span {
+  color: rgba(var(--theme-primary-light-rgb), 0.66);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.control-subgroup-head .section-title {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.quick-option-grid {
+  gap: 6px;
+}
+
+.quick-option-grid .option-btn {
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px 2px;
+  font-size: 12px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.dashboard-section-head {
+  min-height: 26px;
+  margin-bottom: 8px;
+}
+
+.section-hint {
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+
+.parameter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.parameter-control {
+  min-width: 0;
+  padding: 8px 9px 4px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), 0.11);
+  border-radius: 9px;
+  background: rgba(6, 21, 34, 0.28);
+}
+
+.parameter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.parameter-head strong {
+  color: var(--theme-primary-light);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.parameter-control :deep(.el-slider) {
+  height: 24px;
+  margin: 1px 2px 0;
+}
+
+.layer-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.layer-bulk-btn {
+  min-width: 38px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), 0.18);
+  border-radius: 7px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(var(--theme-primary-rgb), 0.07);
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.layer-bulk-btn:hover,
+.layer-bulk-btn.active {
+  border-color: rgba(var(--theme-primary-light-rgb), 0.42);
+  color: #ffffff;
+  background: rgba(var(--theme-primary-rgb), 0.26);
+}
+
 .solar-term-shortcuts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3587,7 +3892,7 @@ function normalizeLon(value: number) {
 
 .solar-term-btn {
   min-width: 0;
-  min-height: 42px;
+  min-height: 34px;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -3606,13 +3911,48 @@ function normalizeLon(value: number) {
 }
 
 .compact-switch-row {
-  padding:
-    7px 0;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), 0.10);
+  border-radius: 8px;
+  background: rgba(6, 21, 34, 0.24);
 }
 
 .layer-switch-list {
   display: grid;
-  gap: 2px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.layer-switch-list .control-copy {
+  min-width: 0;
+}
+
+.layer-switch-list .control-copy strong {
+  display: block;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-switch-list :deep(.el-switch) {
+  flex: none;
+  transform: scale(0.82);
+  transform-origin: right center;
+}
+
+.observation-click-row {
+  padding: 8px 9px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), 0.11);
+  border-radius: 9px;
+  background: rgba(6, 21, 34, 0.24);
+}
+
+.observation-click-row .control-copy span {
+  margin-top: 2px;
+  font-size: 10px;
 }
 
 .preset-cloud {
@@ -3622,7 +3962,18 @@ function normalizeLon(value: number) {
       minmax(0, 1fr));
   gap: 7px;
   margin:
-    10px 0;
+    8px 0;
+}
+
+.earth-orbit-template.theme-light .parameter-control,
+.earth-orbit-template.theme-light .compact-switch-row,
+.earth-orbit-template.theme-light .observation-click-row {
+  background: rgba(var(--theme-primary-rgb), 0.045);
+}
+
+.earth-orbit-template.theme-light .layer-bulk-btn:hover,
+.earth-orbit-template.theme-light .layer-bulk-btn.active {
+  color: var(--theme-primary-dark, #075f70);
 }
 
 .place-btn,
@@ -4495,10 +4846,12 @@ function normalizeLon(value: number) {
   display: grid;
   justify-items: center;
   gap: 2px;
-  min-width: 34px;
+  min-width: 42px;
   padding: 0;
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
@@ -4566,8 +4919,8 @@ function normalizeLon(value: number) {
   }
 
   .timeline-term-scale button {
-    min-width: 26px;
-    font-size: 7px;
+    min-width: 32px;
+    font-size: 9px;
   }
 }
 
@@ -4862,6 +5215,7 @@ function normalizeLon(value: number) {
 }
 
 @keyframes loading-earth-pulse {
+
   0%,
   100% {
     transform: scale(0.96);

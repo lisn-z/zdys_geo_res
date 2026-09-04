@@ -1,6 +1,5 @@
 <template>
-  <div ref="pageRef" class="soil-erosion-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode">
+  <div class="soil-erosion-container geo-template-page geo-page theme-dark layout-floating">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -8,24 +7,48 @@
       </div>
       <h1 class="page-title">水土流失</h1>
       <div class="toolbar-actions">
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :aria-pressed="panelsVisible"
+          @click="panelsVisible = !panelsVisible">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
-    <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>实验变量调控</h2>
-              <p>调整参数观察水土流失变化</p>
-            </div>
-            <span class="panel-badge">CONTROL</span>
+    <main class="workspace floating-workspace">
+      <section class="center-stage">
+        <div class="stage-content">
+          <div ref="canvasContainerRef" class="scene-host three-host">
+            <canvas ref="canvasRef" class="scene-canvas"></canvas>
           </div>
+          <div v-if="isRaining" class="sim-status-badge sim-running"><span class="sim-dot"></span>模拟运行中</div>
+          <div v-else-if="progress > 0 && progress < 100" class="sim-status-badge sim-paused"><span
+              class="sim-dot"></span>模拟已暂停</div>
+          <div v-else class="sim-status-badge sim-idle"><span class="sim-dot"></span>待机中</div>
+          <div v-if="progress === 0" class="scene-hint">点击"开始降雨模拟"，观察径流、侵蚀与含沙量变化</div>
+        </div>
 
-          <section class="geo-card control-section">
+        <div class="timeline-dock">
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlay">
+            <el-icon>
+              <VideoPause v-if="isPlaying" />
+              <VideoPlay v-else />
+            </el-icon>
+          </button>
+          <div class="timeline-main">
+            <div class="timeline-copy"><span>模拟进度</span><strong>{{ Math.round(progress) }}%</strong></div>
+            <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" @change="onProgressSeek" />
+          </div>
+          <button type="button" class="theme-btn speed-btn" @click="cycleSpeed" :title="'倍速: ' + playbackSpeed + '×'">{{
+            playbackSpeed }}×</button>
+        </div>
+      </section>
+
+      <Transition name="panel-stack">
+        <div v-if="panelsVisible" class="floating-panel-stack" aria-label="功能面板">
+          <FloatingFeatureCard title="实验变量调控" subtitle="调整参数观察水土流失变化" variant="control"
+            :initial-collapsed="true" :draggable="false" :resizable="false" class="soil-floating-card">
+            <section class="geo-card control-section">
             <h3 class="section-title">🌳 植被覆盖</h3>
             <div class="section-title-row">
               <span class="mini-control-label">覆盖度</span>
@@ -86,70 +109,28 @@
               <div class="control-copy"><strong>🔊 雨声音效</strong><span>随降雨强度动态变化</span></div>
               <el-switch v-model="soundEnabled" @change="onSoundToggle" />
             </div>
-          </section>
-        </div>
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
+            </section>
+          </FloatingFeatureCard>
 
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
-
-      <section class="center-stage">
-        <div class="stage-content">
-          <div ref="canvasContainerRef" class="scene-host three-host">
-            <canvas ref="canvasRef" class="scene-canvas"></canvas>
-          </div>
-          <div v-if="isRaining" class="sim-status-badge sim-running"><span class="sim-dot"></span>模拟运行中</div>
-          <div v-else-if="progress > 0 && progress < 100" class="sim-status-badge sim-paused"><span
-              class="sim-dot"></span>模拟已暂停</div>
-          <div v-else class="sim-status-badge sim-idle"><span class="sim-dot"></span>待机中</div>
-          <div v-if="progress === 0" class="scene-hint">点击"开始降雨模拟"，观察径流、侵蚀与含沙量变化</div>
-        </div>
-
-        <div class="timeline-dock">
-          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlay">
-            <el-icon>
-              <VideoPause v-if="isPlaying" />
-              <VideoPlay v-else />
-            </el-icon>
-          </button>
-          <div class="timeline-main">
-            <div class="timeline-copy"><span>模拟进度</span><strong>{{ Math.round(progress) }}%</strong></div>
-            <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" @change="onProgressSeek" />
-          </div>
-          <button type="button" class="theme-btn speed-btn" @click="cycleSpeed" :title="'倍速: ' + playbackSpeed + '×'">{{
-            playbackSpeed }}×</button>
-        </div>
-      </section>
-
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>模拟结果</h2>
-              <p>实时水土流失监测数据</p>
-            </div>
-            <span class="panel-badge">DATA</span>
-          </div>
-          <div class="data-grid">
+          <FloatingFeatureCard title="模拟结果" subtitle="实时水土流失监测数据" variant="data"
+            :initial-collapsed="true" :draggable="false" :resizable="false" class="soil-floating-card">
+            <div class="data-grid">
             <article class="geo-card data-card" :class="dataCardClass(0)"><span>💧 地表径流量</span><strong>{{
               simStats.runoff }}</strong><small>L/s · 水流强度</small></article>
             <article class="geo-card data-card" :class="dataCardClass(1)"><span>⛰️ 流失土壤量</span><strong>{{
               simStats.erosion.toFixed(1) }}</strong><small>kg · 土壤损失</small></article>
             <article class="geo-card data-card" :class="dataCardClass(2)"><span>🟠 河流含沙量</span><strong>{{
               simStats.sediment }}</strong><small>% · 浑浊度</small></article>
-          </div>
-          <div class="erosion-level-card geo-card">
+            </div>
+            <div class="erosion-level-card geo-card">
             <div class="level-header"><span>流失等级评估</span><span class="level-badge" :class="levelClass">{{ levelText
                 }}</span></div>
             <div class="level-track">
               <div class="level-fill" :style="{ width: levelPercent + '%' }"></div>
             </div>
             <div class="level-labels"><span>轻度</span><span>中度</span><span>重度</span></div>
-          </div>
-          <el-collapse v-model="activePanels" class="analysis-collapse">
+            </div>
+            <el-collapse v-model="activePanels" class="analysis-collapse">
             <el-collapse-item title="🌍 什么是水土流失" name="concept">
               <div class="collapse-content principle-content">
                 <p><strong>定义：</strong>水土流失是指土壤在<strong>水力、风力、重力</strong>等外力作用下，被破坏、剥蚀、搬运和沉积的过程。</p>
@@ -187,24 +168,10 @@
                 <p><strong>④ 综合治理：</strong><strong>小流域综合治理</strong>，把工程、生物、农业措施结合起来。</p>
               </div>
             </el-collapse-item>
-          </el-collapse>
+            </el-collapse>
+          </FloatingFeatureCard>
         </div>
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
-
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
-
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
-      </button>
+      </Transition>
     </main>
   </div>
 </template>
@@ -212,79 +179,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 /*
  * 公共模板样式已内置平板宽度、触控拖拽与防误触规则。
  */
 import '@/styles/geo-page-template.css'
-import {
-  useGeoPanelLayout,
-} from '@/hooks/useGeoPanelLayout'
-
 // ===== State =====
-const hasLeftPanel = true
-const hasRightPanel = true
-
-/*
- * 左右面板统一交给公共 Hook。
- * 业务组件只负责水土流失模拟和主画布最终尺寸校准。
- */
-const {
-  rootRef: pageRef,
-  layoutMode,
-
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
-
-  draggingSide,
-  viewportResizing,
-
-  workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-
-  leftResizeAttrs,
-  rightResizeAttrs,
-
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-
-  leftEntryAttrs,
-  rightEntryAttrs,
-
-  toggleAll: toggleAllPanels,
-} = useGeoPanelLayout({
-  left: {
-    enabled: hasLeftPanel,
-    resizable: true,
-  },
-
-  right: {
-    enabled: hasRightPanel,
-    resizable: true,
-  },
-
-  onLayoutChange(state) {
-    /*
-     * 面板拖拽或浏览器连续缩放期间，
-     * 不重建 2D Canvas 像素缓冲区。
-     */
-    if (state.resizing) {
-      return
-    }
-
-    scheduleCanvasResize(90)
-  },
-
-  onResize(payload) {
-    if (
-      payload.phase === 'end' ||
-      payload.phase === 'reset'
-    ) {
-      scheduleCanvasResize(0)
-    }
-  },
-})
+const panelsVisible = ref(true)
 
 const vegState = ref(55)
 const rainState = ref(35)
@@ -363,12 +264,6 @@ const simulateButtonText = computed(() => {
   return '▶ 继续模拟'
 })
 
-
-// ===== Layout =====
-/*
- * 面板宽度、断点、拖拽、折叠和事件清理
- * 已全部由 useGeoPanelLayout 管理。
- */
 
 function cl(
   value: number,
@@ -717,13 +612,6 @@ function renderFrame() {
   ctx.restore()
 }
 
-function isPanelLayoutResizing() {
-  return (
-    draggingSide.value !== null ||
-    viewportResizing.value
-  )
-}
-
 function resizeCanvas() {
   const container =
     canvasContainerRef.value
@@ -837,14 +725,6 @@ function scheduleCanvasResize(
   cancelAnimationFrame(
     canvasResizeSettleFrame
   )
-
-  /*
-   * 拖拽过程中先依靠 CSS 拉伸已有画布，
-   * 松手后再重建真实像素缓冲区。
-   */
-  if (isPanelLayoutResizing()) {
-    return
-  }
 
   canvasResizeTimer =
     setTimeout(() => {
@@ -1236,8 +1116,66 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ===================== v2：公共面板 Hook =====================
-   左右面板宽度、断点、平板触控拖拽与展开折叠，
-   统一由 useGeoPanelLayout 和 geo-page-template.css 管理。
-*/
+.floating-workspace {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.floating-panel-stack {
+  position: absolute;
+  z-index: 45;
+  top: var(--floating-panel-top-offset, 82px);
+  right: 14px;
+  bottom: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14px;
+  max-width: calc(100% - 28px);
+  padding: 2px 6px 8px 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  pointer-events: none;
+  scrollbar-width: thin;
+}
+
+.floating-panel-stack :deep(.floating-feature-card) {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  flex: 0 0 auto;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.floating-panel-stack :deep(.feature-card-content) {
+  padding: 12px 12px 34px;
+}
+
+.floating-panel-stack :deep(.variant-control:not(.collapsed)) {
+  height: min(640px, calc(100vh - 176px));
+}
+
+.floating-panel-stack :deep(.variant-data:not(.collapsed)) {
+  height: min(520px, calc(100vh - 176px));
+}
+
+.panel-stack-enter-active,
+.panel-stack-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.panel-stack-enter-from,
+.panel-stack-leave-to {
+  opacity: 0;
+  transform: translateX(18px);
+}
+
+@media (max-width: 760px) {
+  .floating-panel-stack {
+    right: 8px;
+    bottom: 82px;
+    gap: 10px;
+    max-width: calc(100% - 16px);
+  }
+}
 </style>

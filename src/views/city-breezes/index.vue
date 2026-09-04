@@ -19,19 +19,11 @@
             <i class="corner-light top-left"></i><i class="corner-light top-right"></i>
             <i class="corner-light bottom-left"></i><i class="corner-light bottom-right"></i>
           </div>
-          <div class="city-stage-badge" :class="{ expanded: stageTipVisible }">
+          <div class="city-stage-badge">
             <Transition name="stage-copy" mode="out-in" appear>
               <div :key="currentStage.id" class="stage-summary">
-                <span>URBAN HEAT ISLAND</span><strong>{{ currentStage.shortName }}</strong><small>{{ currentStage.flow
-                }}</small>
+                <strong>{{ currentStage.title }}</strong>
               </div>
-            </Transition>
-            <Transition name="stage-tip" mode="out-in" appear>
-              <section v-if="stageTipVisible" :key="currentStage.id" class="stage-reason">
-                <div class="stage-reason-heading"><span>WHY · {{ currentStage.title }}</span><button type="button"
-                    aria-label="关闭阶段解读" @click="dismissStageTip">×</button></div>
-                <p>{{ currentStage.reason }}</p><small>观察提示：{{ currentStage.focus }}</small>
-              </section>
             </Transition>
           </div>
           <div class="ring-scale"><span class="inner">内环核心</span><i></i><span class="middle">中环城区</span><i></i><span
@@ -59,8 +51,13 @@
     </main>
 
     <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="insightCollapsed" class="city-insight-card" title="城市风解读" subtitle="城市热岛效应"
-      variant="data" :initial-bottom="96" :initial-right="16" :bottom-inset="86" :min-width="350" :min-height="330">
+      variant="data" :initial-top="186" :initial-right="16" :bottom-inset="86" :min-width="350" :min-height="330">
       <div class="city-insight" style="padding: 16px;">
+        <section class="current-stage-insight">
+          <strong>{{ currentStage.title }}</strong>
+          <p>{{ currentStage.reason }}</p>
+          <small>观察提示：{{ currentStage.focus }}</small>
+        </section>
         <p class="insight-lead">城市建筑、道路和人为热源储热强，中心城区比郊区更暖，形成由郊区吹向城市的局地环流。</p>
         <div class="heat-index">
           <div class="heat-index-head"><span>当前热岛强度</span><strong>+{{ heatIslandValue }} ℃</strong></div>
@@ -122,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
@@ -142,7 +139,7 @@ const speedOptions = [0.5, 1, 2, 5]
 const progress = ref(0), playbackSpeed = ref(1), isPlaying = ref(false)
 const playbackMode = ref<PlaybackMode>(null), playbackStopAt = ref(100)
 const continuousMode = ref(false)
-const insightCollapsed = ref(true), stageCollapsed = ref(false), stageTipVisible = ref(true), sceneError = ref('')
+const insightCollapsed = ref(true), stageCollapsed = ref(true), sceneError = ref('')
 const panelsVisible = ref(true)
 
 function togglePanelsVisibility() { panelsVisible.value = !panelsVisible.value }
@@ -165,13 +162,6 @@ function smoothRange(value: number, start: number, end: number) { const t = THRE
 const heatIslandPercent = computed(() => Math.round(22 + smoothRange(progress.value, 10, 42) * 78))
 const heatIslandValue = computed(() => (.8 + smoothRange(progress.value, 10, 42) * 4.6).toFixed(1))
 const cornerAtmosphereStyle = computed(() => { const s = .2 + smoothRange(progress.value, 14, 44) * .8; return { '--urban-corner-opacity': s.toFixed(3), '--urban-corner-size': (180 + s * 90) + 'px' } })
-
-let stageTipTimer: ReturnType<typeof setTimeout> | null = null
-function clearStageTipTimer() { if (stageTipTimer) clearTimeout(stageTipTimer); stageTipTimer = null }
-function showStageTip() { clearStageTipTimer(); stageTipVisible.value = true; if (!isPlaying.value) return; stageTipTimer = setTimeout(() => { stageTipVisible.value = false; stageTipTimer = null }, 5600) }
-function dismissStageTip() { clearStageTipTimer(); stageTipVisible.value = false }
-watch(currentStageIndex, showStageTip, { immediate: true })
-watch(isPlaying, (playing) => { clearStageTipTimer(); if (playing && stageTipVisible.value) showStageTip() })
 
 let resizeScene: (delay?: number) => void = () => { }
 const { rootRef: pageRef, layoutMode, draggingSide, viewportResizing, workspaceAttrs } = useGeoPanelLayout({ left: { enabled: false }, right: { enabled: false }, onLayoutChange(state) { if (!state.resizing) resizeScene(80) }, onResize(payload) { if (payload.phase === 'end' || payload.phase === 'reset') resizeScene(0) } })
@@ -455,13 +445,13 @@ function beginPlayback(stopAt: number, mode: Exclude<PlaybackMode, null>) { cont
 function togglePlayback() { if (continuousMode.value) { pausePlayback(); return } if (isPlaying.value) pausePlayback(); else { if (progress.value >= 100) progress.value = 0; beginPlayback(100, 'all') } }
 function playAllStages() { togglePlayback() }
 function toggleLoopPlayback() { if (isPlaying.value && playbackMode.value === 'loop') { pausePlayback(); return } pausePlayback(); progress.value = 0; beginPlayback(100, 'loop') }
-function toggleContinuousMode() { if (continuousMode.value) { pausePlayback(); return } pausePlayback(); progress.value = 100; continuousMode.value = true; cameraFollow = false; showStageTip() }
+function toggleContinuousMode() { if (continuousMode.value) { pausePlayback(); return } pausePlayback(); progress.value = 100; continuousMode.value = true; cameraFollow = false }
 function handleScrub() { pausePlayback(); cameraFollow = true }
 function goToStage(index: number) { pausePlayback(); progress.value = stages[THREE.MathUtils.clamp(index, 0, stages.length - 1)]!.start; cameraFollow = true }
 function goToNextStage() { goToStage(currentStageIndex.value < stages.length - 1 ? currentStageIndex.value + 1 : 0) }
 function playCurrentStage() { if (isPlaying.value && playbackMode.value === 'stage') { pausePlayback(); return } const stage = currentStage.value; if (progress.value < stage.start || progress.value >= stage.end) progress.value = stage.start; beginPlayback(stage.end, 'stage') }
 function resetView() { if (!camera || !controls) return; cameraFollow = false; camera.position.copy(cameraViews[0]!.position); controls.target.copy(cameraViews[0]!.target); controls.update() }
-function disposeScene() { cancelAnimationFrame(animationFrame); cancelAnimationFrame(timelineFrame); cancelAnimationFrame(resizeFrame); if (resizeTimer) clearTimeout(resizeTimer); resizeTimer = null; clearStageTipTimer(); resizeObserver?.disconnect(); resizeObserver = null; controls?.dispose(); geometries.forEach((g) => g.dispose()); materials.forEach((m) => m.dispose()); textures.forEach((t) => t.dispose()); renderer?.dispose(); if (renderer?.domElement.parentElement) renderer.domElement.parentElement.removeChild(renderer.domElement); airStreams.length = 0; airArrows.length = 0; citySmokeRuntimes.length = 0; factorySmokeRuntimes.length = 0; buildingFootprints.length = 0; coreBuildingMaterials.length = 0; ripples.length = 0; factorySmoke.length = 0; heatMaterials.length = 0; pressureSprites.length = 0; airParticleTexture = null; sunMesh = null; sunGlowMaterial = null; sunBeamMaterial = null; sunLight = null; scene = null; camera = null; renderer = null; controls = null }
+function disposeScene() { cancelAnimationFrame(animationFrame); cancelAnimationFrame(timelineFrame); cancelAnimationFrame(resizeFrame); if (resizeTimer) clearTimeout(resizeTimer); resizeTimer = null; resizeObserver?.disconnect(); resizeObserver = null; controls?.dispose(); geometries.forEach((g) => g.dispose()); materials.forEach((m) => m.dispose()); textures.forEach((t) => t.dispose()); renderer?.dispose(); if (renderer?.domElement.parentElement) renderer.domElement.parentElement.removeChild(renderer.domElement); airStreams.length = 0; airArrows.length = 0; citySmokeRuntimes.length = 0; factorySmokeRuntimes.length = 0; buildingFootprints.length = 0; coreBuildingMaterials.length = 0; ripples.length = 0; factorySmoke.length = 0; heatMaterials.length = 0; pressureSprites.length = 0; airParticleTexture = null; sunMesh = null; sunGlowMaterial = null; sunBeamMaterial = null; sunLight = null; scene = null; camera = null; renderer = null; controls = null }
 onMounted(async () => { await nextTick(); initScene(); timelineFrame = requestAnimationFrame(animateTimeline) })
 onBeforeUnmount(disposeScene)
 </script>
@@ -713,6 +703,19 @@ onBeforeUnmount(disposeScene)
   display: grid;
   gap: 12px
 }
+
+.current-stage-insight {
+  display: grid;
+  gap: 7px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 151, 102, .26);
+  border-radius: 10px;
+  background: rgba(35, 20, 22, .48)
+}
+
+.current-stage-insight>strong { color: #fff; font-size: 14px }
+.current-stage-insight>p { margin: 0; color: rgba(242, 247, 250, .9); font-size: 12px; line-height: 1.65 }
+.current-stage-insight>small { color: rgba(116, 224, 239, .86); font-size: 11px; line-height: 1.55 }
 
 .insight-lead {
   margin: 0;

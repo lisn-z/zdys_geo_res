@@ -11,150 +11,88 @@
       <h1 class="page-title">地球自转与时区</h1>
 
       <div class="toolbar-actions">
-        <div class="tab-group header-mode-tabs">
-          <button v-for="m in [{ k: 'learn', l: '📖 学习' }, { k: 'test', l: '📝 测试' }]" :key="m.k" type="button"
-            class="theme-btn toolbar-btn" :class="{ active: trainingMode === m.k }"
-            @click="trainingMode = m.k as TrainingMode">
-            {{ m.l }}
-          </button>
-        </div>
-
-        <button type="button" class="theme-btn toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开全部' : '收起全部' }}
+        <button type="button" class="theme-btn toolbar-btn panels-visibility-btn" @click="togglePanelsVisibility">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>控制面板</h2>
-              <p>动画、图层与视角控制</p>
-            </div>
-            <span class="panel-badge">CTRL</span>
+      <FloatingFeatureCard v-show="panelsVisible" class="control-floating-card" title="🎛 控制面板" subtitle="动画、图层与视角控制"
+        variant="control" :initial-top="76" :initial-right="18" :bottom-inset="112" :initial-collapsed="true"
+        :min-width="320" :min-height="420" v-model:collapsed="controlCardCollapsed">
+        <div id="left-panel" class="floating-control-body">
+          <div class="panel-scroll">
+            <section class="geo-card control-section control-card control-card-brightness brightness-control-section">
+              <div class="ctrl-title">💡 亮度</div>
+
+              <div class="brightness-control-stack">
+                <div class="section-title-row compact-title-row">
+                  <span class="mini-control-label">地表亮度</span>
+                  <strong class="control-value">
+                    {{ brightness.toFixed(2) }}×
+                  </strong>
+                </div>
+
+                <el-slider v-model="brightness" :min="0.3" :max="2" :step="0.05" size="small" :show-tooltip="false" />
+
+                <div class="section-title-row compact-title-row">
+                  <span class="mini-control-label">夜间灯光亮度</span>
+                  <strong class="control-value">
+                    {{ nightLightPower.toFixed(2) }}×
+                  </strong>
+                </div>
+
+                <el-slider v-model="nightLightPower" :min="0.2" :max="4" :step="0.05" size="small"
+                  :show-tooltip="false" />
+
+                <div class="section-title-row compact-title-row">
+                  <span class="mini-control-label">暗面地表亮度</span>
+                  <strong class="control-value">
+                    {{ darkSideSurfacePower.toFixed(2) }}×
+                  </strong>
+                </div>
+
+                <el-slider v-model="darkSideSurfacePower" :min="0.05" :max="1.2" :step="0.05" size="small"
+                  :show-tooltip="false" />
+              </div>
+            </section>
+
+            <section class="geo-card control-section control-card control-card-layers">
+              <div class="ctrl-title">🎨 可视图层</div>
+              <div class="toggle-list">
+                <label v-for="l in layerDefs" :key="l.key" class="toggle-item">
+                  <span>{{ l.label }}</span>
+                  <el-switch v-model="layers[l.key]" size="small" />
+                </label>
+              </div>
+            </section>
+
+
+            <section class="geo-card control-section control-card control-card-view">
+              <div class="ctrl-title">🎥 视角</div>
+              <div class="btn-grid">
+                <button class="theme-btn option-btn" :class="{ active: currentView === 'equator' }"
+                  @click="setView('equator')">
+                  赤道视角
+                </button>
+                <button class="theme-btn option-btn" :class="{ active: currentView === 'north' }"
+                  @click="setView('north')">
+                  北极俯视
+                </button>
+                <button class="theme-btn option-btn" :class="{ active: currentView === 'south' }"
+                  @click="setView('south')">
+                  南极俯视
+                </button>
+                <button class="theme-btn option-btn" @click="setView('reset')">
+                  重置
+                </button>
+              </div>
+            </section>
+
           </div>
-          <section class="geo-card control-section control-card control-card-brightness brightness-control-section">
-            <div class="ctrl-title">💡 亮度</div>
-
-            <div class="brightness-control-stack">
-              <div class="section-title-row compact-title-row">
-                <span class="mini-control-label">地表亮度</span>
-                <strong class="control-value">
-                  {{ brightness.toFixed(2) }}×
-                </strong>
-              </div>
-
-              <el-slider v-model="brightness" :min="0.3" :max="2" :step="0.05" size="small" :show-tooltip="false" />
-
-              <div class="section-title-row compact-title-row">
-                <span class="mini-control-label">夜间灯光亮度</span>
-                <strong class="control-value">
-                  {{ nightLightPower.toFixed(2) }}×
-                </strong>
-              </div>
-
-              <el-slider v-model="nightLightPower" :min="0.2" :max="4" :step="0.05" size="small"
-                :show-tooltip="false" />
-
-              <div class="section-title-row compact-title-row">
-                <span class="mini-control-label">暗面地表亮度</span>
-                <strong class="control-value">
-                  {{ darkSideSurfacePower.toFixed(2) }}×
-                </strong>
-              </div>
-
-              <el-slider v-model="darkSideSurfacePower" :min="0.05" :max="1.2" :step="0.05" size="small"
-                :show-tooltip="false" />
-            </div>
-          </section>
-
-          <section class="geo-card control-section control-card control-card-layers">
-            <div class="ctrl-title">🎨 可视图层</div>
-            <div class="toggle-list">
-              <label v-for="l in layerDefs" :key="l.key" class="toggle-item">
-                <span>{{ l.label }}</span>
-                <el-switch v-model="layers[l.key]" size="small" />
-              </label>
-            </div>
-          </section>
-
-
-          <section class="geo-card control-section control-card control-card-view">
-            <div class="ctrl-title">🎥 视角</div>
-            <div class="btn-grid">
-              <button class="theme-btn option-btn" :class="{ active: currentView === 'equator' }"
-                @click="setView('equator')">
-                赤道视角
-              </button>
-              <button class="theme-btn option-btn" :class="{ active: currentView === 'north' }"
-                @click="setView('north')">
-                北极俯视
-              </button>
-              <button class="theme-btn option-btn" :class="{ active: currentView === 'south' }"
-                @click="setView('south')">
-                南极俯视
-              </button>
-              <button class="theme-btn option-btn" @click="setView('reset')">
-                重置
-              </button>
-            </div>
-          </section>
-
-          <section class="geo-card control-section control-card control-card-legend panel-rotation-legend-card">
-            <div class="ctrl-title">📖 图例</div>
-
-            <div class="panel-rotation-legend-list">
-              <div class="panel-rotation-legend-item">
-                <span class="legend-dot" style="background:#ef4444"></span>
-                A 点
-              </div>
-              <div class="panel-rotation-legend-item">
-                <span class="legend-dot" style="background:#247cff"></span>
-                B 点
-              </div>
-              <div class="panel-rotation-legend-item">
-                <span class="legend-line" style="background:#fbbf24"></span>
-                经度弧
-              </div>
-              <div class="panel-rotation-legend-item">
-                <span class="legend-line" style="background:#ff8800"></span>
-                晨线（日出）
-              </div>
-              <div class="panel-rotation-legend-item">
-                <span class="legend-line" style="background:#6366f1"></span>
-                昏线（日落）
-              </div>
-              <div class="panel-rotation-legend-item">
-                <span class="legend-line" style="background:#fbbf24"></span>
-                本初子午线 0°
-              </div>
-              <div class="panel-rotation-legend-item">
-                <span class="legend-line" style="background:#ef4444"></span>
-                国际日界线（现代制图近似）
-              </div>
-              <div class="panel-rotation-legend-item">
-                <span class="legend-line" style="background:#2ec4b6"></span>
-                时区线 / 时区范围
-              </div>
-              <div class="panel-rotation-legend-item">
-                <span class="legend-line" style="background:#7c3aed"></span>
-                夜弧
-              </div>
-            </div>
-          </section>
-
-
-
         </div>
-
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content rotation-stage-content">
@@ -176,20 +114,22 @@
 
             <div class="grid-labels-overlay">
               <div v-for="(t, i) in tzLabelScreenData" :key="'tz' + i" v-show="t.visible" class="grid-label tz-label"
-                :class="{ 'tz-label-with-time': layers.tzTimes }"
-                :style="{ left: t.x + 'px', top: t.y + 'px' }">
-                <span class="tz-label-name">{{ t.text }}</span>
-                <strong v-if="layers.tzTimes" class="tz-label-time">{{ t.time }}</strong>
+                :class="{ 'tz-label-with-time': layers.tzTimes }" :style="{ left: t.x + 'px', top: t.y + 'px' }">
+                <i class="tz-label-dot" aria-hidden="true"></i>
+                <span class="tz-label-copy">
+                  <span v-if="layers.tzLabels" class="tz-label-name">{{ t.text }}</span>
+                  <strong v-if="layers.tzTimes" class="tz-label-time">{{ t.time }}</strong>
+                </span>
               </div>
             </div>
 
           </div>
 
-          <div id="earth-bottom-axis-dock" v-show="bottomAxisVisible" class="bottom-dock-stack">
+          <div id="earth-bottom-axis-dock" v-show="panelsVisible && bottomAxisVisible" class="bottom-dock-stack">
             <section class="bottom-axis-unified" aria-label="自转与 A/B 经度控制">
               <div class="rotation-time-dock rotation-dock-bottom">
-                <button class="timeline-icon-btn" :class="{ active: isPlaying }"
-                  :aria-label="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
+                <button class="timeline-icon-btn" :class="{ active: isPlaying }" :aria-label="isPlaying ? '暂停' : '播放'"
+                  @click="isPlaying = !isPlaying">
                   <svg v-if="isPlaying" class="play-state-icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M7 5h4v14H7z"></path>
                     <path d="M13 5h4v14h-4z"></path>
@@ -207,19 +147,21 @@
                     <span>演示速度</span>
                     <strong>{{ rotSpeed.toFixed(1) }}×</strong>
                   </div>
-                  <el-slider v-model="rotSpeed" :min="0.1" :max="10" :step="0.1" size="small"
-                    :show-tooltip="false" />
+                  <el-slider v-model="rotSpeed" :min="0.1" :max="10" :step="0.1" size="small" :show-tooltip="false" />
                 </div>
               </div>
 
               <div v-show="trainingMode === 'learn'" class="longitude-axis ab-axis-dock axis-in-unified">
                 <div class="axis-header">
                   <div class="axis-summary">
-                    <span class="axis-point-summary axis-point-summary-a"><small>A 经度</small><b>{{ formatLon(pointA.lon) }}</b></span>
-                    <span class="axis-point-summary axis-point-summary-b"><small>B 经度</small><b>{{ formatLon(pointB.lon) }}</b></span>
+                    <span class="axis-point-summary axis-point-summary-a"><small>A 经度</small><b>{{ formatLon(pointA.lon)
+                        }}</b></span>
+                    <span class="axis-point-summary axis-point-summary-b"><small>B 经度</small><b>{{ formatLon(pointB.lon)
+                        }}</b></span>
                     <span><small>经度差</small><b>{{ calcLonDiff(pointA.lon, pointB.lon) }}°</b></span>
                     <span><small>时差</small><b>{{ formatTimeDiff(calcLonDiff(pointA.lon, pointB.lon) / 15) }}</b></span>
-                    <span class="axis-relation">{{ pointA.lon > pointB.lon ? 'A 在 B 东侧' : pointA.lon < pointB.lon ? 'B 在 A 东侧' : 'A / B 同经度' }}</span>
+                    <span class="axis-relation">{{ pointA.lon > pointB.lon ? 'A 在 B 东侧' : pointA.lon < pointB.lon
+                      ? 'B 在 A 东侧' : 'A / B 同经度' }}</span>
                   </div>
                 </div>
                 <div class="axis-scale-wrap">
@@ -251,19 +193,49 @@
         </div>
       </section>
 
+      <!-- 左下图例：轻量常驻叠层，不使用浮动卡片标题栏 -->
+      <aside v-show="panelsVisible" class="rotation-legend-overlay" aria-label="图例">
+        <div class="rotation-legend-heading">图例</div>
+        <div class="panel-rotation-legend-list">
+          <div class="panel-rotation-legend-item"><span class="legend-dot" style="background:#ef4444"></span>A 点</div>
+          <div class="panel-rotation-legend-item"><span class="legend-dot" style="background:#247cff"></span>B 点</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#fbbf24"></span>经度弧</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#ff8800"></span>晨线（日出）
+          </div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#6366f1"></span>昏线（日落）
+          </div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#fbbf24"></span>本初子午线 0°
+          </div>
+          <div class="panel-rotation-legend-item"><span class="legend-line"
+              style="background:#ef4444"></span>国际日界线（现代制图近似）</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#2ec4b6"></span>时区线 / 时区范围
+          </div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#7c3aed"></span>夜弧</div>
+        </div>
+      </aside>
+
       <!-- 卡片一：A/B 同时刻对比 -->
-      <FloatingFeatureCard title="⏱ A / B 同时刻对比" subtitle="两地地方时与昼夜状态" variant="data" :initial-top="76"
-        :initial-right="18" :bottom-inset="12" :min-width="300" :min-height="180"
-        v-model:collapsed="abCardCollapsed">
+      <FloatingFeatureCard v-show="panelsVisible" class="ab-comparison-floating-card" title="⏱ A / B 同时刻对比"
+        subtitle="两地地方时与昼夜状态" variant="data" :initial-top="152" :initial-right="18" :bottom-inset="112"
+        :initial-collapsed="true" :min-width="300" :min-height="180" v-model:collapsed="abCardCollapsed">
         <div class="right-panel floating-card-body">
           <div class="geo-card ab-compare-panel right-info-card">
             <div class="ab-cards">
               <div class="ab-card ab-a">
-                <div class="ab-badge a">A</div>
-                <div class="ab-lon">{{ formatLon(pointA.lon) }}</div>
+                <div class="ab-location-head">
+                  <div class="ab-badge a">A</div>
+                  <span class="ab-location-name">A 点</span>
+                  <div class="ab-lon">{{ formatLon(pointA.lon) }}</div>
+                </div>
                 <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointA.lon)) }}</div>
-                <div class="ab-status" :class="{ day: isPointDaytime(pointA.lon) }">
-                  <!--             {{ isPointDaytime(pointA.lon) ? '☀️' : '🌙' }} -->
+                <div class="ab-status" :class="getPointSunStatus(pointA.lon).kind">
+                  <strong>{{ getPointSunStatus(pointA.lon).icon }} {{ getPointSunStatus(pointA.lon).label }}</strong>
+                </div>
+                <div class="ab-sun-events">
+                  <span><i class="sunrise"></i><small>日出</small><b>{{ formatSunEventTime(pointSunCycle.sunrise,
+                      pointSunCycle.condition) }}</b></span>
+                  <span><i class="sunset"></i><small>日落</small><b>{{ formatSunEventTime(pointSunCycle.sunset,
+                      pointSunCycle.condition) }}</b></span>
                 </div>
               </div>
 
@@ -273,11 +245,20 @@
               </div>
 
               <div class="ab-card ab-b">
-                <div class="ab-badge b">B</div>
-                <div class="ab-lon">{{ formatLon(pointB.lon) }}</div>
+                <div class="ab-location-head">
+                  <div class="ab-badge b">B</div>
+                  <span class="ab-location-name">B 点</span>
+                  <div class="ab-lon">{{ formatLon(pointB.lon) }}</div>
+                </div>
                 <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointB.lon)) }}</div>
-                <div class="ab-status" :class="{ day: isPointDaytime(pointB.lon) }">
-                  <!--                   {{ isPointDaytime(pointB.lon) ? '☀️' : '🌙' }} -->
+                <div class="ab-status" :class="getPointSunStatus(pointB.lon).kind">
+                  <strong>{{ getPointSunStatus(pointB.lon).icon }} {{ getPointSunStatus(pointB.lon).label }}</strong>
+                </div>
+                <div class="ab-sun-events">
+                  <span><i class="sunrise"></i><small>日出</small><b>{{ formatSunEventTime(pointSunCycle.sunrise,
+                      pointSunCycle.condition) }}</b></span>
+                  <span><i class="sunset"></i><small>日落</small><b>{{ formatSunEventTime(pointSunCycle.sunset,
+                      pointSunCycle.condition) }}</b></span>
                 </div>
               </div>
             </div>
@@ -286,44 +267,49 @@
       </FloatingFeatureCard>
 
       <!-- 卡片二：选中城市的信息预览 -->
-      <FloatingFeatureCard v-if="selectedCity" :title="selectedCity.name" subtitle="城市信息预览" variant="data"
-        :initial-top="330" :initial-right="18" :bottom-inset="12" :min-width="300" :min-height="200"
+      <FloatingFeatureCard v-if="selectedCity" v-show="panelsVisible" class="city-preview-floating-card"
+        :title="selectedCity.name" subtitle="城市信息预览" variant="data" :initial-top="228" :initial-right="18"
+        :bottom-inset="112" :initial-collapsed="true" :min-width="300" :min-height="200"
         v-model:collapsed="cityPreviewCardCollapsed">
         <div class="right-panel floating-card-body">
           <div class="geo-card city-preview-panel right-info-card">
-            <button class="preview-close city-preview-close" title="关闭" @click="selectedCity = null">
-              ✕
-            </button>
-
             <div class="preview-body">
-              <div class="preview-row">
-                <span class="preview-label">📍 坐标</span>
-                <span class="preview-val">
-                  {{ Math.abs(selectedCity.lat) }}°{{ selectedCity.lat >= 0 ? 'N' : 'S' }},
-                  {{ Math.abs(selectedCity.lon) }}°{{ selectedCity.lon >= 0 ? 'E' : 'W' }}
-                </span>
+              <div class="city-preview-summary">
+                <div class="city-preview-time">
+                  <span>当前地方时</span>
+                  <strong>{{ formatLocalTime(getCityLocalHour(selectedCity)) }}</strong>
+                </div>
+                <div class="city-preview-day-state"
+                  :class="{ day: isCityDaytime(selectedCity), night: !isCityDaytime(selectedCity) }">
+                  <i></i>
+                  <div>
+                    <strong>{{ isCityDaytime(selectedCity) ? '白昼' : '黑夜' }}</strong>
+                    <small>当前昼夜状态</small>
+                  </div>
+                </div>
               </div>
-              <div class="preview-row">
-                <span class="preview-label">🌍 国家</span>
-                <span class="preview-val">{{ selectedCity.country }}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">🕐 地方时</span>
-                <span class="preview-val highlight">{{ formatLocalTime(getCityLocalHour(selectedCity)) }}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">🌐 时区</span>
-                <span class="preview-val">{{ getCityTimezoneInfo(selectedCity).label }}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">🇨🇳 与北京</span>
-                <span class="preview-val">{{ getCityTimezoneInfo(selectedCity).beijingDiff }}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">☀️🌙 昼夜</span>
-                <span class="preview-val" :class="{ day: isCityDaytime(selectedCity) }">
-                  {{ isCityDaytime(selectedCity) ? '白昼' : '黑夜' }}
-                </span>
+
+              <div class="city-preview-details">
+                <div class="city-preview-detail">
+                  <span>国家 / 地区</span>
+                  <strong>{{ selectedCity.country }}</strong>
+                </div>
+                <div class="city-preview-detail">
+                  <span>所属时区</span>
+                  <strong>{{ getCityTimezoneInfo(selectedCity).label }}</strong>
+                </div>
+                <div class="city-preview-detail city-preview-coordinate">
+                  <span>地理坐标</span>
+                  <strong>
+                    {{ Math.abs(selectedCity.lat) }}°{{ selectedCity.lat >= 0 ? 'N' : 'S' }}
+                    <em>·</em>
+                    {{ Math.abs(selectedCity.lon) }}°{{ selectedCity.lon >= 0 ? 'E' : 'W' }}
+                  </strong>
+                </div>
+                <div class="city-preview-detail city-preview-beijing-diff">
+                  <span>与北京时间</span>
+                  <strong>{{ getCityTimezoneInfo(selectedCity).beijingDiff }}</strong>
+                </div>
               </div>
             </div>
           </div>
@@ -331,9 +317,9 @@
       </FloatingFeatureCard>
 
       <!-- 卡片三：训练题目与作答 -->
-      <FloatingFeatureCard class="training-floating-card" title="🎯 训练题目" subtitle="作答与反馈" variant="track" :initial-bottom="184"
-        :initial-right="18" :bottom-inset="12" :initial-collapsed="true" :min-width="400" :min-height="300"
-        v-model:collapsed="trainingCardCollapsed">
+      <FloatingFeatureCard v-if="false" class="training-floating-card" title="🎯 训练题目" subtitle="作答与反馈" variant="track"
+        :initial-top="228" :initial-right="18" :bottom-inset="112" :initial-collapsed="true" :min-width="400"
+        :min-height="300" v-model:collapsed="trainingCardCollapsed">
         <div class="right-panel floating-card-body">
           <div class="geo-card training-card">
             <!-- 训练题目区 -->
@@ -463,9 +449,9 @@
       </FloatingFeatureCard>
 
       <!-- 卡片四：城市快捷选择 -->
-      <FloatingFeatureCard class="city-shortcut-floating-card" title="🏙 城市快捷" subtitle="搜索并选择世界城市" variant="data" :initial-bottom="122"
-        :initial-right="18" :bottom-inset="12" :initial-collapsed="true" :min-width="300" :min-height="240"
-        v-model:collapsed="cityShortcutCardCollapsed">
+      <FloatingFeatureCard v-if="false" class="city-shortcut-floating-card" title="🏙 城市快捷" subtitle="搜索并选择世界城市"
+        variant="data" :initial-top="304" :initial-right="18" :bottom-inset="112" :initial-collapsed="true"
+        :min-width="300" :min-height="240" v-model:collapsed="cityShortcutCardCollapsed">
         <div class="right-panel floating-card-body">
           <div class="geo-card city-shortcut-card">
             <input v-model="citySearch" class="city-search" placeholder="🔍 搜索城市..." />
@@ -481,9 +467,6 @@
         </div>
       </FloatingFeatureCard>
 
-      <button v-if="panelCollapsed" type="button" class="panel-entry-btn entry-left" v-bind="leftEntryAttrs">
-        ›
-      </button>
     </main>
   </section>
 </template>
@@ -512,6 +495,7 @@ import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 // ===================== 常量 =====================
 const EARTH_RADIUS = 2
 const TILT = 23.5 * Math.PI / 180
+const POINT_LATITUDE = 20
 
 const TEXTURE_BASE = '/geo-resources-folder/images'
 const RAW_TEXTURES = {
@@ -601,8 +585,10 @@ const bottomAxisVisible =
   ref(true)
 
 // FloatingFeatureCard 的 collapsed 是受控属性，需要由页面持有状态。
-const abCardCollapsed = ref(false)
-const cityPreviewCardCollapsed = ref(false)
+const panelsVisible = ref(true)
+const controlCardCollapsed = ref(true)
+const abCardCollapsed = ref(true)
+const cityPreviewCardCollapsed = ref(true)
 const trainingCardCollapsed = ref(true)
 const cityShortcutCardCollapsed = ref(true)
 
@@ -628,29 +614,12 @@ let lastSceneHeight = 0
 const {
   rootRef,
   layoutMode,
-
-  leftCollapsed:
-  panelCollapsed,
-
-  allPanelsCollapsed:
-  allSidePanelsCollapsed,
-
   draggingSide,
   viewportResizing,
-
   workspaceAttrs,
-  leftPanelAttrs,
-
-  leftResizeAttrs,
-
-  leftCollapseAttrs,
-
-  leftEntryAttrs,
-
-  setAllCollapsed,
 } = useGeoPanelLayout({
   left: {
-    enabled: true,
+    enabled: false,
   },
 
   right: {
@@ -675,41 +644,8 @@ const {
   },
 })
 
-const allPanelsCollapsed =
-  computed(() => {
-    return (
-      allSidePanelsCollapsed.value &&
-      !bottomAxisVisible.value &&
-      abCardCollapsed.value &&
-      trainingCardCollapsed.value &&
-      cityShortcutCardCollapsed.value &&
-      (!selectedCity.value || cityPreviewCardCollapsed.value)
-    )
-  })
-
-function toggleAllPanels() {
-  const shouldExpand =
-    allPanelsCollapsed.value
-
-  setAllCollapsed(
-    !shouldExpand
-  )
-
-  bottomAxisVisible.value =
-    shouldExpand
-
-  abCardCollapsed.value =
-    !shouldExpand
-
-  trainingCardCollapsed.value =
-    !shouldExpand
-
-  cityShortcutCardCollapsed.value =
-    !shouldExpand
-
-  cityPreviewCardCollapsed.value =
-    !shouldExpand
-
+function togglePanelsVisibility() {
+  panelsVisible.value = !panelsVisible.value
   nextTick(() => {
     scheduleSceneResize(0)
   })
@@ -838,11 +774,11 @@ const gridLabelScreenData = ref(gridLabelDefs.map(l => ({ text: l.text, x: 0, y:
 // 时区名称标注
 const tzLabelDefs = (() => {
   const labels: { text: string; lat: number; lon: number }[] = []
-  for (let lon = -180; lon <= 180; lon += 15) {
+  for (let lon = -180; lon < 180; lon += 15) {
     const tz = lon / 15
     let text: string
     if (tz === 0) text = '中时区'
-    else if (lon === 180) text = '东西十二区'
+    else if (Math.abs(lon) === 180) text = '东西十二区'
     else if (tz > 0) text = `东${tz}区`
     else text = `西${Math.abs(tz)}区`
     labels.push({ text, lat: tz % 2 === 0 ? 13 : -13, lon })
@@ -993,6 +929,95 @@ function isPointDaytime(lon: number): boolean {
   let diff = Math.abs(lon - sunLon)
   diff = Math.min(diff, 360 - diff)
   return diff < 90
+}
+
+type PointSunStatus = {
+  kind: 'sunrise' | 'day' | 'sunset' | 'night' | 'polar-day' | 'polar-night'
+  icon: string
+  label: string
+}
+
+type SunCycleCondition = 'normal' | 'polar-day' | 'polar-night'
+
+type PointSunCycle = {
+  sunrise: number | null
+  sunset: number | null
+  condition: SunCycleCondition
+  declination: number
+}
+
+function calculatePointSunCycle(latitude: number): PointSunCycle {
+  // 当前场景中太阳固定在世界坐标 +X，地轴绕 Z 轴倾斜 TILT，
+  // 因而太阳赤纬由地轴方向与太阳方向的夹角直接得到。
+  const axisWorld = new THREE.Vector3(0, 1, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), TILT)
+  const declination = THREE.MathUtils.radToDeg(Math.asin(
+    THREE.MathUtils.clamp(axisWorld.dot(sunDirection.clone().normalize()), -1, 1)
+  ))
+  const latitudeRad = THREE.MathUtils.degToRad(latitude)
+  const declinationRad = THREE.MathUtils.degToRad(declination)
+  const cosHourAngle = -Math.tan(latitudeRad) * Math.tan(declinationRad)
+
+  if (cosHourAngle <= -1) {
+    return { sunrise: null, sunset: null, condition: 'polar-day', declination }
+  }
+
+  if (cosHourAngle >= 1) {
+    return { sunrise: null, sunset: null, condition: 'polar-night', declination }
+  }
+
+  const hourAngle = THREE.MathUtils.radToDeg(Math.acos(cosHourAngle)) / 15
+  return {
+    sunrise: 12 - hourAngle,
+    sunset: 12 + hourAngle,
+    condition: 'normal',
+    declination,
+  }
+}
+
+const pointSunCycle = computed(() => {
+  // 与场景显示时钟建立响应式关联；后续若太阳方向由季节控制改变，也会随画面刷新重算。
+  void displayRotationAngle.value
+  return calculatePointSunCycle(POINT_LATITUDE)
+})
+
+function formatSunEventTime(hour: number | null, condition: SunCycleCondition): string {
+  if (hour === null) return condition === 'polar-day' ? '极昼' : '极夜'
+  const totalMinutes = Math.round(hour * 60)
+  const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440
+  const hours = Math.floor(normalizedMinutes / 60)
+  const minutes = normalizedMinutes % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+function getPointSunStatus(lon: number): PointSunStatus {
+  const hour = getPointLocalHour(lon)
+  const cycle = pointSunCycle.value
+
+  if (cycle.condition === 'polar-day') {
+    return { kind: 'polar-day', icon: '☀️', label: '极昼' }
+  }
+
+  if (cycle.condition === 'polar-night') {
+    return { kind: 'polar-night', icon: '🌙', label: '极夜' }
+  }
+
+  const sunrise = cycle.sunrise as number
+  const sunset = cycle.sunset as number
+  const circularDistance = (target: number) => Math.abs(((hour - target + 12) % 24) - 12)
+
+  if (circularDistance(sunrise) <= 0.5) {
+    return { kind: 'sunrise', icon: '🌅', label: '日出时段' }
+  }
+
+  if (circularDistance(sunset) <= 0.5) {
+    return { kind: 'sunset', icon: '🌇', label: '日落时段' }
+  }
+
+  if (hour > sunrise && hour < sunset) {
+    return { kind: 'day', icon: '☀️', label: '白昼' }
+  }
+
+  return { kind: 'night', icon: '🌙', label: '黑夜' }
 }
 
 // ===================== 地球纹理生成 =====================
@@ -1259,15 +1284,25 @@ function createDateLine(): THREE.Group {
 // ===================== 时区线 =====================
 function createTimeZones(): THREE.Group {
   const group = new THREE.Group()
+
+  // 时区中央经线位于 15° 的整数倍，理论边界应相对中央经线偏移 7.5°。
+  // 使用虚线与经纬网的实体经线区分，避免两个图层完全重叠。
   for (let i = 0; i < 24; i++) {
-    const lon = -180 + i * 15
+    const lon = -172.5 + i * 15
     const pts: THREE.Vector3[] = []
     for (let lat = -90; lat <= 90; lat += 2) {
       pts.push(latLonToVec3(lat, lon, EARTH_RADIUS * 1.004))
     }
-    const color = i % 2 === 0 ? 0x2ec4b6 : 0x1a6a5a
-    const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 })
-    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat))
+    const mat = new THREE.LineDashedMaterial({
+      color: i % 2 === 0 ? 0x2dd4bf : 0x22a8c7,
+      transparent: true,
+      opacity: 0.88,
+      dashSize: 0.055,
+      gapSize: 0.028,
+    })
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat)
+    line.computeLineDistances()
+    group.add(line)
   }
   return group
 }
@@ -2813,11 +2848,11 @@ function createABMarkers() {
 
 function updateABMarkers() {
   if (!markerA || !markerB) return
-  markerA.position.copy(latLonToVec3(20, pointA.lon, EARTH_RADIUS * 1.02))
-  markerB.position.copy(latLonToVec3(20, pointB.lon, EARTH_RADIUS * 1.02))
+  markerA.position.copy(latLonToVec3(POINT_LATITUDE, pointA.lon, EARTH_RADIUS * 1.02))
+  markerB.position.copy(latLonToVec3(POINT_LATITUDE, pointB.lon, EARTH_RADIUS * 1.02))
 
-  const rippleAAt = latLonToVec3(20, pointA.lon, EARTH_RADIUS * 1.024)
-  const rippleBAt = latLonToVec3(20, pointB.lon, EARTH_RADIUS * 1.024)
+  const rippleAAt = latLonToVec3(POINT_LATITUDE, pointA.lon, EARTH_RADIUS * 1.024)
+  const rippleBAt = latLonToVec3(POINT_LATITUDE, pointB.lon, EARTH_RADIUS * 1.024)
   const surfaceNormal = new THREE.Vector3(0, 0, 1)
   markerARipples.forEach(({ mesh }) => {
     mesh.position.copy(rippleAAt)
@@ -2838,7 +2873,7 @@ function updateABMarkers() {
   const steps = 30
   for (let i = 0; i <= steps; i++) {
     const lon = lon1 + dl * (i / steps)
-    pts.push(latLonToVec3(20, lon, EARTH_RADIUS * 1.03))
+    pts.push(latLonToVec3(POINT_LATITUDE, lon, EARTH_RADIUS * 1.03))
   }
   arcLine.geometry.dispose()
   arcLine.geometry = new THREE.BufferGeometry().setFromPoints(pts)
@@ -2946,7 +2981,7 @@ function getAxisPercent(lon: number): number {
 function applyLayerVisibility() {
   if (graticuleGroup) graticuleGroup.visible = layers.graticule
   if (dateLineGroup) dateLineGroup.visible = layers.dateLine
-  if (timeZoneGroup) timeZoneGroup.visible = layers.timeZones || layers.tzLabels || layers.tzTimes
+  if (timeZoneGroup) timeZoneGroup.visible = layers.timeZones
   if (timeZoneRangeGroup) timeZoneRangeGroup.visible = layers.timeZoneRanges
   if (terminatorLine) terminatorLine.visible = layers.terminator
   earthUniforms.showTerminator.value = layers.terminator ? 1 : 0
@@ -2969,7 +3004,11 @@ watch([() => pointA.lon, () => pointB.lon], () => updateABMarkers())
 
 // ===================== 生命周期 =====================
 onMounted(async () => {
-  // 进入页面时两张辅助卡片始终从收起状态开始。
+  // 页面默认展示全部卡片标题，但内容统一保持收起。
+  panelsVisible.value = true
+  controlCardCollapsed.value = true
+  abCardCollapsed.value = true
+  cityPreviewCardCollapsed.value = true
   trainingCardCollapsed.value = true
   cityShortcutCardCollapsed.value = true
   await nextTick()
@@ -6029,7 +6068,7 @@ body.geo-panel-resizing {
   min-width: 0;
 }
 
-.earth-rotation-template .rotation-stage-content .axis-summary > span:not(.axis-relation) {
+.earth-rotation-template .rotation-stage-content .axis-summary>span:not(.axis-relation) {
   display: flex;
   align-items: baseline;
   gap: 4px;
@@ -6351,7 +6390,7 @@ body.geo-panel-resizing {
     display: none;
   }
 
-  .earth-rotation-template .rotation-stage-content .axis-heading > div {
+  .earth-rotation-template .rotation-stage-content .axis-heading>div {
     display: none;
   }
 
@@ -6365,7 +6404,7 @@ body.geo-panel-resizing {
     gap: 3px;
   }
 
-  .earth-rotation-template .rotation-stage-content .axis-summary > span:not(.axis-relation) {
+  .earth-rotation-template .rotation-stage-content .axis-summary>span:not(.axis-relation) {
     padding-inline: 4px;
   }
 
@@ -6450,52 +6489,9 @@ body.geo-panel-resizing {
 }
 
 /* 浮动卡片内只有一个内容块时，去掉原侧栏里为多块堆叠预留的外边距 */
-.earth-rotation-template .floating-card-body > * {
+.earth-rotation-template .floating-card-body>* {
   margin-bottom:
     0 !important;
-}
-
-/* 城市预览关闭按钮：原标题栏已并入卡片标题，关闭按钮悬浮在右上角 */
-.earth-rotation-template .floating-card-body .city-preview-panel {
-  position:
-    relative;
-}
-
-.earth-rotation-template .floating-card-body .city-preview-close {
-  position:
-    absolute;
-  top:
-    8px;
-  right:
-    10px;
-  z-index:
-    2;
-  width:
-    24px;
-  height:
-    24px;
-  display:
-    grid;
-  place-items:
-    center;
-  border-radius:
-    8px;
-  font-size:
-    13px;
-  color:
-    rgba(226, 246, 250, 0.7);
-  background:
-    rgba(255, 255, 255, 0.06);
-  transition:
-    color 0.15s ease,
-    background 0.15s ease;
-}
-
-.earth-rotation-template .floating-card-body .city-preview-close:hover {
-  color:
-    #ef4444;
-  background:
-    rgba(239, 68, 68, 0.12);
 }
 
 /* 城市列表在浮动卡片里适当限高，避免撑爆卡片 */
@@ -6608,7 +6604,7 @@ body.geo-panel-resizing {
     gap: 10px;
   }
 
-  #earth-bottom-axis-dock .axis-summary > span:not(.axis-relation) {
+  #earth-bottom-axis-dock .axis-summary>span:not(.axis-relation) {
     gap: 6px;
     padding: 4px 8px;
   }
@@ -6637,7 +6633,7 @@ body.geo-panel-resizing {
 }
 
 /* ===================== v26: 左侧控制卡片视觉重构 ===================== */
-.earth-rotation-template .left-panel .control-card {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card {
   --card-accent: #5eead4;
   --card-accent-rgb: 94, 234, 212;
   position: relative;
@@ -6656,7 +6652,7 @@ body.geo-panel-resizing {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.earth-rotation-template .left-panel .control-card::before {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card::before {
   content: '';
   position: absolute;
   z-index: -1;
@@ -6669,7 +6665,7 @@ body.geo-panel-resizing {
   box-shadow: 0 0 16px rgba(var(--card-accent-rgb), 0.34);
 }
 
-.earth-rotation-template .left-panel .control-card:hover {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card:hover {
   border-color: rgba(var(--card-accent-rgb), 0.34);
   box-shadow:
     0 14px 34px rgba(0, 0, 0, 0.22),
@@ -6677,27 +6673,27 @@ body.geo-panel-resizing {
   transform: translateY(-1px);
 }
 
-.earth-rotation-template .left-panel .control-card-brightness {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card-brightness {
   --card-accent: #fbbf24;
   --card-accent-rgb: 251, 191, 36;
 }
 
-.earth-rotation-template .left-panel .control-card-layers {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card-layers {
   --card-accent: #2dd4bf;
   --card-accent-rgb: 45, 212, 191;
 }
 
-.earth-rotation-template .left-panel .control-card-view {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card-view {
   --card-accent: #60a5fa;
   --card-accent-rgb: 96, 165, 250;
 }
 
-.earth-rotation-template .left-panel .control-card-legend {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card-legend {
   --card-accent: #c084fc;
   --card-accent-rgb: 192, 132, 252;
 }
 
-.earth-rotation-template .left-panel .control-card > .ctrl-title {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card>.ctrl-title {
   position: relative;
   display: flex;
   align-items: center;
@@ -6714,7 +6710,7 @@ body.geo-panel-resizing {
   -webkit-text-fill-color: currentColor;
 }
 
-.earth-rotation-template .left-panel .control-card > .ctrl-title::after {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card>.ctrl-title::after {
   content: '';
   position: absolute;
   bottom: -1px;
@@ -6725,11 +6721,11 @@ body.geo-panel-resizing {
   background: linear-gradient(90deg, var(--card-accent), transparent);
 }
 
-.earth-rotation-template .left-panel .control-card .toggle-list {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card .toggle-list {
   gap: 5px;
 }
 
-.earth-rotation-template .left-panel .control-card .toggle-item {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card .toggle-item {
   min-height: 30px;
   padding: 3px 7px 3px 9px;
   border-radius: 8px;
@@ -6738,18 +6734,19 @@ body.geo-panel-resizing {
   transition: color 0.16s ease, background 0.16s ease;
 }
 
-.earth-rotation-template .left-panel .control-card .toggle-item:hover {
+.earth-rotation-template :is(.floating-control-body, .legend-floating-body) .control-card .toggle-item:hover {
   color: #effcff;
   background: rgba(var(--card-accent-rgb), 0.075);
 }
 
 /* ===================== v27: 时区名称与时间合并标注 ===================== */
 .earth-rotation-template .grid-label.tz-label {
-  display: grid;
-  justify-items: center;
-  gap: 1px;
-  min-width: 62px;
-  padding: 4px 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 82px;
+  padding: 6px 9px;
   border: 1px solid rgba(46, 196, 182, 0.35);
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(6, 20, 39, 0.92), rgba(10, 34, 52, 0.88));
@@ -6757,25 +6754,42 @@ body.geo-panel-resizing {
   backdrop-filter: blur(7px);
 }
 
+.earth-rotation-template .grid-label.tz-label .tz-label-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(207, 250, 254, 0.75);
+  border-radius: 50%;
+  background: #2dd4bf;
+  box-shadow: 0 0 8px rgba(45, 212, 191, 0.78);
+}
+
+.earth-rotation-template .grid-label.tz-label .tz-label-copy {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+}
+
 .earth-rotation-template .grid-label.tz-label .tz-label-name {
   color: #67e8f9;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1.2;
 }
 
 .earth-rotation-template .grid-label.tz-label .tz-label-time {
   color: #fef3c7;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 900;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.025em;
 }
 
 .earth-rotation-template .grid-label.tz-label:not(.tz-label-with-time) {
   min-width: 0;
-  padding-block: 3px;
+  padding-block: 5px;
 }
 
 /* ===================== v28: A/B 经度并入顶部文字行 ===================== */
@@ -6793,5 +6807,760 @@ body.geo-panel-resizing {
 
 .earth-rotation-template .rotation-stage-content .bottom-axis-unified .point-b.axis-point-near {
   transform: translate(calc(-50% + 13px), -50%) !important;
+}
+
+/* ===================== v29: 全面板浮动布局 ===================== */
+.earth-rotation-template .panels-visibility-btn {
+  min-width: 104px;
+}
+
+.earth-rotation-template .control-floating-card :deep(.feature-card-content) {
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.earth-rotation-template .floating-control-body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.earth-rotation-template .floating-control-body .panel-scroll {
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.earth-rotation-template .floating-control-body .control-card:last-child {
+  margin-bottom: 0;
+}
+
+.earth-rotation-template .legend-floating-card :deep(.feature-card-content) {
+  padding-bottom: 24px;
+}
+
+.earth-rotation-template .legend-floating-body {
+  padding: 10px;
+}
+
+.earth-rotation-template .legend-floating-body .panel-rotation-legend-card {
+  margin: 0;
+  padding: 12px;
+}
+
+@media (max-width: 900px) {
+  .earth-rotation-template .control-floating-card :deep(.feature-card-content) {
+    max-height: calc(100vh - 150px);
+  }
+}
+
+/* ===================== v30: 右侧队列与控制面板内部排版 ===================== */
+.earth-rotation-template .control-floating-card:not(.collapsed) {
+  width: min(460px, calc(100vw - 36px));
+  height: min(760px, calc(100vh - 188px));
+}
+
+.earth-rotation-template .control-floating-card .floating-control-body .panel-scroll {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 10px;
+}
+
+.earth-rotation-template .control-floating-card .floating-control-body .control-card {
+  margin: 0;
+  padding: 11px 12px 12px;
+  border-color: rgba(var(--card-accent-rgb), 0.16);
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(var(--card-accent-rgb), 0.045), transparent 42%),
+    rgba(8, 18, 35, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  transform: none;
+}
+
+.earth-rotation-template .control-floating-card .floating-control-body .control-card:hover {
+  border-color: rgba(var(--card-accent-rgb), 0.27);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  transform: none;
+}
+
+.earth-rotation-template .control-floating-card .floating-control-body .control-card::before {
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  box-shadow: 0 0 10px rgba(var(--card-accent-rgb), 0.24);
+}
+
+.earth-rotation-template .control-floating-card .floating-control-body .control-card>.ctrl-title {
+  min-height: 24px;
+  margin: 0 0 9px;
+  padding: 0 0 8px 1px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.earth-rotation-template .control-floating-card .floating-control-body .control-card>.ctrl-title::after {
+  left: 1px;
+  width: 34px;
+}
+
+.earth-rotation-template .control-floating-card .brightness-control-section {
+  gap: 7px;
+}
+
+.earth-rotation-template .control-floating-card .brightness-control-stack {
+  gap: 3px;
+}
+
+.earth-rotation-template .control-floating-card .brightness-control-stack .compact-title-row {
+  min-height: 20px;
+  margin: 6px 0 0;
+}
+
+.earth-rotation-template .control-floating-card .brightness-control-stack .compact-title-row:first-child {
+  margin-top: 0;
+}
+
+.earth-rotation-template .control-floating-card .mini-control-label {
+  color: rgba(226, 242, 255, 0.72);
+  font-size: 12px;
+}
+
+.earth-rotation-template .control-floating-card .control-value {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.earth-rotation-template .control-floating-card .control-card-layers .toggle-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 8px;
+}
+
+.earth-rotation-template .control-floating-card .control-card-layers .toggle-item {
+  min-width: 0;
+  min-height: 31px;
+  gap: 6px;
+  padding: 3px 5px 3px 7px;
+  font-size: 11px;
+}
+
+.earth-rotation-template .control-floating-card .control-card-layers .toggle-item>span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .control-floating-card .control-card-view .btn-grid {
+  gap: 7px;
+}
+
+@media (max-width: 560px) {
+  .earth-rotation-template .control-floating-card .control-card-layers .toggle-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===================== v31: 精简辅助面板与常驻图例 ===================== */
+.earth-rotation-template .ab-comparison-floating-card.collapsed {
+  width: clamp(270px, 15vw, 320px) !important;
+}
+
+.earth-rotation-template .rotation-legend-overlay {
+  position: fixed;
+  left: 22px;
+  bottom: 158px;
+  z-index: 24;
+  width: min(360px, calc(100vw - 44px));
+  pointer-events: none;
+  color: rgba(226, 242, 255, 0.9);
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.72));
+}
+
+.earth-rotation-template .rotation-legend-heading {
+  margin-bottom: 9px;
+  color: #a5f3fc;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.earth-rotation-template .rotation-legend-overlay .panel-rotation-legend-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 16px;
+}
+
+.earth-rotation-template .rotation-legend-overlay .panel-rotation-legend-item {
+  font-size: 11px;
+  color: rgba(218, 237, 248, 0.82);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+}
+
+@media (min-width: 2200px) {
+  .earth-rotation-template .rotation-legend-overlay {
+    left: 30px;
+    bottom: 176px;
+    width: 410px;
+  }
+
+  .earth-rotation-template .rotation-legend-overlay .panel-rotation-legend-item {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 760px) {
+  .earth-rotation-template .rotation-legend-overlay {
+    left: 14px;
+    bottom: 132px;
+    width: 250px;
+  }
+
+  .earth-rotation-template .rotation-legend-overlay .panel-rotation-legend-list {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}
+
+/* ===================== v32: A/B 日出日落状态 ===================== */
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  display: grid;
+  gap: 5px;
+  padding: 6px 7px;
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 9px;
+  background: rgba(5, 14, 28, 0.52);
+  box-sizing: border-box;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status>strong {
+  color: #dbeafe;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.sunrise>strong {
+  color: #fde68a;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.day>strong,
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.polar-day>strong {
+  color: #fef08a;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.sunset>strong {
+  color: #fdba74;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.night>strong,
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.polar-night>strong {
+  color: #bfdbfe;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  color: rgba(203, 224, 238, 0.62);
+  font-size: 8px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events i {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events i.sunrise {
+  background: #fbbf24;
+  box-shadow: 0 0 5px rgba(251, 191, 36, 0.55);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events i.sunset {
+  background: #fb923c;
+  box-shadow: 0 0 5px rgba(251, 146, 60, 0.5);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events b {
+  margin-left: auto;
+  color: rgba(238, 248, 255, 0.86);
+  font-size: 8px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===================== v33: A/B 对比卡片信息层级重排 ===================== */
+.earth-rotation-template .ab-comparison-floating-card:not(.collapsed) {
+  width: min(540px, calc(100vw - 36px));
+}
+
+.earth-rotation-template .ab-comparison-floating-card .floating-card-body {
+  padding: 10px;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-compare-panel.right-info-card {
+  padding: 0 !important;
+  overflow: hidden;
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 50% -30%, rgba(46, 196, 182, 0.1), transparent 52%),
+    linear-gradient(145deg, rgba(8, 24, 40, 0.94), rgba(5, 14, 28, 0.9));
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-cards {
+  grid-template-areas: "a divider b" !important;
+  grid-template-columns: minmax(0, 1fr) 68px minmax(0, 1fr) !important;
+  gap: 0 !important;
+  align-items: stretch;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-card {
+  min-width: 0 !important;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  justify-items: stretch;
+  gap: 9px !important;
+  padding: 14px !important;
+  text-align: left;
+  border: 0;
+  border-radius: 0 !important;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-card.ab-a {
+  box-shadow: inset 3px 0 0 rgba(248, 83, 83, 0.9);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-card.ab-b {
+  box-shadow: inset -3px 0 0 rgba(53, 139, 255, 0.9);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-location-head {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-badge {
+  flex: 0 0 auto;
+  width: 24px !important;
+  height: 24px !important;
+  margin: 0 !important;
+  font-size: 11px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.24);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-location-name {
+  min-width: 0;
+  color: rgba(230, 246, 255, 0.92);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-lon {
+  min-width: 0;
+  margin-left: auto;
+  color: rgba(169, 213, 232, 0.7);
+  font-size: 10px !important;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-time {
+  justify-self: stretch;
+  color: #f1fbff;
+  font-size: 27px !important;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 18px rgba(87, 204, 255, 0.16);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status {
+  justify-self: start;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.12);
+  border-color: rgba(148, 163, 184, 0.15);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status>strong {
+  font-size: 9px;
+  line-height: 1.1;
+  letter-spacing: 0.03em;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.sunrise,
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.sunset {
+  background: rgba(251, 146, 60, 0.1);
+  border-color: rgba(251, 146, 60, 0.2);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.day,
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.polar-day {
+  background: rgba(250, 204, 21, 0.09);
+  border-color: rgba(250, 204, 21, 0.18);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.night,
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status.polar-night {
+  background: rgba(96, 165, 250, 0.09);
+  border-color: rgba(96, 165, 250, 0.18);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events span {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-content: initial;
+  column-gap: 6px;
+  row-gap: 1px;
+  padding: 6px 7px;
+  border: 1px solid rgba(148, 190, 211, 0.09);
+  border-radius: 8px;
+  background: rgba(2, 10, 22, 0.34);
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events i {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  width: 6px;
+  height: 6px;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events small {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  color: rgba(181, 211, 227, 0.58);
+  font-size: 8px;
+  line-height: 1.1;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .ab-sun-events b {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  margin: 0;
+  color: rgba(241, 249, 255, 0.94);
+  font-size: 11px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-divider {
+  width: 68px !important;
+  min-width: 68px !important;
+  display: grid !important;
+  align-content: center !important;
+  justify-items: center !important;
+  gap: 7px !important;
+  padding: 10px 6px !important;
+  border: 0 !important;
+  border-left: 1px solid rgba(96, 180, 205, 0.1) !important;
+  border-right: 1px solid rgba(96, 180, 205, 0.1) !important;
+  border-radius: 0 !important;
+  background: rgba(3, 15, 27, 0.55) !important;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-diff {
+  max-width: none !important;
+  padding: 5px 7px !important;
+  color: #ffd166;
+  font-size: 10px !important;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .right-panel .ab-arrow {
+  margin: 0 !important;
+  color: rgba(183, 216, 231, 0.64);
+  font-size: 9px !important;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .earth-rotation-template .ab-comparison-floating-card:not(.collapsed) {
+    width: calc(100vw - 24px);
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-cards {
+    grid-template-areas:
+      "a b"
+      "divider divider" !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-card {
+    padding: 11px !important;
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-time {
+    font-size: 22px !important;
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-divider {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    padding: 7px !important;
+    border-top: 1px solid rgba(96, 180, 205, 0.1) !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-cards {
+    grid-template-areas:
+      "a"
+      "divider"
+      "b" !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: initial;
+    justify-items: stretch;
+  }
+}
+
+/* ===================== v34: 城市信息预览内容重排 ===================== */
+.earth-rotation-template .city-preview-floating-card:not(.collapsed) {
+  width: min(420px, calc(100vw - 36px));
+}
+
+.earth-rotation-template .city-preview-floating-card .floating-card-body {
+  padding: 10px;
+}
+
+.earth-rotation-template .city-preview-floating-card .city-preview-panel {
+  position: relative;
+  width: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(66, 190, 218, 0.2);
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(46, 196, 182, 0.13), transparent 42%),
+    linear-gradient(145deg, rgba(8, 24, 40, 0.95), rgba(5, 13, 27, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 10px 28px rgba(0, 0, 0, 0.2);
+}
+
+.earth-rotation-template .city-preview-floating-card .preview-body {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.earth-rotation-template .city-preview-summary {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(95, 204, 225, 0.11);
+  border-radius: 12px;
+  background: rgba(2, 11, 23, 0.38);
+}
+
+.earth-rotation-template .city-preview-time {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+}
+
+.earth-rotation-template .city-preview-time>span {
+  color: rgba(173, 211, 226, 0.6);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.earth-rotation-template .city-preview-time>strong {
+  color: #f2fcff;
+  font-size: 29px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.025em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 18px rgba(86, 215, 236, 0.16);
+}
+
+.earth-rotation-template .city-preview-day-state {
+  flex: 0 0 auto;
+  min-width: 100px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 10px;
+}
+
+.earth-rotation-template .city-preview-day-state>i {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.earth-rotation-template .city-preview-day-state>div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.earth-rotation-template .city-preview-day-state strong {
+  color: #e8f5fb;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.earth-rotation-template .city-preview-day-state small {
+  color: rgba(177, 207, 222, 0.52);
+  font-size: 8px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .city-preview-day-state.day {
+  border-color: rgba(250, 204, 21, 0.18);
+  background: rgba(250, 204, 21, 0.07);
+}
+
+.earth-rotation-template .city-preview-day-state.day>i {
+  background: #facc15;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.62);
+}
+
+.earth-rotation-template .city-preview-day-state.night {
+  border-color: rgba(96, 165, 250, 0.18);
+  background: rgba(96, 165, 250, 0.07);
+}
+
+.earth-rotation-template .city-preview-day-state.night>i {
+  background: #60a5fa;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.62);
+}
+
+.earth-rotation-template .city-preview-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.earth-rotation-template .city-preview-detail {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-height: 52px;
+  padding: 9px 10px;
+  border: 1px solid rgba(113, 170, 197, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.earth-rotation-template .city-preview-detail>span {
+  color: rgba(164, 201, 219, 0.56);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.earth-rotation-template .city-preview-detail>strong {
+  min-width: 0;
+  color: rgba(235, 247, 253, 0.9);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.earth-rotation-template .city-preview-coordinate>strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .city-preview-coordinate em {
+  margin: 0 3px;
+  color: rgba(85, 207, 222, 0.6);
+  font-style: normal;
+}
+
+.earth-rotation-template .city-preview-beijing-diff>strong {
+  color: #7dd3fc;
+}
+
+@media (max-width: 430px) {
+  .earth-rotation-template .city-preview-floating-card:not(.collapsed) {
+    width: calc(100vw - 24px);
+  }
+
+  .earth-rotation-template .city-preview-summary {
+    padding: 10px;
+  }
+
+  .earth-rotation-template .city-preview-time>strong {
+    font-size: 25px;
+  }
+
+  .earth-rotation-template .city-preview-day-state {
+    min-width: 88px;
+    padding: 7px 8px;
+  }
+
+  .earth-rotation-template .city-preview-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

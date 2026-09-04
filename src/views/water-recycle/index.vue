@@ -1,6 +1,5 @@
 <template>
-  <div ref="pageRef" class="water-recycle-container geo-template-page geo-page theme-dark"
-    :class="layoutMode === 'floating' ? undefined : 'layout-' + layoutMode">
+  <div class="water-recycle-container geo-template-page geo-page theme-dark layout-floating">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -12,86 +11,14 @@
         <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleFullscreen">
           {{ isFullscreen ? '退出全屏' : '全屏显示' }}
         </button>
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :aria-pressed="panelsVisible"
+          @click="togglePanelsVisibility">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
-    <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>水循环控制</h2>
-              <p>场景切换 · 图层控制 · 教学提示</p>
-            </div>
-            <span class="panel-badge">CONTROL</span>
-          </div>
-
-          <section class="geo-card control-section">
-            <h3 class="section-title">🌍 场景切换</h3>
-            <div class="urban-toggle">
-              <button class="theme-btn option-btn" :class="{ active: mainSceneMode === 'seaLand' }"
-                @click="setMainSceneMode('seaLand')">
-                海陆间循环
-              </button>
-              <button class="theme-btn option-btn" :class="{ active: mainSceneMode === 'land' }"
-                @click="setMainSceneMode('land')">
-                陆地内循环
-              </button>
-            </div>
-            <p class="urban-hint">
-              {{
-                mainSceneMode === 'seaLand'
-                  ? '展示海洋蒸发、海上内循环、水汽输送、山地降水、地表径流与地下径流。'
-                  : '展示城镇化前与城镇化后并列对比，同场景观察下渗、蒸腾与地表径流差异。'
-              }}
-            </p>
-          </section>
-
-
-          <section class="geo-card control-section">
-            <h3 class="section-title">👁 可视图层</h3>
-            <div class="layer-list">
-              <div v-for="item in layerDefs" :key="item.key" class="switch-row layer-row">
-                <div class="control-copy">
-                  <strong>{{ item.label }}</strong>
-                  <span :style="{ color: item.color }">{{ item.desc }}</span>
-                </div>
-                <el-switch v-model="layers[item.key]" />
-              </div>
-              <div class="switch-row layer-row label-layer-row">
-                <div class="control-copy">
-                  <strong>标签显示</strong>
-                  <span>显示各水循环环节名称</span>
-                </div>
-                <el-switch v-model="showLabels" />
-              </div>
-            </div>
-          </section>
-
-          <section class="geo-card knowledge-card">
-            <h3 class="section-title">📚 教学提示</h3>
-            <div v-if="mainSceneMode === 'seaLand'" class="knowledge-content">
-              <h4>海陆间循环</h4>
-              <p>海洋蒸发和海上降水共同表现海上内循环；水汽烟流从海洋上空输送到陆地。</p>
-              <p>山体由左向右逐步过渡为平原；陆地内循环通过左侧场景按钮切换，不再绑定建筑点击事件。</p>
-              <p>地表径流采用多条弯曲河道，地下水在山体侧面表现下渗和向海洋的侧向流动。</p>
-            </div>
-            <div v-else class="knowledge-content">
-              <h4>陆地内循环</h4>
-              <p>城镇化前与城镇化后放在同一场景左右并列展示，便于对比下渗、地表径流和蒸腾作用。</p>
-              <p>左侧为乡村绿地、乡间小路与农房，右侧为 3×3 城市街区，道路、建筑与树木更密集。</p>
-              <p>两侧顶面都加入可见的地表径流、不规则小水面与树上蒸腾烟流，侧面四周都能观察下渗箭头。</p>
-            </div>
-          </section>
-        </div>
-
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">‹</button>
-      </aside>
-
+    <main class="workspace">
       <section class="center-stage">
         <div class="stage-content">
           <div ref="threeHostRef" class="scene-host three-host"></div>
@@ -104,10 +31,67 @@
         </div>
         <div class="footer-tip">拖拽旋转 · 滚轮缩放 · 右键平移</div>
       </section>
-
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">›</button>
     </main>
+
+    <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlPanelCollapsed"
+      class="water-floating-card water-control-panel" title="控制面板" subtitle="场景、图层与教学提示"
+      variant="control" :initial-top="108" :initial-right="18" :bottom-inset="14" :draggable="true"
+      :resizable="true" :min-width="340" :min-height="420">
+      <section class="geo-card control-section floating-card-section">
+        <h3 class="panel-section-title">场景切换</h3>
+        <div class="urban-toggle">
+          <button class="theme-btn option-btn" :class="{ active: mainSceneMode === 'seaLand' }"
+            @click="setMainSceneMode('seaLand')">
+            海陆间循环
+          </button>
+          <button class="theme-btn option-btn" :class="{ active: mainSceneMode === 'land' }"
+            @click="setMainSceneMode('land')">
+            陆地内循环
+          </button>
+        </div>
+        <p class="urban-hint">
+          {{
+            mainSceneMode === 'seaLand'
+              ? '展示海洋蒸发、海上内循环、水汽输送、山地降水、地表径流与地下径流。'
+              : '展示城镇化前与城镇化后并列对比，同场景观察下渗、蒸腾与地表径流差异。'
+          }}
+        </p>
+      </section>
+      <section class="geo-card control-section floating-card-section">
+        <h3 class="panel-section-title">可视图层</h3>
+        <div class="layer-list">
+          <div v-for="item in layerDefs" :key="item.key" class="switch-row layer-row">
+            <div class="control-copy">
+              <strong>{{ item.label }}</strong>
+              <span :style="{ color: item.color }">{{ item.desc }}</span>
+            </div>
+            <el-switch v-model="layers[item.key]" />
+          </div>
+          <div class="switch-row layer-row label-layer-row">
+            <div class="control-copy">
+              <strong>标签显示</strong>
+              <span>显示各水循环环节名称</span>
+            </div>
+            <el-switch v-model="showLabels" />
+          </div>
+        </div>
+      </section>
+      <section class="geo-card knowledge-card floating-card-section">
+        <h3 class="panel-section-title">教学提示</h3>
+        <div v-if="mainSceneMode === 'seaLand'" class="knowledge-content">
+          <h4>海陆间循环</h4>
+          <p>海洋蒸发和海上降水共同表现海上内循环；水汽烟流从海洋上空输送到陆地。</p>
+          <p>山体由左向右逐步过渡为平原；陆地内循环通过场景切换面板选择，不再绑定建筑点击事件。</p>
+          <p>地表径流采用多条弯曲河道，地下水在山体侧面表现下渗和向海洋的侧向流动。</p>
+        </div>
+        <div v-else class="knowledge-content">
+          <h4>陆地内循环</h4>
+          <p>城镇化前与城镇化后放在同一场景左右并列展示，便于对比下渗、地表径流和蒸腾作用。</p>
+          <p>左侧为乡村绿地、乡间小路与农房，右侧为 3×3 城市街区，道路、建筑与树木更密集。</p>
+          <p>两侧顶面都加入可见的地表径流、不规则小水面与树上蒸腾烟流，侧面四周都能观察下渗箭头。</p>
+        </div>
+      </section>
+    </FloatingFeatureCard>
   </div>
 </template>
 
@@ -116,9 +100,10 @@
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { ImprovedNoise } from 'three/examples/jsm/math/ImprovedNoise.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
 import '@/styles/geo-page-template.css'
-import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
 type MainSceneMode = 'seaLand' | 'land'
 type LandUrbanMode = 'before' | 'after'
@@ -145,6 +130,11 @@ interface LabelAnchor {
   key: string
   text: string
   cls: string
+  object: THREE.Object3D
+  scenes: SceneKey[]
+}
+
+interface TerrainOccluder {
   object: THREE.Object3D
   scenes: SceneKey[]
 }
@@ -254,45 +244,20 @@ const layerDefs: LayerDef[] = [
   { key: 'groundwater', label: '地下径流', desc: '地下水流向海洋', color: '#8c7bff' },
 ]
 
-const hasLeftPanel = true
 const threeHostRef = ref<HTMLElement | null>(null)
 const mainSceneMode = ref<MainSceneMode>('seaLand')
 const autoPlay = ref(true)
 const speed = ref(1)
 const showLabels = ref(true)
 const isFullscreen = ref(false)
+const panelsVisible = ref(true)
+const controlPanelCollapsed = ref(true)
 const screenLabels = ref<ScreenLabel[]>([])
 
 const layers = reactive<Record<string, boolean>>({})
 layerDefs.forEach((item) => {
   layers[item.key] = true
 })
-
-const {
-  rootRef: pageRef,
-  layoutMode,
-  leftCollapsed,
-  allPanelsCollapsed,
-  draggingSide,
-  viewportResizing,
-  workspaceAttrs,
-  leftPanelAttrs,
-  leftResizeAttrs,
-  leftCollapseAttrs,
-  leftEntryAttrs,
-  toggleAll: toggleAllPanels,
-} = useGeoPanelLayout({
-  left: { enabled: hasLeftPanel, resizable: true },
-  right: { enabled: false },
-  onLayoutChange(state) {
-    if (state.resizing) return
-    scheduleSceneResize(80)
-  },
-  onResize(payload) {
-    if (payload.phase === 'end' || payload.phase === 'reset') scheduleSceneResize(0)
-  },
-})
-
 
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
@@ -309,6 +274,8 @@ let lastSceneWidth = 0
 let lastSceneHeight = 0
 let lastSceneDpr = 0
 let seaWater: Water | null = null
+let skyEnvironment: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
+let cloudVolumeTexture: THREE.Data3DTexture | null = null
 
 const smokeFlows: ShaderSmokeFlow[] = []
 const riverShaderMaterials: THREE.ShaderMaterial[] = []
@@ -318,7 +285,12 @@ const infiltrationPulses: InfiltrationPulse[] = []
 const arrowEmitters: ArrowEmitter[] = []
 const dynamicCurveArrows: DynamicCurveArrow[] = []
 const textureScrollers: TextureScroller[] = []
+const cloudVolumeMaterials: THREE.RawShaderMaterial[] = []
 const labelAnchors: LabelAnchor[] = []
+const terrainOccluders: TerrainOccluder[] = []
+const labelOcclusionRaycaster = new THREE.Raycaster()
+const labelCameraPosition = new THREE.Vector3()
+const labelRayDirection = new THREE.Vector3()
 const toggleGroups = new Map<string, THREE.Object3D[]>()
 const sceneGroups: Record<SceneKey, THREE.Group | null> = {
   seaLand: null,
@@ -326,10 +298,13 @@ const sceneGroups: Record<SceneKey, THREE.Group | null> = {
   landAfter: null,
 }
 
+const SUN_TEXTURE_URL = '/geo-resources-folder/images/sun.png'
+const SUN_SCENE_POSITION = new THREE.Vector3(18, 13, -14)
+
 const cameraPresets: Record<SceneKey, { pos: THREE.Vector3; target: THREE.Vector3 }> = {
-  seaLand: { pos: new THREE.Vector3(10, 13.8, 42), target: new THREE.Vector3(7.5, 4.8, 0) },
-  landBefore: { pos: new THREE.Vector3(0, 18.5, 68), target: new THREE.Vector3(0.0, 2.5, 0) },
-  landAfter: { pos: new THREE.Vector3(0, 18.5, 68), target: new THREE.Vector3(0.0, 2.5, 0) },
+  seaLand: { pos: new THREE.Vector3(8.5, 12.6, 36), target: new THREE.Vector3(6.2, 4.3, 0) },
+  landBefore: { pos: new THREE.Vector3(0, 17.5, 59), target: new THREE.Vector3(0.0, 2.3, 0) },
+  landAfter: { pos: new THREE.Vector3(0, 17.5, 59), target: new THREE.Vector3(0.0, 2.3, 0) },
 }
 
 function currentSceneKey(): SceneKey {
@@ -350,6 +325,10 @@ function registerToggle(key: string, object: THREE.Object3D) {
 }
 function registerLabel(id: string, key: string, text: string, cls: string, object: THREE.Object3D, scenes: SceneKey[]) {
   labelAnchors.push({ id, key, text, cls, object, scenes })
+}
+
+function registerTerrainOccluder(object: THREE.Object3D, scenes: SceneKey[]) {
+  terrainOccluders.push({ object, scenes })
 }
 
 function lerp(a: number, b: number, t: number) {
@@ -464,6 +443,39 @@ function createGrassTexture() {
   return texture
 }
 
+function createMountainSurfaceTexture() {
+  const size = 512
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  const image = ctx.createImageData(size, size)
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const broad = fbm(x * 0.014 + 8.2, y * 0.016 - 3.7, 4)
+      const grain = fbm(x * 0.055 - 11.0, y * 0.061 + 6.4, 3)
+      const stone = Math.abs(fbm(x * 0.12 + 3.4, y * 0.115 - 8.1, 2))
+      const value = THREE.MathUtils.clamp(broad * 0.56 + grain * 0.27 + stone * 0.17, -1, 1)
+      const fleck = hash2(x * 0.73, y * 1.17) - 0.5
+      const index = (y * size + x) * 4
+      image.data[index] = THREE.MathUtils.clamp(174 + value * 30 + fleck * 16, 112, 220)
+      image.data[index + 1] = THREE.MathUtils.clamp(168 + value * 27 + fleck * 13, 108, 214)
+      image.data[index + 2] = THREE.MathUtils.clamp(151 + value * 24 + fleck * 12, 96, 198)
+      image.data[index + 3] = 255
+    }
+  }
+
+  ctx.putImageData(image, 0, 0)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.repeat.set(3.8, 2.8)
+  texture.anisotropy = Math.min(8, renderer?.capabilities.getMaxAnisotropy?.() ?? 4)
+  return texture
+}
+
 function createFlowTexture(color = '#79eaff') {
   const canvas = document.createElement('canvas')
   canvas.width = 512
@@ -552,54 +564,41 @@ function getArrowTextureStops(key: string): [string, string, string, string] {
   }
 }
 
-function createSunSpriteTexture() {
-  const size = 256
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')!
-  const grad = ctx.createRadialGradient(size / 2, size / 2, 20, size / 2, size / 2, size / 2)
-  grad.addColorStop(0, 'rgba(255,248,214,1)')
-  grad.addColorStop(0.26, 'rgba(255,217,111,0.98)')
-  grad.addColorStop(0.58, 'rgba(255,160,56,0.48)')
-  grad.addColorStop(1, 'rgba(255,140,40,0)')
-  ctx.fillStyle = grad
-  ctx.beginPath()
-  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
-  ctx.fill()
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.needsUpdate = true
-  return tex
-}
-
 function riverCenterZ(x: number): number {
   return Math.sin((x + 10) * 0.34) * 1.5 + Math.sin((x + 2) * 0.12) * 0.75
 }
 
 function getSeaLandTerrainHeight(x: number, z: number) {
-  // 恢复 v4 的两组主体山脉：左侧高山、中央次高山，随后自然过渡到丘陵和平原。
+  // 多峰脊线叠加域扭曲噪声，形成更接近真实山系的连续山脊、支脉和沟谷。
   const t = THREE.MathUtils.clamp((x + 18) / 26, 0, 1)
-  const mountainMask = 1 - smoothstep(0.54, 0.86, t)
-  const crossSlope = 0.56 + 0.44 * Math.pow(THREE.MathUtils.clamp(1 - Math.abs(z) / 9, 0, 1), 1.35)
+  const mountainMask = 1 - smoothstep(0.57, 0.9, t)
+  const warpX = x + fbm(x * 0.075 + 5.8, z * 0.082 - 1.7, 3) * 2.1
+  const warpZ = z + fbm(x * 0.068 - 4.3, z * 0.09 + 7.1, 3) * 1.8
+  const peak = (px: number, pz: number, sx: number, sz: number, amplitude: number) => {
+    const dx = (warpX - px) / sx
+    const dz = (warpZ - pz) / sz
+    return Math.exp(-(dx * dx + dz * dz)) * amplitude
+  }
 
-  const ridgeA = 4.9 * Math.exp(-Math.pow((t - 0.16) / 0.13, 2))
-  const ridgeB = 3.8 * Math.exp(-Math.pow((t - 0.39) / 0.17, 2))
-  const foothill = 1.45 * Math.exp(-Math.pow((t - 0.61) / 0.18, 2))
+  const massif =
+    peak(-13.8, -2.6, 4.4, 4.8, 4.9)
+    + peak(-11.8, 3.8, 4.8, 4.1, 5.2)
+    + peak(-8.0, -0.4, 5.0, 5.8, 3.9)
+    + peak(-4.2, 3.2, 5.4, 5.0, 2.2)
+  const ridgeNoise = 1 - Math.abs(fbm(warpX * 0.17 + 4.2, warpZ * 0.19 - 6.8, 5))
+  const ridgeDetail = Math.pow(THREE.MathUtils.clamp(ridgeNoise, 0, 1), 2.4) * 1.2
+  const erosion = fbm(warpX * 0.34 - 7.0, warpZ * 0.37 + 2.3, 4) * 0.42
+  const rockDetail = fbm(warpX * 0.92 + 9.1, warpZ * 0.88 - 5.6, 3) * 0.14
 
-  const broadNoise = fbm(x * 0.085 + 2.4, z * 0.11 - 4.1, 4) * 0.82
-  const detailNoise = fbm(x * 0.26 - 8.0, z * 0.28 + 1.7, 4) * 0.30
-  const rockNoise = fbm(x * 0.72 + 11.6, z * 0.78 - 6.3, 3) * 0.12
-  const ridgeTexture = Math.abs(fbm(x * 0.46 - 2.8, z * 0.51 + 7.2, 3)) * 0.10
-
-  let height = 0.18 + (ridgeA + ridgeB + foothill) * crossSlope
-  height += (broadNoise + detailNoise + rockNoise + ridgeTexture) * mountainMask
+  let height = 0.16 + massif * (0.72 + ridgeDetail * 0.38)
+  height += (ridgeDetail + erosion + rockDetail) * mountainMask
 
   const riverDistance = Math.abs(z - riverCenterZ(x))
-  const valleyWidth = lerp(0.75, 1.45, smoothstep(-14, 6, x))
+  const valleyWidth = lerp(0.7, 1.35, smoothstep(-14, 6, x))
   const valley = Math.exp(-(riverDistance * riverDistance) / (valleyWidth * valleyWidth))
-  height -= valley * lerp(0.58, 0.18, t) * mountainMask
+  height -= valley * lerp(0.74, 0.2, t) * mountainMask
 
-  const plainBlend = smoothstep(0.66, 0.94, t)
+  const plainBlend = smoothstep(0.64, 0.94, t)
   const plainHeight = 0.16 + fbm(x * 0.15, z * 0.18, 3) * 0.055
   height = lerp(height, plainHeight, plainBlend)
 
@@ -655,11 +654,12 @@ function buildDeformedLandBox(width: number, depth: number, segX: number, segZ: 
 
     if (normals.getY(index) > 0.5) {
       const variation = fbm(worldX * 0.22 + 4, localZ * 0.24 - 2, 2) * 0.035
-      if (topHeight < 0.45) color.setRGB(0.48 + variation, 0.62 + variation, 0.39)
-      else if (topHeight < 1.7) color.setRGB(0.34 + variation, 0.54 + variation, 0.29)
-      else if (topHeight < 3.5) color.setRGB(0.24 + variation, 0.43 + variation, 0.23)
-      else if (topHeight < 4.75) color.setRGB(0.42 + variation, 0.43 + variation, 0.39)
-      else color.setRGB(0.86 + variation, 0.90 + variation, 0.92 + variation)
+      if (topHeight < 0.38) color.setRGB(0.54 + variation, 0.62 + variation, 0.40)
+      else if (topHeight < 1.5) color.setRGB(0.39 + variation, 0.52 + variation, 0.30)
+      else if (topHeight < 3.0) color.setRGB(0.33 + variation, 0.43 + variation, 0.27)
+      else if (topHeight < 4.8) color.setRGB(0.45 + variation, 0.43 + variation, 0.37)
+      else if (topHeight < 5.8) color.setRGB(0.62 + variation, 0.61 + variation, 0.57)
+      else color.setRGB(0.91 + variation, 0.93 + variation, 0.94 + variation)
     } else {
       // 海陆间循环底座的侧面、背面与底面统一使用单一土壤色，
       // 不再根据深度绘制分层地层，避免侧面出现彩色分层条带。
@@ -674,13 +674,23 @@ function buildDeformedLandBox(width: number, depth: number, segX: number, segZ: 
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   geometry.computeVertexNormals()
 
-  const terrain = new THREE.Mesh(
-    geometry,
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.985, metalness: 0.0 }),
-  )
+  const mountainTexture = createMountainSurfaceTexture()
+  const sideMaterial = new THREE.MeshStandardMaterial({ color: 0x684f3e, roughness: 1, metalness: 0 })
+  const bottomMaterial = new THREE.MeshStandardMaterial({ color: 0x2d3c46, roughness: 1, metalness: 0 })
+  const topMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: mountainTexture,
+    bumpMap: mountainTexture,
+    bumpScale: 0.2,
+    vertexColors: true,
+    roughness: 0.92,
+    metalness: 0,
+  })
+  const terrain = new THREE.Mesh(geometry, [sideMaterial, sideMaterial, topMaterial, bottomMaterial, sideMaterial, sideMaterial])
   terrain.position.set(centerX, centerY, 0)
   terrain.castShadow = true
   terrain.receiveShadow = true
+  registerTerrainOccluder(terrain, ['seaLand'])
 
   const heights: number[] = []
   for (let zi = 0; zi <= segZ; zi++) {
@@ -711,24 +721,173 @@ function buildDeformedLandBox(width: number, depth: number, segX: number, segZ: 
   }
 }
 
+function getCloudVolumeTexture() {
+  if (cloudVolumeTexture) return cloudVolumeTexture
+  const size = 56
+  const data = new Uint8Array(size * size * size)
+  const perlin = new ImprovedNoise()
+  const vector = new THREE.Vector3()
+  const lobeDensity = (point: THREE.Vector3, cx: number, cy: number, cz: number, sx: number, sy: number, sz: number) => {
+    const dx = (point.x - cx) / sx
+    const dy = (point.y - cy) / sy
+    const dz = (point.z - cz) / sz
+    return Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy + dz * dz))
+  }
+  let index = 0
+
+  for (let z = 0; z < size; z++) {
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const centered = vector.set(x, y, z).divideScalar(size).subScalar(0.5).multiplyScalar(2)
+        const cloudEnvelope = Math.max(
+          lobeDensity(centered, 0, -0.12, 0, 0.92, 0.46, 0.72),
+          lobeDensity(centered, -0.46, -0.15, 0.06, 0.57, 0.36, 0.56),
+          lobeDensity(centered, 0.42, -0.1, -0.04, 0.62, 0.42, 0.58),
+          lobeDensity(centered, -0.08, 0.24, 0, 0.54, 0.58, 0.52),
+        )
+        const baseNoise = perlin.noise(x * 0.038, y * 0.052, z * 0.038)
+        const detailNoise = perlin.noise(x * 0.095 + 11.7, y * 0.11 - 4.2, z * 0.095 + 7.4)
+        data[index++] = THREE.MathUtils.clamp(
+          (150 + baseNoise * 82 + detailNoise * 32) * Math.pow(cloudEnvelope, 1.35),
+          0,
+          255,
+        )
+      }
+    }
+  }
+
+  cloudVolumeTexture = new THREE.Data3DTexture(data, size, size, size)
+  cloudVolumeTexture.format = THREE.RedFormat
+  cloudVolumeTexture.minFilter = THREE.LinearFilter
+  cloudVolumeTexture.magFilter = THREE.LinearFilter
+  cloudVolumeTexture.unpackAlignment = 1
+  cloudVolumeTexture.needsUpdate = true
+  return cloudVolumeTexture
+}
+
 function createCloud(position: THREE.Vector3, scale = 1) {
-  const group = new THREE.Group()
-  const mat = new THREE.MeshStandardMaterial({ color: 0xecf3fb, roughness: 0.95, transparent: true, opacity: 0.92 })
-  const lumps = [
-    { x: 0, y: 0.08, z: 0, sx: 1.45, sy: 0.72, sz: 1.05, r: 0.8 },
-    { x: -0.65, y: -0.02, z: 0.08, sx: 0.92, sy: 0.6, sz: 0.78, r: 0.62 },
-    { x: 0.55, y: 0, z: -0.05, sx: 1.02, sy: 0.66, sz: 0.86, r: 0.67 },
-    { x: -0.06, y: 0.28, z: 0.0, sx: 1.0, sy: 0.8, sz: 0.8, r: 0.58 },
-  ]
-  lumps.forEach((item) => {
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(item.r, 18, 12), mat)
-    mesh.scale.set(item.sx, item.sy, item.sz)
-    mesh.position.set(item.x, item.y, item.z)
-    group.add(mesh)
+  const material = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: {
+      base: { value: new THREE.Color(0xe5edf4) },
+      map: { value: getCloudVolumeTexture() },
+      cameraPos: { value: new THREE.Vector3() },
+      threshold: { value: 0.2 },
+      opacity: { value: 0.16 },
+      range: { value: 0.13 },
+      steps: { value: 42 },
+      frame: { value: Math.floor(hash2(position.x, position.z) * 1000) },
+    },
+    vertexShader: `
+      precision highp float;
+      in vec3 position;
+      uniform mat4 modelMatrix;
+      uniform mat4 modelViewMatrix;
+      uniform mat4 projectionMatrix;
+      uniform vec3 cameraPos;
+      out vec3 vOrigin;
+      out vec3 vDirection;
+
+      void main() {
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vOrigin = vec3(inverse(modelMatrix) * vec4(cameraPos, 1.0));
+        vDirection = position - vOrigin;
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      precision highp sampler3D;
+      uniform sampler3D map;
+      uniform vec3 base;
+      uniform float threshold;
+      uniform float range;
+      uniform float opacity;
+      uniform float steps;
+      uniform float frame;
+      in vec3 vOrigin;
+      in vec3 vDirection;
+      out vec4 color;
+
+      uint wang_hash(uint seed) {
+        seed = (seed ^ 61u) ^ (seed >> 16u);
+        seed *= 9u;
+        seed = seed ^ (seed >> 4u);
+        seed *= 0x27d4eb2du;
+        seed = seed ^ (seed >> 15u);
+        return seed;
+      }
+
+      float randomFloat(inout uint seed) {
+        return float(wang_hash(seed)) / 4294967296.0;
+      }
+
+      vec2 hitBox(vec3 origin, vec3 direction) {
+        const vec3 boxMin = vec3(-0.5);
+        const vec3 boxMax = vec3(0.5);
+        vec3 inverseDirection = 1.0 / direction;
+        vec3 tMinTemp = (boxMin - origin) * inverseDirection;
+        vec3 tMaxTemp = (boxMax - origin) * inverseDirection;
+        vec3 tMin = min(tMinTemp, tMaxTemp);
+        vec3 tMax = max(tMinTemp, tMaxTemp);
+        return vec2(max(tMin.x, max(tMin.y, tMin.z)), min(tMax.x, min(tMax.y, tMax.z)));
+      }
+
+      float sampleDensity(vec3 point) {
+        return texture(map, point).r;
+      }
+
+      float shading(vec3 point) {
+        const float offset = 0.012;
+        vec3 lightDirection = normalize(vec3(-0.8, 1.0, 0.35));
+        return sampleDensity(point + lightDirection * offset) - sampleDensity(point - lightDirection * offset);
+      }
+
+      void main() {
+        vec3 rayDirection = normalize(vDirection);
+        vec2 bounds = hitBox(vOrigin, rayDirection);
+        if (bounds.x > bounds.y) discard;
+        bounds.x = max(bounds.x, 0.0);
+        float stepSize = (bounds.y - bounds.x) / steps;
+        uint seed = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 9277u + uint(frame) * 26699u;
+        vec3 volumeSize = vec3(textureSize(map, 0));
+        float jitter = randomFloat(seed) * 2.0 - 1.0;
+        vec3 point = vOrigin + bounds.x * rayDirection;
+        point += rayDirection * jitter * (1.0 / volumeSize);
+        vec4 accumulated = vec4(0.0);
+
+        for (float stepIndex = 0.0; stepIndex < steps; stepIndex += 1.0) {
+          float density = sampleDensity(point + 0.5);
+          density = smoothstep(threshold - range, threshold + range, density) * opacity;
+          float light = clamp(0.78 + shading(point + 0.5) * 2.8 + point.y * 0.16, 0.58, 1.0);
+          vec3 cloudColor = mix(base * 0.88, vec3(1.0, 0.985, 0.95), light);
+          accumulated.rgb += (1.0 - accumulated.a) * density * cloudColor;
+          accumulated.a += (1.0 - accumulated.a) * density;
+          if (accumulated.a >= 0.96) break;
+          point += rayDirection * stepSize;
+        }
+
+        if (accumulated.a <= 0.01) discard;
+        color = accumulated;
+      }
+    `,
+    side: THREE.BackSide,
+    transparent: true,
+    depthWrite: false,
   })
-  group.position.copy(position)
-  group.scale.setScalar(scale)
-  return group
+  cloudVolumeMaterials.push(material)
+
+  const cloud = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material)
+  cloud.position.copy(position)
+  cloud.scale.set(5.2 * scale, 3.5 * scale, 3.3 * scale)
+  cloud.renderOrder = 3
+  const cameraWorldPosition = new THREE.Vector3()
+  cloud.onBeforeRender = (_renderer, _scene, activeCamera) => {
+    activeCamera.getWorldPosition(cameraWorldPosition)
+    material.uniforms.cameraPos!.value.copy(cameraWorldPosition)
+    material.uniforms.frame!.value += 1
+  }
+  return cloud
 }
 
 function createOffsetSmokeCurve(
@@ -1237,6 +1396,8 @@ function createSurfaceRiverRibbon(
   heightSampler: (x: number, z: number) => number,
 ) {
   const segments = 180
+  const crossSegments = 8
+  const surfaceOffset = 0.075
   const positions: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
@@ -1251,20 +1412,27 @@ function createSurfaceRiverRibbon(
     curve.getPointAt(Math.min(1, t + 0.005), next)
     side.set(-(next.z - previous.z), 0, next.x - previous.x).normalize()
     const halfWidth = lerp(widthStart, widthEnd, t) * 0.5
-    const left = point.clone().addScaledVector(side, halfWidth)
-    const right = point.clone().addScaledVector(side, -halfWidth)
-    left.y = heightSampler(left.x, left.z) + 0.032
-    right.y = heightSampler(right.x, right.z) + 0.032
-    positions.push(left.x, left.y, left.z, right.x, right.y, right.z)
-    uvs.push(t, 0, t, 1)
+    // 每个截面使用多个独立贴地顶点。仅采样左右边缘会让河面在起伏较大的
+    // 山区跨过中间高点，从而被地形切出缺块。
+    for (let crossIndex = 0; crossIndex <= crossSegments; crossIndex++) {
+      const crossT = crossIndex / crossSegments
+      const lateralOffset = lerp(halfWidth, -halfWidth, crossT)
+      const vertex = point.clone().addScaledVector(side, lateralOffset)
+      vertex.y = heightSampler(vertex.x, vertex.z) + surfaceOffset
+      positions.push(vertex.x, vertex.y, vertex.z)
+      uvs.push(t, crossT)
+    }
   }
 
   for (let i = 0; i < segments; i++) {
-    const a = i * 2
-    const b = a + 1
-    const c = a + 2
-    const d = a + 3
-    indices.push(a, c, b, b, c, d)
+    const row = crossSegments + 1
+    for (let crossIndex = 0; crossIndex < crossSegments; crossIndex++) {
+      const a = i * row + crossIndex
+      const b = a + 1
+      const c = a + row
+      const d = c + 1
+      indices.push(a, c, b, b, c, d)
+    }
   }
 
   const geometry = new THREE.BufferGeometry()
@@ -1275,7 +1443,7 @@ function createSurfaceRiverRibbon(
 
   const bedGeometry = geometry.clone()
   const bedPos = bedGeometry.attributes.position as THREE.BufferAttribute
-  for (let i = 0; i < bedPos.count; i++) bedPos.setY(i, bedPos.getY(i) - 0.022)
+  for (let i = 0; i < bedPos.count; i++) bedPos.setY(i, bedPos.getY(i) - 0.045)
   bedPos.needsUpdate = true
   bedGeometry.computeVertexNormals()
 
@@ -1441,18 +1609,27 @@ function createSideRiverRibbon(
 
 function createSun() {
   const group = new THREE.Group()
-  group.position.set(21.2, 15.8, -4.2)
+  group.position.copy(SUN_SCENE_POSITION)
+  const sunMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffb84a,
+    emissive: 0xff7b18,
+    emissiveIntensity: 2.4,
+    roughness: 0.68,
+    metalness: 0,
+  })
   const core = new THREE.Mesh(
-    new THREE.SphereGeometry(1.0, 32, 32),
-    new THREE.MeshStandardMaterial({ color: 0xffd471, emissive: 0xffd471, emissiveIntensity: 0.85, roughness: 0.35 }),
+    new THREE.SphereGeometry(1.05, 40, 28),
+    sunMaterial,
   )
+  const sunTexture = new THREE.TextureLoader().load(SUN_TEXTURE_URL, (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace
+    texture.anisotropy = Math.min(renderer?.capabilities.getMaxAnisotropy?.() ?? 4, 8)
+    sunMaterial.map = texture
+    sunMaterial.emissiveMap = texture
+    sunMaterial.needsUpdate = true
+  })
+  sunTexture.colorSpace = THREE.SRGBColorSpace
   group.add(core)
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: createSunSpriteTexture(), transparent: true, opacity: 0.86, depthWrite: false, blending: THREE.AdditiveBlending }))
-  halo.scale.set(5.8, 5.8, 1)
-  group.add(halo)
-  const halo2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: createSunSpriteTexture(), transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending }))
-  halo2.scale.set(8.0, 8.0, 1)
-  group.add(halo2)
   return group
 }
 
@@ -1880,27 +2057,28 @@ function createCurvedCoastline(depth: number) {
 }
 
 function buildSeaLandScene(root: THREE.Group) {
-  const { group: landGroup, data: landData } = buildDeformedLandBox(26, 18, 132, 66)
+  const sceneDepth = 20
+  const { group: landGroup, data: landData } = buildDeformedLandBox(26, sceneDepth, 132, 72)
   root.add(landGroup)
 
   const oceanBase = new THREE.Mesh(
-    new THREE.BoxGeometry(14, 6.0, 18),
+    new THREE.BoxGeometry(18, 6.0, sceneDepth),
     new THREE.MeshStandardMaterial({ color: 0x213549, roughness: 1, metalness: 0.02 }),
   )
-  oceanBase.position.set(15, -3.0, 0)
+  oceanBase.position.set(17, -3.0, 0)
   root.add(oceanBase)
   const oceanCap = new THREE.Mesh(
-    new THREE.BoxGeometry(14, 0.14, 18),
+    new THREE.BoxGeometry(18, 0.14, sceneDepth),
     new THREE.MeshStandardMaterial({ color: 0x415e73, roughness: 0.95 }),
   )
-  oceanCap.position.set(15, 0.02, 0)
+  oceanCap.position.set(17, 0.02, 0)
   root.add(oceanCap)
 
-  seaWater = new Water(createCurvedOceanGeometry(22, 18, 60, 54), {
+  seaWater = new Water(createCurvedOceanGeometry(26, sceneDepth, 72, 60), {
     textureWidth: 512,
     textureHeight: 512,
     waterNormals: createWaterNormalsTexture(),
-    sunDirection: new THREE.Vector3(-0.72, -1, 0.24).normalize(),
+    sunDirection: SUN_SCENE_POSITION.clone().normalize(),
     sunColor: 0xffffff,
     waterColor: 0x2f7fb2,
     distortionScale: 2.6,
@@ -1909,16 +2087,13 @@ function buildSeaLandScene(root: THREE.Group) {
   seaWater.rotation.x = -Math.PI / 2
   seaWater.position.set(0, 0.16, 0)
   root.add(seaWater)
-  root.add(createCurvedCoastline(18))
+  root.add(createCurvedCoastline(sceneDepth))
   root.add(createSun())
 
   const clouds = [
-    createCloud(new THREE.Vector3(-10.6, 11.2, -1.1), 0.98),
-    createCloud(new THREE.Vector3(2.7, 10.3, -0.8), 1.08),
-    createCloud(new THREE.Vector3(6.2, 10.7, 0.8), 1.05),
-    createCloud(new THREE.Vector3(11.8, 11.0, -0.4), 1.12),
-    createCloud(new THREE.Vector3(15.3, 10.7, 0.9), 1.04),
-    createCloud(new THREE.Vector3(19.0, 10.5, -0.5), 0.92),
+    createCloud(new THREE.Vector3(-10.6, 11.05, -1.1), 1.05),
+    createCloud(new THREE.Vector3(6.2, 10.75, 0.5), 0.9),
+    createCloud(new THREE.Vector3(17.4, 10.15, 0.65), 1.08),
   ]
   clouds.forEach((cloud) => root.add(cloud))
 
@@ -2228,7 +2403,7 @@ function buildSeaLandScene(root: THREE.Group) {
   registerLabel('ocean-sea', '', '海洋', 'lbl-ocean', oceanLabel, ['seaLand'])
 }
 
-function createLandBase(width: number, depth: number, infiltrationLevel: number) {
+function createLandBase(width: number, depth: number, infiltrationLevel: number, sceneKey: SceneKey) {
   const root = new THREE.Group()
   const sideMaterial = createLandSideShaderMaterial(infiltrationLevel)
   const topMaterial = new THREE.MeshStandardMaterial({ color: 0x806044, roughness: 0.98 })
@@ -2245,6 +2420,7 @@ function createLandBase(width: number, depth: number, infiltrationLevel: number)
   base.position.y = -2.2
   base.receiveShadow = true
   root.add(base)
+  registerTerrainOccluder(base, [sceneKey])
 
   // Box 顶面位于 y=0.1；草地只抬高几毫米并带有极轻微起伏，不再悬空。
   const topGeo = new THREE.PlaneGeometry(width - 0.02, depth - 0.02, 64, 44)
@@ -2271,6 +2447,7 @@ function createLandBase(width: number, depth: number, infiltrationLevel: number)
   top.receiveShadow = true
   top.position.y = 0.104
   root.add(top)
+  registerTerrainOccluder(top, [sceneKey])
   return root
 }
 
@@ -2399,7 +2576,8 @@ function createSceneBillboard(mode: LandUrbanMode) {
 function buildLandCycleScene(root: THREE.Group, mode: LandUrbanMode) {
   const width = mode === 'before' ? 24 : 30
   const depth = mode === 'before' ? 17 : 22
-  const base = createLandBase(width, depth, mode === 'before' ? 0.68 : 0.22)
+  const landSceneKey: SceneKey = mode === 'before' ? 'landBefore' : 'landAfter'
+  const base = createLandBase(width, depth, mode === 'before' ? 0.68 : 0.22, landSceneKey)
   root.add(base)
 
   const billboard = createSceneBillboard(mode)
@@ -2474,7 +2652,6 @@ function buildLandCycleScene(root: THREE.Group, mode: LandUrbanMode) {
     registerLabel('runoff-outlet-after', 'runoff', '排水出口', 'lbl-runoff', outletLabel, ['landAfter'])
   }
 
-  const landSceneKey: SceneKey = mode === 'before' ? 'landBefore' : 'landAfter'
   addLandBaseInfiltrationArrows(root, landSceneKey, width, depth, mode)
   const infLabel = new THREE.Object3D()
   infLabel.position.set(0, -0.65, depth * 0.5 + 0.22)
@@ -2813,6 +2990,39 @@ function buildLandCycleScene(root: THREE.Group, mode: LandUrbanMode) {
 
 }
 
+function createSkyEnvironment() {
+  if (!scene) return
+  const material = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    vertexShader: `
+      varying vec3 vDirection;
+      void main() {
+        vDirection = normalize(position);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vDirection;
+      void main() {
+        vec3 direction = normalize(vDirection);
+        float height = clamp(direction.y, 0.0, 1.0);
+        float horizon = pow(1.0 - height, 4.0);
+        vec3 horizonColor = vec3(0.40, 0.67, 0.79);
+        vec3 middleColor = vec3(0.11, 0.43, 0.66);
+        vec3 zenithColor = vec3(0.025, 0.15, 0.36);
+        vec3 skyColor = mix(horizonColor, middleColor, smoothstep(0.0, 0.38, height));
+        skyColor = mix(skyColor, zenithColor, smoothstep(0.38, 1.0, height));
+        skyColor += vec3(0.20, 0.10, 0.035) * horizon * 0.18;
+        gl_FragColor = vec4(skyColor, 1.0);
+      }
+    `,
+  })
+  skyEnvironment = new THREE.Mesh(new THREE.SphereGeometry(160, 64, 36), material)
+  skyEnvironment.renderOrder = -100
+  scene.add(skyEnvironment)
+}
+
 function buildScene() {
   const container = threeHostRef.value
   if (!container) return
@@ -2821,9 +3031,9 @@ function buildScene() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
 
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x041126)
+  scene.background = new THREE.Color(0x79b4d0)
 
-  camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 180)
+  camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 500)
   const preset = cameraPresets[currentSceneKey()]
   camera.position.copy(preset.pos)
   camera.lookAt(preset.target)
@@ -2834,6 +3044,8 @@ function buildScene() {
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 0.94
   renderer.domElement.className = 'scene-canvas three-canvas'
   container.appendChild(renderer.domElement)
 
@@ -2850,10 +3062,11 @@ function buildScene() {
   controls.target.copy(preset.target)
   controls.update()
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.92))
-  scene.add(new THREE.HemisphereLight(0x98c7ff, 0x32445b, 1.15))
-  const dirLight = new THREE.DirectionalLight(0xfff4dd, 2.8)
-  dirLight.position.set(20, 24, 10)
+  createSkyEnvironment()
+  scene.add(new THREE.AmbientLight(0xd9edff, 0.58))
+  scene.add(new THREE.HemisphereLight(0xc9ebff, 0x62523e, 1.4))
+  const dirLight = new THREE.DirectionalLight(0xffe2ad, 3.1)
+  dirLight.position.copy(SUN_SCENE_POSITION)
   dirLight.castShadow = true
   dirLight.shadow.mapSize.set(2048, 2048)
   dirLight.shadow.camera.left = -28
@@ -2926,22 +3139,38 @@ function updateLabels() {
   if (!camera || !threeHostRef.value) return
   const w = threeHostRef.value.clientWidth
   const h = threeHostRef.value.clientHeight
-  const active = currentSceneKey()
+  camera.getWorldPosition(labelCameraPosition)
+  const activeOccluders = terrainOccluders
+    .filter((entry) => entry.scenes.some((sceneKey) => isSceneActive(sceneKey)))
+    .map((entry) => entry.object)
+
   screenLabels.value = labelAnchors.map((item) => {
-    const wp = item.object.getWorldPosition(new THREE.Vector3()).project(camera)
-    const visible =
+    const worldPosition = item.object.getWorldPosition(new THREE.Vector3())
+    const projected = worldPosition.clone().project(camera)
+    const inView =
       item.scenes.some((sceneKey) => isSceneActive(sceneKey))
       && (item.key === '' || !!layers[item.key])
-      && wp.z >= -1 && wp.z <= 1
-      && wp.x >= -1.25 && wp.x <= 1.25
-      && wp.y >= -1.25 && wp.y <= 1.25
+      && projected.z >= -1 && projected.z <= 1
+      && projected.x >= -1.25 && projected.x <= 1.25
+      && projected.y >= -1.25 && projected.y <= 1.25
+
+    let occludedByTerrain = false
+    if (inView && activeOccluders.length) {
+      const labelDistance = labelCameraPosition.distanceTo(worldPosition)
+      labelRayDirection.copy(worldPosition).sub(labelCameraPosition).normalize()
+      labelOcclusionRaycaster.set(labelCameraPosition, labelRayDirection)
+      // 留出标签锚点附近的容差，避免贴在地表上的标签遮挡自身。
+      labelOcclusionRaycaster.far = Math.max(0, labelDistance - 0.16)
+      occludedByTerrain = labelOcclusionRaycaster.intersectObjects(activeOccluders, false).length > 0
+    }
+
     return {
       id: item.id,
       text: item.text,
       cls: item.cls,
-      x: (wp.x * 0.5 + 0.5) * w,
-      y: (-wp.y * 0.5 + 0.5) * h,
-      visible,
+      x: (projected.x * 0.5 + 0.5) * w,
+      y: (-projected.y * 0.5 + 0.5) * h,
+      visible: inView && !occludedByTerrain,
     }
   })
 }
@@ -3107,8 +3336,8 @@ function toggleFullscreen() {
   setTimeout(() => scheduleSceneResize(0), 120)
 }
 
-function isPanelLayoutResizing() {
-  return draggingSide.value !== null || viewportResizing.value
+function togglePanelsVisibility() {
+  panelsVisible.value = !panelsVisible.value
 }
 
 function resizeSceneNow() {
@@ -3137,7 +3366,6 @@ function scheduleSceneResize(delay = 100) {
   if (sceneResizeTimer) clearTimeout(sceneResizeTimer)
   cancelAnimationFrame(sceneResizeFrame)
   cancelAnimationFrame(sceneResizeSettleFrame)
-  if (isPanelLayoutResizing()) return
   sceneResizeTimer = setTimeout(() => {
     sceneResizeTimer = null
     sceneResizeFrame = requestAnimationFrame(() => {
@@ -3197,12 +3425,17 @@ onBeforeUnmount(() => {
   arrowEmitters.length = 0
   dynamicCurveArrows.length = 0
   textureScrollers.length = 0
+  cloudVolumeMaterials.length = 0
   labelAnchors.length = 0
+  terrainOccluders.length = 0
   toggleGroups.clear()
   sceneGroups.seaLand = null
   sceneGroups.landBefore = null
   sceneGroups.landAfter = null
   seaWater = null
+  skyEnvironment = null
+  cloudVolumeTexture?.dispose()
+  cloudVolumeTexture = null
   scene = null
   camera = null
   renderer = null
@@ -3210,6 +3443,42 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.water-floating-card {
+  width: min(340px, calc(100vw - 20px));
+  max-height: calc(100vh - 90px);
+}
+
+.water-control-panel {
+  width: min(400px, calc(100vw - 20px));
+  height: min(680px, calc(100vh - 132px));
+}
+
+.water-control-panel.collapsed {
+  width: min(208px, calc(100vw - 20px));
+  height: auto;
+}
+
+.water-floating-card :deep(.feature-card-content) {
+  padding-bottom: 0;
+}
+
+.floating-card-section {
+  margin: 0;
+  border-radius: 0;
+  padding: 14px 16px !important;
+}
+
+.floating-card-section + .floating-card-section {
+  border-top: 1px solid rgba(82, 206, 255, 0.16);
+}
+
+.panel-section-title {
+  margin: 0 0 10px;
+  color: #62d6ff;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
 .labels-overlay {
   position: absolute;
   inset: 0;
@@ -3288,24 +3557,27 @@ onBeforeUnmount(() => {
 }
 
 .layer-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .layer-row {
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(100, 116, 139, 0.1);
+  min-width: 0;
+  min-height: 60px;
+  padding: 8px 9px;
+  border: 1px solid rgba(82, 206, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(14, 47, 68, 0.28);
 }
 
-.layer-row:last-child {
-  border-bottom: none;
+.layer-row .control-copy {
+  min-width: 0;
+  padding-right: 5px;
 }
 
-.label-layer-row {
-  margin-top: 4px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(46, 196, 182, 0.16);
+.layer-row .control-copy span {
+  line-height: 1.35;
 }
 
 .urban-toggle {
@@ -3326,24 +3598,46 @@ onBeforeUnmount(() => {
 }
 
 .knowledge-card {
-  margin-bottom: 14px;
-  padding: 16px 18px !important;
+  padding: 14px 16px 18px !important;
 }
 
 .knowledge-content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   font-size: 12px;
   color: #94a3b8;
-  line-height: 1.7;
+  line-height: 1.55;
 }
 
 .knowledge-content h4 {
-  margin: 0 0 6px;
+  grid-column: 1 / -1;
+  margin: 0;
   color: #2ec4b6;
   font-size: 14px;
 }
 
 .knowledge-content p {
-  margin: 0 0 6px;
+  margin: 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(46, 196, 182, 0.12);
+  border-radius: 8px;
+  background: rgba(46, 196, 182, 0.055);
+}
+
+.knowledge-content p:last-child:nth-child(even) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .layer-list,
+  .knowledge-content {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledge-content p:last-child:nth-child(even) {
+    grid-column: auto;
+  }
 }
 
 .water-recycle-container .three-host {

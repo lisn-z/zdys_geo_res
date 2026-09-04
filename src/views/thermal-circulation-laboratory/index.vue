@@ -95,7 +95,7 @@
 
     <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="sensorCardCollapsed" class="lab-sensor-card"
       title="实时实验数据" :subtitle="`${temperatureDifference.toFixed(1)}°C 温差`" variant="data" :initial-top="88"
-      :initial-left="14" :bottom-inset="88" :min-width="280" :min-height="220" :light="true">
+      :initial-right="14" :bottom-inset="88" :min-width="280" :min-height="220" :light="true">
       <div class="sensor-console" aria-label="实验监测数据">
         <div class="console-kicker"><i></i> LIVE SENSOR</div>
         <div class="sensor-section">
@@ -122,7 +122,7 @@
     </FloatingFeatureCard>
 
     <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="stageCardCollapsed" class="lab-stage-card"
-      title="分阶段实验" :subtitle="currentStage.title" variant="data" :initial-top="88" :initial-right="14"
+      title="分阶段实验" :subtitle="currentStage.title" variant="data" :initial-top="164" :initial-right="14"
       :bottom-inset="96" :min-width="300" :min-height="330" :light="true">
       <template #header-meta><span class="stage-progress">{{ Math.round(progress) }}%</span></template>
       <div class="lesson-console" aria-label="分阶段实验流程">
@@ -145,9 +145,9 @@
     </FloatingFeatureCard>
 
     <Transition name="record-panel">
-      <FloatingFeatureCard v-if="recordsOpen" v-show="panelsVisible" class="lab-records-card" title="实验数据记录"
-        subtitle="每 5 秒自动记录" variant="track" :initial-bottom="96" :initial-right="14" :bottom-inset="88"
-        :min-width="460" :min-height="260" :light="true">
+      <FloatingFeatureCard v-if="recordsOpen" v-show="panelsVisible" v-model:collapsed="recordsCardCollapsed"
+        class="lab-records-card" title="实验数据记录" subtitle="每 5 秒自动记录" variant="track"
+        :initial-top="240" :initial-right="14" :bottom-inset="88" :min-width="460" :min-height="260" :light="true">
         <div class="records-panel" aria-label="实验数据记录表">
           <div class="records-table">
             <div class="record-row record-header">
@@ -212,8 +212,9 @@ const experimentSeconds = ref(0)
 const records = ref<DataRecord[]>([])
 const recordsOpen = ref(true)
 const panelsVisible = ref(true)
-const sensorCardCollapsed = ref(false)
-const stageCardCollapsed = ref(false)
+const sensorCardCollapsed = ref(true)
+const stageCardCollapsed = ref(true)
+const recordsCardCollapsed = ref(true)
 const showIsobarDeformation = ref(true)
 const sceneError = ref('')
 const currentStageIndex = computed(() => {

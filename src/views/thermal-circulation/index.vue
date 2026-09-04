@@ -31,6 +31,12 @@
             <i v-for="corner in 4" :key="`cold-${corner}`"></i>
           </div>
 
+          <div class="thermal-process-title">
+            <Transition name="thermal-process-copy" mode="out-in" appear>
+              <strong :key="currentStage.id">{{ currentStage.title }}</strong>
+            </Transition>
+          </div>
+
         </div>
 
         <div class="timeline-dock">
@@ -123,10 +129,14 @@
     </FloatingFeatureCard>
 
     <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="insightCardCollapsed" class="thermal-insight-feature-card" title="热力环流解读"
-      :subtitle="currentStage.insightTitle" variant="data" :initial-bottom="96" :initial-right="16" :bottom-inset="86"
+      :subtitle="currentStage.insightTitle" variant="data" :initial-top="182" :initial-right="16" :bottom-inset="86"
       :min-width="330" :min-height="280">
       <div class="thermal-insight-content">
-        <p class="thermal-insight-lead">{{ currentStage.insight }}</p>
+        <section class="thermal-current-stage-insight">
+          <strong>{{ currentStage.title }}</strong>
+          <p>{{ currentStage.insight }}</p>
+          <small>观察提示：{{ currentStage.focus }}</small>
+        </section>
         <div class="thermal-cause-chain" aria-label="热力环流形成链条">
           <span :class="{ active: currentStageIndex >= 0 }">地表冷热不均</span>
           <i>→</i>
@@ -207,7 +217,7 @@ const isPlaying = ref(false)
 const playbackStopAt = ref(100)
 const playbackMode = ref<'all' | 'stage' | 'loop' | null>(null)
 const continuousLoopMode = ref(false)
-const stageCardCollapsed = ref(false)
+const stageCardCollapsed = ref(true)
 const insightCardCollapsed = ref(true)
 const panelsVisible = ref(true)
 const speedOptions = [0.5, 1, 2, 5]
@@ -2879,6 +2889,42 @@ onBeforeUnmount(() => {
   height: 100% !important;
 }
 
+.thermal-process-title {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  z-index: 18;
+  min-width: 340px;
+  padding: 11px 20px;
+  color: #f4fbff;
+  font-size: 17px;
+  text-align: center;
+  pointer-events: none;
+  border: 1px solid rgba(91, 207, 244, 0.3);
+  border-radius: 999px;
+  background: rgba(4, 19, 31, 0.72);
+  box-shadow: 0 12px 34px rgba(0, 8, 16, 0.3);
+  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+}
+
+.thermal-process-copy-enter-active,
+.thermal-process-copy-leave-active {
+  transition: opacity 240ms ease, transform 240ms ease, filter 240ms ease;
+}
+
+.thermal-process-copy-enter-from {
+  opacity: 0;
+  filter: blur(3px);
+  transform: translateY(7px);
+}
+
+.thermal-process-copy-leave-to {
+  opacity: 0;
+  filter: blur(3px);
+  transform: translateY(-7px);
+}
+
 .thermal-corner-atmosphere {
   position: absolute;
   inset: 0;
@@ -2953,6 +2999,33 @@ onBeforeUnmount(() => {
   background: rgba(4, 18, 30, 0.56);
   border: 1px solid rgba(114, 184, 229, 0.34);
   border-radius: 10px;
+}
+
+.thermal-current-stage-insight {
+  display: grid;
+  gap: 7px;
+  padding: 11px 12px;
+  border: 1px solid rgba(91, 207, 244, 0.28);
+  border-radius: 10px;
+  background: rgba(5, 31, 46, 0.58);
+}
+
+.thermal-current-stage-insight > strong {
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.thermal-current-stage-insight > p {
+  margin: 0;
+  color: rgba(222, 240, 247, 0.86);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.thermal-current-stage-insight > small {
+  color: rgba(102, 222, 249, 0.86);
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .legend-title {

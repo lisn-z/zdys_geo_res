@@ -52,6 +52,20 @@ const COPY_WHITELIST = [
     'layers-inside-the-earth', */
 ]
 
+/**
+ * 复制黑名单 — 用于排除列表中包含的文件/文件夹名称（优先于白名单，始终生效）。
+ * 空数组表示不排除任何项。
+ * 与白名单相同，作用于 astro 页面与 geo 组件（按组件名匹配）：
+ *   COPY_BLACKLIST = ['soil-erosion', 'earth-motion']
+ * 将排除 soil-erosion、earth-motion 对应的 .astro 页面与 geo 组件。
+ */
+const COPY_BLACKLIST = [
+  // 示例：取消注释即可排除这几项
+  /*   'soil-erosion',
+    'earth-motion', */
+  'river-landforms'
+]
+
 const MAPPINGS = [
   {
     label: 'astro 页面',
@@ -105,9 +119,18 @@ function extractAstroTitle(astroPath) {
 // ======================== 白名单辅助 ========================
 
 /**
- * 检查名称是否在白名单中。白名单为空时放行所有项目。
+ * 检查名称是否在黑名单中。黑名单为空时不排除任何项。
+ */
+function blacklistMatch(name) {
+  return COPY_BLACKLIST.includes(name)
+}
+
+/**
+ * 检查名称是否允许复制。
+ * 规则：先排除黑名单，再判断白名单（白名单为空时放行所有未进黑名单的项目）。
  */
 function whitelistMatch(name) {
+  if (blacklistMatch(name)) return false
   if (COPY_WHITELIST.length === 0) return true
   return COPY_WHITELIST.includes(name)
 }

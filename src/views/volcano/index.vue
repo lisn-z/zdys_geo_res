@@ -9,22 +9,17 @@
       <h1 class="page-title">火山</h1>
 
       <div class="toolbar-actions">
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="toggleAllPanels">
-          {{ allPanelsCollapsed ? '展开面板' : '收起面板' }}
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" @click="togglePanelsVisibility">
+          {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <aside id="left-panel" class="side-panel left-panel" v-bind="leftPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>火山控制</h2>
-              <p>控制喷发过程、岩浆性质与模型图层</p>
-            </div>
-            <span class="panel-badge">CONTROL</span>
-          </div>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlCardCollapsed"
+        class="volcano-control-floating-card" title="火山控制" subtitle="控制喷发过程、岩浆性质与模型图层" variant="control"
+        :initial-top="84" :initial-right="18" :bottom-inset="14" :resizable="true" :min-width="320" :min-height="420">
+        <div class="panel-scroll volcano-floating-card-content">
 
           <section class="geo-card control-section">
             <h3 class="section-title">喷发阶段</h3>
@@ -86,7 +81,7 @@
             <div class="switch-row">
               <div class="control-copy">
                 <strong>喷发物</strong>
-                <span>显示火山灰柱、火山弹与喷发粒子</span>
+                <span>显示火山灰云团、火山弹与熔岩光晕</span>
               </div>
               <el-switch v-model="showEjecta" />
             </div>
@@ -107,11 +102,7 @@
           </section>
         </div>
 
-        <div class="resize-handle resize-right" v-bind="leftResizeAttrs"></div>
-        <button type="button" class="panel-collapse-btn collapse-left" v-bind="leftCollapseAttrs">
-          ‹
-        </button>
-      </aside>
+      </FloatingFeatureCard>
 
       <section class="center-stage">
         <div class="stage-content volcano-stage-content">
@@ -144,7 +135,7 @@
 
         <div class="timeline-dock">
           <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlayback">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -165,18 +156,18 @@
               {{ item }}×
             </button>
           </div>
+
+          <div class="timeline-rotate-control" title="自动环绕观察火山模型">
+            <span>自动旋转</span>
+            <el-switch v-model="autoRotate" aria-label="自动旋转" />
+          </div>
         </div>
       </section>
 
-      <aside id="right-panel" class="side-panel right-panel" v-bind="rightPanelAttrs">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>喷发数据</h2>
-              <p>查看教学模拟量、结构说明与喷发原理</p>
-            </div>
-            <span class="panel-badge">DATA</span>
-          </div>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="dataCardCollapsed"
+        class="volcano-data-floating-card" title="喷发数据" subtitle="查看教学模拟量、结构说明与喷发原理" variant="data" :initial-top="146"
+        :initial-right="18" :bottom-inset="14" :resizable="true" :min-width="320" :min-height="300">
+        <div class="panel-scroll volcano-floating-card-content">
 
           <div class="data-grid volcano-data-grid">
             <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="item.className">
@@ -225,30 +216,17 @@
           </el-collapse>
         </div>
 
-        <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
-        <button type="button" class="panel-collapse-btn collapse-right" v-bind="rightCollapseAttrs">
-          ›
-        </button>
-      </aside>
-
-      <button v-if="hasLeftPanel && leftCollapsed" type="button" class="panel-entry-btn entry-left"
-        v-bind="leftEntryAttrs">
-        ›
-      </button>
-
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
-      </button>
+      </FloatingFeatureCard>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-// Volcano_v4：精简主场景提示与结构信息、联动结构标注高亮、默认视角略缩小，并让播放完成后回到静息期 0% 暂停。
+// Volcano_v4：写实火山地貌、渐进熔岩流、自然湖岸、气雾灰云与剖面结构教学交互。
 import {
   computed,
   nextTick,
+  onActivated,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -262,39 +240,37 @@ import {
 
 import '@/styles/geo-page-template.css'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
+import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+const terrainAlbedoUrl = '/geo-resources-folder/images/volcanic-terrain-albedo.png'
+const strataAlbedoUrl = '/geo-resources-folder/images/volcanic-strata-albedo.png'
+const volcanoBackgroundUrl = '/geo-resources-folder/images/volcano-background-v2.png'
+const volcanicAshCloudUrl = '/geo-resources-folder/images/volcanic-ash-cloud-v1.png'
+const volcanicBombUrl = '/geo-resources-folder/images/volcanic-bomb-v1.png'
+
+
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
 
-const hasLeftPanel = true
-const hasRightPanel = true
-
 const threeContainerRef = ref<HTMLElement | null>(null)
+const panelsVisible = ref(true)
+const controlCardCollapsed = ref(true)
+const dataCardCollapsed = ref(true)
+
+function togglePanelsVisibility() {
+  panelsVisible.value = !panelsVisible.value
+}
 
 const {
   rootRef: pageRef,
   layoutMode,
-  leftCollapsed,
-  rightCollapsed,
-  allPanelsCollapsed,
   draggingSide,
   viewportResizing,
   workspaceAttrs,
-  leftPanelAttrs,
-  rightPanelAttrs,
-  leftResizeAttrs,
-  rightResizeAttrs,
-  leftCollapseAttrs,
-  rightCollapseAttrs,
-  leftEntryAttrs,
-  rightEntryAttrs,
-  setAllCollapsed,
-  resetWidths,
-  toggleAll: toggleAllPanels,
 } = useGeoPanelLayout({
-  left: { enabled: hasLeftPanel },
-  right: { enabled: hasRightPanel },
+  left: { enabled: false },
+  right: { enabled: false },
   onLayoutChange(state) {
     if (state.resizing) return
     scheduleSceneResize(90)
@@ -316,6 +292,7 @@ const showEjecta = ref(true)
 const progress = ref(0)
 const isPlaying = ref(false)
 const playbackSpeed = ref(1)
+const autoRotate = ref(false)
 const currentView = ref('overview')
 const selectedStructureId = ref('volcanicCone')
 const activePanels = ref(['principle', 'eruptionType'])
@@ -363,6 +340,10 @@ const structureKnowledge: Record<string, {
   craterLake: {
     title: '火山口湖',
     description: '喷发后形成的火山口或塌陷洼地若能够蓄水，可形成火山口湖。模型水面采用动态波动演示。',
+  },
+  collapsedChamber: {
+    title: '崩塌后的岩浆房',
+    description: '岩浆撤离或顶部失稳后，岩浆房顶板会破裂并向下垮塌，裂隙中仍可能保留高温熔融物。',
   },
   fissure: {
     title: '火山裂隙',
@@ -479,14 +460,64 @@ function jumpToStage(stage: string) {
   isPlaying.value = false
 }
 
+function togglePlayback() {
+  if (isPlaying.value) {
+    isPlaying.value = false
+    return
+  }
+  // 播放结束后再次点击应重新演示，而不是在 100% 立即被时间轴停住。
+  if (progress.value >= 99.999) progress.value = 0
+  timelineLastTime = performance.now()
+  isPlaying.value = true
+}
+
 const BASE_WIDTH = 16
 const BASE_DEPTH = 11
 const BASE_BOTTOM = -3.45
+const SECTION_FACE_Z = BASE_DEPTH / 2 + 0.002
 const MAIN_VOLCANO = new THREE.Vector2(2.25, 2.25)
 const SNOW_VOLCANO = new THREE.Vector2(-3.65, 0.25)
 const SMALL_CONE = new THREE.Vector2(-0.2, -2.45)
-const LAKE_CENTER = new THREE.Vector2(-3.25, -3.15)
-const LAKE_LEVEL = 0.58
+// 火山口湖放在主岩浆系统另一侧、靠近右侧边缘的位置。
+const LAKE_CENTER = new THREE.Vector2(6.3, 2.65)
+const LAKE_BASIN_FLOOR = 0.88
+
+const SURFACE_FISSURES: Array<{
+  points: Array<[number, number]>
+  trenchWidth: number
+  trenchDepth: number
+  outerWidth: number
+  innerWidth: number
+}> = [
+    {
+      points: [[-6.25, 5.42], [-6.18, 4.86], [-5.78, 4.62], [-5.3, 4.54], [-4.84, 4.42], [-4.42, 4.25], [-4.05, 4.02], [-3.72, 3.75]],
+      trenchWidth: 0.14,
+      trenchDepth: 0.12,
+      outerWidth: 0.22,
+      innerWidth: 0.038,
+    },
+    {
+      points: [[-5.34, 4.55], [-5.22, 4.28], [-5.02, 4.04], [-4.78, 3.9]],
+      trenchWidth: 0.09,
+      trenchDepth: 0.075,
+      outerWidth: 0.13,
+      innerWidth: 0.022,
+    },
+    {
+      points: [[-4.72, 4.37], [-4.55, 4.62], [-4.31, 4.78], [-4.03, 4.84]],
+      trenchWidth: 0.082,
+      trenchDepth: 0.065,
+      outerWidth: 0.115,
+      innerWidth: 0.02,
+    },
+    {
+      points: [[-5.76, 4.63], [-5.88, 4.35], [-6.05, 4.17]],
+      trenchWidth: 0.072,
+      trenchDepth: 0.058,
+      outerWidth: 0.1,
+      innerWidth: 0.018,
+    },
+  ]
 
 function isLakeSurfaceOpening(x: number, z: number) {
   const dx = (x - LAKE_CENTER.x) / 1.28
@@ -494,23 +525,12 @@ function isLakeSurfaceOpening(x: number, z: number) {
   return dx * dx + dz * dz < 1
 }
 
-function isTeachingCutawayOpening(x: number, z: number) {
-  const frontZ = BASE_DEPTH / 2
-  const startZ = 2.58
-  if (z < startZ || z > frontZ) return false
-
-  const t = THREE.MathUtils.clamp((z - startZ) / (frontZ - startZ), 0, 1)
-  const halfWidth = 0.28 + t * 0.72
-  const centerX = MAIN_VOLCANO.x + t * 0.05
-
-  return Math.abs(x - centerX) < halfWidth
-}
-
 function seededNoise(x: number, z: number) {
   return (
-    Math.sin(x * 1.71 + z * 0.53) * 0.45 +
-    Math.sin(x * 3.27 - z * 1.86) * 0.24 +
-    Math.sin(x * 6.3 + z * 4.1) * 0.12
+    Math.sin(x * 0.72 + z * 0.38) * 0.42 +
+    Math.sin(x * 1.63 - z * 1.12) * 0.25 +
+    Math.sin(x * 3.18 + z * 2.37) * 0.13 +
+    Math.sin(x * 5.45 - z * 4.08) * 0.055
   )
 }
 
@@ -518,79 +538,137 @@ function volcanoBump(x: number, z: number, center: THREE.Vector2, radius: number
   const dx = x - center.x
   const dz = z - center.y
   const r = Math.sqrt(dx * dx + dz * dz)
-  const normalized = r / radius
+  const angle = Math.atan2(dz, dx)
+  const rimVariation = 1 + Math.sin(angle * 3.0 + center.x) * 0.035 + Math.sin(angle * 7.0 - center.y) * 0.018
+  const normalized = r / (radius * rimVariation)
   if (normalized >= 1.65) return 0
-  return height * Math.exp(-Math.pow(normalized, 2.1))
+  return height * Math.exp(-Math.pow(normalized, 2.0))
+}
+
+function radialErosion(x: number, z: number, center: THREE.Vector2, radius: number, phase: number) {
+  const dx = x - center.x
+  const dz = z - center.y
+  const r = Math.hypot(dx, dz)
+  const normalized = r / radius
+  if (normalized < 0.28 || normalized > 1.5) return 0
+
+  const angle = Math.atan2(dz, dx)
+  const channelA = Math.pow(Math.max(0, Math.cos(angle * 9 + phase + normalized * 2.2)), 8)
+  const channelB = Math.pow(Math.max(0, Math.cos(angle * 14 - phase * 0.7 - normalized * 3.1)), 12)
+  const rise = THREE.MathUtils.smoothstep(normalized, 0.28, 0.62)
+  const fall = 1 - THREE.MathUtils.smoothstep(normalized, 1.02, 1.5)
+  return -(channelA * 0.12 + channelB * 0.055) * rise * fall
+}
+
+function distanceToFissureSegment(
+  x: number,
+  z: number,
+  start: [number, number],
+  end: [number, number],
+) {
+  const vx = end[0] - start[0]
+  const vz = end[1] - start[1]
+  const wx = x - start[0]
+  const wz = z - start[1]
+  const segmentLengthSquared = vx * vx + vz * vz
+  const t = segmentLengthSquared > 0
+    ? THREE.MathUtils.clamp((wx * vx + wz * vz) / segmentLengthSquared, 0, 1)
+    : 0
+  return Math.hypot(x - (start[0] + vx * t), z - (start[1] + vz * t))
+}
+
+function fissureDepthAt(x: number, z: number) {
+  let depth = 0
+  SURFACE_FISSURES.forEach((fissure) => {
+    for (let i = 0; i < fissure.points.length - 1; i++) {
+      const distance = distanceToFissureSegment(x, z, fissure.points[i], fissure.points[i + 1])
+      const localDepth = fissure.trenchDepth * Math.exp(-Math.pow(distance / fissure.trenchWidth, 2.35))
+      depth = Math.max(depth, localDepth)
+    }
+  })
+  return depth
 }
 
 function terrainHeight(x: number, z: number) {
-  let y = 0.32 + seededNoise(x, z) * 0.11
+  let y = 0.3 + seededNoise(x, z) * 0.09
 
   const mainDx = x - MAIN_VOLCANO.x
   const mainDz = z - MAIN_VOLCANO.y
   const mainR = Math.sqrt(mainDx * mainDx + mainDz * mainDz)
   y += volcanoBump(x, z, MAIN_VOLCANO, 3.15, 4.55)
-  y -= 1.16 * Math.exp(-Math.pow(mainR / 0.72, 4))
+  y += radialErosion(x, z, MAIN_VOLCANO, 3.15, 0.7)
+  y -= 1.12 * Math.exp(-Math.pow(mainR / 0.7, 4.2))
 
   const snowDx = x - SNOW_VOLCANO.x
   const snowDz = z - SNOW_VOLCANO.y
   const snowR = Math.sqrt(snowDx * snowDx + snowDz * snowDz)
   y += volcanoBump(x, z, SNOW_VOLCANO, 2.45, 3.65)
-  y -= 0.58 * Math.exp(-Math.pow(snowR / 0.52, 4))
+  y += radialErosion(x, z, SNOW_VOLCANO, 2.45, 2.1)
+  y -= 0.58 * Math.exp(-Math.pow(snowR / 0.52, 4.2))
 
   const smallDx = x - SMALL_CONE.x
   const smallDz = z - SMALL_CONE.y
   const smallR = Math.sqrt(smallDx * smallDx + smallDz * smallDz)
   y += volcanoBump(x, z, SMALL_CONE, 1.25, 1.55)
-  y -= 0.42 * Math.exp(-Math.pow(smallR / 0.32, 4))
+  y += radialErosion(x, z, SMALL_CONE, 1.25, -1.4) * 0.68
+  y -= 0.4 * Math.exp(-Math.pow(smallR / 0.32, 4.2))
 
   const lakeDx = x - LAKE_CENTER.x
   const lakeDz = z - LAKE_CENTER.y
-  const lakeR = Math.sqrt(lakeDx * lakeDx + lakeDz * lakeDz)
-  y += 0.62 * Math.exp(-Math.pow(lakeR / 1.8, 2.2))
-  y -= 0.92 * Math.exp(-Math.pow(lakeR / 0.92, 4))
+  const lakeR = Math.hypot(lakeDx / 1.35, lakeDz / 0.98)
+  // 把原始山坡平滑融合成浅洼台地，而不是直接向下挖出陡壁深坑。
+  const basinBlend = 1 - THREE.MathUtils.smoothstep(lakeR, 0.62, 1.85)
+  const shallowBasin = LAKE_BASIN_FLOOR + THREE.MathUtils.smootherstep(lakeR, 0, 1.35) * 0.16
+  y = THREE.MathUtils.lerp(y, shallowBasin, basinBlend * 0.94)
+  y -= fissureDepthAt(x, z)
 
   return y
 }
 
+function lakeSurfaceLevel() {
+  // 水面压入宽缓盆底，外围网格会延伸到岸坡内部并被地形遮挡。
+  return terrainHeight(LAKE_CENTER.x, LAKE_CENTER.y) + 0.018
+}
+
 function terrainColor(x: number, y: number, z: number) {
-  const c = new THREE.Color()
-  const n = seededNoise(x * 0.8, z * 0.8)
+  const c = new THREE.Color('#9aa98c')
+  const lowland = new THREE.Color('#9aab8a')
+  const highland = new THREE.Color('#a19f88')
+  const exposedRock = new THREE.Color('#aaa393')
+  const craterRock = new THREE.Color('#8e8173')
+  const snow = new THREE.Color('#f0f2f1')
+  const fissureRock = new THREE.Color('#17110f')
+  const n = seededNoise(x * 0.72, z * 0.72)
   const mainDist = Math.hypot(x - MAIN_VOLCANO.x, z - MAIN_VOLCANO.y)
   const snowDist = Math.hypot(x - SNOW_VOLCANO.x, z - SNOW_VOLCANO.y)
 
-  if (snowDist < 1.45 && y > 2.75 + n * 0.12) {
-    c.set('#d9dde0')
-    c.offsetHSL(0, 0, n * 0.035)
-    return c
-  }
+  const highlandMix = THREE.MathUtils.smoothstep(y, 0.72, 2.35)
+  const rockMix = THREE.MathUtils.smoothstep(y, 1.72, 3.3) * (0.52 + Math.max(0, n) * 0.28)
+  const craterMix = (1 - THREE.MathUtils.smoothstep(mainDist, 0.72, 1.72)) * THREE.MathUtils.smoothstep(y, 2.45, 3.42)
+  const snowAltitude = THREE.MathUtils.smoothstep(y + n * 0.13, 2.62, 3.32)
+  const snowRadius = 1 - THREE.MathUtils.smoothstep(snowDist, 0.78, 1.65)
+  const mainSnowAltitude = THREE.MathUtils.smoothstep(y + n * 0.1, 3.05, 3.72)
+  const mainSnowRadius = 1 - THREE.MathUtils.smoothstep(mainDist, 0.68, 1.78)
+  const mainCraterMask = THREE.MathUtils.smoothstep(mainDist, 0.48, 0.78)
+  const snowMix = THREE.MathUtils.clamp(
+    Math.max(snowAltitude * snowRadius, mainSnowAltitude * mainSnowRadius * mainCraterMask),
+    0,
+    1,
+  )
 
-  if (mainDist < 1.35 && y > 3.25) {
-    c.set('#4c4237')
-    c.offsetHSL(0, 0, n * 0.035)
-    return c
-  }
-
-  if (y > 2.1) {
-    c.set('#62604f')
-    c.offsetHSL(0, 0.06, n * 0.04)
-    return c
-  }
-
-  if (y > 0.95) {
-    c.set('#4b5d3c')
-    c.offsetHSL(n * 0.015, 0.04, n * 0.04)
-    return c
-  }
-
-  c.set('#344c2e')
-  c.offsetHSL(n * 0.02, 0.05, n * 0.045)
+  c.copy(lowland).lerp(highland, highlandMix)
+  c.lerp(exposedRock, rockMix)
+  c.lerp(craterRock, craterMix)
+  c.lerp(snow, snowMix)
+  c.lerp(fissureRock, THREE.MathUtils.clamp(fissureDepthAt(x, z) / 0.12 * 0.82, 0, 0.82))
+  c.offsetHSL(n * 0.008, n * 0.012, n * 0.025)
+  c.multiplyScalar(1.18)
   return c
 }
 
 function createTerrainGeometry() {
-  const segX = 104
-  const segZ = 76
+  const segX = 196
+  const segZ = 136
   const positions: number[] = []
   const colors: number[] = []
   const uvs: number[] = []
@@ -611,15 +689,6 @@ function createTerrainGeometry() {
   const row = segX + 1
   for (let iz = 0; iz < segZ; iz++) {
     for (let ix = 0; ix < segX; ix++) {
-      const xCenter = -BASE_WIDTH / 2 + ((ix + 0.5) / segX) * BASE_WIDTH
-      const zCenter = -BASE_DEPTH / 2 + ((iz + 0.5) / segZ) * BASE_DEPTH
-      const lakeOpening =
-        isLakeSurfaceOpening(xCenter, zCenter) &&
-        terrainHeight(xCenter, zCenter) <= LAKE_LEVEL + 0.24
-      const teachingCutaway = isTeachingCutawayOpening(xCenter, zCenter)
-
-      if (lakeOpening || teachingCutaway) continue
-
       const a = iz * row + ix
       const b = a + 1
       const c = a + row
@@ -637,62 +706,96 @@ function createTerrainGeometry() {
   return geometry
 }
 
+function snowCoverage(x: number, y: number, z: number) {
+  const detail = seededNoise(x * 1.15, z * 1.15) * 0.2
+
+  const mainDistance = Math.hypot(x - MAIN_VOLCANO.x, z - MAIN_VOLCANO.y)
+  const mainAngle = Math.atan2(z - MAIN_VOLCANO.y, x - MAIN_VOLCANO.x)
+  const mainAltitude = THREE.MathUtils.smoothstep(
+    y + detail + Math.sin(mainAngle * 6.0) * 0.12,
+    2.72,
+    3.5,
+  )
+  const mainRadius = 1 - THREE.MathUtils.smoothstep(mainDistance, 0.72, 1.92)
+  const craterOpening = THREE.MathUtils.smoothstep(mainDistance, 0.48, 0.74)
+
+  const snowDistance = Math.hypot(x - SNOW_VOLCANO.x, z - SNOW_VOLCANO.y)
+  const snowAngle = Math.atan2(z - SNOW_VOLCANO.y, x - SNOW_VOLCANO.x)
+  const snowAltitude = THREE.MathUtils.smoothstep(
+    y + detail + Math.sin(snowAngle * 7.0 + 0.8) * 0.15,
+    2.35,
+    3.05,
+  )
+  const snowRadius = 1 - THREE.MathUtils.smoothstep(snowDistance, 0.58, 1.72)
+  const secondaryCraterOpening = THREE.MathUtils.smoothstep(snowDistance, 0.34, 0.58)
+
+  return THREE.MathUtils.clamp(
+    Math.max(
+      mainAltitude * mainRadius * craterOpening,
+      snowAltitude * snowRadius * secondaryCraterOpening,
+    ),
+    0,
+    1,
+  )
+}
+
+function createSnowCapGeometry() {
+  const segX = 196
+  const segZ = 136
+  const positions: number[] = []
+  const colors: number[] = []
+  const coverage: number[] = []
+  const indices: number[] = []
+  const shadowSnow = new THREE.Color('#b9c5ca')
+  const freshSnow = new THREE.Color('#ffffff')
+
+  for (let iz = 0; iz <= segZ; iz++) {
+    const z = -BASE_DEPTH / 2 + (iz / segZ) * BASE_DEPTH
+    for (let ix = 0; ix <= segX; ix++) {
+      const x = -BASE_WIDTH / 2 + (ix / segX) * BASE_WIDTH
+      const y = terrainHeight(x, z)
+      const amount = snowCoverage(x, y, z)
+      const color = shadowSnow.clone().lerp(freshSnow, 0.38 + amount * 0.62)
+      positions.push(x, y + 0.028 + amount * 0.012, z)
+      const alpha = THREE.MathUtils.smoothstep(amount, 0.08, 0.78)
+      colors.push(color.r, color.g, color.b, alpha)
+      coverage.push(amount)
+    }
+  }
+
+  const row = segX + 1
+  for (let iz = 0; iz < segZ; iz++) {
+    for (let ix = 0; ix < segX; ix++) {
+      const a = iz * row + ix
+      const b = a + 1
+      const c = a + row
+      const d = c + 1
+      const maximum = Math.max(coverage[a]!, coverage[b]!, coverage[c]!, coverage[d]!)
+      if (maximum < 0.025) continue
+      indices.push(a, c, b, b, c, d)
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
 function createStrataTexture() {
-  const canvas = document.createElement('canvas')
-  canvas.width = 512
-  canvas.height = 512
-  const ctx = canvas.getContext('2d')!
-  const palette = ['#6e5a46', '#8b7358', '#574b3f', '#9a8161', '#74624e', '#4d443b']
-
-  ctx.fillStyle = '#74614d'
-  ctx.fillRect(0, 0, 512, 512)
-
-  for (let y = 0; y < 512; y += 10) {
-    const wobble = Math.sin(y * 0.073) * 4 + Math.sin(y * 0.021) * 8
-    ctx.beginPath()
-    ctx.moveTo(0, y + wobble)
-    for (let x = 0; x <= 512; x += 16) {
-      const yy = y + wobble + Math.sin(x * 0.055 + y * 0.015) * 4
-      ctx.lineTo(x, yy)
-    }
-    ctx.strokeStyle = palette[Math.floor(y / 10) % palette.length]
-    ctx.lineWidth = 6
-    ctx.stroke()
-
-    ctx.beginPath()
-    ctx.moveTo(0, y + wobble + 3)
-    for (let x = 0; x <= 512; x += 16) {
-      const yy = y + wobble + 3 + Math.sin(x * 0.055 + y * 0.015) * 4
-      ctx.lineTo(x, yy)
-    }
-    ctx.strokeStyle = 'rgba(25,22,19,.52)'
-    ctx.lineWidth = 1.2
-    ctx.stroke()
-  }
-
-  for (let i = 0; i < 36; i++) {
-    const x = Math.random() * 512
-    const y = Math.random() * 512
-    const len = 18 + Math.random() * 74
-    ctx.strokeStyle = 'rgba(30,26,23,.28)'
-    ctx.lineWidth = 1 + Math.random() * 2
-    ctx.beginPath()
-    ctx.moveTo(x, y)
-    ctx.lineTo(x + (Math.random() - 0.5) * 18, y + len)
-    ctx.stroke()
-  }
-
-  const texture = new THREE.CanvasTexture(canvas)
+  const texture = new THREE.TextureLoader().load(strataAlbedoUrl)
   texture.colorSpace = THREE.SRGBColorSpace
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping
-  texture.repeat.set(3.2, 2.1)
-  texture.anisotropy = 4
+  texture.repeat.set(2.25, 1.55)
+  texture.anisotropy = Math.min(renderer?.capabilities.getMaxAnisotropy() ?? 4, 12)
   return texture
 }
 
-function createEdgeWallGeometry(side: 'front' | 'back' | 'left' | 'right', withWindow = false) {
+function createEdgeWallGeometry(side: 'front' | 'back' | 'left' | 'right') {
   const horizontalSegments = side === 'front' || side === 'back' ? 96 : 70
-  const verticalSegments = withWindow ? 34 : 1
+  const verticalSegments = side === 'front' ? 34 : 1
   const positions: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
@@ -725,33 +828,6 @@ function createEdgeWallGeometry(side: 'front' | 'back' | 'left' | 'right', withW
       const c = a + row
       const d = c + 1
 
-      if (withWindow && side === 'front') {
-        const xCenter = -BASE_WIDTH / 2 + ((i + 0.5) / horizontalSegments) * BASE_WIDTH
-        const top = terrainHeight(xCenter, BASE_DEPTH / 2)
-        const vCenter = (iy + 0.5) / verticalSegments
-        const yCenter = BASE_BOTTOM + (top - BASE_BOTTOM) * vCenter
-
-        // 只剖开岩浆房与主火山通道附近，保留其余完整岩层，
-        // 避免整个底部像被掏空一样悬浮。
-        const chamberHole =
-          Math.pow((xCenter - MAIN_VOLCANO.x) / 1.55, 2) +
-          Math.pow((yCenter + 1.78) / 1.04, 2) < 1
-
-        const conduitHalfWidth =
-          0.26 + THREE.MathUtils.clamp((yCenter + 1.45) / 2.7, 0, 1) * 0.16
-        const conduitHole =
-          Math.abs(xCenter - MAIN_VOLCANO.x) < conduitHalfWidth &&
-          yCenter > -1.48 &&
-          yCenter < Math.min(top - 0.04, 0.62)
-
-        const connectorHole =
-          Math.abs(xCenter - MAIN_VOLCANO.x) < 0.72 &&
-          yCenter > -1.58 &&
-          yCenter < -0.72
-
-        if (chamberHole || conduitHole || connectorHole) continue
-      }
-
       // 四个侧壁三角形必须朝模型外侧，否则 MeshStandardMaterial 默认背面剔除，
       // 会造成岩层侧壁完全看不见，看起来像整个模型底部被掏空。
       if (side === 'front' || side === 'left') {
@@ -778,12 +854,12 @@ function createBottomGeometry() {
 }
 
 function createIrregularSphere(radius = 1) {
-  const geometry = new THREE.IcosahedronGeometry(radius, 4)
+  const geometry = new THREE.SphereGeometry(radius, 64, 40)
   const pos = geometry.attributes.position as THREE.BufferAttribute
   const v = new THREE.Vector3()
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i)
-    const scale = 1 + Math.sin(v.x * 5.1 + v.y * 3.4) * 0.07 + Math.sin(v.z * 7.3) * 0.05
+    const scale = 1 + Math.sin(v.x * 4.2 + v.y * 2.8) * 0.045 + Math.sin(v.z * 5.6 - v.y * 1.7) * 0.03
     v.multiplyScalar(scale)
     pos.setXYZ(i, v.x, v.y, v.z)
   }
@@ -842,37 +918,130 @@ function createLavaTileTexture(size = 128) {
 }
 
 const lavaVertexShader = `
+  uniform float time;
+  uniform float surfaceFlow;
   uniform vec2 uvScale;
+  uniform float displacementStrength;
   varying vec2 vUv;
+  varying float vAcross;
+  varying float vAlong;
+  varying vec3 vViewNormal;
+  varying vec3 vViewPosition;
   void main() {
     vUv = uv * uvScale;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vAcross = uv.x;
+    vAlong = uv.y;
+    float waveTime = time * (1.0 - surfaceFlow);
+    float wave = sin(vUv.y * 7.0 - waveTime * 2.1 + sin(vUv.x * 5.0)) * 0.014;
+    wave += sin(vUv.x * 10.0 + vUv.y * 3.0 + waveTime * 1.35) * 0.006;
+    vec3 displacedPosition = position + normal * wave * displacementStrength;
+    vec4 viewPosition = modelViewMatrix * vec4(displacedPosition, 1.0);
+    vViewNormal = normalize(normalMatrix * normal);
+    vViewPosition = viewPosition.xyz;
+    gl_Position = projectionMatrix * viewPosition;
   }
 `
 
 const lavaFragmentShader = `
   uniform float time;
+  uniform float surfaceFlow;
   uniform float opacityValue;
-  uniform sampler2D noiseMap;
-  uniform sampler2D lavaMap;
+  uniform float flowHead;
+  uniform float highlightStrength;
+  uniform float pressureLevel;
+  uniform float pressurePulse;
+  uniform float pressureChannel;
   varying vec2 vUv;
+  varying float vAcross;
+  varying float vAlong;
+  varying vec3 vViewNormal;
+  varying vec3 vViewPosition;
+
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  float valueNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+      mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x),
+      f.y
+    );
+  }
+
+  float fbm(vec2 p) {
+    float value = 0.0;
+    float amplitude = 0.56;
+    for (int i = 0; i < 4; i++) {
+      value += valueNoise(p) * amplitude;
+      p = mat2(1.62, 1.18, -1.18, 1.62) * p + 1.7;
+      amplitude *= 0.48;
+    }
+    return value;
+  }
 
   void main() {
-    vec4 n = texture2D(noiseMap, vUv * 0.62);
-    vec2 uvA = vUv + vec2(0.72, -0.58) * time * 0.055;
-    vec2 uvB = vUv + vec2(-0.26, 0.91) * time * 0.031;
-    uvA += (n.rg - 0.5) * 0.95;
-    uvB += (n.gb - 0.5) * 0.28;
+    float roundedTipInset = pow(abs(vAcross - 0.5) * 2.0, 1.7) * 0.035;
+    float reveal = 1.0;
+    if (flowHead < 0.999) {
+      reveal = 1.0 - smoothstep(
+        flowHead - 0.028 - roundedTipInset,
+        flowHead + 0.014 - roundedTipInset,
+        vAlong
+      );
+      if (reveal < 0.012) discard;
+    }
+    // 地表熔岩的底纹保持稳定，只让下方明确的高光带沿 vAlong 0 -> 1 移动。
+    float textureTime = time * (1.0 - surfaceFlow);
+    vec2 flowUv = vec2(vUv.x * 0.72, vUv.y - textureTime * 0.2);
+    float broadFlow = fbm(flowUv * 1.25 + vec2(sin(flowUv.y * 0.7) * 0.35, 0.0));
+    float slowFlow = fbm(flowUv * 2.35 + vec2(0.0, textureTime * 0.07));
+    float brightVeins = smoothstep(0.42, 0.76, broadFlow * 0.7 + slowFlow * 0.38);
+    float coolingCrust = smoothstep(0.66, 0.88, fbm(flowUv * 3.1 - textureTime * 0.035));
+    float edge = smoothstep(0.0, 0.16, vAcross) * smoothstep(0.0, 0.16, 1.0 - vAcross);
 
-    float mask = texture2D(noiseMap, uvA * 1.55).r;
-    vec3 base = texture2D(lavaMap, uvB * 1.35).rgb;
-    float hot = smoothstep(0.36, 0.86, mask + base.r * 0.36);
-    vec3 darkRock = vec3(0.10, 0.025, 0.012);
-    vec3 orange = vec3(1.0, 0.17, 0.012);
-    vec3 yellow = vec3(1.0, 0.76, 0.12);
-    vec3 color = mix(darkRock, orange, hot);
-    color = mix(color, yellow, pow(hot, 4.0) * 0.72);
-    gl_FragColor = vec4(color, opacityValue);
+    vec3 deepRed = vec3(0.34, 0.018, 0.005);
+    vec3 moltenOrange = vec3(1.0, 0.18, 0.006);
+    vec3 moltenYellow = vec3(1.0, 0.72, 0.08);
+    vec3 cooledRock = vec3(0.075, 0.018, 0.012);
+    vec3 color = mix(deepRed, moltenOrange, brightVeins);
+    color = mix(color, moltenYellow, pow(brightVeins, 3.2) * 0.82);
+    color = mix(color, cooledRock, coolingCrust * 0.52);
+    color *= 0.8 + edge * 0.28;
+    float chamberJunction = pressureChannel * (1.0 - smoothstep(0.0, 0.2, vAlong));
+    color = mix(color, deepRed * 0.92, chamberJunction * 0.76);
+    vec3 surfaceNormal = normalize(vViewNormal);
+    vec3 viewDirection = normalize(-vViewPosition);
+    float facing = max(dot(surfaceNormal, viewDirection), 0.0);
+    float fresnel = pow(1.0 - facing, 2.2);
+    float liquidSheen = pow(max(dot(surfaceNormal, normalize(vec3(-0.35, 0.78, 0.52))), 0.0), 18.0);
+    vec3 halfDirection = normalize(viewDirection + normalize(vec3(-0.24, 0.68, 0.7)));
+    float glossyHighlight = pow(max(dot(surfaceNormal, halfDirection), 0.0), 26.0);
+    float broadHighlight = pow(facing, 4.0);
+    float moltenCenter = pow(edge, 2.6) * (0.3 + brightVeins * 0.7);
+    // 高光与几何显现共用同一个流动前沿，确保两者始终沿 vAlong 0 -> 1 同向下坡。
+    float downhillFront = clamp(flowHead, 0.0, 1.0);
+    float downhillLead = exp(-pow((vAlong - downhillFront) * 13.0, 2.0));
+    float downhillWake = exp(-pow((vAlong - max(0.0, downhillFront - 0.13)) * 10.0, 2.0)) * 0.42;
+    float downhillBreakup = 0.42 + valueNoise(vec2(vAcross * 5.2, vAlong * 17.0)) * 0.58;
+    float surfacePulse = 0.88 + sin(time * 1.35) * 0.12;
+    float downhillHighlight = (downhillLead + downhillWake) * downhillBreakup * edge * surfaceFlow * surfacePulse;
+    float storedPressure = pressureLevel * (0.38 + pressurePulse * 0.62);
+    float risingPressure = exp(-pow((fract(vAlong - time * 0.34) - 0.5) * 6.5, 2.0));
+    color += vec3(1.0, 0.34, 0.06) * liquidSheen * 0.62;
+    color += vec3(0.72, 0.08, 0.015) * fresnel * 0.24;
+    color += vec3(1.0, 0.36, 0.055) * broadHighlight * highlightStrength * 0.2;
+    color += vec3(1.0, 0.74, 0.22) * glossyHighlight * highlightStrength * 0.78;
+    color += vec3(1.0, 0.22, 0.018) * moltenCenter * highlightStrength * 0.24;
+    color += vec3(1.0, 0.52, 0.08) * downhillHighlight * highlightStrength * 0.78;
+    color += vec3(0.82, 0.07, 0.008) * storedPressure * (0.16 + edge * 0.18);
+    color += vec3(1.0, 0.76, 0.18) * risingPressure * pressureChannel * pressureLevel * 0.72;
+    gl_FragColor = vec4(color, opacityValue * reveal);
   }
 `
 
@@ -880,17 +1049,29 @@ let noiseTexture: THREE.Texture | null = null
 let lavaTileTexture: THREE.Texture | null = null
 const lavaMaterials: THREE.ShaderMaterial[] = []
 
-function createLavaMaterial(uvScale = new THREE.Vector2(2, 2), opacity = 1) {
+function createLavaMaterial(
+  uvScale = new THREE.Vector2(2, 2),
+  opacity = 1,
+  timeScale = 0.45,
+  highlightStrength = 0.42,
+) {
   if (!noiseTexture) noiseTexture = createNoiseTexture()
   if (!lavaTileTexture) lavaTileTexture = createLavaTileTexture()
 
   const material = new THREE.ShaderMaterial({
     uniforms: {
       time: { value: 0 },
+      surfaceFlow: { value: 0 },
       uvScale: { value: uvScale.clone() },
+      displacementStrength: { value: 1 },
       noiseMap: { value: noiseTexture },
       lavaMap: { value: lavaTileTexture },
       opacityValue: { value: opacity },
+      flowHead: { value: 1 },
+      highlightStrength: { value: highlightStrength },
+      pressureLevel: { value: 0 },
+      pressurePulse: { value: 0 },
+      pressureChannel: { value: 0 },
     },
     vertexShader: lavaVertexShader,
     fragmentShader: lavaFragmentShader,
@@ -899,11 +1080,18 @@ function createLavaMaterial(uvScale = new THREE.Vector2(2, 2), opacity = 1) {
     side: THREE.DoubleSide,
     toneMapped: false,
   })
+  material.userData.timeScale = timeScale
   lavaMaterials.push(material)
   return material
 }
 
-function createRibbonGeometry(points: THREE.Vector3[], width = 0.45) {
+function createRibbonGeometry(
+  points: THREE.Vector3[],
+  width = 0.45,
+  surfaceOffset = 0.012,
+  crownHeight = 0.022,
+  lateralSegments = 8,
+) {
   const positions: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
@@ -912,19 +1100,28 @@ function createRibbonGeometry(points: THREE.Vector3[], width = 0.45) {
     const next = points[Math.min(points.length - 1, i + 1)]
     const tangent = next.clone().sub(prev).setY(0).normalize()
     const side = new THREE.Vector3(-tangent.z, 0, tangent.x)
-    const taper = 0.72 + 0.28 * (i / Math.max(1, points.length - 1))
+    const progressAlongFlow = i / Math.max(1, points.length - 1)
+    const edgeVariation = 1 + Math.sin(i * 1.73) * 0.075 + Math.sin(i * 0.61 + 1.2) * 0.045
+    const taper = (0.5 + 0.5 * THREE.MathUtils.smootherstep(progressAlongFlow, 0, 0.72)) * edgeVariation
     const p = points[i]
-    const left = p.clone().addScaledVector(side, width * 0.5 * taper)
-    const right = p.clone().addScaledVector(side, -width * 0.5 * taper)
-    positions.push(left.x, left.y, left.z, right.x, right.y, right.z)
-    const v = i / Math.max(1, points.length - 1)
-    uvs.push(0, v, 1, v)
+    for (let lane = 0; lane <= lateralSegments; lane++) {
+      const u = lane / lateralSegments
+      const across = u * 2 - 1
+      const vertex = p.clone().addScaledVector(side, width * 0.5 * taper * across)
+      const attachedY = terrainHeight(vertex.x, vertex.z)
+      const crown = (1 - across * across) * crownHeight
+      positions.push(vertex.x, attachedY + surfaceOffset + crown, vertex.z)
+      uvs.push(u, progressAlongFlow)
+    }
     if (i < points.length - 1) {
-      const a = i * 2
-      const b = a + 1
-      const c = a + 2
-      const d = a + 3
-      indices.push(a, c, b, b, c, d)
+      const row = lateralSegments + 1
+      for (let lane = 0; lane < lateralSegments; lane++) {
+        const a = i * row + lane
+        const b = a + 1
+        const c = a + row
+        const d = c + 1
+        indices.push(a, c, b, b, c, d)
+      }
     }
   }
   const geometry = new THREE.BufferGeometry()
@@ -935,8 +1132,114 @@ function createRibbonGeometry(points: THREE.Vector3[], width = 0.45) {
   return geometry
 }
 
+function createSectionChannelGeometry(
+  points: THREE.Vector3[],
+  startWidth: number,
+  endWidth: number,
+) {
+  const positions: number[] = []
+  const uvs: number[] = []
+  const indices: number[] = []
+  // 通道与剖面共面，通过材质深度偏移保证可见，侧视时不会悬在模型外。
+  const sectionZ = SECTION_FACE_Z
+
+  for (let i = 0; i < points.length; i++) {
+    const prev = points[Math.max(0, i - 1)]
+    const next = points[Math.min(points.length - 1, i + 1)]
+    const tangent = next.clone().sub(prev)
+    tangent.z = 0
+    tangent.normalize()
+    const side = new THREE.Vector3(-tangent.y, tangent.x, 0)
+    const along = i / Math.max(1, points.length - 1)
+    const width = THREE.MathUtils.lerp(startWidth, endWidth, THREE.MathUtils.smootherstep(along, 0, 1))
+    const left = points[i].clone().addScaledVector(side, width * 0.5)
+    const right = points[i].clone().addScaledVector(side, -width * 0.5)
+    positions.push(left.x, left.y, sectionZ, right.x, right.y, sectionZ)
+    uvs.push(0, along, 1, along)
+
+    if (i < points.length - 1) {
+      const a = i * 2
+      const b = a + 1
+      const c = a + 2
+      const d = a + 3
+      indices.push(a, c, b, b, c, d)
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+function createRightWallChannelGeometry(
+  points: THREE.Vector2[],
+  startWidth: number,
+  endWidth: number,
+) {
+  const positions: number[] = []
+  const uvs: number[] = []
+  const indices: number[] = []
+  const wallX = BASE_WIDTH / 2 + 0.002
+
+  for (let i = 0; i < points.length; i++) {
+    const prev = points[Math.max(0, i - 1)]
+    const next = points[Math.min(points.length - 1, i + 1)]
+    const tangent = next.clone().sub(prev).normalize()
+    const side = new THREE.Vector2(-tangent.y, tangent.x)
+    const along = i / Math.max(1, points.length - 1)
+    const width = THREE.MathUtils.lerp(startWidth, endWidth, THREE.MathUtils.smootherstep(along, 0, 1))
+    const left = points[i].clone().addScaledVector(side, width * 0.5)
+    const right = points[i].clone().addScaledVector(side, -width * 0.5)
+    positions.push(wallX, left.y, left.x, wallX, right.y, right.x)
+    uvs.push(0, along, 1, along)
+
+    if (i < points.length - 1) {
+      const a = i * 2
+      const b = a + 1
+      const c = a + 2
+      const d = a + 3
+      indices.push(a, b, c, b, d, c)
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+function createWallPatchGeometry(
+  points: Array<[number, number]>,
+  face: 'front' | 'left',
+) {
+  const shape = new THREE.Shape()
+  points.forEach(([horizontal, y], index) => {
+    if (index === 0) shape.moveTo(horizontal, y)
+    else shape.lineTo(horizontal, y)
+  })
+  shape.closePath()
+  const geometry = new THREE.ShapeGeometry(shape, 12)
+  if (face === 'front') {
+    geometry.translate(0, 0, SECTION_FACE_Z)
+  } else {
+    geometry.rotateY(-Math.PI / 2)
+    geometry.translate(-BASE_WIDTH / 2 - 0.002, 0, 0)
+  }
+  geometry.computeVertexNormals()
+  return geometry
+}
+
 function createFlowPath(raw: Array<[number, number]>, yOffset = 0.06) {
-  return raw.map(([x, z]) => new THREE.Vector3(x, terrainHeight(x, z) + yOffset, z))
+  const controls = raw.map(([x, z]) => new THREE.Vector3(x, 0, z))
+  const curve = new THREE.CatmullRomCurve3(controls, false, 'centripetal')
+  return curve.getPoints(Math.max(32, raw.length * 8)).map((point) =>
+    new THREE.Vector3(point.x, terrainHeight(point.x, point.z) + yOffset, point.z)
+  )
 }
 
 function createEllipseGridGeometry(widthX: number, widthZ: number, resolution = 64) {
@@ -960,7 +1263,7 @@ function createEllipseGridGeometry(widthX: number, widthZ: number, resolution = 
       const b = a + 1
       const c = a + resolution
       const d = c + 1
-      indices.push(a, c, b, b, c, d)
+      indices.push(a, b, c, b, d, c)
     }
   }
   const geometry = new THREE.BufferGeometry()
@@ -972,21 +1275,40 @@ function createEllipseGridGeometry(widthX: number, widthZ: number, resolution = 
 }
 
 let scene: THREE.Scene | null = null
+let sceneBackgroundTexture: THREE.Texture | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let renderer: THREE.WebGLRenderer | null = null
 let controls: OrbitControls | null = null
 let modelGroup: THREE.Group | null = null
 let terrainMesh: THREE.Mesh | null = null
+let terrainWaterUniforms: {
+  time: { value: number }
+  visible: { value: number }
+  center: { value: THREE.Vector2 }
+  level: { value: number }
+} | null = null
+let snowCapMesh: THREE.Mesh | null = null
 let magmaChamber: THREE.Mesh | null = null
+let magmaPressureGlowMesh: THREE.Mesh | null = null
+let magmaNeckMesh: THREE.Mesh | null = null
 let conduitMesh: THREE.Mesh | null = null
-let lateralDikeMesh: THREE.Mesh | null = null
+let collapsedChamberGroup: THREE.Group | null = null
 let lavaFlowMesh: THREE.Mesh | null = null
+const lavaFlowMeshes: THREE.Mesh[] = []
 let fissureMesh: THREE.Mesh | null = null
+let fissureCrackGroup: THREE.Group | null = null
+const fissureGlowMeshes: THREE.Mesh[] = []
 let craterGlowMesh: THREE.Mesh | null = null
+let craterPoolMesh: THREE.Mesh | null = null
+let secondaryCraterCrustMesh: THREE.Mesh | null = null
+let secondaryCraterPoolMesh: THREE.Mesh | null = null
+let secondaryCraterLight: THREE.PointLight | null = null
 let lakeProxyMesh: THREE.Mesh | null = null
 let fallbackWater: Water | null = null
-let ashPoints: THREE.Points | null = null
-let bombPoints: THREE.Points | null = null
+let ashCloudGroup: THREE.Group | null = null
+let ashCloudTexture: THREE.Texture | null = null
+let ejectaGroup: THREE.Group | null = null
+let ejectaTexture: THREE.Texture | null = null
 let mainLight: THREE.DirectionalLight | null = null
 let fillLight: THREE.DirectionalLight | null = null
 let threeResizeObserver: ResizeObserver | null = null
@@ -1021,10 +1343,11 @@ const sceneLabels = [
   { id: 'label-crater', label: '火山口', structureId: 'crater', position: new THREE.Vector3(2.18, 4.13, 2.22), offset: [-14, -30] },
   { id: 'label-cone', label: '火山锥', structureId: 'volcanicCone', position: new THREE.Vector3(0.98, 2.68, 2.12), offset: [-52, 4] },
   { id: 'label-flow', label: '熔岩流', structureId: 'lavaFlow', position: new THREE.Vector3(4.62, 1.68, 4.05), offset: [16, -16] },
-  { id: 'label-conduit', label: '火山通道', structureId: 'conduit', position: new THREE.Vector3(2.45, 0.15, 4.73), offset: [44, -2] },
-  { id: 'label-chamber', label: '岩浆房', structureId: 'magmaChamber', position: new THREE.Vector3(2.25, -1.82, 5.08), offset: [54, 18] },
+  { id: 'label-conduit', label: '火山通道', structureId: 'conduit', position: new THREE.Vector3(2.45, 0.3, 5.62), offset: [38, -2] },
+  { id: 'label-chamber', label: '岩浆房', structureId: 'magmaChamber', position: new THREE.Vector3(2.25, -1.82, 5.62), offset: [54, 18] },
   { id: 'label-fissure', label: '火山裂隙', structureId: 'fissure', position: new THREE.Vector3(-5.55, 0.9, 4.45), offset: [-70, -14] },
-  { id: 'label-lake', label: '火山口湖', structureId: 'craterLake', position: new THREE.Vector3(-3.2, 0.86, -3.12), offset: [-10, -34] },
+  { id: 'label-lake', label: '火山口湖', structureId: 'craterLake', position: new THREE.Vector3(LAKE_CENTER.x, lakeSurfaceLevel() + 0.16, LAKE_CENTER.y), offset: [-18, -34] },
+  { id: 'label-collapsed', label: '崩塌后的岩浆房', structureId: 'collapsedChamber', position: new THREE.Vector3(BASE_WIDTH / 2 + 0.04, -1.82, LAKE_CENTER.y), offset: [-150, 18] },
 ]
 
 const labelElements = new Map<string, HTMLElement>()
@@ -1057,194 +1380,627 @@ function addInteractive(object: THREE.Object3D, structureId: string) {
   interactiveMeshes.push(object)
 }
 
+function createCollapsedChamber(group: THREE.Group) {
+  collapsedChamberGroup = new THREE.Group()
+  collapsedChamberGroup.name = 'collapsedMagmaFissureNetwork'
+
+  const crackMaterial = new THREE.MeshBasicMaterial({
+    color: 0x120a08,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  })
+  const fissureMaterial = createLavaMaterial(new THREE.Vector2(0.78, 5.4), 0.98, 0.22, 0.92)
+  fissureMaterial.uniforms.displacementStrength.value = 0
+  fissureMaterial.polygonOffset = true
+  fissureMaterial.polygonOffsetFactor = -3
+  fissureMaterial.polygonOffsetUnits = -3
+
+  const collapseFissures: Array<{
+    points: Array<[number, number]>
+    outerWidth: number
+    innerWidth: number
+  }> = [
+      // 下沉后的顶板破裂带；不再形成一团岩浆，而是作为深部裂缝网络的起点。
+      { points: [[1.08, -1.46], [1.5, -1.58], [1.94, -1.52], [2.36, -1.68], [2.82, -1.57], [3.3, -1.72], [4.08, -1.62]], outerWidth: 0.2, innerWidth: 0.07 },
+      { points: [[1.5, -1.57], [1.34, -1.28], [1.48, -0.98], [1.35, -0.7]], outerWidth: 0.14, innerWidth: 0.047 },
+      { points: [[2.02, -1.55], [1.94, -1.22], [2.12, -0.92], [2.06, -0.58]], outerWidth: 0.15, innerWidth: 0.052 },
+      { points: [[2.83, -1.58], [2.98, -1.26], [3.24, -1.02], [3.2, -0.72]], outerWidth: 0.14, innerWidth: 0.048 },
+
+      // 主裂缝向剖面深部继续扩散，底端略向湖心一侧偏移。
+      { points: [[2.36, -1.67], [2.24, -2.02], [2.4, -2.36], [2.28, -2.72], [2.46, -3.16]], outerWidth: 0.19, innerWidth: 0.067 },
+      { points: [[1.72, -1.55], [1.5, -1.86], [1.62, -2.18], [1.38, -2.52], [1.48, -2.94]], outerWidth: 0.17, innerWidth: 0.058 },
+      { points: [[2.82, -1.6], [2.96, -1.94], [2.82, -2.26], [3.08, -2.58], [2.98, -3.0]], outerWidth: 0.17, innerWidth: 0.058 },
+      { points: [[3.3, -1.7], [3.5, -1.98], [3.4, -2.3], [3.68, -2.58], [3.56, -2.9]], outerWidth: 0.14, innerWidth: 0.045 },
+
+      // 底部次生分裂：从深部主裂缝继续分叉，形成不规则的树枝状熔岩脉。
+      { points: [[2.34, -2.44], [2.04, -2.58], [1.82, -2.82], [1.5, -2.94]], outerWidth: 0.13, innerWidth: 0.041 },
+      { points: [[2.34, -2.46], [2.66, -2.62], [2.98, -2.58]], outerWidth: 0.13, innerWidth: 0.041 },
+      { points: [[2.45, -3.13], [2.18, -3.27], [1.92, -3.18]], outerWidth: 0.11, innerWidth: 0.034 },
+      { points: [[2.46, -3.14], [2.74, -3.27], [3.02, -3.12]], outerWidth: 0.11, innerWidth: 0.034 },
+      { points: [[1.48, -2.92], [1.22, -3.1], [0.96, -3.04]], outerWidth: 0.1, innerWidth: 0.031 },
+      { points: [[3.56, -2.88], [3.82, -3.08], [4.08, -3.0]], outerWidth: 0.1, innerWidth: 0.031 },
+
+      // 密集末梢裂缝：填充主脉之间的空隙，并在底边前逐级收细、分叉。
+      { points: [[1.58, -2.16], [1.28, -2.28], [1.06, -2.5], [0.74, -2.58]], outerWidth: 0.105, innerWidth: 0.032 },
+      { points: [[1.4, -2.5], [1.12, -2.68], [0.82, -2.72], [0.58, -2.92]], outerWidth: 0.09, innerWidth: 0.027 },
+      { points: [[1.42, -2.56], [1.7, -2.68], [1.86, -2.9]], outerWidth: 0.085, innerWidth: 0.026 },
+      { points: [[1.48, -2.92], [1.62, -3.14], [1.48, -3.35]], outerWidth: 0.08, innerWidth: 0.024 },
+      { points: [[1.2, -3.08], [1.02, -3.25], [0.76, -3.34]], outerWidth: 0.072, innerWidth: 0.021 },
+
+      { points: [[2.24, -2.04], [1.98, -2.2], [1.8, -2.38]], outerWidth: 0.1, innerWidth: 0.03 },
+      { points: [[2.4, -2.34], [2.58, -2.48], [2.64, -2.72], [2.84, -2.84]], outerWidth: 0.095, innerWidth: 0.029 },
+      { points: [[2.28, -2.72], [2.06, -2.9], [2.12, -3.1]], outerWidth: 0.085, innerWidth: 0.025 },
+      { points: [[2.18, -3.26], [2.02, -3.38], [1.78, -3.34]], outerWidth: 0.065, innerWidth: 0.019 },
+      { points: [[2.74, -3.26], [2.9, -3.38], [3.12, -3.3]], outerWidth: 0.065, innerWidth: 0.019 },
+
+      { points: [[2.86, -2.25], [3.12, -2.38], [3.34, -2.34]], outerWidth: 0.1, innerWidth: 0.03 },
+      { points: [[3.08, -2.58], [3.3, -2.7], [3.5, -2.9]], outerWidth: 0.09, innerWidth: 0.027 },
+      { points: [[3.0, -2.98], [3.18, -3.16], [3.4, -3.24]], outerWidth: 0.08, innerWidth: 0.023 },
+      { points: [[3.56, -2.88], [3.42, -3.1], [3.52, -3.34]], outerWidth: 0.075, innerWidth: 0.022 },
+      { points: [[3.82, -3.06], [4.04, -3.22], [4.3, -3.16]], outerWidth: 0.07, innerWidth: 0.02 },
+
+      // 少量横向桥接裂缝让底部呈连续的碎裂岩层，而不是彼此孤立的线条。
+      { points: [[0.82, -2.72], [1.08, -2.8], [1.34, -2.76]], outerWidth: 0.07, innerWidth: 0.02 },
+      { points: [[1.82, -2.82], [2.08, -2.76], [2.3, -2.86]], outerWidth: 0.075, innerWidth: 0.022 },
+      { points: [[2.82, -2.84], [3.02, -2.74], [3.28, -2.8]], outerWidth: 0.075, innerWidth: 0.022 },
+      { points: [[3.4, -2.32], [3.72, -2.42], [3.98, -2.36]], outerWidth: 0.08, innerWidth: 0.023 },
+    ]
+
+  collapseFissures.forEach((fissure) => {
+    const curve = new THREE.CatmullRomCurve3(
+      fissure.points.map(([x, y]) => new THREE.Vector3(x, y, 0)),
+      false,
+      'centripetal',
+    )
+    const points = curve
+      .getPoints(Math.max(28, fissure.points.length * 10))
+      .map((point) => new THREE.Vector2(point.x, point.y))
+    const crackGeometry = createRightWallChannelGeometry(points, fissure.outerWidth, fissure.outerWidth * 0.72)
+    const glowGeometry = createRightWallChannelGeometry(points, fissure.innerWidth, fissure.innerWidth * 0.68)
+    const crack = new THREE.Mesh(crackGeometry, crackMaterial)
+    const glow = new THREE.Mesh(glowGeometry, fissureMaterial)
+    crack.renderOrder = 2
+    glow.renderOrder = 3
+    collapsedChamberGroup!.add(crack, glow)
+    disposables.push(crackGeometry, glowGeometry)
+  })
+
+  addInteractive(collapsedChamberGroup, 'collapsedChamber')
+  group.add(collapsedChamberGroup)
+  disposables.push(crackMaterial)
+}
+
 function createInternalStructure(group: THREE.Group) {
-  const chamberMaterial = createLavaMaterial(new THREE.Vector2(1.7, 1.7), 1)
+  const chamberMaterial = createLavaMaterial(new THREE.Vector2(1.7, 1.7), 1, 0.11, 1.25)
+  chamberMaterial.userData.isPressureSystem = true
+  chamberMaterial.uniforms.displacementStrength.value = 0.06
+  chamberMaterial.polygonOffset = true
+  chamberMaterial.polygonOffsetFactor = -4
+  chamberMaterial.polygonOffsetUnits = -4
   magmaChamber = new THREE.Mesh(createIrregularSphere(1.05), chamberMaterial)
-  magmaChamber.scale.set(1.45, 0.96, 0.78)
-  magmaChamber.position.set(2.25, -1.78, 5.0)
+  magmaChamber.scale.set(1.45, 0.96, 0.006)
+  magmaChamber.position.set(2.25, -1.78, SECTION_FACE_Z)
   magmaChamber.rotation.z = -0.13
+  magmaChamber.renderOrder = 4
   addInteractive(magmaChamber, 'magmaChamber')
   group.add(magmaChamber)
   disposables.push(magmaChamber.geometry)
+
+  const pressureGlowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff4d12,
+    transparent: true,
+    opacity: 0.12,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    toneMapped: false,
+  })
+  magmaPressureGlowMesh = new THREE.Mesh(magmaChamber.geometry, pressureGlowMaterial)
+  magmaPressureGlowMesh.scale.set(1.54, 1.04, 0.005)
+  magmaPressureGlowMesh.position.copy(magmaChamber.position).add(new THREE.Vector3(0, 0, -0.0005))
+  magmaPressureGlowMesh.rotation.copy(magmaChamber.rotation)
+  magmaPressureGlowMesh.renderOrder = 2
+  group.add(magmaPressureGlowMesh)
+  disposables.push(pressureGlowMaterial)
 
   const chamberGlow = new THREE.PointLight(0xff5b16, 2.8, 7, 2)
   chamberGlow.position.copy(magmaChamber.position).add(new THREE.Vector3(0, 0.2, -0.1))
   chamberGlow.userData.baseIntensity = 2.8
   group.add(chamberGlow)
 
+  // 剖面中的通道终点直接取前侧地形顶边，避免山体或参数调整后再次留下断口。
+  const conduitExitY = terrainHeight(MAIN_VOLCANO.x, BASE_DEPTH / 2) + 0.07
   const conduitCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(2.25, -1.0, 4.95),
-    new THREE.Vector3(2.34, -0.05, 4.78),
-    new THREE.Vector3(2.27, 1.0, 4.42),
-    new THREE.Vector3(2.25, 2.28, 3.58),
-    new THREE.Vector3(2.25, 3.66, 2.46),
-  ])
+    new THREE.Vector3(2.25, -1.82, 0),
+    new THREE.Vector3(2.27, -1.32, 0),
+    new THREE.Vector3(2.3, -0.92, 0),
+    new THREE.Vector3(2.31, -0.48, 0),
+    new THREE.Vector3(2.24, 0.18, 0),
+    new THREE.Vector3(2.34, 0.88, 0),
+    new THREE.Vector3(2.29, 1.72, 0),
+    new THREE.Vector3(MAIN_VOLCANO.x, conduitExitY, 0),
+  ], false, 'centripetal')
+  const conduitMaterial = createLavaMaterial(new THREE.Vector2(1.25, 7.2), 1, 0.56, 1.15)
+  conduitMaterial.userData.isPressureSystem = true
+  conduitMaterial.uniforms.pressureChannel.value = 1
+  conduitMaterial.uniforms.displacementStrength.value = 0
+  conduitMaterial.polygonOffset = true
+  conduitMaterial.polygonOffsetFactor = -2
+  conduitMaterial.polygonOffsetUnits = -2
   conduitMesh = new THREE.Mesh(
-    new THREE.TubeGeometry(conduitCurve, 72, 0.18, 14, false),
-    createLavaMaterial(new THREE.Vector2(2.3, 4.8), 1)
+    createSectionChannelGeometry(conduitCurve.getPoints(160), 0.86, 0.17),
+    conduitMaterial
   )
+  conduitMesh.renderOrder = 3
   addInteractive(conduitMesh, 'conduit')
   group.add(conduitMesh)
   disposables.push(conduitMesh.geometry)
 
-  const dikeCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(2.2, -1.12, 4.86),
-    new THREE.Vector3(1.45, -0.54, 4.96),
-    new THREE.Vector3(0.4, 0.0, 5.05),
-    new THREE.Vector3(-0.62, 0.36, 4.92),
-  ])
-  lateralDikeMesh = new THREE.Mesh(
-    new THREE.TubeGeometry(dikeCurve, 48, 0.085, 10, false),
-    createLavaMaterial(new THREE.Vector2(1.4, 5.4), 1)
-  )
-  addInteractive(lateralDikeMesh, 'fissure')
-  group.add(lateralDikeMesh)
-  disposables.push(lateralDikeMesh.geometry)
+  createCollapsedChamber(group)
 }
 
 function createSurfaceLava(group: THREE.Group) {
+  // 可见熔岩从火山口的溢流缺口开始，而不是从较低的凹口中心起步。
+  // 下列各点对应的地形高度从 4.41 连续降至 0.77，避免出现先爬坡再下流。
   const flowPoints = createFlowPath([
-    [2.23, 2.2], [2.5, 2.75], [2.9, 3.18], [3.45, 3.55],
+    [2.8, 2.95], [2.9, 3.18], [3.45, 3.55],
     [4.05, 3.9], [4.62, 4.28], [5.25, 4.65], [5.92, 5.03],
-  ], 0.085)
+  ], 0.02)
+  const surfaceFlowMaterial = createLavaMaterial(new THREE.Vector2(2.2, 7.5), 0.96, 0.48)
+  surfaceFlowMaterial.uniforms.surfaceFlow.value = 1
   lavaFlowMesh = new THREE.Mesh(
-    createRibbonGeometry(flowPoints, 0.58),
-    createLavaMaterial(new THREE.Vector2(2.2, 7.5), 0.96)
+    createRibbonGeometry(flowPoints, 0.5, 0.012, 0.024, 10),
+    surfaceFlowMaterial,
   )
+  lavaFlowMesh.userData.flowStart = 48
+  lavaFlowMesh.userData.flowEnd = 88
   lavaFlowMesh.renderOrder = 2
   addInteractive(lavaFlowMesh, 'lavaFlow')
   group.add(lavaFlowMesh)
+  lavaFlowMeshes.push(lavaFlowMesh)
   disposables.push(lavaFlowMesh.geometry)
 
-  const fissurePoints = createFlowPath([
-    [-6.18, 4.86], [-5.78, 4.62], [-5.3, 4.54], [-4.84, 4.42],
-    [-4.42, 4.25], [-4.05, 4.02], [-3.72, 3.75],
-  ], 0.07)
-  fissureMesh = new THREE.Mesh(
-    createRibbonGeometry(fissurePoints, 0.2),
-    createLavaMaterial(new THREE.Vector2(1.6, 7.2), 0.96)
+  const flowBranches: Array<{ points: Array<[number, number]>; width: number }> = [
+    {
+      points: [[4.02, 3.88], [4.36, 4.16], [4.72, 4.56], [5.04, 4.98], [5.26, 5.3]],
+      width: 0.2,
+    },
+    {
+      points: [[4.58, 4.27], [4.92, 4.2], [5.28, 4.28], [5.62, 4.5]],
+      width: 0.16,
+    },
+  ]
+  flowBranches.forEach((branch, index) => {
+    const branchMaterial = createLavaMaterial(new THREE.Vector2(1.1, 5.6 + index), 0.9, 0.44)
+    branchMaterial.uniforms.surfaceFlow.value = 1
+    const mesh = new THREE.Mesh(
+      createRibbonGeometry(createFlowPath(branch.points, 0.018), branch.width, 0.01, 0.012, 6),
+      branchMaterial,
+    )
+    mesh.userData.flowStart = index === 0 ? 64 : 72
+    mesh.userData.flowEnd = index === 0 ? 94 : 99
+    mesh.renderOrder = 2
+    group.add(mesh)
+    lavaFlowMeshes.push(mesh)
+    disposables.push(mesh.geometry)
+  })
+
+  fissureCrackGroup = new THREE.Group()
+  fissureCrackGroup.name = 'volcanicFissureSystem'
+  group.add(fissureCrackGroup)
+
+  const crackShadowMaterial = new THREE.MeshStandardMaterial({
+    color: 0x35241c,
+    roughness: 1,
+    metalness: 0,
+  })
+  const crackVoidMaterial = new THREE.MeshStandardMaterial({
+    color: 0x050303,
+    roughness: 0.86,
+    metalness: 0,
+  })
+  disposables.push(crackShadowMaterial, crackVoidMaterial)
+
+  function addFissureBranch(raw: Array<[number, number]>, outerWidth: number, innerWidth: number) {
+    const shadowPoints = createFlowPath(raw, 0.002)
+    const voidPoints = createFlowPath(raw, 0.005)
+    const innerPoints = createFlowPath(raw, 0.009)
+    const shadow = new THREE.Mesh(
+      createRibbonGeometry(shadowPoints, outerWidth * 1.45, 0.002, 0, 6),
+      crackShadowMaterial,
+    )
+    const voidMesh = new THREE.Mesh(
+      createRibbonGeometry(voidPoints, outerWidth * 0.48, 0.004, 0, 5),
+      crackVoidMaterial,
+    )
+    const glow = new THREE.Mesh(
+      createRibbonGeometry(innerPoints, innerWidth, 0.008, 0.003, 4),
+      createLavaMaterial(new THREE.Vector2(0.9, 6.4), 0.94, 0.2),
+    )
+    shadow.renderOrder = 1
+    voidMesh.renderOrder = 2
+    glow.renderOrder = 3
+    fissureCrackGroup!.add(shadow, voidMesh, glow)
+    fissureGlowMeshes.push(glow)
+    disposables.push(shadow.geometry, voidMesh.geometry, glow.geometry)
+    return glow
+  }
+
+  SURFACE_FISSURES.forEach((fissure, index) => {
+    const glow = addFissureBranch(fissure.points, fissure.outerWidth, fissure.innerWidth)
+    if (index === 0) fissureMesh = glow
+  })
+
+  // 主裂隙延伸至左前角，并在转角两侧形成连续的岩浆暴露区。
+  const cornerLavaMaterial = createLavaMaterial(new THREE.Vector2(2.8, 2.2), 0.98, 0.26, 1.05)
+  cornerLavaMaterial.uniforms.displacementStrength.value = 0
+  cornerLavaMaterial.polygonOffset = true
+  cornerLavaMaterial.polygonOffsetFactor = -3
+  cornerLavaMaterial.polygonOffsetUnits = -3
+
+  const connectorCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-6.25, terrainHeight(-6.25, BASE_DEPTH / 2) - 0.02, 0),
+    new THREE.Vector3(-6.28, -0.12, 0),
+    new THREE.Vector3(-6.48, -0.82, 0),
+    new THREE.Vector3(-6.78, -1.5, 0),
+    new THREE.Vector3(-7.05, -2.08, 0),
+  ], false, 'centripetal')
+  const connectorPoints = connectorCurve.getPoints(72)
+  const connectorVoidGeometry = createSectionChannelGeometry(connectorPoints, 0.16, 0.48)
+  const connectorGlowGeometry = createSectionChannelGeometry(connectorPoints, 0.052, 0.31)
+  const connectorVoid = new THREE.Mesh(connectorVoidGeometry, crackVoidMaterial)
+  const connectorGlow = new THREE.Mesh(connectorGlowGeometry, cornerLavaMaterial)
+  connectorVoid.renderOrder = 2
+  connectorGlow.renderOrder = 3
+
+  const frontVoidGeometry = createWallPatchGeometry([
+    [-8.0, -3.36], [-8.0, -1.48], [-7.66, -1.54], [-7.28, -1.72],
+    [-6.92, -1.64], [-6.48, -1.94], [-6.18, -2.48], [-6.34, -3.36],
+  ], 'front')
+  const frontLavaGeometry = createWallPatchGeometry([
+    [-7.96, -3.28], [-7.96, -1.68], [-7.62, -1.7], [-7.3, -1.88],
+    [-6.96, -1.8], [-6.58, -2.06], [-6.34, -2.52], [-6.48, -3.28],
+  ], 'front')
+  const leftVoidGeometry = createWallPatchGeometry([
+    [3.62, -3.36], [3.7, -2.08], [4.04, -1.72], [4.56, -1.54],
+    [5.5, -1.48], [5.5, -3.36],
+  ], 'left')
+  const leftLavaGeometry = createWallPatchGeometry([
+    [3.78, -3.28], [3.84, -2.18], [4.16, -1.9], [4.62, -1.7],
+    [5.46, -1.68], [5.46, -3.28],
+  ], 'left')
+  const frontVoid = new THREE.Mesh(frontVoidGeometry, crackVoidMaterial)
+  const frontLava = new THREE.Mesh(frontLavaGeometry, cornerLavaMaterial)
+  const leftVoid = new THREE.Mesh(leftVoidGeometry, crackVoidMaterial)
+  const leftLava = new THREE.Mesh(leftLavaGeometry, cornerLavaMaterial)
+  connectorGlow.userData.alwaysVisible = true
+  frontLava.userData.alwaysVisible = true
+  leftLava.userData.alwaysVisible = true
+  frontVoid.renderOrder = leftVoid.renderOrder = 2
+  frontLava.renderOrder = leftLava.renderOrder = 3
+  fissureCrackGroup.add(connectorVoid, connectorGlow, frontVoid, frontLava, leftVoid, leftLava)
+  fissureGlowMeshes.push(connectorGlow, frontLava, leftLava)
+  disposables.push(
+    connectorVoidGeometry,
+    connectorGlowGeometry,
+    frontVoidGeometry,
+    frontLavaGeometry,
+    leftVoidGeometry,
+    leftLavaGeometry,
   )
-  fissureMesh.renderOrder = 2
-  addInteractive(fissureMesh, 'fissure')
-  group.add(fissureMesh)
-  disposables.push(fissureMesh.geometry)
+  addInteractive(fissureCrackGroup, 'fissure')
 
   const craterY = terrainHeight(MAIN_VOLCANO.x, MAIN_VOLCANO.y) + 0.06
+  craterPoolMesh = new THREE.Mesh(
+    new THREE.CircleGeometry(0.47, 72),
+    createLavaMaterial(new THREE.Vector2(3.2, 3.2), 0.98, 0.34),
+  )
+  craterPoolMesh.rotation.x = -Math.PI / 2
+  craterPoolMesh.position.set(MAIN_VOLCANO.x, craterY + 0.035, MAIN_VOLCANO.y)
+  craterPoolMesh.renderOrder = 3
+  addInteractive(craterPoolMesh, 'crater')
+  group.add(craterPoolMesh)
+  disposables.push(craterPoolMesh.geometry)
+
   craterGlowMesh = new THREE.Mesh(
-    new THREE.TorusGeometry(0.48, 0.08, 12, 48),
-    createLavaMaterial(new THREE.Vector2(4.2, 1.1), 0.94)
+    new THREE.TorusGeometry(0.48, 0.035, 12, 64),
+    createLavaMaterial(new THREE.Vector2(4.2, 1.1), 0.74, 0.28)
   )
   craterGlowMesh.rotation.x = Math.PI / 2
   craterGlowMesh.position.set(MAIN_VOLCANO.x, craterY, MAIN_VOLCANO.y)
   addInteractive(craterGlowMesh, 'crater')
   group.add(craterGlowMesh)
   disposables.push(craterGlowMesh.geometry)
+
+  // 左侧雪山火山口保留一小片静息岩浆。用不规则双层轮廓嵌入凹口，
+  // 外层模拟冷却结壳，内层保持缓慢流动，避免像规则圆片浮在山顶。
+  const createCraterPatch = (radius: number, phase: number) => {
+    const shape = new THREE.Shape()
+    const segments = 72
+    for (let i = 0; i <= segments; i++) {
+      const angle = i / segments * Math.PI * 2
+      const edgeNoise = 1
+        + Math.sin(angle * 5 + phase) * 0.045
+        + Math.sin(angle * 9 - phase * 0.7) * 0.022
+        + Math.sin(angle * 13 + phase * 1.4) * 0.012
+      const x = Math.cos(angle) * radius * edgeNoise
+      const y = Math.sin(angle) * radius * edgeNoise
+      if (i === 0) shape.moveTo(x, y)
+      else shape.lineTo(x, y)
+    }
+    shape.closePath()
+    return new THREE.ShapeGeometry(shape, 18)
+  }
+
+  const secondaryCraterY = terrainHeight(SNOW_VOLCANO.x, SNOW_VOLCANO.y) + 0.045
+  const secondaryCrustGeometry = createCraterPatch(0.37, 0.8)
+  const secondaryCrustMaterial = new THREE.MeshStandardMaterial({
+    color: 0x1b0905,
+    emissive: 0x310b03,
+    emissiveIntensity: 0.42,
+    roughness: 0.88,
+    metalness: 0.02,
+    side: THREE.DoubleSide,
+  })
+  secondaryCraterCrustMesh = new THREE.Mesh(secondaryCrustGeometry, secondaryCrustMaterial)
+  secondaryCraterCrustMesh.rotation.x = -Math.PI / 2
+  secondaryCraterCrustMesh.scale.y = 0.78
+  secondaryCraterCrustMesh.position.set(SNOW_VOLCANO.x, secondaryCraterY, SNOW_VOLCANO.y)
+  secondaryCraterCrustMesh.renderOrder = 2
+  secondaryCraterCrustMesh.visible = false
+
+  const secondaryLavaGeometry = createCraterPatch(0.315, 2.1)
+  const secondaryLavaMaterial = createLavaMaterial(new THREE.Vector2(3.8, 3.2), 0.98, 0.18, 0.86)
+  secondaryLavaMaterial.uniforms.displacementStrength.value = 0.38
+  secondaryLavaMaterial.polygonOffset = true
+  secondaryLavaMaterial.polygonOffsetFactor = -2
+  secondaryLavaMaterial.polygonOffsetUnits = -2
+  secondaryCraterPoolMesh = new THREE.Mesh(secondaryLavaGeometry, secondaryLavaMaterial)
+  secondaryCraterPoolMesh.rotation.x = -Math.PI / 2
+  secondaryCraterPoolMesh.scale.y = 0.76
+  secondaryCraterPoolMesh.position.set(SNOW_VOLCANO.x + 0.012, secondaryCraterY + 0.012, SNOW_VOLCANO.y - 0.006)
+  secondaryCraterPoolMesh.renderOrder = 3
+  secondaryCraterPoolMesh.visible = false
+
+  secondaryCraterLight = new THREE.PointLight(0xff4f0b, 0, 2.4, 2)
+  secondaryCraterLight.position.set(SNOW_VOLCANO.x, secondaryCraterY + 0.22, SNOW_VOLCANO.y)
+  addInteractive(secondaryCraterPoolMesh, 'crater')
+  group.add(secondaryCraterCrustMesh, secondaryCraterPoolMesh, secondaryCraterLight)
+  disposables.push(secondaryCrustGeometry, secondaryCrustMaterial, secondaryLavaGeometry)
 }
 
 function createVolcanoParticles(group: THREE.Group) {
-  const ashCount = 420
-  const ashPositions = new Float32Array(ashCount * 3)
-  const ashSeeds = new Float32Array(ashCount * 4)
-  for (let i = 0; i < ashCount; i++) {
-    ashSeeds[i * 4] = Math.random()
-    ashSeeds[i * 4 + 1] = Math.random() * Math.PI * 2
-    ashSeeds[i * 4 + 2] = Math.random()
-    ashSeeds[i * 4 + 3] = 0.55 + Math.random() * 0.85
-  }
-  const ashGeometry = new THREE.BufferGeometry()
-  ashGeometry.setAttribute('position', new THREE.BufferAttribute(ashPositions, 3))
-  ashGeometry.userData.seeds = ashSeeds
-  const ashMaterial = new THREE.PointsMaterial({
-    color: 0x8c9294,
-    size: 0.13,
-    transparent: true,
-    opacity: 0.58,
-    depthWrite: false,
-    sizeAttenuation: true,
-  })
-  ashPoints = new THREE.Points(ashGeometry, ashMaterial)
-  ashPoints.frustumCulled = false
-  ashPoints.renderOrder = 4
-  addInteractive(ashPoints, 'ashColumn')
-  group.add(ashPoints)
-  disposables.push(ashGeometry, ashMaterial)
+  ashCloudTexture = new THREE.TextureLoader().load(volcanicAshCloudUrl)
+  ashCloudTexture.colorSpace = THREE.SRGBColorSpace
+  ashCloudGroup = new THREE.Group()
+  ashCloudGroup.name = 'volcanicAshCloud'
+  const ashCloudCount = 15
 
-  const bombCount = 120
-  const bombPositions = new Float32Array(bombCount * 3)
-  const bombSeeds = new Float32Array(bombCount * 5)
-  for (let i = 0; i < bombCount; i++) {
-    bombSeeds[i * 5] = Math.random()
-    bombSeeds[i * 5 + 1] = Math.random() * Math.PI * 2
-    bombSeeds[i * 5 + 2] = 0.55 + Math.random() * 1.1
-    bombSeeds[i * 5 + 3] = 1.4 + Math.random() * 1.7
-    bombSeeds[i * 5 + 4] = 0.7 + Math.random() * 0.9
+  for (let i = 0; i < ashCloudCount; i++) {
+    const material = new THREE.SpriteMaterial({
+      map: ashCloudTexture,
+      color: new THREE.Color().setHSL(0.57, 0.045, 0.62 + Math.random() * 0.12),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      alphaTest: 0.018,
+    })
+    material.rotation = Math.random() * Math.PI * 2
+    const cloud = new THREE.Sprite(material)
+    cloud.userData.phaseOffset = Math.random()
+    cloud.userData.releaseProgress = 34 + (i / ashCloudCount) * 38 + Math.random() * 2.5
+    cloud.userData.lifeProgress = 74 + Math.random() * 18
+    cloud.userData.angle = Math.random() * Math.PI * 2
+    cloud.userData.radial = 0.28 + Math.random() * 0.72
+    cloud.userData.rise = 0.72 + Math.random() * 0.62
+    cloud.userData.baseSize = 0.72 + Math.random() * 0.62
+    cloud.userData.rotationSpeed = (Math.random() - 0.5) * 0.065
+    ashCloudGroup.add(cloud)
+    disposables.push(material)
   }
-  const bombGeometry = new THREE.BufferGeometry()
-  bombGeometry.setAttribute('position', new THREE.BufferAttribute(bombPositions, 3))
-  bombGeometry.userData.seeds = bombSeeds
-  const bombMaterial = new THREE.PointsMaterial({
-    color: 0xff5a14,
-    size: 0.095,
-    transparent: true,
-    opacity: 0.9,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  })
-  bombPoints = new THREE.Points(bombGeometry, bombMaterial)
-  bombPoints.frustumCulled = false
-  bombPoints.renderOrder = 5
-  group.add(bombPoints)
-  disposables.push(bombGeometry, bombMaterial)
+
+  const secondaryAshCloudCount = 10
+  for (let i = 0; i < secondaryAshCloudCount; i++) {
+    const material = new THREE.SpriteMaterial({
+      map: ashCloudTexture,
+      color: new THREE.Color().setHSL(0.565, 0.04, 0.64 + Math.random() * 0.1),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      alphaTest: 0.018,
+    })
+    material.rotation = Math.random() * Math.PI * 2
+    const cloud = new THREE.Sprite(material)
+    cloud.userData.isSecondaryCrater = true
+    cloud.userData.phaseOffset = Math.random()
+    cloud.userData.releaseProgress = 38 + (i / secondaryAshCloudCount) * 34 + Math.random() * 2.5
+    cloud.userData.lifeProgress = 66 + Math.random() * 16
+    cloud.userData.angle = Math.random() * Math.PI * 2
+    cloud.userData.radial = 0.22 + Math.random() * 0.56
+    cloud.userData.rise = 0.58 + Math.random() * 0.5
+    cloud.userData.baseSize = 0.5 + Math.random() * 0.42
+    cloud.userData.rotationSpeed = (Math.random() - 0.5) * 0.07
+    ashCloudGroup.add(cloud)
+    disposables.push(material)
+  }
+
+  ashCloudGroup.renderOrder = 4
+  addInteractive(ashCloudGroup, 'ashColumn')
+  group.add(ashCloudGroup)
+  disposables.push(ashCloudTexture)
+
+  ejectaTexture = new THREE.TextureLoader().load(volcanicBombUrl)
+  ejectaTexture.colorSpace = THREE.SRGBColorSpace
+  ejectaGroup = new THREE.Group()
+  ejectaGroup.name = 'volcanicBombEjecta'
+  const ejectaCount = 34
+
+  for (let i = 0; i < ejectaCount; i++) {
+    const material = new THREE.SpriteMaterial({
+      map: ejectaTexture,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      alphaTest: 0.022,
+    })
+    const fragment = new THREE.Sprite(material)
+    fragment.visible = false
+    fragment.userData.releaseProgress = 47 + (i / ejectaCount) * 30 + Math.random() * 2.2
+    fragment.userData.flightProgress = 13 + Math.random() * 10
+    fragment.userData.angle = Math.random() * Math.PI * 2
+    fragment.userData.distance = 1.0 + Math.random() * 3.8
+    fragment.userData.arcHeight = 1.0 + Math.random() * 2.9
+    fragment.userData.baseSize = 0.12 + Math.random() * 0.16
+    fragment.userData.startRotation = Math.random() * Math.PI * 2
+    fragment.userData.rotationSpeed = (Math.random() - 0.5) * 1.15
+    fragment.userData.keepSettled = Math.random() > 0.22
+    ejectaGroup.add(fragment)
+    disposables.push(material)
+  }
+
+  const secondaryEjectaCount = 20
+  for (let i = 0; i < secondaryEjectaCount; i++) {
+    const material = new THREE.SpriteMaterial({
+      map: ejectaTexture,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      alphaTest: 0.022,
+    })
+    const fragment = new THREE.Sprite(material)
+    fragment.visible = false
+    fragment.userData.isSecondaryCrater = true
+    fragment.userData.releaseProgress = 49 + (i / secondaryEjectaCount) * 28 + Math.random() * 2.4
+    fragment.userData.flightProgress = 11 + Math.random() * 8
+    fragment.userData.angle = Math.random() * Math.PI * 2
+    fragment.userData.distance = 0.72 + Math.random() * 2.35
+    fragment.userData.arcHeight = 0.72 + Math.random() * 1.9
+    fragment.userData.baseSize = 0.09 + Math.random() * 0.12
+    fragment.userData.startRotation = Math.random() * Math.PI * 2
+    fragment.userData.rotationSpeed = (Math.random() - 0.5) * 1.1
+    fragment.userData.keepSettled = Math.random() > 0.28
+    ejectaGroup.add(fragment)
+    disposables.push(material)
+  }
+
+  ejectaGroup.renderOrder = 5
+  addInteractive(ejectaGroup, 'ashColumn')
+  group.add(ejectaGroup)
+  disposables.push(ejectaTexture)
 }
 
 function updateParticles(elapsed: number) {
-  if (!ashPoints || !bombPoints) return
+  if (!ashCloudGroup || !ejectaGroup) return
   const factor = showEjecta.value ? eruptionFactor.value : 0
   const explosive = explosiveIndex.value
-  ashPoints.visible = factor > 0.08
-  bombPoints.visible = factor > 0.13
+  const stageProgress = progress.value
+  ashCloudGroup.visible = showEjecta.value && stageProgress >= 32
+  ejectaGroup.visible = showEjecta.value && stageProgress >= 45
 
-  const craterX = MAIN_VOLCANO.x
-  const craterZ = MAIN_VOLCANO.y
-  const craterY = terrainHeight(craterX, craterZ) + 0.23
-
-  const ashPosition = ashPoints.geometry.attributes.position as THREE.BufferAttribute
-  const ashSeeds = ashPoints.geometry.userData.seeds as Float32Array
-  for (let i = 0; i < ashPosition.count; i++) {
-    const phase = (elapsed * (0.13 + factor * 0.19) + ashSeeds[i * 4]) % 1
-    const angle = ashSeeds[i * 4 + 1]
-    const radialSeed = ashSeeds[i * 4 + 2]
-    const speed = ashSeeds[i * 4 + 3]
-    const y = craterY + phase * (2.1 + explosive * 5.8) * speed
-    const spread = (0.12 + phase * phase * (1.1 + explosive * 2.0)) * radialSeed
-    const drift = phase * phase * 1.2
-    ashPosition.setXYZ(
-      i,
-      craterX + Math.cos(angle) * spread + drift * 0.34,
-      y,
-      craterZ + Math.sin(angle) * spread - drift * 0.12
+  ashCloudGroup.children.forEach((object) => {
+    const cloud = object as THREE.Sprite
+    const isSecondaryCrater = cloud.userData.isSecondaryCrater === true
+    const craterX = isSecondaryCrater ? SNOW_VOLCANO.x : MAIN_VOLCANO.x
+    const craterZ = isSecondaryCrater ? SNOW_VOLCANO.y : MAIN_VOLCANO.y
+    const craterY = terrainHeight(craterX, craterZ) + (isSecondaryCrater ? 0.16 : 0.23)
+    const eruptionScale = isSecondaryCrater ? 0.7 : 1
+    const releaseProgress = cloud.userData.releaseProgress as number
+    const lifeProgress = cloud.userData.lifeProgress as number
+    const rawPhase = (stageProgress - releaseProgress) / lifeProgress
+    if (rawPhase < 0) {
+      cloud.visible = false
+      return
+    }
+    cloud.visible = true
+    const rise = cloud.userData.rise as number
+    const phase = THREE.MathUtils.clamp(rawPhase, 0, 0.96)
+    const angle = cloud.userData.angle as number
+    const radialSeed = cloud.userData.radial as number
+    const verticalTravel = (1.7 + explosive * 4.6) * eruptionScale
+    const spread = (0.12 + Math.pow(phase, 1.45) * (0.75 + explosive * 1.75)) * radialSeed * eruptionScale
+    const drift = phase * phase * (0.7 + explosive * 0.65) * eruptionScale
+    cloud.position.set(
+      craterX + Math.cos(angle) * spread + drift * 0.32,
+      craterY + 0.08 + phase * verticalTravel * rise,
+      craterZ + Math.sin(angle) * spread - drift * 0.1,
     )
-  }
-  ashPosition.needsUpdate = true
-    ; (ashPoints.material as THREE.PointsMaterial).opacity = 0.18 + factor * (0.34 + explosive * 0.28)
-    ; (ashPoints.material as THREE.PointsMaterial).size = 0.08 + factor * 0.1
 
-  const bombPosition = bombPoints.geometry.attributes.position as THREE.BufferAttribute
-  const bombSeeds = bombPoints.geometry.userData.seeds as Float32Array
-  for (let i = 0; i < bombPosition.count; i++) {
-    const phase = (elapsed * (0.17 + factor * 0.2) + bombSeeds[i * 5]) % 1
-    const angle = bombSeeds[i * 5 + 1]
-    const horizontalSpeed = bombSeeds[i * 5 + 2] * (0.45 + explosive * 0.75)
-    const verticalSpeed = bombSeeds[i * 5 + 3] * (0.55 + explosive * 0.68)
-    const scale = bombSeeds[i * 5 + 4]
-    const t = phase * 2.1
-    const x = craterX + Math.cos(angle) * horizontalSpeed * t * scale
-    const z = craterZ + Math.sin(angle) * horizontalSpeed * t * scale
-    const y = craterY + verticalSpeed * t - 1.72 * t * t
-    bombPosition.setXYZ(i, x, Math.max(terrainHeight(x, z) + 0.03, y), z)
-  }
-  bombPosition.needsUpdate = true
-    ; (bombPoints.material as THREE.PointsMaterial).opacity = Math.min(1, factor * 1.4)
+    const baseSize = cloud.userData.baseSize as number
+    const size = baseSize * (0.5 + phase * 1.55) * (0.82 + factor * 0.2)
+    cloud.scale.set(size, size * (0.78 + phase * 0.16), 1)
+    const fadeIn = THREE.MathUtils.smoothstep(phase, 0, 0.14)
+    const fadeOut = 1 - THREE.MathUtils.smoothstep(phase, 0.82, 1)
+    const postPresence = stageProgress < 84
+      ? 0.34 + factor * (0.28 + explosive * 0.14)
+      : THREE.MathUtils.lerp(0.58, 0.42, (stageProgress - 84) / 16)
+    const material = cloud.material as THREE.SpriteMaterial
+    material.opacity = postPresence * fadeIn * fadeOut
+    material.rotation = cloud.userData.phaseOffset * Math.PI * 2 + elapsed * cloud.userData.rotationSpeed
+  })
+
+  ejectaGroup.children.forEach((object) => {
+    const fragment = object as THREE.Sprite
+    const isSecondaryCrater = fragment.userData.isSecondaryCrater === true
+    const craterX = isSecondaryCrater ? SNOW_VOLCANO.x : MAIN_VOLCANO.x
+    const craterZ = isSecondaryCrater ? SNOW_VOLCANO.y : MAIN_VOLCANO.y
+    const craterY = terrainHeight(craterX, craterZ) + (isSecondaryCrater ? 0.16 : 0.23)
+    const releaseProgress = fragment.userData.releaseProgress as number
+    const flightProgress = fragment.userData.flightProgress as number
+    const rawFlight = (stageProgress - releaseProgress) / flightProgress
+    const material = fragment.material as THREE.SpriteMaterial
+
+    if (rawFlight < 0) {
+      fragment.visible = false
+      return
+    }
+
+    const phase = THREE.MathUtils.clamp(rawFlight, 0, 1)
+    const angle = fragment.userData.angle as number
+    const distance = (fragment.userData.distance as number) * (0.76 + explosive * 0.42)
+    const landingX = craterX + Math.cos(angle) * distance
+    const landingZ = craterZ + Math.sin(angle) * distance
+    const x = THREE.MathUtils.lerp(craterX, landingX, phase)
+    const z = THREE.MathUtils.lerp(craterZ, landingZ, phase)
+    const landingY = terrainHeight(landingX, landingZ) + 0.055
+    const travelY = THREE.MathUtils.lerp(craterY, landingY, phase)
+    const arcHeight = (fragment.userData.arcHeight as number) * (0.72 + explosive * 0.52)
+    const y = travelY + Math.sin(phase * Math.PI) * arcHeight
+    const baseSize = fragment.userData.baseSize as number
+
+    if (rawFlight <= 1) {
+      fragment.visible = true
+      fragment.position.set(x, y, z)
+      const perspectiveScale = baseSize * (0.84 + Math.sin(phase * Math.PI) * 0.34)
+      fragment.scale.set(perspectiveScale, perspectiveScale, 1)
+      material.opacity = 0.92
+      material.color.setHex(0xffffff)
+      material.rotation = fragment.userData.startRotation + elapsed * fragment.userData.rotationSpeed
+      return
+    }
+
+    if (!fragment.userData.keepSettled) {
+      fragment.visible = false
+      return
+    }
+
+    fragment.visible = true
+    fragment.position.set(landingX, landingY, landingZ)
+    fragment.scale.setScalar(baseSize * 0.62)
+    const settledAge = THREE.MathUtils.clamp((stageProgress - releaseProgress - flightProgress) / 24, 0, 1)
+    material.opacity = THREE.MathUtils.lerp(0.38, 0.13, settledAge)
+    material.color.setRGB(
+      THREE.MathUtils.lerp(0.72, 0.3, settledAge),
+      THREE.MathUtils.lerp(0.4, 0.22, settledAge),
+      THREE.MathUtils.lerp(0.28, 0.19, settledAge),
+    )
+    material.rotation = fragment.userData.startRotation + fragment.userData.rotationSpeed * 0.55
+  })
 }
 
 function createLakeProxy(group: THREE.Group) {
@@ -1253,7 +2009,7 @@ function createLakeProxy(group: THREE.Group) {
   lakeProxyMesh = new THREE.Mesh(geometry, material)
   lakeProxyMesh.rotation.x = -Math.PI / 2
   lakeProxyMesh.scale.set(1.0, 0.72, 1)
-  lakeProxyMesh.position.set(LAKE_CENTER.x, LAKE_LEVEL + 0.03, LAKE_CENTER.y)
+  lakeProxyMesh.position.set(LAKE_CENTER.x, lakeSurfaceLevel() + 0.025, LAKE_CENTER.y)
   addInteractive(lakeProxyMesh, 'craterLake')
   group.add(lakeProxyMesh)
   disposables.push(geometry, material)
@@ -1266,27 +2022,142 @@ function createSceneModel() {
   scene.add(modelGroup)
 
   const terrainGeometry = createTerrainGeometry()
+  const terrainTexture = new THREE.TextureLoader().load(terrainAlbedoUrl)
+  terrainTexture.colorSpace = THREE.SRGBColorSpace
+  terrainTexture.wrapS = terrainTexture.wrapT = THREE.RepeatWrapping
+  terrainTexture.repeat.set(1.35, 1.1)
+  terrainTexture.anisotropy = Math.min(renderer?.capabilities.getMaxAnisotropy() ?? 4, 12)
   const terrainMaterial = new THREE.MeshStandardMaterial({
+    map: terrainTexture,
+    bumpMap: terrainTexture,
+    bumpScale: 0.085,
     vertexColors: true,
-    roughness: 0.92,
-    metalness: 0.02,
+    roughness: 0.96,
+    metalness: 0,
   })
+  terrainMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.lakeTime = { value: 0 }
+    shader.uniforms.lakeVisible = { value: showCraterLake.value ? 1 : 0 }
+    shader.uniforms.lakeCenter = { value: LAKE_CENTER.clone() }
+    shader.uniforms.lakeLevel = { value: lakeSurfaceLevel() }
+    terrainWaterUniforms = {
+      time: shader.uniforms.lakeTime,
+      visible: shader.uniforms.lakeVisible,
+      center: shader.uniforms.lakeCenter,
+      level: shader.uniforms.lakeLevel,
+    }
+
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vTerrainLocalPosition;
+        varying vec3 vTerrainLocalNormal;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vTerrainLocalPosition = position;
+        vTerrainLocalNormal = normal;`,
+      )
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float lakeTime;
+        uniform float lakeVisible;
+        uniform vec2 lakeCenter;
+        uniform float lakeLevel;
+        varying vec3 vTerrainLocalPosition;
+        varying vec3 vTerrainLocalNormal;`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        vec2 lakeDelta = (vTerrainLocalPosition.xz - lakeCenter) / vec2(1.3, 0.9);
+        float lakeRadius = length(lakeDelta);
+        float lakeRadialMask = 1.0 - smoothstep(0.76, 1.02, lakeRadius);
+        float lakeDepthMask = 1.0 - smoothstep(
+          lakeLevel + 0.035,
+          lakeLevel + 0.22,
+          vTerrainLocalPosition.y
+        );
+        float lakeSlopeMask = smoothstep(0.72, 0.94, normalize(vTerrainLocalNormal).y);
+        float lakeMask = lakeRadialMask * lakeDepthMask * lakeSlopeMask * lakeVisible;
+        float lakeRippleA = sin(
+          vTerrainLocalPosition.x * 8.6 +
+          vTerrainLocalPosition.z * 6.4 -
+          lakeTime * 1.15
+        );
+        float lakeRippleB = sin(
+          vTerrainLocalPosition.x * -5.2 +
+          vTerrainLocalPosition.z * 9.8 +
+          lakeTime * 0.82
+        );
+        float lakeRipple = lakeRippleA * 0.5 + lakeRippleB * 0.5;
+        vec3 lakeDeepColor = vec3(0.018, 0.075, 0.12);
+        vec3 lakeShallowColor = vec3(0.035, 0.16, 0.22);
+        float lakeDepthTone = smoothstep(lakeLevel - 0.08, lakeLevel + 0.12, vTerrainLocalPosition.y);
+        vec3 lakeColor = mix(lakeDeepColor, lakeShallowColor, lakeDepthTone);
+        lakeColor += vec3(0.018, 0.04, 0.052) * lakeRipple;
+        diffuseColor.rgb = mix(diffuseColor.rgb, lakeColor, lakeMask * 0.96);`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+        roughnessFactor = mix(roughnessFactor, 0.26, lakeMask);`,
+      )
+      .replace(
+        '#include <metalnessmap_fragment>',
+        `#include <metalnessmap_fragment>
+        metalnessFactor = mix(metalnessFactor, 0.18, lakeMask);`,
+      )
+  }
+  terrainMaterial.customProgramCacheKey = () => 'volcano-terrain-lake-v1'
   terrainMesh = new THREE.Mesh(terrainGeometry, terrainMaterial)
   terrainMesh.receiveShadow = true
   terrainMesh.castShadow = true
   addInteractive(terrainMesh, 'volcanicCone')
   modelGroup.add(terrainMesh)
-  disposables.push(terrainGeometry, terrainMaterial)
+  disposables.push(terrainGeometry, terrainTexture, terrainMaterial)
+
+  const snowGeometry = createSnowCapGeometry()
+  const snowBumpTexture = createNoiseTexture(256)
+  snowBumpTexture.wrapS = snowBumpTexture.wrapT = THREE.RepeatWrapping
+  snowBumpTexture.repeat.set(6.5, 5.2)
+  const snowMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf2f5f5,
+    vertexColors: true,
+    transparent: true,
+    alphaTest: 0.055,
+    depthWrite: true,
+    bumpMap: snowBumpTexture,
+    bumpScale: 0.022,
+    roughness: 0.94,
+    metalness: 0,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  })
+  snowCapMesh = new THREE.Mesh(snowGeometry, snowMaterial)
+  snowCapMesh.castShadow = true
+  snowCapMesh.receiveShadow = true
+  snowCapMesh.renderOrder = 1
+  modelGroup.add(snowCapMesh)
+  disposables.push(snowGeometry, snowBumpTexture, snowMaterial)
 
   const strataTexture = createStrataTexture()
   const strataMaterial = new THREE.MeshStandardMaterial({
     map: strataTexture,
-    roughness: 0.95,
+    bumpMap: strataTexture,
+    bumpScale: 0.055,
+    roughness: 0.98,
     metalness: 0,
   })
   disposables.push(strataTexture, strataMaterial)
 
-  const frontWall = new THREE.Mesh(createEdgeWallGeometry('front', true), strataMaterial)
+  const frontWall = new THREE.Mesh(createEdgeWallGeometry('front'), strataMaterial)
   const backWall = new THREE.Mesh(createEdgeWallGeometry('back'), strataMaterial)
   const leftWall = new THREE.Mesh(createEdgeWallGeometry('left'), strataMaterial)
   const rightWall = new THREE.Mesh(createEdgeWallGeometry('right'), strataMaterial)
@@ -1328,21 +2199,27 @@ function createNormalTexture(size = 128) {
 function createFallbackWater() {
   if (!scene || fallbackWater) return
   const normals = createNormalTexture()
-  const geometry = createEllipseGridGeometry(2.75, 2.0, 36)
+  // 水面故意延伸到岸坡内部，真实边界由地形深度遮挡，不直接露出椭圆网格边。
+  const geometry = createEllipseGridGeometry(3.3, 2.3, 72)
   fallbackWater = new Water(geometry, {
     textureWidth: 256,
     textureHeight: 256,
     waterNormals: normals,
     sunDirection: new THREE.Vector3(0.6, 1, 0.3).normalize(),
-    sunColor: 0xffffff,
-    waterColor: 0x245e8e,
-    distortionScale: 1.8,
+    sunColor: 0xaebfca,
+    waterColor: 0x071f33,
+    distortionScale: 1.25,
     fog: false,
-    alpha: 0.9,
+    alpha: 0.95,
   })
   fallbackWater.rotation.x = -Math.PI / 2
-  fallbackWater.position.set(LAKE_CENTER.x, LAKE_LEVEL, LAKE_CENTER.y)
+  fallbackWater.position.set(LAKE_CENTER.x, lakeSurfaceLevel() + 0.008, LAKE_CENTER.y)
   fallbackWater.visible = showCraterLake.value
+  fallbackWater.renderOrder = 2
+  const waterMaterial = fallbackWater.material as THREE.Material
+  waterMaterial.depthTest = true
+  waterMaterial.depthWrite = false
+  waterMaterial.side = THREE.DoubleSide
   scene.add(fallbackWater)
   disposables.push(geometry, normals)
 }
@@ -1443,13 +2320,13 @@ async function initComputeWater() {
       }
     }
 
-    const waterGeometry = createEllipseGridGeometry(2.75, 2.0, WATER_RESOLUTION)
+    const waterGeometry = createEllipseGridGeometry(3.05, 2.08, WATER_RESOLUTION)
     const waterMaterial = new THREE_GPU.MeshStandardNodeMaterial({
-      color: 0x2c79a8,
-      metalness: 0.72,
-      roughness: 0.08,
+      color: 0x0b304a,
+      metalness: 0.58,
+      roughness: 0.13,
       transparent: true,
-      opacity: 0.86,
+      opacity: 0.94,
       side: THREE.DoubleSide,
     })
     waterMaterial.positionNode = Fn(() =>
@@ -1463,7 +2340,7 @@ async function initComputeWater() {
     waterScene = new THREE.Scene()
     waterMesh = new THREE.Mesh(waterGeometry, waterMaterial)
     waterMesh.rotation.x = -Math.PI / 2
-    waterMesh.position.set(LAKE_CENTER.x, LAKE_LEVEL, LAKE_CENTER.y)
+    waterMesh.position.set(LAKE_CENTER.x, lakeSurfaceLevel(), LAKE_CENTER.y)
     waterMesh.visible = showCraterLake.value
     waterScene.add(waterMesh)
 
@@ -1519,94 +2396,108 @@ function destroyComputeWater() {
 let waterRuntimeFailed = false
 
 function updateWater(elapsed: number) {
-  const visible = showCraterLake.value
-  if (fallbackWater) {
-    fallbackWater.visible = visible
-    const uniforms = (fallbackWater.material as THREE.ShaderMaterial).uniforms
-    if (uniforms?.time) uniforms.time.value = elapsed * 0.62
-  }
-
-  if (
-    waterRuntimeFailed ||
-    !waterRenderer ||
-    !waterScene ||
-    !camera ||
-    !waterMesh ||
-    !waterComputeAtoB ||
-    !waterComputeBtoA
-  ) return
-
-  try {
-    waterMesh.visible = visible
-    if (!visible) {
-      waterRenderer.render(waterScene, camera)
-      return
-    }
-
-    waterFrameCounter++
-    const pulse = Math.pow(Math.max(0, Math.sin(elapsed * 2.2)), 14)
-    if (waterImpactPos && waterImpactPower) {
-      waterImpactPos.value.set(Math.sin(elapsed * 0.72) * 0.45, Math.cos(elapsed * 0.53) * 0.24)
-      waterImpactPower.value = 0.28 + pulse * 0.75
-    }
-
-    if (waterFrameCounter % 2 === 0) {
-      if (waterPingPong === 0) {
-        waterRenderer.compute(waterComputeAtoB, [4, 4, 1])
-        waterReadFromA.value = 0
-      } else {
-        waterRenderer.compute(waterComputeBtoA, [4, 4, 1])
-        waterReadFromA.value = 1
-      }
-      waterPingPong = 1 - waterPingPong
-    }
-    waterRenderer.render(waterScene, camera)
-  } catch (error) {
-    // Compute Water 属于增强层。运行时失败时只关闭该层，不能影响主火山模型。
-    console.warn('WebGPU Compute Water 运行失败，已切换到 Three.js Water：', error)
-    destroyComputeWater()
-    waterRuntimeFailed = true
-    createFallbackWater()
-    resizeThreeSceneNow(true)
+  if (terrainWaterUniforms) {
+    terrainWaterUniforms.time.value = elapsed
+    terrainWaterUniforms.visible.value = showCraterLake.value ? 1 : 0
   }
 }
 
 function updateModelState(elapsed: number) {
   const factor = eruptionFactor.value
-  const pulse = 0.5 + Math.sin(elapsed * (2.2 + factor * 2.8)) * 0.5
+  const pulse = 0.5 + Math.sin(elapsed * 0.42) * 0.5
   const showInternal = showInternalStructure.value
+  const pressureBuild = THREE.MathUtils.smootherstep(progress.value, 6, 48)
+  const pressureRelease = THREE.MathUtils.smootherstep(progress.value, 48, 68)
+  const pressureCharge = pressureBuild * (1 - pressureRelease * 0.88)
+  const pressureUrgency = THREE.MathUtils.smootherstep(progress.value, 30, 48) * (1 - pressureRelease)
+  const pressurePhase = elapsed * (0.82 + pressureCharge * 1.45 + pressureUrgency * 1.1)
+  const pressurePulse = 0.5 + Math.sin(pressurePhase) * 0.5
+  const pressureLevel = 0.14 + pressureCharge * 0.86
 
   if (magmaChamber) {
     magmaChamber.visible = showInternal
-    const scalePulse = 1 + factor * 0.035 + pulse * factor * 0.018
-    magmaChamber.scale.set(1.45 * scalePulse, 0.96 * scalePulse, 0.78 * scalePulse)
+    const storedExpansion = pressureCharge * 0.046
+    const breathing = pressurePulse * (0.004 + pressureCharge * 0.022)
+    magmaChamber.scale.set(
+      1.45 * (1 + storedExpansion + breathing),
+      0.96 * (1 + storedExpansion * 0.72 + breathing * 0.82),
+      0.006 * (1 + storedExpansion),
+    )
   }
+  if (magmaPressureGlowMesh) {
+    magmaPressureGlowMesh.visible = showInternal
+    const glowExpansion = pressureCharge * 0.07 + pressurePulse * (0.008 + pressureCharge * 0.028)
+    magmaPressureGlowMesh.scale.set(
+      1.54 * (1 + glowExpansion),
+      1.04 * (1 + glowExpansion * 0.82),
+      0.005,
+    )
+    const glowMaterial = magmaPressureGlowMesh.material as THREE.MeshBasicMaterial
+    glowMaterial.opacity = 0.08 + pressureCharge * 0.12 + pressurePulse * (0.025 + pressureCharge * 0.11)
+  }
+  if (magmaNeckMesh) magmaNeckMesh.visible = showInternal
   if (conduitMesh) conduitMesh.visible = showInternal
-  if (lateralDikeMesh) lateralDikeMesh.visible = showInternal
+  if (collapsedChamberGroup) collapsedChamberGroup.visible = showInternal
 
-  if (lavaFlowMesh) {
-    lavaFlowMesh.visible = progress.value >= 44
-    const mat = lavaFlowMesh.material as THREE.ShaderMaterial
-    mat.uniforms.opacityValue.value = THREE.MathUtils.clamp((progress.value - 42) / 20, 0.12, 0.98)
-  }
-  if (fissureMesh) {
-    fissureMesh.visible = progress.value >= 28
-    const mat = fissureMesh.material as THREE.ShaderMaterial
-    mat.uniforms.opacityValue.value = THREE.MathUtils.clamp((progress.value - 26) / 18, 0.1, 0.96)
-  }
+  lavaFlowMeshes.forEach((mesh) => {
+    const mat = mesh.material as THREE.ShaderMaterial
+    const start = mesh.userData.flowStart ?? 48
+    const end = mesh.userData.flowEnd ?? 88
+    const head = THREE.MathUtils.smootherstep(progress.value, start, end)
+    mesh.visible = head > 0.002
+    mat.uniforms.flowHead.value = head
+    mat.uniforms.opacityValue.value = THREE.MathUtils.lerp(0.82, 0.98, head)
+  })
+  fissureGlowMeshes.forEach((mesh) => {
+    const alwaysVisible = mesh.userData.alwaysVisible === true
+    mesh.visible = alwaysVisible || progress.value >= 28
+    const mat = mesh.material as THREE.ShaderMaterial
+    mat.uniforms.opacityValue.value = alwaysVisible
+      ? THREE.MathUtils.lerp(0.82, 0.98, THREE.MathUtils.smootherstep(progress.value, 24, 52))
+      : THREE.MathUtils.clamp((progress.value - 26) / 18, 0.1, 0.96)
+  })
   if (craterGlowMesh) {
-    craterGlowMesh.visible = factor > 0.05
-    craterGlowMesh.scale.setScalar(0.92 + factor * 0.16 + pulse * factor * 0.05)
+    const poolFill = THREE.MathUtils.smootherstep(progress.value, 38, 50)
+    craterGlowMesh.visible = poolFill > 0.01
+    craterGlowMesh.scale.setScalar(0.58 + poolFill * 0.42 + pulse * poolFill * 0.012)
+  }
+  if (craterPoolMesh) {
+    const poolFill = THREE.MathUtils.smootherstep(progress.value, 36, 50)
+    craterPoolMesh.visible = poolFill > 0.01
+    const poolScale = 0.3 + poolFill * 0.7 + pulse * poolFill * 0.008
+    craterPoolMesh.scale.set(poolScale, poolScale, 1)
+  }
+  const secondaryPoolFill = THREE.MathUtils.smootherstep(progress.value, 36, 50)
+  if (secondaryCraterCrustMesh) {
+    secondaryCraterCrustMesh.visible = secondaryPoolFill > 0.01
+    const crustScale = 0.58 + secondaryPoolFill * 0.42 + pulse * secondaryPoolFill * 0.01
+    secondaryCraterCrustMesh.scale.set(crustScale, crustScale * 0.78, 1)
+  }
+  if (secondaryCraterPoolMesh) {
+    secondaryCraterPoolMesh.visible = secondaryPoolFill > 0.01
+    const poolScale = 0.3 + secondaryPoolFill * 0.7 + pulse * secondaryPoolFill * 0.008
+    secondaryCraterPoolMesh.scale.set(poolScale, poolScale * 0.76, 1)
+  }
+  if (secondaryCraterLight) {
+    secondaryCraterLight.visible = secondaryPoolFill > 0.01
+    secondaryCraterLight.intensity = 0.72 * secondaryPoolFill * (0.78 + pulse * 0.22)
   }
 
   lavaMaterials.forEach((material) => {
-    material.uniforms.time.value = elapsed * (0.75 + factor * 1.35)
+    const timeScale = material.userData.timeScale ?? 0.45
+    material.uniforms.time.value = elapsed * timeScale * (0.82 + factor * 0.24)
+    if (material.userData.isPressureSystem) {
+      material.uniforms.pressureLevel.value = pressureLevel
+      material.uniforms.pressurePulse.value = pressurePulse
+    }
   })
 
   if (modelGroup) {
     modelGroup.traverse((object) => {
       if (object instanceof THREE.PointLight && object.userData.baseIntensity) {
-        object.intensity = showInternal ? object.userData.baseIntensity * (0.72 + factor * 0.9 + pulse * 0.25) : 0
+        object.intensity = showInternal
+          ? object.userData.baseIntensity * (0.62 + pressureLevel * 0.42 + pressurePulse * pressureCharge * 0.24)
+          : 0
       }
     })
   }
@@ -1633,10 +2524,11 @@ function getOverviewPreset(): CameraPreset | null {
   // 让火山模型稳定占据中间区域的大部分画面。
   const distanceForHeight = size.y / (2 * tanHalfFov)
   const distanceForWidth = size.x / (2 * tanHalfFov * aspect)
-  const distance = Math.max(distanceForHeight, distanceForWidth) * 1.14
+  const distance = Math.max(distanceForHeight, distanceForWidth) * 1.82
 
-  const direction = new THREE.Vector3(1, 0.56, 1).normalize()
-  const target = center.clone().add(new THREE.Vector3(0, 0.28, 0.28))
+  // 默认正对前侧剖面，只保留轻微俯视，构图与参考图一致。
+  const direction = new THREE.Vector3(0.025, 0.38, 1).normalize()
+  const target = center.clone().add(new THREE.Vector3(0, -0.12, 0.28))
   const position = target.clone().addScaledVector(direction, distance)
 
   return { position, target }
@@ -1657,8 +2549,8 @@ function fitCameraToModel() {
 
 const cameraPresets: Record<string, CameraPreset> = {
   overview: {
-    position: new THREE.Vector3(11.4, 7.1, 12.2),
-    target: new THREE.Vector3(0, 0.4, 0.35),
+    position: new THREE.Vector3(0.58, 9.6, 27.2),
+    target: new THREE.Vector3(0, -0.1, 0.35),
   },
   section: {
     position: new THREE.Vector3(8.9, 3.7, 14.9),
@@ -1830,7 +2722,7 @@ function animateTimeline(time: number) {
 
   progress.value += delta * playbackSpeed.value * 7.2
   if (progress.value >= 100) {
-    progress.value = 0
+    progress.value = 100
     isPlaying.value = false
   }
 }
@@ -1840,7 +2732,12 @@ async function initScene() {
   if (!container) return
 
   scene = new THREE.Scene()
-  scene.background = null
+  sceneBackgroundTexture = new THREE.TextureLoader().load(volcanoBackgroundUrl)
+  sceneBackgroundTexture.colorSpace = THREE.SRGBColorSpace
+  sceneBackgroundTexture.minFilter = THREE.LinearMipmapLinearFilter
+  scene.background = sceneBackgroundTexture
+  scene.backgroundBlurriness = 0.035
+  scene.backgroundIntensity = 0.76
 
   camera = new THREE.PerspectiveCamera(38, 1, 0.1, 240)
   camera.position.set(13.8, 9.3, 15.2)
@@ -1863,6 +2760,8 @@ async function initScene() {
   controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
   controls.dampingFactor = 0.08
+  controls.autoRotate = autoRotate.value
+  controls.autoRotateSpeed = 0.52
   controls.enablePan = false
   controls.minDistance = 7
   controls.maxDistance = 38
@@ -1905,7 +2804,6 @@ async function initScene() {
   })
   threeResizeObserver.observe(container)
 
-  await initComputeWater()
   await nextTick()
   await waitForSceneHostSize(8)
   resizeThreeSceneNow(true)
@@ -1916,13 +2814,16 @@ async function initScene() {
 
 watch(showCraterLake, (value) => {
   if (lakeProxyMesh) lakeProxyMesh.visible = value
-  if (fallbackWater) fallbackWater.visible = value
-  if (waterMesh) waterMesh.visible = value
+  if (terrainWaterUniforms) terrainWaterUniforms.visible.value = value ? 1 : 0
+})
+
+watch(autoRotate, (value) => {
+  if (!controls) return
+  controls.autoRotate = value
+  controls.autoRotateSpeed = 0.52
 })
 
 function resetControls() {
-  setAllCollapsed(false)
-  resetWidths()
   silicaContent.value = 58
   volatileContent.value = 3.2
   magmaTemperature.value = 1030
@@ -1933,6 +2834,7 @@ function resetControls() {
   progress.value = 0
   playbackSpeed.value = 1
   isPlaying.value = false
+  autoRotate.value = false
   selectedStructureId.value = 'volcanicCone'
   currentView.value = 'overview'
   cameraTween = null
@@ -1965,6 +2867,8 @@ function disposeScene() {
   lavaTileTexture?.dispose()
   noiseTexture = null
   lavaTileTexture = null
+  sceneBackgroundTexture?.dispose()
+  sceneBackgroundTexture = null
 
   if (fallbackWater) {
     const material = fallbackWater.material as THREE.Material
@@ -1988,15 +2892,28 @@ function disposeScene() {
   renderer = null
   modelGroup = null
   terrainMesh = null
+  terrainWaterUniforms = null
+  snowCapMesh = null
   magmaChamber = null
+  magmaPressureGlowMesh = null
+  magmaNeckMesh = null
   conduitMesh = null
-  lateralDikeMesh = null
+  collapsedChamberGroup = null
   lavaFlowMesh = null
+  lavaFlowMeshes.length = 0
   fissureMesh = null
+  fissureCrackGroup = null
+  fissureGlowMeshes.length = 0
   craterGlowMesh = null
+  craterPoolMesh = null
+  secondaryCraterCrustMesh = null
+  secondaryCraterPoolMesh = null
+  secondaryCraterLight = null
   lakeProxyMesh = null
-  ashPoints = null
-  bombPoints = null
+  ashCloudGroup = null
+  ashCloudTexture = null
+  ejectaGroup = null
+  ejectaTexture = null
   mainLight = null
   fillLight = null
 }
@@ -2007,6 +2924,18 @@ onMounted(async () => {
   timelineAnimationFrameId = requestAnimationFrame(animateTimeline)
 })
 
+// 路由使用 KeepAlive 时重新进入页面也要恢复真正的默认总览，
+// 避免沿用上一次旋转、缩放后的 OrbitControls 状态。
+onActivated(async () => {
+  await nextTick()
+  if (!camera || !controls) return
+  currentView.value = 'overview'
+  cameraTween = null
+  resizeThreeSceneNow(true)
+  fitCameraToModel()
+  scheduleSceneResize(120)
+})
+
 onBeforeUnmount(() => {
   disposeScene()
 })
@@ -2015,11 +2944,27 @@ onBeforeUnmount(() => {
 <style scoped>
 .volcano-container .workspace.panel-resizing,
 .volcano-container .workspace.layout-resizing,
-.volcano-container .workspace.panel-resizing .side-panel,
-.volcano-container .workspace.layout-resizing .side-panel,
 .volcano-container .workspace.panel-resizing .center-stage,
 .volcano-container .workspace.layout-resizing .center-stage {
   transition: none !important;
+}
+
+.volcano-control-floating-card {
+  z-index: 46;
+}
+
+.volcano-data-floating-card {
+  z-index: 45;
+}
+
+.volcano-data-floating-card:not(.collapsed) {
+  height: min(620px, calc(100vh - 98px));
+}
+
+.volcano-floating-card-content {
+  height: auto;
+  padding: clamp(10px, 1vw, 15px);
+  overflow: visible;
 }
 
 .volcano-stage-content {
@@ -2111,8 +3056,9 @@ onBeforeUnmount(() => {
 .stage-structure-legend {
   position: absolute;
   z-index: 7;
-  top: clamp(14px, 1.1vw, 18px);
-  right: clamp(14px, 1.1vw, 18px);
+  right: auto;
+  bottom: clamp(108px, 13vh, 136px);
+  left: clamp(14px, 1.1vw, 18px);
   width: clamp(142px, 12.5vw, 184px);
   padding: clamp(9px, 0.8vw, 12px);
   pointer-events: none;
@@ -2173,37 +3119,65 @@ onBeforeUnmount(() => {
 .volcano-label span {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 4px 8px;
-  color: #f7fbff;
-  font-size: clamp(12px, 0.95vw, 16px);
-  font-weight: 800;
-  line-height: 1;
+  min-height: 26px;
+  padding: 5px 9px 5px 7px;
+  color: rgba(244, 249, 250, 0.96);
+  font-size: clamp(11px, 0.82vw, 14px);
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
   white-space: nowrap;
-  text-shadow:
-    -1px -1px 0 rgba(0, 0, 0, 0.86),
-    1px -1px 0 rgba(0, 0, 0, 0.86),
-    -1px 1px 0 rgba(0, 0, 0, 0.86),
-    1px 1px 0 rgba(0, 0, 0, 0.86),
-    0 2px 5px rgba(0, 0, 0, 0.78);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+  background: rgba(10, 22, 26, 0.68);
+  border: 1px solid rgba(221, 239, 244, 0.2);
+  border-radius: 6px;
+  box-shadow: 0 3px 10px rgba(2, 8, 10, 0.22);
+  backdrop-filter: blur(5px);
+}
+
+.volcano-container .timeline-dock {
+  grid-template-columns: auto minmax(150px, 1fr) auto auto;
+}
+
+.timeline-rotate-control {
+  display: flex;
+  min-width: max-content;
+  align-items: center;
+  gap: 8px;
+  padding-left: clamp(8px, 0.8vw, 12px);
+  color: var(--text-secondary);
+  font-size: clamp(10px, 0.72vw, 12px);
+  font-weight: 650;
+  white-space: nowrap;
+  border-left: 1px solid rgba(190, 220, 232, 0.16);
+}
+
+.timeline-rotate-control :deep(.el-switch) {
+  --el-switch-on-color: var(--theme-primary);
+  --el-switch-off-color: rgba(117, 140, 151, 0.48);
 }
 
 .volcano-label span::before {
-  width: 7px;
-  height: 7px;
-  margin-right: 6px;
+  width: 5px;
+  height: 5px;
+  margin-right: 7px;
   content: '';
-  background: rgba(234, 245, 250, 0.92);
-  border: 2px solid rgba(22, 35, 42, 0.85);
+  background: #b8d8e2;
+  border: 1px solid rgba(235, 249, 252, 0.7);
   border-radius: 50%;
+  box-shadow: 0 0 6px rgba(141, 211, 230, 0.5);
 }
 
 .volcano-label.active span {
-  color: #ff6a1a;
+  color: #ffd7bd;
+  background: rgba(72, 28, 12, 0.78);
+  border-color: rgba(255, 129, 61, 0.5);
 }
 
 .volcano-label.active span::before {
   background: #ff6a1a;
+  border-color: #ffd0b5;
+  box-shadow: 0 0 8px rgba(255, 92, 22, 0.82);
 }
 
 .volcano-data-grid {
@@ -2279,7 +3253,21 @@ onBeforeUnmount(() => {
 
 
 @media (max-width: 900px) {
+  .volcano-container .timeline-dock {
+    grid-template-columns: auto minmax(110px, 1fr) auto auto;
+    gap: 6px;
+  }
+
+  .timeline-rotate-control {
+    padding-left: 6px;
+  }
+
+  .timeline-rotate-control>span {
+    display: none;
+  }
+
   .stage-structure-legend {
+    bottom: 82px;
     width: 132px;
   }
 
