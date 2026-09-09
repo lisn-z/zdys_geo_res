@@ -63,7 +63,7 @@ const COPY_BLACKLIST = [
   // 示例：取消注释即可排除这几项
   /*   'soil-erosion',
     'earth-motion', */
-  'river-landforms'
+  'the-process-of-atmospheric-heating'
 ]
 
 const MAPPINGS = [

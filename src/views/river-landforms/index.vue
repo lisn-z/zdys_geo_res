@@ -3,9 +3,10 @@
     :class="['layout-' + layoutMode, { 'timeline-hidden': !timelineDockVisible }]">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png" alt="智地有申" />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="智地有申" />
       </div>
-      <h1 class="page-title">流水地貌实验室</h1>
+      <h1 class="page-title">流水地貌</h1>
       <div class="toolbar-actions">
         <button type="button" class="theme-btn toolbar-btn" @click="resetView">重置视角</button>
         <button type="button" class="theme-btn toolbar-btn" @click="sceneRef?.focusLandform('top')">俯视</button>
@@ -18,12 +19,15 @@
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlCollapsed" class="river-control-card" title="控制面板"
-        subtitle="地貌目录、速度与图层" variant="control" :initial-top="76" :initial-right="18"
-        :bottom-inset="timelineDockVisible ? 140 : 10" :style="{ '--river-panel-bottom': timelineDockVisible ? '140px' : '10px' }" initial-collapsed>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlCollapsed" class="river-control-card"
+        title="控制面板" subtitle="地貌目录、速度与图层" variant="control" :initial-top="76" :initial-right="18"
+        :bottom-inset="timelineDockVisible ? 140 : 10"
+        :style="{ '--river-panel-bottom': timelineDockVisible ? '140px' : '10px' }" initial-collapsed>
         <div class="floating-control-body panel-scroll control-dashboard">
           <section class="geo-card control-section">
-            <div class="section-title-row dashboard-section-head"><h2 class="section-title">观察模式</h2><span class="section-hint">从山地到海洋</span></div>
+            <div class="section-title-row dashboard-section-head">
+              <h2 class="section-title">观察模式</h2><span class="section-hint">从山地到海洋</span>
+            </div>
             <div class="option-grid quick-option-grid">
               <button type="button" class="theme-btn option-btn" :class="{ active: mode === 'model' }"
                 :aria-pressed="mode === 'model'" @click="showModel">完整模型</button>
@@ -33,11 +37,16 @@
           </section>
 
           <section class="geo-card control-section">
-            <div class="section-title-row dashboard-section-head"><h2 class="section-title">典型地貌</h2><span class="section-hint">13 种 · 点击定位</span></div>
-            <button type="button" class="theme-btn option-btn overview-option" :class="{ active: selected === 'overview' }"
-              :aria-pressed="selected === 'overview'" @click="selectLandform('overview')">流域全景</button>
+            <div class="section-title-row dashboard-section-head">
+              <h2 class="section-title">典型地貌</h2><span class="section-hint">13 种 · 点击定位</span>
+            </div>
+            <button type="button" class="theme-btn option-btn overview-option"
+              :class="{ active: selected === 'overview' }" :aria-pressed="selected === 'overview'"
+              @click="selectLandform('overview')">流域全景</button>
             <div v-for="group in landformGroups" :key="group.name" class="landform-group">
-              <div class="control-subgroup-head"><h3>{{ group.name }}</h3><span>{{ group.process }}</span></div>
+              <div class="control-subgroup-head">
+                <h3>{{ group.name }}</h3><span>{{ group.process }}</span>
+              </div>
               <div class="option-grid landform-options">
                 <button v-for="item in group.items" :key="item.id" type="button" class="theme-btn option-btn"
                   :class="{ active: selected === item.id }" :aria-pressed="selected === item.id"
@@ -47,7 +56,9 @@
           </section>
 
           <section class="geo-card control-section">
-            <div class="section-title-row dashboard-section-head"><h2 class="section-title">演变速度</h2><span class="control-value">{{ speed }}×</span></div>
+            <div class="section-title-row dashboard-section-head">
+              <h2 class="section-title">演变速度</h2><span class="control-value">{{ speed }}×</span>
+            </div>
             <div class="option-grid speed-option-grid" aria-label="播放速度">
               <button v-for="item in speeds" :key="item" type="button" class="theme-btn option-btn"
                 :class="{ active: speed === item }" :aria-pressed="speed === item" :aria-label="`${item} 倍速度`"
@@ -56,22 +67,36 @@
           </section>
 
           <section class="geo-card control-section layer-section">
-            <div class="section-title-row dashboard-section-head"><h2 class="section-title">显示图层</h2><span class="section-hint">辅助观察</span></div>
-            <div class="switch-row first-control-row"><div class="control-copy"><strong>地貌标注</strong><span>显示场景中的名称与定位点</span></div><ElSwitch v-model="labels" aria-label="地貌标注" /></div>
-            <div class="switch-row"><div class="control-copy"><strong>过程解读</strong><span>顶部显示当前阶段的形成机制</span></div><ElSwitch v-model="processVisible" aria-label="过程解读" /></div>
-            <div class="switch-row"><div class="control-copy"><strong>操作提示</strong><span>旋转、缩放与平移提示</span></div><ElSwitch v-model="hintsVisible" aria-label="操作提示" /></div>
-            <div class="switch-row"><div class="control-copy"><strong>水乡田园</strong><span>人文景观 · 平原成熟后显示稻田与水渠</span></div><ElSwitch v-model="countrysideVisible" aria-label="水乡田园" /></div>
+            <div class="section-title-row dashboard-section-head">
+              <h2 class="section-title">显示图层</h2><span class="section-hint">辅助观察</span>
+            </div>
+            <div class="switch-row first-control-row">
+              <div class="control-copy"><strong>地貌标注</strong><span>显示场景中的名称与定位点</span></div>
+              <ElSwitch v-model="labels" aria-label="地貌标注" />
+            </div>
+            <div class="switch-row">
+              <div class="control-copy"><strong>过程解读</strong><span>顶部显示当前阶段的形成机制</span></div>
+              <ElSwitch v-model="processVisible" aria-label="过程解读" />
+            </div>
+            <div class="switch-row">
+              <div class="control-copy"><strong>操作提示</strong><span>旋转、缩放与平移提示</span></div>
+              <ElSwitch v-model="hintsVisible" aria-label="操作提示" />
+            </div>
+            <div class="switch-row">
+              <div class="control-copy"><strong>水乡田园</strong><span>人文景观 · 平原成熟后显示稻田与水渠</span></div>
+              <ElSwitch v-model="countrysideVisible" aria-label="水乡田园" />
+            </div>
           </section>
           <p class="model-footnote">地貌形成时间经压缩，展示典型过程与空间联系。</p>
         </div>
       </FloatingFeatureCard>
 
       <FloatingFeatureCard :key="landformCardKey" v-show="landformCardVisible" v-model:collapsed="landformCollapsed"
-        class="river-landform-card" :class="`kind-${selectedFeature.kind}`"
-        :title="`${selectedFeature.name}解读`" :subtitle="selectedFeature.zone" variant="data"
-        :initial-top="184" :initial-right="18" :bottom-inset="timelineDockVisible ? 140 : 10"
-        :min-width="300" :min-height="210" initial-collapsed>
-        <template #title-prefix><span class="landform-type-symbol" aria-hidden="true">{{ selectedKind.glyph }}</span></template>
+        class="river-landform-card" :class="`kind-${selectedFeature.kind}`" :title="`${selectedFeature.name}解读`"
+        :subtitle="selectedFeature.zone" variant="data" :initial-top="184" :initial-right="18"
+        :bottom-inset="timelineDockVisible ? 140 : 10" :min-width="300" :min-height="210" initial-collapsed>
+        <template #title-prefix><span class="landform-type-symbol" aria-hidden="true">{{ selectedKind.glyph
+            }}</span></template>
         <div class="landform-card-body" aria-live="polite">
           <section>
             <span class="landform-card-label">地貌类型</span>
@@ -91,8 +116,8 @@
       <section class="center-stage" aria-label="流水地貌三维模型">
         <div class="stage-content">
           <div class="scene-host river-scene-host">
-            <FluvialScene ref="sceneRef" :progress="progress" :selected="selected" :labels="labels" :playing="playing" :paddies="countrysideVisible"
-              @select="selectFromScene" @error="sceneError = $event" />
+            <FluvialScene ref="sceneRef" :progress="progress" :selected="selected" :labels="labels" :playing="playing"
+              :paddies="countrysideVisible" @select="selectFromScene" @error="sceneError = $event" />
           </div>
           <div class="river-overlay-layer">
             <section v-show="processCardVisible" class="process-strip"
@@ -103,14 +128,18 @@
               </div>
               <div class="process-copy">
                 <div class="process-kicker"><span>流水地貌连续演变</span><em>{{ currentStage.action }}</em></div>
-                <div class="process-title-row"><strong>{{ currentStage.title }}</strong><span>{{ Math.round(progress * 100) }}%</span></div>
+                <div class="process-title-row"><strong>{{ currentStage.title }}</strong><span>{{ Math.round(progress *
+                  100)
+                    }}%</span></div>
                 <p>{{ currentStage.description }}</p>
               </div>
-              <div class="process-card-progress" aria-hidden="true"><i :style="{ width: `${progress * 100}%` }"></i></div>
+              <div class="process-card-progress" aria-hidden="true"><i :style="{ width: `${progress * 100}%` }"></i>
+              </div>
             </section>
 
             <div v-if="sceneError" class="scene-error geo-card" role="alert">
-              <strong>三维场景暂时无法显示</strong><p>{{ sceneError }}</p>
+              <strong>三维场景暂时无法显示</strong>
+              <p>{{ sceneError }}</p>
               <button type="button" class="theme-btn option-btn" @click="reloadPage">重新加载</button>
             </div>
 
@@ -120,20 +149,28 @@
               <div class="playback-buttons">
                 <button type="button" class="timeline-icon-btn" :class="{ active: playing }"
                   :aria-label="playing ? '暂停演变' : '播放演变'" :title="playing ? '暂停演变' : '播放演变'" @click="togglePlayback">
-                  <ElIcon><VideoPause v-if="playing" /><VideoPlay v-else /></ElIcon>
+                  <ElIcon>
+                    <VideoPause v-if="playing" />
+                    <VideoPlay v-else />
+                  </ElIcon>
                 </button>
-                <button type="button" class="theme-btn replay-button" aria-label="从头重新演变" title="从头重新演变" @click="startEvolution">
-                  <ElIcon><RefreshLeft /></ElIcon>
+                <button type="button" class="theme-btn replay-button" aria-label="从头重新演变" title="从头重新演变"
+                  @click="startEvolution">
+                  <ElIcon>
+                    <RefreshLeft />
+                  </ElIcon>
                 </button>
               </div>
               <div class="timeline-main">
                 <div class="timeline-copy">
-                  <span>{{ playing ? '连续演变中' : mode === 'model' ? '完整地貌 · 点击播放观察形成' : progress >= 1 ? '演变完成' : '已暂停 · 可拖动观察' }}</span>
+                  <span>
+                    {{ playing ? '连续演变中' : mode === 'model' ? '完整地貌 · 点击播放观察形成' : progress >= 1 ? '演变完成' : '已暂停 ·可拖动观察'
+                    }}</span>
                   <div class="timeline-metrics">
                     <div class="timeline-speed-selector" role="group" aria-label="动画播放速度">
                       <button v-for="item in speeds" :key="`timeline-${item}`" type="button"
-                        :class="{ active: speed === item }" :aria-pressed="speed === item"
-                        :aria-label="`${item} 倍速度`" @click="speed = item">{{ item }}×</button>
+                        :class="{ active: speed === item }" :aria-pressed="speed === item" :aria-label="`${item} 倍速度`"
+                        @click="speed = item">{{ item }}×</button>
                     </div>
                     <strong>{{ Math.round(progress * 100) }}%</strong>
                   </div>
@@ -145,7 +182,8 @@
                 <nav class="phase-shortcuts" aria-label="演变阶段定位">
                   <button v-for="stage in stages" :key="stage.id" type="button"
                     :class="{ active: mode === 'evolution' && currentStage.id === stage.id, reached: progress >= stage.seek }"
-                    :aria-label="`观察${stage.title}形成过程`" @click="seekStage(stage.seek)"><i aria-hidden="true"></i>{{ stage.title }}</button>
+                    :aria-label="`观察${stage.title}形成过程`" @click="seekStage(stage.seek)"><i aria-hidden="true"></i>{{
+                      stage.title }}</button>
                 </nav>
               </div>
             </section>
@@ -251,7 +289,7 @@ function togglePlayback() {
   mode.value = 'evolution'; playing.value = true
 }
 function seek(target: number) { playing.value = false; transition = { start: progress.value, target, began: performance.now(), duration: 650 } }
-function seekStage(target: number) { mode.value = 'evolution'; selected.value = target<.19?'glacier':target<.29?'waterfall':target<.48?'fan':target<.62?'floodplain':target<.765?'meander':target<.94?'oxbow':'delta'; seek(target) }
+function seekStage(target: number) { mode.value = 'evolution'; selected.value = target < .19 ? 'glacier' : target < .29 ? 'waterfall' : target < .48 ? 'fan' : target < .62 ? 'floodplain' : target < .765 ? 'meander' : target < .94 ? 'oxbow' : 'delta'; seek(target) }
 function scrubValue(value: number | number[]) { stopPlayback(); mode.value = 'evolution'; progress.value = typeof value === 'number' ? value : value[0] ?? 0 }
 function formatProgress(value: number) { return `${Math.round(value * 100)}%，${currentStage.value.title}` }
 async function selectLandform(id: string) {
@@ -294,10 +332,20 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); document.removeEventListene
 <style scoped>
 .river-landforms-page {
   --river-readable-surface: linear-gradient(var(--panel-background), var(--panel-background));
-  width: 100%; height: 100dvh; min-height: 0;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
 }
-.river-landforms-page .top-toolbar { --header-side-reserve: clamp(330px, 29vw, 420px); }
-.river-landforms-page .toolbar-actions { max-width: none; flex-shrink: 0; }
+
+.river-landforms-page .top-toolbar {
+  --header-side-reserve: clamp(330px, 29vw, 420px);
+}
+
+.river-landforms-page .toolbar-actions {
+  max-width: none;
+  flex-shrink: 0;
+}
+
 /* Keep the shared panel hue, with enough opacity over the bright scene sky. */
 .river-landforms-page .top-toolbar,
 .river-landforms-page .process-strip,
@@ -305,141 +353,722 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); document.removeEventListene
   background: var(--river-readable-surface), var(--river-readable-surface), var(--river-readable-surface) !important;
   border-color: var(--panel-border) !important;
 }
-button { font: inherit; }
-button:focus-visible { outline: 2px solid var(--theme-primary-light); outline-offset: 3px; }
-.river-scene-host > :deep(.fluvial-scene) { position: absolute; inset: 0; }
-.river-scene-host > :first-child { position: absolute; inset: 0; }
-.river-overlay-layer { position: absolute; inset: 0; z-index: 12; pointer-events: none; }
-.river-landforms-page :deep(.river-control-card) { box-sizing: border-box; max-width: calc(100vw - 20px); }
-.river-landforms-page :deep(.river-control-card:not(.collapsed)) { height: min(720px, calc(100dvh - 86px - var(--river-panel-bottom))); max-height: calc(100dvh - 72px - var(--river-panel-bottom)); }
+
+button {
+  font: inherit;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--theme-primary-light);
+  outline-offset: 3px;
+}
+
+.river-scene-host> :deep(.fluvial-scene) {
+  position: absolute;
+  inset: 0;
+}
+
+.river-scene-host> :first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.river-overlay-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.river-landforms-page :deep(.river-control-card) {
+  box-sizing: border-box;
+  max-width: calc(100vw - 20px);
+}
+
+.river-landforms-page :deep(.river-control-card:not(.collapsed)) {
+  height: min(720px, calc(100dvh - 86px - var(--river-panel-bottom)));
+  max-height: calc(100dvh - 72px - var(--river-panel-bottom));
+}
 
 /* Match earth-motion's dashboard spacing; shared styles own the theme. */
-.control-dashboard { display: grid; height: auto; gap: 10px; padding: 10px; font-size: 12px; }
-.control-dashboard .control-section { min-width: 0; margin: 0; padding: 11px; border-radius: 13px; }
-.dashboard-section-head { min-height: 26px; margin-bottom: 8px; }
-.dashboard-section-head .section-title { font-size: 13px; }
-.section-hint { color: var(--text-muted); font-size: 10px; letter-spacing: .03em; }
-.quick-option-grid { gap: 6px; }
-.quick-option-grid .option-btn, .speed-option-grid .option-btn { min-height: 34px; padding: 5px 3px; font-size: 12px; }
-.overview-option { width: 100%; min-height: 30px; font-size: 12px; }
-.landform-group { margin-top: 12px; }
-.control-subgroup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 7px; }
-.control-subgroup-head h3 { margin: 0; color: var(--text-secondary); font-size: 11px; font-weight: 600; }
-.control-subgroup-head > span { color: rgba(var(--theme-primary-light-rgb), .66); font-size: 9px; letter-spacing: .08em; }
-.landform-options { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
-.landform-options .option-btn { min-height: 30px; padding: 5px 2px; font-size: 11px; white-space: nowrap; }
-.speed-option-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.layer-section .control-copy strong { font-size: 11px; }
-.layer-section .control-copy span { font-size: 10px; }
-.layer-section :deep(.el-switch) { flex: none; }
-.model-footnote { margin: 1px 2px 0; color: var(--text-muted); font-size: 10px; line-height: 1.7; }
+.control-dashboard {
+  display: grid;
+  height: auto;
+  gap: 10px;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.control-dashboard .control-section {
+  min-width: 0;
+  margin: 0;
+  padding: 11px;
+  border-radius: 13px;
+}
+
+.dashboard-section-head {
+  min-height: 26px;
+  margin-bottom: 8px;
+}
+
+.dashboard-section-head .section-title {
+  font-size: 13px;
+}
+
+.section-hint {
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: .03em;
+}
+
+.quick-option-grid {
+  gap: 6px;
+}
+
+.quick-option-grid .option-btn,
+.speed-option-grid .option-btn {
+  min-height: 34px;
+  padding: 5px 3px;
+  font-size: 12px;
+}
+
+.overview-option {
+  width: 100%;
+  min-height: 30px;
+  font-size: 12px;
+}
+
+.landform-group {
+  margin-top: 12px;
+}
+
+.control-subgroup-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.control-subgroup-head h3 {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.control-subgroup-head>span {
+  color: rgba(var(--theme-primary-light-rgb), .66);
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+
+.landform-options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.landform-options .option-btn {
+  min-height: 30px;
+  padding: 5px 2px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.speed-option-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.layer-section .control-copy strong {
+  font-size: 11px;
+}
+
+.layer-section .control-copy span {
+  font-size: 10px;
+}
+
+.layer-section :deep(.el-switch) {
+  flex: none;
+}
+
+.model-footnote {
+  margin: 1px 2px 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
 
 /* Landform notes reuse the same draggable/collapsible shell as the control panel. */
-.river-landforms-page :deep(.river-landform-card) { --landform-accent-rgb: var(--theme-primary-light-rgb); width: clamp(340px, 22vw, 440px); }
-.river-landforms-page :deep(.river-landform-card.collapsed) { width: 206px; }
-.river-landforms-page :deep(.river-landform-card.kind-ice) { --landform-accent-rgb: 148, 220, 232; }
-.river-landforms-page :deep(.river-landform-card.kind-rock) { --landform-accent-rgb: 215, 172, 112; }
-.river-landforms-page :deep(.river-landform-card.kind-water) { --landform-accent-rgb: 53, 190, 219; }
-.river-landforms-page :deep(.river-landform-card.kind-sediment) { --landform-accent-rgb: 219, 175, 92; }
-.river-landforms-page :deep(.river-landform-card .feature-card-content) { padding-bottom: 0; }
-.river-landforms-page :deep(.river-landform-card .feature-card-title-label) { font-size: clamp(15px, .78vw, 19px); }
-.river-landforms-page :deep(.river-landform-card .feature-card-title strong) { font-size: clamp(13px, .65vw, 16px); }
-.landform-type-symbol { display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid rgba(var(--landform-accent-rgb), .32); border-radius: 8px; background: rgba(var(--landform-accent-rgb), .11); color: rgb(var(--landform-accent-rgb)); font-size: 12px; font-weight: 800; }
-.landform-card-body { display: grid; gap: 0; padding: 5px 15px 16px; }
-.landform-card-body section { padding: 13px 0; border-bottom: 1px solid var(--panel-border); }
-.landform-card-body section:last-child { border-bottom: 0; }
-.landform-card-label { display: block; margin-bottom: 6px; color: var(--text-muted); font-size: 10px; font-weight: 650; letter-spacing: .13em; }
-.landform-card-body strong { color: rgb(var(--landform-accent-rgb)); font-size: 14px; font-weight: 700; }
-.landform-card-body p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.78; text-align: justify; }
-.landform-card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.landform-card-tags span { padding: 4px 9px; border: 1px solid rgba(var(--landform-accent-rgb), .2); border-radius: 999px; background: rgba(var(--landform-accent-rgb), .075); color: rgb(var(--landform-accent-rgb)); font-size: 10px; }
+.river-landforms-page :deep(.river-landform-card) {
+  --landform-accent-rgb: var(--theme-primary-light-rgb);
+  width: clamp(340px, 22vw, 440px);
+}
+
+.river-landforms-page :deep(.river-landform-card.collapsed) {
+  width: 206px;
+}
+
+.river-landforms-page :deep(.river-landform-card.kind-ice) {
+  --landform-accent-rgb: 148, 220, 232;
+}
+
+.river-landforms-page :deep(.river-landform-card.kind-rock) {
+  --landform-accent-rgb: 215, 172, 112;
+}
+
+.river-landforms-page :deep(.river-landform-card.kind-water) {
+  --landform-accent-rgb: 53, 190, 219;
+}
+
+.river-landforms-page :deep(.river-landform-card.kind-sediment) {
+  --landform-accent-rgb: 219, 175, 92;
+}
+
+.river-landforms-page :deep(.river-landform-card .feature-card-content) {
+  padding-bottom: 0;
+}
+
+.river-landforms-page :deep(.river-landform-card .feature-card-title-label) {
+  font-size: clamp(15px, .78vw, 19px);
+}
+
+.river-landforms-page :deep(.river-landform-card .feature-card-title strong) {
+  font-size: clamp(13px, .65vw, 16px);
+}
+
+.landform-type-symbol {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid rgba(var(--landform-accent-rgb), .32);
+  border-radius: 8px;
+  background: rgba(var(--landform-accent-rgb), .11);
+  color: rgb(var(--landform-accent-rgb));
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.landform-card-body {
+  display: grid;
+  gap: 0;
+  padding: 5px 15px 16px;
+}
+
+.landform-card-body section {
+  padding: 13px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.landform-card-body section:last-child {
+  border-bottom: 0;
+}
+
+.landform-card-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .13em;
+}
+
+.landform-card-body strong {
+  color: rgb(var(--landform-accent-rgb));
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.landform-card-body p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.78;
+  text-align: justify;
+}
+
+.landform-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.landform-card-tags span {
+  padding: 4px 9px;
+  border: 1px solid rgba(var(--landform-accent-rgb), .2);
+  border-radius: 999px;
+  background: rgba(var(--landform-accent-rgb), .075);
+  color: rgb(var(--landform-accent-rgb));
+  font-size: 10px;
+}
 
 /* Evolution gets a compact stage-status card, independent from landform notes. */
 .process-strip {
-  position: absolute; top: calc(var(--floating-header-height) + 14px); left: 50%; transform: translateX(-50%);
-  width: min(650px, calc(100% - 500px)); min-width: 0; box-sizing: border-box; display: grid;
-  grid-template-columns: 52px minmax(0, 1fr); gap: 13px; overflow: hidden; padding: 13px 16px 14px;
-  border: 1px solid rgba(var(--theme-primary-light-rgb), .25); border-radius: 15px;
+  position: absolute;
+  top: calc(var(--floating-header-height) + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(650px, calc(100% - 500px));
+  min-width: 0;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 13px;
+  overflow: hidden;
+  padding: 13px 16px 14px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), .25);
+  border-radius: 15px;
   background:
     linear-gradient(90deg, rgba(var(--theme-primary-rgb), .1), transparent 28%),
     linear-gradient(145deg, rgba(8, 25, 38, .96), rgba(7, 19, 30, .92));
-  box-shadow: 0 16px 38px rgba(0, 8, 15, .27), inset 0 1px rgba(255,255,255,.05);
-  color: var(--text-primary); pointer-events: none; backdrop-filter: blur(15px) saturate(1.1);
+  box-shadow: 0 16px 38px rgba(0, 8, 15, .27), inset 0 1px rgba(255, 255, 255, .05);
+  color: var(--text-primary);
+  pointer-events: none;
+  backdrop-filter: blur(15px) saturate(1.1);
 }
-.process-strip.panel-expanded { width: min(600px, calc(100% - 530px)); }
-.process-index { display: grid; align-content: center; justify-items: center; min-height: 50px; border: 1px solid rgba(var(--theme-primary-light-rgb), .25); border-radius: 11px; background: rgba(var(--theme-primary-rgb), .1); color: var(--theme-primary-light); }
-.process-index span { font-size: 8px; letter-spacing: .16em; opacity: .72; }
-.process-index strong { margin-top: -1px; font-size: 20px; font-weight: 780; line-height: 1.25; font-variant-numeric: tabular-nums; }
-.process-copy { min-width: 0; }
-.process-kicker, .process-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.process-kicker > span { color: var(--text-muted); font-size: 8px; font-weight: 650; letter-spacing: .15em; }
-.process-kicker em { padding: 2px 7px; border: 1px solid rgba(var(--theme-primary-light-rgb), .18); border-radius: 999px; background: rgba(var(--theme-primary-light-rgb), .07); color: rgba(var(--theme-primary-light-rgb), .88); font-size: 8px; font-style: normal; white-space: nowrap; }
-.process-title-row { margin-top: 3px; }
-.process-title-row strong { color: #f2fbff; font-size: 15px; font-weight: 750; letter-spacing: .035em; }
-.process-title-row > span { color: var(--theme-primary-light); font-size: 11px; font-weight: 720; font-variant-numeric: tabular-nums; }
-.process-copy p { display: -webkit-box; margin: 4px 0 0; overflow: hidden; color: rgba(229, 242, 246, .78); font-size: 10px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
-.process-card-progress { position: absolute; inset: auto 0 0; height: 2px; background: rgba(255,255,255,.045); }
-.process-card-progress i { display: block; height: 100%; border-radius: 0 999px 999px 0; background: linear-gradient(90deg, rgba(var(--theme-primary-rgb), .55), var(--theme-primary-light)); box-shadow: 0 0 9px rgba(var(--theme-primary-light-rgb), .5); transition: width .2s linear; }
-.interaction-hint { position: absolute; left: 50%; bottom: 134px; transform: translateX(-50%); color: var(--text-secondary); font-size: 10px; white-space: nowrap; text-shadow: 0 1px 4px rgba(0, 0, 0, .8); }
-.timeline-hidden .interaction-hint { bottom: 18px; }
 
-.river-landforms-page .river-overlay-layer .river-time-dock { width: min(1080px, calc(100% - 36px)) !important; max-width: none !important; min-width: 0; bottom: 16px; grid-template-columns: auto minmax(0, 1fr) !important; gap: 15px; padding: 11px 15px; pointer-events: auto; }
-.playback-buttons { display: flex; align-items: center; gap: 9px; }
-.replay-button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; cursor: pointer; }
-.timeline-copy { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; margin: 0; }
-.timeline-metrics { display: flex; align-items: center; gap: 10px; flex: none; }
-.timeline-metrics > strong { min-width: 38px; color: var(--theme-primary-light); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
-.timeline-speed-selector { display: flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid rgba(var(--theme-primary-light-rgb), .15); border-radius: 8px; background: rgba(0,0,0,.14); }
-.timeline-speed-selector button { min-width: 34px; height: 22px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); font-size: 9px; cursor: pointer; }
-.timeline-speed-selector button:hover { color: var(--text-primary); }
-.timeline-speed-selector button.active { background: rgba(var(--theme-primary-light-rgb), .16); color: var(--theme-primary-light); box-shadow: inset 0 0 0 1px rgba(var(--theme-primary-light-rgb), .2); }
-.timeline-slider :deep(.el-slider) { height: 26px; margin: 0; }
-.timeline-slider :deep(.el-slider__button) { width: 12px; height: 12px; }
-.phase-shortcuts { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 1px; }
-.phase-shortcuts button { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 23px; padding: 0; border: 0; background: none; color: var(--text-secondary); font-size: 10px; white-space: nowrap; cursor: pointer; }
-.phase-shortcuts button i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
-.phase-shortcuts button.reached { color: var(--text-secondary); }
-.phase-shortcuts button.active, .phase-shortcuts button:hover { color: var(--theme-primary-light); }
-.phase-shortcuts button.active i { box-shadow: 0 0 7px rgba(var(--theme-primary-light-rgb), .65); }
-.scene-error { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(350px, calc(100% - 32px)); padding: 24px; text-align: center; border-radius: 12px; pointer-events: auto; }
-.scene-error strong { color: var(--text-primary); font-size: 15px; }
-.scene-error p { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
-.scene-error button { min-width: 100px; }
+.process-strip.panel-expanded {
+  width: min(600px, calc(100% - 530px));
+}
+
+.process-index {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-height: 50px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), .25);
+  border-radius: 11px;
+  background: rgba(var(--theme-primary-rgb), .1);
+  color: var(--theme-primary-light);
+}
+
+.process-index span {
+  font-size: 8px;
+  letter-spacing: .16em;
+  opacity: .72;
+}
+
+.process-index strong {
+  margin-top: -1px;
+  font-size: 20px;
+  font-weight: 780;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.process-copy {
+  min-width: 0;
+}
+
+.process-kicker,
+.process-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.process-kicker>span {
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: .15em;
+}
+
+.process-kicker em {
+  padding: 2px 7px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), .18);
+  border-radius: 999px;
+  background: rgba(var(--theme-primary-light-rgb), .07);
+  color: rgba(var(--theme-primary-light-rgb), .88);
+  font-size: 8px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.process-title-row {
+  margin-top: 3px;
+}
+
+.process-title-row strong {
+  color: #f2fbff;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: .035em;
+}
+
+.process-title-row>span {
+  color: var(--theme-primary-light);
+  font-size: 11px;
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+
+.process-copy p {
+  display: -webkit-box;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: rgba(229, 242, 246, .78);
+  font-size: 10px;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.process-card-progress {
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: rgba(255, 255, 255, .045);
+}
+
+.process-card-progress i {
+  display: block;
+  height: 100%;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, rgba(var(--theme-primary-rgb), .55), var(--theme-primary-light));
+  box-shadow: 0 0 9px rgba(var(--theme-primary-light-rgb), .5);
+  transition: width .2s linear;
+}
+
+.interaction-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 134px;
+  transform: translateX(-50%);
+  color: var(--text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .8);
+}
+
+.timeline-hidden .interaction-hint {
+  bottom: 18px;
+}
+
+.river-landforms-page .river-overlay-layer .river-time-dock {
+  width: min(1080px, calc(100% - 36px)) !important;
+  max-width: none !important;
+  min-width: 0;
+  bottom: 16px;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  gap: 15px;
+  padding: 11px 15px;
+  pointer-events: auto;
+}
+
+.playback-buttons {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.replay-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.timeline-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  margin: 0;
+}
+
+.timeline-metrics {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.timeline-metrics>strong {
+  min-width: 38px;
+  color: var(--theme-primary-light);
+  font-size: 13px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-speed-selector {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), .15);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .14);
+}
+
+.timeline-speed-selector button {
+  min-width: 34px;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.timeline-speed-selector button:hover {
+  color: var(--text-primary);
+}
+
+.timeline-speed-selector button.active {
+  background: rgba(var(--theme-primary-light-rgb), .16);
+  color: var(--theme-primary-light);
+  box-shadow: inset 0 0 0 1px rgba(var(--theme-primary-light-rgb), .2);
+}
+
+.timeline-slider :deep(.el-slider) {
+  height: 26px;
+  margin: 0;
+}
+
+.timeline-slider :deep(.el-slider__button) {
+  width: 12px;
+  height: 12px;
+}
+
+.phase-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 1px;
+}
+
+.phase-shortcuts button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 23px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.phase-shortcuts button i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.phase-shortcuts button.reached {
+  color: var(--text-secondary);
+}
+
+.phase-shortcuts button.active,
+.phase-shortcuts button:hover {
+  color: var(--theme-primary-light);
+}
+
+.phase-shortcuts button.active i {
+  box-shadow: 0 0 7px rgba(var(--theme-primary-light-rgb), .65);
+}
+
+.scene-error {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(350px, calc(100% - 32px));
+  padding: 24px;
+  text-align: center;
+  border-radius: 12px;
+  pointer-events: auto;
+}
+
+.scene-error strong {
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.scene-error p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.scene-error button {
+  min-width: 100px;
+}
+
 @media (max-width: 1300px) {
-  .process-strip.alongside-landform { right: auto; left: calc(50% + 70px); width: min(600px, calc(100% - 540px)); transform: translateX(-50%); }
-  .process-strip.alongside-landform.panel-expanded { width: min(520px, calc(100% - 610px)); }
+  .process-strip.alongside-landform {
+    right: auto;
+    left: calc(50% + 70px);
+    width: min(600px, calc(100% - 540px));
+    transform: translateX(-50%);
+  }
+
+  .process-strip.alongside-landform.panel-expanded {
+    width: min(520px, calc(100% - 610px));
+  }
 }
+
 @media (max-width: 1100px) {
-  .river-landforms-page .top-toolbar { --header-side-reserve: clamp(160px, 22vw, 220px); }
-  .river-landforms-page .toolbar-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: var(--header-side-reserve); gap: 4px; }
-  .river-landforms-page .toolbar-btn { min-width: 0; height: 24px; padding-inline: 6px; }
-  .process-strip { width: min(600px, calc(100% - 300px)); }
-  .process-strip.panel-expanded { width: min(550px, calc(100% - 390px)); }
-  .process-copy { font-size: 11px; }
+  .river-landforms-page .top-toolbar {
+    --header-side-reserve: clamp(160px, 22vw, 220px);
+  }
+
+  .river-landforms-page .toolbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: var(--header-side-reserve);
+    gap: 4px;
+  }
+
+  .river-landforms-page .toolbar-btn {
+    min-width: 0;
+    height: 24px;
+    padding-inline: 6px;
+  }
+
+  .process-strip {
+    width: min(600px, calc(100% - 300px));
+  }
+
+  .process-strip.panel-expanded {
+    width: min(550px, calc(100% - 390px));
+  }
+
+  .process-copy {
+    font-size: 11px;
+  }
 }
+
 @media (max-width: 760px) {
-  .process-strip, .process-strip.panel-expanded, .process-strip.alongside-landform, .process-strip.alongside-landform.panel-expanded { top: calc(var(--floating-header-height) + 70px); right: auto; left: 50%; width: calc(100% - 20px); grid-template-columns: 45px minmax(0,1fr); gap: 10px; padding: 10px 12px 12px; transform: translateX(-50%); }
-  .process-index { min-height: 44px; }
-  .process-index strong { font-size: 17px; }
-  .river-landforms-page .river-overlay-layer .river-time-dock { width: calc(100% - 18px) !important; bottom: 9px; gap: 9px; padding: 9px 11px; }
-  .playback-buttons { flex-direction: column; gap: 5px; }
-  .timeline-icon-btn { width: 34px; height: 34px; }
-  .replay-button { height: 23px; width: 30px; border: 0; background: none; }
-  .phase-shortcuts { gap: 2px; }
-  .phase-shortcuts button { font-size: 9px; gap: 3px; }
-  .phase-shortcuts button i { display: none; }
-  .timeline-copy { font-size: 10px; }
-  .timeline-speed-selector button { min-width: 29px; padding-inline: 4px; }
-  .timeline-metrics > strong { font-size: 12px; }
-  .interaction-hint { bottom: 128px; font-size: 9px; }
+
+  .process-strip,
+  .process-strip.panel-expanded,
+  .process-strip.alongside-landform,
+  .process-strip.alongside-landform.panel-expanded {
+    top: calc(var(--floating-header-height) + 70px);
+    right: auto;
+    left: 50%;
+    width: calc(100% - 20px);
+    grid-template-columns: 45px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px 12px 12px;
+    transform: translateX(-50%);
+  }
+
+  .process-index {
+    min-height: 44px;
+  }
+
+  .process-index strong {
+    font-size: 17px;
+  }
+
+  .river-landforms-page .river-overlay-layer .river-time-dock {
+    width: calc(100% - 18px) !important;
+    bottom: 9px;
+    gap: 9px;
+    padding: 9px 11px;
+  }
+
+  .playback-buttons {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .timeline-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .replay-button {
+    height: 23px;
+    width: 30px;
+    border: 0;
+    background: none;
+  }
+
+  .phase-shortcuts {
+    gap: 2px;
+  }
+
+  .phase-shortcuts button {
+    font-size: 9px;
+    gap: 3px;
+  }
+
+  .phase-shortcuts button i {
+    display: none;
+  }
+
+  .timeline-copy {
+    font-size: 10px;
+  }
+
+  .timeline-speed-selector button {
+    min-width: 29px;
+    padding-inline: 4px;
+  }
+
+  .timeline-metrics>strong {
+    font-size: 12px;
+  }
+
+  .interaction-hint {
+    bottom: 128px;
+    font-size: 9px;
+  }
 }
+
 @media (max-width: 480px) {
-  .river-landforms-page .top-toolbar { --header-side-reserve: 106px; padding-inline: 9px; }
-  .river-landforms-page .brand-logo { width: 104px; }
-  .river-landforms-page .page-title { font-size: 14px; letter-spacing: .01em; }
-  .river-landforms-page .toolbar-btn { min-width: 47px; padding: 0 3px; font-size: 8px; }
-  .phase-shortcuts button { min-height: 26px; font-size: 8px; }
-  .timeline-copy > span { max-width: 76%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .river-landforms-page .top-toolbar {
+    --header-side-reserve: 106px;
+    padding-inline: 9px;
+  }
+
+  .river-landforms-page .brand-logo {
+    width: 104px;
+  }
+
+  .river-landforms-page .page-title {
+    font-size: 14px;
+    letter-spacing: .01em;
+  }
+
+  .river-landforms-page .toolbar-btn {
+    min-width: 47px;
+    padding: 0 3px;
+    font-size: 8px;
+  }
+
+  .phase-shortcuts button {
+    min-height: 26px;
+    font-size: 8px;
+  }
+
+  .timeline-copy>span {
+    max-width: 76%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
-@media (prefers-reduced-motion: reduce) { .process-card-progress i { transition: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .process-card-progress i {
+    transition: none;
+  }
+}
 </style>

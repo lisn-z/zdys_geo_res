@@ -181,7 +181,7 @@ export const routes = [
     path: '/river-landforms',
     name: 'river-landforms',
     meta: {
-      title: '河流地貌',
+      title: '流水地貌',
       tags: ['第二批'],
     },
     component: () =>
