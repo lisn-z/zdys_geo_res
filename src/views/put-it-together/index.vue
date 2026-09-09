@@ -133,11 +133,39 @@
         </button>
       </aside>
 
-      <button v-if="hasRightPanel && rightCollapsed" type="button" class="panel-entry-btn entry-right"
-        v-bind="rightEntryAttrs">
-        ‹
-      </button>
     </main>
+
+    <!--
+      折叠后的入口 Teleport 到 body，并使用 fixed 定位。
+      即使外层课件被放大、页面内容被裁切，它也始终贴在当前可视区右侧。
+    -->
+    <teleport to="body">
+      <button v-if="hasRightPanel && rightCollapsed" type="button" class="viewport-panel-entry"
+        v-bind="rightEntryAttrs" :style="panelEntryViewportStyle">
+        <span aria-hidden="true">‹</span>
+      </button>
+    </teleport>
+
+    <!-- 固定到浏览器可视区，避免网页放大后被页面布局裁切。 -->
+    <teleport to="body">
+      <div class="map-zoom-controls" role="group" aria-label="地图缩放控制" :style="mapZoomControlsViewportStyle">
+        <button type="button" class="map-zoom-btn" aria-label="缩小地图" title="缩小地图" @click="zoomMap('out')">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="M7.5 10.5h6" />
+            <path d="m15.5 15.5 4.5 4.5" />
+          </svg>
+        </button>
+
+        <button type="button" class="map-zoom-btn" aria-label="放大地图" title="放大地图" @click="zoomMap('in')">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="M7.5 10.5h6M10.5 7.5v6" />
+            <path d="m15.5 15.5 4.5 4.5" />
+          </svg>
+        </button>
+      </div>
+    </teleport>
 
     <teleport to="body">
       <div v-if="showCompletion" class="completion-overlay" @click.self="dismissCompletion">
@@ -179,6 +207,7 @@ import {
   onMounted,
   onUnmounted,
   ref,
+  type CSSProperties,
 } from 'vue'
 // @ts-ignore
 import * as echarts from 'echarts'
@@ -208,6 +237,52 @@ let chartResizeSettleFrame = 0
 
 let lastChartWidth = 0
 let lastChartHeight = 0
+
+const mapZoomControlsViewportStyle = ref<CSSProperties>({})
+const panelEntryViewportStyle = ref<CSSProperties>({})
+
+const MAP_ZOOM_CONTROLS_WIDTH = 112
+const MAP_ZOOM_CONTROLS_HEIGHT = 58
+const PANEL_ENTRY_WIDTH = 44
+const PANEL_ENTRY_HEIGHT = 60
+const VIEWPORT_CONTROL_GAP = 16
+
+let viewportControlsFrame = 0
+
+/*
+ * 浏览器捏合缩放时，VisualViewport 会在 LayoutViewport 内移动。
+ * fixed 元素仍可能留在 LayoutViewport 的边缘，因此这里根据当前真正可见的
+ * VisualViewport 计算绝对坐标，并反向抵消页面缩放，保证控件始终在屏幕内。
+ */
+function updateViewportControlsPosition() {
+  const viewport = window.visualViewport
+  const scale = Math.max(viewport?.scale || 1, 0.1)
+  const pageLeft = viewport?.pageLeft ?? window.scrollX
+  const pageTop = viewport?.pageTop ?? window.scrollY
+  const width = viewport?.width ?? window.innerWidth
+  const height = viewport?.height ?? window.innerHeight
+  const inverseScale = 1 / scale
+
+  mapZoomControlsViewportStyle.value = {
+    left: `${pageLeft + (width - MAP_ZOOM_CONTROLS_WIDTH * inverseScale) / 2}px`,
+    top: `${pageTop + height - (MAP_ZOOM_CONTROLS_HEIGHT + VIEWPORT_CONTROL_GAP) * inverseScale}px`,
+    transform: `scale(${inverseScale})`,
+  }
+
+  panelEntryViewportStyle.value = {
+    left: `${pageLeft + width - PANEL_ENTRY_WIDTH * inverseScale}px`,
+    top: `${pageTop + (height - PANEL_ENTRY_HEIGHT * inverseScale) / 2}px`,
+    transform: `scale(${inverseScale})`,
+  }
+}
+
+function scheduleViewportControlsPosition() {
+  cancelAnimationFrame(viewportControlsFrame)
+  viewportControlsFrame = requestAnimationFrame(() => {
+    viewportControlsFrame = 0
+    updateViewportControlsPosition()
+  })
+}
 
 /*
  * 本页面只有右侧模板面板。
@@ -351,6 +426,34 @@ let geoJsonData: any = null
 let dropTimer: number | null = null
 let countdownTimer: number | null = null
 let startTime = 0
+
+/*
+ * Chrome / Edge 会把触控板双指缩放转换成 ctrl + wheel。
+ * ECharts 的 roam 也监听 wheel；在捕获阶段放行浏览器缩放手势，
+ * 避免用户想缩放网页时反而只缩放了地图。
+ */
+function onChartWheelCapture(event: WheelEvent) {
+  if (!event.ctrlKey && !event.metaKey) {
+    return
+  }
+
+  event.stopImmediatePropagation()
+}
+
+function zoomMap(direction: 'in' | 'out') {
+  if (!chart) {
+    return
+  }
+
+  chart.dispatchAction({
+    type: 'geoRoam',
+    componentType: 'geo',
+    geoIndex: 0,
+    zoom: direction === 'in' ? 1.22 : 1 / 1.22,
+    originX: chart.getWidth() / 2,
+    originY: chart.getHeight() / 2,
+  })
+}
 
 // 高德 中国省级行政区.json 的最后一个辅助要素通常使用 adcode=100000_JD / adchar=JD，
 // geometry 为 MultiPolygon。它不是普通省级行政区，而是九段线的面状几何表达。
@@ -719,6 +822,25 @@ async function loadChinaGeoJson(): Promise<any> {
 
 // ---- 生命周期 ----
 onMounted(async () => {
+  updateViewportControlsPosition()
+  window.visualViewport?.addEventListener(
+    'resize',
+    scheduleViewportControlsPosition
+  )
+  window.visualViewport?.addEventListener(
+    'scroll',
+    scheduleViewportControlsPosition
+  )
+  window.addEventListener(
+    'resize',
+    scheduleViewportControlsPosition
+  )
+  window.addEventListener(
+    'scroll',
+    scheduleViewportControlsPosition,
+    true
+  )
+
   try {
     const data = await loadChinaGeoJson()
     const sourceFeatures = Array.isArray(data?.features) ? data.features : []
@@ -841,6 +963,10 @@ onMounted(async () => {
       silent: true,
       center: [104, 35],
       zoom: 1.8,
+      scaleLimit: {
+        min: 0.7,
+        max: 8,
+      },
       label: { show: false },
       itemStyle: {
         borderColor: '#ffffff',
@@ -866,6 +992,15 @@ onMounted(async () => {
     })
 
   chartResizeObserver.observe(el)
+
+  el.addEventListener(
+    'wheel',
+    onChartWheelCapture,
+    {
+      capture: true,
+      passive: false,
+    }
+  )
 
   /*
    * 初始化时记录当前尺寸并做最终校准。
@@ -909,6 +1044,26 @@ function dismissTimeout() {
   window.location.reload()
 }
 onUnmounted(() => {
+  window.visualViewport?.removeEventListener(
+    'resize',
+    scheduleViewportControlsPosition
+  )
+  window.visualViewport?.removeEventListener(
+    'scroll',
+    scheduleViewportControlsPosition
+  )
+  window.removeEventListener(
+    'resize',
+    scheduleViewportControlsPosition
+  )
+  window.removeEventListener(
+    'scroll',
+    scheduleViewportControlsPosition,
+    true
+  )
+  cancelAnimationFrame(viewportControlsFrame)
+  viewportControlsFrame = 0
+
   chartResizeObserver?.disconnect()
   chartResizeObserver = null
 
@@ -938,6 +1093,11 @@ onUnmounted(() => {
 
   const el = chartRef.value
   if (el) {
+    el.removeEventListener(
+      'wheel',
+      onChartWheelCapture,
+      true
+    )
     el.removeEventListener('dragover', onDragOverMap)
     el.removeEventListener('drop', onDropOnMap)
   }
@@ -980,6 +1140,97 @@ body {
 .china-map-chart {
   width: 100%;
   height: 100%;
+}
+
+/*
+ * 右栏折叠后的可视区级入口。
+ * 使用 fixed + Teleport 脱离页面自身的 overflow / transform 裁切。
+ */
+.viewport-panel-entry {
+  position: absolute;
+  z-index: 900;
+  display: grid;
+  width: 44px;
+  height: 60px;
+  place-items: center;
+  padding: 0;
+  color: #ffffff;
+  font: inherit;
+  font-size: clamp(26px, 2.2vw, 32px);
+  cursor: pointer;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
+  border: 0;
+  border-radius: 9px 0 0 9px;
+  box-shadow: 0 0 16px rgba(46, 196, 182, 0.2);
+  transform-origin: top left;
+}
+
+.viewport-panel-entry:hover {
+  filter: brightness(1.08);
+}
+
+.viewport-panel-entry:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.viewport-panel-entry span[aria-hidden='true'] {
+  line-height: 1;
+}
+
+.map-zoom-controls {
+  position: absolute;
+  z-index: 900;
+  display: flex;
+  box-sizing: border-box;
+  width: 112px;
+  height: 58px;
+  gap: 10px;
+  padding: 6px;
+  background: rgba(8, 18, 34, 0.82);
+  border: 1px solid rgba(116, 234, 229, 0.24);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  transform-origin: top left;
+}
+
+.map-zoom-btn {
+  display: grid;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  color: #ffffff;
+  cursor: pointer;
+  background: linear-gradient(135deg, #2ec4b6, #247cff);
+  border: 0;
+  border-radius: 11px;
+  box-shadow: 0 0 14px rgba(46, 196, 182, 0.18);
+}
+
+.map-zoom-btn:hover {
+  filter: brightness(1.1);
+}
+
+.map-zoom-btn:active {
+  transform: scale(0.94);
+}
+
+.map-zoom-btn:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.map-zoom-btn svg {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .map-approval-number {

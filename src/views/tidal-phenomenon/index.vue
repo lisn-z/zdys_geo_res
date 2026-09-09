@@ -56,9 +56,9 @@
             <div class="switch-row">
               <div class="control-copy">
                 <strong>月球绕地球公转</strong>
-                <span>按加速后的恒星月周期连续运行</span>
+                <span>周期约 27.3 天，与地球自转按同一倍率加速</span>
               </div>
-              <el-switch v-model="moonOrbitEnabled" />
+              <el-switch v-model="moonOrbitEnabled" aria-label="月球绕地球公转" />
             </div>
 
             <div class="switch-row">
@@ -66,7 +66,7 @@
                 <strong>地球自转</strong>
                 <span>观察同一地点依次经过高潮与低潮</span>
               </div>
-              <el-switch v-model="earthRotationEnabled" />
+              <el-switch v-model="earthRotationEnabled" aria-label="地球自转" />
             </div>
           </section>
 
@@ -78,22 +78,23 @@
                 <strong>显示潮汐形变层</strong>
                 <span>控制高潮区与低潮区外层圈层的显隐</span>
               </div>
-              <el-switch v-model="showTideLayer" />
+              <el-switch v-model="showTideLayer" aria-label="显示潮汐形变层" />
             </div>
 
             <div class="switch-row">
               <div class="control-copy">
-                <strong>突出显示形变</strong>
-                <span>放大潮汐隆起，便于课堂观察</span>
+                <strong>增强形变显示</strong>
+                <span>仅改变视觉幅度，不改变潮汐周期</span>
               </div>
               <el-switch
                 v-model="highlightDeformation"
+                aria-label="增强形变显示"
                 :disabled="!showTideLayer"
               />
             </div>
 
             <div class="section-title-row compact-title-row">
-              <span class="mini-control-label">形变强度</span>
+              <span class="mini-control-label">示意形变强度</span>
               <strong class="control-value">
                 {{ deformationStrength.toFixed(1) }}×
               </strong>
@@ -101,6 +102,7 @@
 
             <el-slider
               v-model="deformationStrength"
+              aria-label="示意形变强度"
               :min="0.5"
               :max="2"
               :step="0.1"
@@ -113,7 +115,7 @@
                 <strong>显示质心</strong>
                 <span>显示地月系统共同质心及其参考轴</span>
               </div>
-              <el-switch v-model="showBarycenter" />
+              <el-switch v-model="showBarycenter" aria-label="显示质心" />
             </div>
 
             <div class="switch-row">
@@ -121,15 +123,15 @@
                 <strong>显示地月线</strong>
                 <span>显示潮汐隆起对应的地月连线</span>
               </div>
-              <el-switch v-model="showEarthMoonLine" />
+              <el-switch v-model="showEarthMoonLine" aria-label="显示地月线" />
             </div>
 
             <div class="switch-row">
               <div class="control-copy">
                 <strong>显示地轴</strong>
-                <span>地轴倾角按约 23.5° 示意</span>
+                <span>本模型简化为地轴垂直月球轨道面</span>
               </div>
-              <el-switch v-model="showEarthAxis" />
+              <el-switch v-model="showEarthAxis" aria-label="显示地轴" />
             </div>
           </section>
 
@@ -141,6 +143,7 @@
 
             <el-slider
               v-model="moonAngleDeg"
+              aria-label="月球位置"
               :min="0"
               :max="360"
               :step="1"
@@ -215,22 +218,53 @@
             <span>{{ tideStatus.subtitle }}</span>
           </div>
 
-          <div class="stage-legend">
-            <h3>图例</h3>
-            <div class="legend-row">
-              <span class="legend-swatch high-tide-swatch"></span>
-              <span>涨潮区：近月点与背月点的潮汐隆起</span>
-            </div>
-            <div class="legend-row">
-              <span class="legend-swatch low-tide-swatch"></span>
-              <span>落潮区：与地月连线垂直的低潮区域</span>
-            </div>
-            <div class="legend-row">
-              <span class="legend-line earth-moon-line-swatch"></span>
-              <span>地月线：潮汐隆起的主轴方向</span>
-            </div>
-            <p>太阳影响和月球轨道倾角暂未计入，形变为教学放大示意。</p>
+          <div class="scene-annotations" aria-hidden="true">
+            <span ref="nearTideLabelRef" class="scene-label high-label">近月侧 · 高潮</span>
+            <span ref="farTideLabelRef" class="scene-label high-label">背月侧 · 高潮</span>
+            <span ref="lowTideLabelRef" class="scene-label low-label">低潮</span>
+            <span ref="oppositeLowTideLabelRef" class="scene-label low-label">低潮</span>
+            <span ref="observerLabelRef" class="scene-label observer-label">A</span>
+            <span ref="moonLabelRef" class="scene-label moon-label">月球</span>
           </div>
+
+          <aside class="stage-legend" aria-label="潮汐图例">
+            <div class="legend-heading">
+              <h3><span aria-hidden="true">≈</span>潮汐图例</h3>
+              <span class="legend-model-badge">理想模型</span>
+            </div>
+            <div class="legend-tide-pair">
+              <div class="legend-tide-item">
+                <strong><i class="legend-swatch high-tide-swatch"></i>高潮</strong>
+                <span>近月侧、背月侧隆起</span>
+              </div>
+              <div class="legend-tide-item">
+                <strong><i class="legend-swatch low-tide-swatch"></i>低潮</strong>
+                <span>垂直地月连线处降低</span>
+              </div>
+            </div>
+            <div class="legend-reference-list">
+              <div class="legend-reference-row">
+                <i class="legend-line orbit-line-swatch"></i>
+                <strong>月球轨道</strong><span>轨道环与方位刻度</span>
+              </div>
+              <div class="legend-reference-row">
+                <i class="legend-line earth-moon-line-swatch"></i>
+                <strong>地月连线</strong><span>隆起的主轴方向</span>
+              </div>
+              <div class="legend-reference-row">
+                <i class="legend-line mean-sea-swatch"></i>
+                <strong>参考海面</strong><span>未发生形变的海面</span>
+              </div>
+              <div class="legend-reference-row">
+                <i class="legend-observer-swatch">A</i>
+                <strong>观察点 A</strong><span>跟随自转的固定地点</span>
+              </div>
+            </div>
+            <details class="legend-model-note">
+              <summary>教学模型说明<span>形变与距离均非真实比例</span></summary>
+              <p>地球示意假设全球被海洋覆盖、地轴垂直轨道面，未计太阳和海岸地形对潮汐的影响。岸边小岛用于观察水位升降；水层厚度与潮汐形变均已放大，地球和岛体保持固定形状。</p>
+            </details>
+          </aside>
 
         </div>
 
@@ -251,12 +285,13 @@
 
           <div class="timeline-main">
             <div class="timeline-copy">
-              <span>月球公转进度</span>
+              <span>月球位置 · 拖动暂停</span>
               <strong>{{ Math.round(moonAngleDeg) }}° · {{ moonQuadrantLabel }}</strong>
             </div>
 
             <el-slider
               v-model="moonAngleDeg"
+              aria-label="时间栏月球位置"
               :min="0"
               :max="360"
               :step="1"
@@ -279,6 +314,67 @@
           </div>
         </div>
       </section>
+
+      <FloatingFeatureCard
+        v-show="panelsVisible"
+        v-model:collapsed="observerPanelCollapsed"
+        class="tidal-floating-card observer-floating-card"
+        title="潮汐观察"
+        subtitle="观察点 A · 三维小岛与岸滩"
+        variant="track"
+        :initial-top="212"
+        :initial-right="18"
+        :bottom-inset="96"
+        :min-width="360"
+        :min-height="480"
+        :draggable="!observerPanelCollapsed"
+        resizable
+      >
+        <div class="observer-content">
+          <CoastalTideScene
+            class="observer-coast"
+            :height="localTide.height"
+            :playing="isPlaying"
+            :speed="playbackSpeed"
+            :active="panelsVisible && !observerPanelCollapsed"
+          />
+          <div class="observer-details">
+            <div class="observer-heading">
+              <span><i class="observer-dot"></i>A 点潮位 · 与地球同步</span>
+              <strong>{{ localTide.stage === '落潮中' ? '退潮中' : localTide.stage }}</strong>
+            </div>
+            <div class="coast-stage-options" aria-label="查看潮汐阶段">
+              <button v-for="stage in coastStages" :key="stage.key" type="button"
+                :class="{ active: coastStageKey === stage.key }" :aria-pressed="coastStageKey === stage.key"
+                @click="setCoastStage(stage.phase)">{{ stage.label }}</button>
+              <button type="button" class="coast-play" :aria-label="isPlaying ? '暂停潮汐过程' : '播放潮汐过程'" @click="togglePlay">{{ isPlaying ? '暂停' : '播放' }}</button>
+            </div>
+        <svg class="tide-chart" viewBox="0 0 480 106" role="img" :aria-label="`观察点 A 的示意潮位：${localTide.stage}。一个相对周期内有两次高潮、两次低潮。`">
+          <line x1="14" y1="58" x2="466" y2="58" class="chart-reference" />
+          <text x="16" y="52" class="chart-reference-text">参考海面</text>
+          <path :d="tideChartPath" class="chart-curve" />
+          <line :x1="localTideChartPoint.x" y1="16" :x2="localTideChartPoint.x" y2="88" class="chart-cursor" />
+          <circle :cx="localTideChartPoint.x" :cy="localTideChartPoint.y" r="5" class="chart-point" />
+          <text x="127" y="14" class="chart-extreme">高潮</text>
+          <text x="353" y="14" class="chart-extreme">高潮</text>
+          <text x="14" y="100" class="chart-extreme">低潮</text>
+          <text x="240" y="100" class="chart-extreme">低潮</text>
+          <text x="466" y="100" class="chart-extreme">低潮</text>
+        </svg>
+            <div class="coast-reference-legend">
+              <span><i class="coast-reference high-reference"></i>高潮岸线</span>
+              <span><i class="coast-reference low-reference"></i>低潮岸线</span>
+              <span><i class="coast-reference current-reference"></i>当前岸线</span>
+            </div>
+            <p class="coast-process-copy">{{ coastProcessCopy }}</p>
+        <div class="observer-footer">
+          <span>{{ motionPeriodLabel }}</span>
+          <span>{{ isPlaying ? '播放中' : '已暂停' }}</span>
+        </div>
+            <p class="observer-note">虚线保留高低潮岸线作对照；水位升降为教学放大，细小波纹表示海浪。</p>
+          </div>
+        </div>
+      </FloatingFeatureCard>
 
       <FloatingFeatureCard
         v-show="panelsVisible"
@@ -333,6 +429,9 @@ import {
 } from '@element-plus/icons-vue'
 
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+import CoastalTideScene from './CoastalTideScene.vue'
+import { SceneStroke, type StrokeStyle } from './scene-stroke'
+import { createEarthSurfaceMaterial, createEarthAtmosphereMaterial, type EarthUniforms } from './earth-material'
 
 import '@/styles/geo-page-template.css'
 
@@ -341,11 +440,25 @@ import {
   OrbitControls,
 } from 'three/examples/jsm/controls/OrbitControls.js'
 
+import {
+  advanceAngles,
+  EARTH_DEGREES_PER_HOUR,
+  EARTH_RADIUS,
+  equilibriumHeight,
+  LUNAR_DAY_HOURS,
+  MEAN_SEA_RADIUS,
+  MOON_DEGREES_PER_HOUR,
+  normalizeDegrees,
+  observerTide,
+  seaRadius,
+  SIMULATION_HOURS_PER_SECOND,
+} from './tide-model'
+
 const IMAGE_BASE_URL =
   'https://zdys.szjx.ai-study.net/geo-resources-folder/images/'
 
 // 图片地址统一使用 IMAGE_BASE_URL + 文件名，不拼接二级目录。
-const EARTH_TEXTURE_IMAGE = IMAGE_BASE_URL + 'earth.jpg'
+const EARTH_TEXTURE_IMAGE = IMAGE_BASE_URL + 'Material.002_diffuse.jpg'
 const MOON_TEXTURE_IMAGE = IMAGE_BASE_URL + 'moon.jpg'
 
 /*
@@ -357,7 +470,9 @@ const SAME_ORIGIN_TEXTURE_BASE =
   '/geo-resources-folder/images/'
 
 const EARTH_SAME_ORIGIN_TEXTURE =
-  SAME_ORIGIN_TEXTURE_BASE + 'earth.jpg'
+  SAME_ORIGIN_TEXTURE_BASE + 'Material.002_diffuse.jpg'
+
+const EARTH_NIGHT_TEXTURE = SAME_ORIGIN_TEXTURE_BASE + 'emissive.jpg'
 
 const MOON_SAME_ORIGIN_TEXTURE =
   SAME_ORIGIN_TEXTURE_BASE + 'moon.jpg'
@@ -374,10 +489,11 @@ const earthDomTextureReady = ref(false)
 const moonDomTextureReady = ref(false)
 
 const earthWebglTextureReady = ref(false)
+const earthNightTextureReady = ref(false)
 const moonWebglTextureReady = ref(false)
 
 const moonOrbitEnabled = ref(true)
-const earthRotationEnabled = ref(false)
+const earthRotationEnabled = ref(true)
 const showTideLayer = ref(true)
 const highlightDeformation = ref(true)
 const deformationStrength = ref(1.2)
@@ -385,15 +501,68 @@ const showBarycenter = ref(false)
 const showEarthMoonLine = ref(true)
 const showEarthAxis = ref(true)
 
-const moonAngleDeg = ref(0)
-const earthRotationDeg = ref(180)
+const moonAngleDeg = ref(90)
+const earthRotationDeg = ref(90)
 const playbackSpeed = ref(1)
 const isPlaying = ref(true)
-const currentView = ref('overview')
+const currentView = ref('top')
 const selectedObject = ref<'earth' | 'moon' | 'tide' | 'barycenter'>('earth')
 const panelsVisible = ref(true)
 const controlPanelCollapsed = ref(true)
 const dataPanelCollapsed = ref(true)
+const observerPanelCollapsed = ref(true)
+
+const nearTideLabelRef = ref<HTMLElement | null>(null)
+const farTideLabelRef = ref<HTMLElement | null>(null)
+const lowTideLabelRef = ref<HTMLElement | null>(null)
+const oppositeLowTideLabelRef = ref<HTMLElement | null>(null)
+const observerLabelRef = ref<HTMLElement | null>(null)
+const moonLabelRef = ref<HTMLElement | null>(null)
+
+const localTide = computed(() => observerTide(
+  earthRotationDeg.value, moonAngleDeg.value, earthRotationEnabled.value, moonOrbitEnabled.value,
+))
+const coastStages = [
+  { key: 'low', label: '低潮', phase: 90 },
+  { key: 'rising', label: '涨潮', phase: 135 },
+  { key: 'high', label: '高潮', phase: 180 },
+  { key: 'falling', label: '退潮', phase: 225 },
+]
+const coastStageKey = computed(() => localTide.value.height > 0.995 ? 'high'
+  : localTide.value.height < -0.495 ? 'low'
+    : localTide.value.rate > 0 ? 'rising'
+      : localTide.value.rate < 0 ? 'falling' : '')
+const coastProcessCopy = computed(() => ({
+  low: '低潮：岸滩露出最多，低处石阶露出水面。',
+  rising: '涨潮：水面抬升，岸线向岛内推进，低处石阶逐渐被淹没。',
+  high: '高潮：岸滩露出最少，低处石阶被海水覆盖。',
+  falling: '退潮：水面下降，岸线向海退去，湿润岸滩和石阶逐渐露出。',
+  '': '位置固定：对比当前岸线与高、低潮参考岸线。',
+}[coastStageKey.value]))
+
+function setCoastStage(phase: number) {
+  isPlaying.value = false
+  earthRotationEnabled.value = true
+  moonOrbitEnabled.value = true
+  const advance = normalizeDegrees(phase - (earthRotationDeg.value - moonAngleDeg.value))
+  const hours = advance / (EARTH_DEGREES_PER_HOUR - MOON_DEGREES_PER_HOUR)
+  const next = advanceAngles(earthRotationDeg.value, moonAngleDeg.value, hours, true, true)
+  earthRotationDeg.value = next.earth
+  moonAngleDeg.value = next.moon
+}
+const motionPeriodLabel = computed(() => earthRotationEnabled.value && moonOrbitEnabled.value
+  ? '相邻高潮 ≈ 12 小时 25 分钟'
+  : '单独运动演示 · 不对应真实周期')
+const localTideChartPoint = computed(() => ({
+  x: 14 + localTide.value.cycleProgress * 452,
+  y: 58 - localTide.value.height * 36,
+}))
+const tideChartPath = Array.from({ length: 181 }, (_, index) => {
+  const phase = index / 180 * Math.PI * 2 - Math.PI / 2
+  const x = 14 + index / 180 * 452
+  const y = 58 - equilibriumHeight(Math.cos(phase)) * 36
+  return `${index ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)}`
+}).join(' ')
 
 const speedOptions = [0.25, 0.5, 1, 2]
 
@@ -411,10 +580,10 @@ const normalizedMoonAngle = computed(() => {
 
 const moonQuadrantLabel = computed(() => {
   const angle = normalizedMoonAngle.value
-  if (angle < 45 || angle >= 315) return '前方位置'
-  if (angle < 135) return '右侧位置'
-  if (angle < 225) return '后方位置'
-  return '左侧位置'
+  if (angle < 45 || angle >= 315) return '轨道 0° 方向'
+  if (angle < 135) return '轨道 90° 方向'
+  if (angle < 225) return '轨道 180° 方向'
+  return '轨道 270° 方向'
 })
 
 const tideStatus = computed(() => {
@@ -422,16 +591,16 @@ const tideStatus = computed(() => {
   const axisText = `${Math.round(angle)}°—${Math.round((angle + 180) % 360)}°`
 
   return {
-    title: '半日潮型双潮隆起',
+    title: '理想化月球潮汐',
     subtitle: `高潮轴 ${axisText}`,
     description:
-      `近月点与背月点沿 ${axisText} 方向形成两个高潮区；与地月连线垂直的两个区域为低潮区。`,
+      `近月侧与背月侧沿 ${axisText} 方向形成双隆起；垂直于地月连线的环带为低潮区。`,
   }
 })
 
 const dataCards = computed(() => {
   const objectInfo = selectedObjectInfo.value
-  const primaryMetric = objectInfo.metrics[0]
+  const primaryMetric = objectInfo.metrics[0]!
 
   return [
     {
@@ -461,7 +630,7 @@ const dataCards = computed(() => {
         ? '已隐藏'
         : highlightDeformation.value
           ? `${deformationStrength.value.toFixed(1)}×`
-          : '标准形态',
+          : '基础示意',
       description: showTideLayer.value
         ? '潮汐隆起采用课堂放大示意'
         : '潮汐形变层当前未显示',
@@ -477,15 +646,15 @@ const dataCards = computed(() => {
     },
     {
       label: '相邻高潮间隔',
-      value: '约 12 h 25 min',
-      description: '典型半日潮的平均间隔',
+      value: earthRotationEnabled.value && moonOrbitEnabled.value ? '约 12 h 25 min' : '单独运动演示',
+      description: `正常联动下一个太阴日约 ${LUNAR_DAY_HOURS.toFixed(2)} 小时；实际海岸潮时因地而异`,
       className: 'cyan-card',
       wide: false,
     },
     {
-      label: '当前判定',
-      value: tideStatus.value.title,
-      description: tideStatus.value.description,
+      label: '观察点 A',
+      value: localTide.value.stage,
+      description: '高潮、低潮表示水位高低；涨潮、落潮表示水位正在上升、下降。',
       className: 'orange-card tide-status-data-card',
       wide: true,
     },
@@ -510,7 +679,7 @@ const selectedObjectInfo = computed(() => {
     return {
       name: '潮汐形变层',
       symbol: '≈',
-      description: '红色区域表示高潮隆起，绿色区域表示相对低潮区域。',
+      description: '珊瑚色轮廓表示高潮隆起，青绿色轮廓表示低于参考海面的低潮区。',
       metrics: [
         { label: '高潮方向', value: `${Math.round(normalizedMoonAngle.value)}° / ${Math.round((normalizedMoonAngle.value + 180) % 360)}°` },
         { label: '低潮方向', value: `${Math.round((normalizedMoonAngle.value + 90) % 360)}° / ${Math.round((normalizedMoonAngle.value + 270) % 360)}°` },
@@ -523,7 +692,7 @@ const selectedObjectInfo = computed(() => {
     return {
       name: '地月共同质心',
       symbol: '⊙',
-      description: '地球和月球都围绕这一共同质心运动，质心位于地球内部。',
+      description: '地月共同质心位于地球内部；此处采用地心参考系，地球保持居中。',
       metrics: [
         { label: '距地心', value: '约 4670 km' },
         { label: '相对位置', value: '地球内部' },
@@ -539,25 +708,17 @@ const selectedObjectInfo = computed(() => {
     metrics: [
       { label: '平均半径', value: '约 6371 km' },
       { label: '自转周期', value: '约 23 h 56 min' },
-      { label: '地轴倾角', value: '约 23.5°' },
+      { label: '本模型地轴', value: '垂直轨道面' },
     ],
   }
 })
 
-const EARTH_RADIUS = 2.65
 const MOON_RADIUS = 0.78
-const MOON_ORBIT_RADIUS = 10.4
+// Compress the displayed distance so a complete orbit fits between the toolbar and timeline.
+const MOON_ORBIT_RADIUS = 6.4
 const EARTH_BARY_RADIUS = EARTH_RADIUS * 0.73
-const EARTH_AXIS_TILT = THREE.MathUtils.degToRad(23.5)
-const ORTHOGRAPHIC_SIZE = 14
-
-/*
- * 潮汐形变层直接贴在地球表面外侧。
- * 仅保留约 0.8% 的安全间距，避免透明层和地球表面发生深度闪烁。
- */
-const TIDE_SURFACE_GAP = 0.008
-const TIDE_AXIAL_BULGE_PER_STRENGTH = 0.085
-const TIDE_TRANSVERSE_COMPRESSION_PER_STRENGTH = 0.0015
+const EARTH_AXIS_TILT = 0
+const ORTHOGRAPHIC_SIZE = 10
 
 let scene: THREE.Scene | null = null
 let camera: THREE.OrthographicCamera | null = null
@@ -577,12 +738,17 @@ let earthSpinGroup: THREE.Group | null = null
 let earthMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
 let moonMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
 let tideMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
-let orbitLine: THREE.Line | null = null
-let earthMoonLine: THREE.Line | null = null
-let earthAxisLine: THREE.Line | null = null
+let orbitLine: SceneStroke | null = null
+let earthMoonLine: SceneStroke | null = null
+let earthAxisLine: SceneStroke | null = null
 let barycenterGroup: THREE.Group | null = null
-let barycenterLine: THREE.Line | null = null
+let barycenterLine: SceneStroke | null = null
 let observerMarker: THREE.Mesh | null = null
+let observerStem: SceneStroke | null = null
+let tideOutline: SceneStroke | null = null
+let meanSeaLine: SceneStroke | null = null
+let tideBaseDirections: Float32Array | null = null
+let lastTideStrength = -1
 let stars: THREE.Points | null = null
 
 let earthMaterial: THREE.ShaderMaterial | null = null
@@ -592,6 +758,7 @@ let tideMaterial: THREE.ShaderMaterial | null = null
 const registeredGeometries: THREE.BufferGeometry[] = []
 const registeredMaterials: THREE.Material[] = []
 const registeredTextures: THREE.Texture[] = []
+const sceneStrokes: SceneStroke[] = []
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
 let previousSceneFrameTime =
@@ -617,58 +784,51 @@ function registerTexture<T extends THREE.Texture>(texture: T): T {
   return texture
 }
 
-function createOrbitLine(radius: number) {
-  const points: THREE.Vector3[] = []
-  const segments = 180
-  for (let index = 0; index <= segments; index += 1) {
-    const angle = (index / segments) * Math.PI * 2
-    points.push(new THREE.Vector3(
-      Math.sin(angle) * radius,
-      0,
-      Math.cos(angle) * radius,
-    ))
-  }
-
-  const geometry = registerGeometry(
-    new THREE.BufferGeometry().setFromPoints(points),
-  )
-  const material = registerMaterial(
-    new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.78,
-    }),
-  )
-  return new THREE.Line(geometry, material)
+function createStroke(positions: number[] | Float32Array, style: StrokeStyle) {
+  const stroke = new SceneStroke(positions, style)
+  sceneStrokes.push(stroke)
+  return stroke
 }
 
-function createDynamicLine(color: number, opacity = 1) {
-  const geometry = registerGeometry(new THREE.BufferGeometry())
-  geometry.setAttribute(
-    'position',
-    new THREE.BufferAttribute(new Float32Array(6), 3),
-  )
-  const material = registerMaterial(
-    new THREE.LineBasicMaterial({
-      color,
-      transparent: opacity < 1,
-      opacity,
-    }),
-  )
-  return new THREE.Line(geometry, material)
+function createOrbitLine(radius: number) {
+  const points: number[] = []
+  const segments = 360
+  for (let index = 0; index <= segments; index += 1) {
+    const angle = (index / segments) * Math.PI * 2
+    points.push(Math.sin(angle) * radius, 0, Math.cos(angle) * radius)
+  }
+  const orbit = createStroke(points, {
+    color: '#8caac9', width: 1.25, opacity: 0.64, glowWidth: 4, glowOpacity: 0.08,
+  })
+  const ticks: number[] = []
+  const colors: number[] = []
+  for (let index = 0; index < 48; index++) {
+    const angle = index / 48 * Math.PI * 2
+    const major = index % 12 === 0
+    const start = radius + 0.12
+    const end = start + (major ? 0.26 : index % 4 === 0 ? 0.14 : 0.07)
+    ticks.push(Math.sin(angle) * start, 0, Math.cos(angle) * start,
+      Math.sin(angle) * end, 0, Math.cos(angle) * end)
+    const color = new THREE.Color(major ? '#bdd7ee' : '#66809e')
+    colors.push(color.r, color.g, color.b, color.r, color.g, color.b)
+  }
+  const graduations = createStroke(ticks, { width: 1.4, opacity: 0.8, vertexColors: true, segments: true })
+  graduations.setColors(colors)
+  orbit.add(graduations)
+  return orbit
+}
+
+function createDynamicLine(style: StrokeStyle) {
+  return createStroke([0, 0, 0, 0, 0, 0.01], style)
 }
 
 function updateLinePositions(
-  line: THREE.Line | null,
+  line: SceneStroke | null,
   start: THREE.Vector3,
   end: THREE.Vector3,
 ) {
   if (!line) return
-  const attribute = line.geometry.getAttribute('position') as THREE.BufferAttribute
-  attribute.setXYZ(0, start.x, start.y, start.z)
-  attribute.setXYZ(1, end.x, end.y, end.z)
-  attribute.needsUpdate = true
-  line.geometry.computeBoundingSphere()
+  line.setPositions([start.x, start.y, start.z, end.x, end.y, end.z])
 }
 
 function createStars() {
@@ -748,7 +908,13 @@ function createFallbackTexture(
   return texture
 }
 
-const earthUniforms = {
+const nightFallbackTexture = registerTexture(
+  new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1),
+)
+nightFallbackTexture.colorSpace = THREE.SRGBColorSpace
+nightFallbackTexture.needsUpdate = true
+
+const earthUniforms: EarthUniforms = {
   uMap: {
     value: createFallbackTexture(
       '#1a66a2',
@@ -762,15 +928,10 @@ const earthUniforms = {
       0.52,
     ).normalize(),
   },
-  uAmbient: { value: 0.34 },
-  uDiffuse: { value: 1.05 },
-  uSpecular: { value: 0.18 },
-  uShininess: { value: 30 },
-  uRimStrength: { value: 0.16 },
+  uNightMap: { value: nightFallbackTexture },
   uOpacity: { value: 1 },
-  uTint: {
-    value: new THREE.Color('#ffffff'),
-  },
+  uAtmosphereDayColor: { value: new THREE.Color('#4db2ff') },
+  uAtmosphereTwilightColor: { value: new THREE.Color('#bc490b') },
 }
 
 const moonUniforms = {
@@ -799,9 +960,7 @@ const moonUniforms = {
 }
 
 function createCelestialSphereMaterial(
-  uniforms:
-    | typeof earthUniforms
-    | typeof moonUniforms,
+  uniforms: typeof moonUniforms,
 ) {
   return registerMaterial(
     new THREE.ShaderMaterial({
@@ -1058,7 +1217,7 @@ async function loadSameOriginCelestialTexture(
 
     const blob = await response.blob()
     /*
-     * earth.jpg 和 moon.jpg 是北极在上的经纬展开图。
+     * 昼夜地球贴图和月球贴图均为北极在上的经纬展开图。
      * ImageBitmap 上传 WebGL 时不会自动执行 Texture.flipY，
      * 必须在创建阶段翻转，否则球体会出现南北颠倒。
      */
@@ -1071,6 +1230,10 @@ async function loadSameOriginCelestialTexture(
         },
       )
 
+    if (!renderer) {
+      bitmap.close()
+      return
+    }
     celestialImageBitmaps.push(bitmap)
 
     const texture =
@@ -1116,6 +1279,12 @@ function loadCelestialTextures() {
     EARTH_SAME_ORIGIN_TEXTURE,
     earthUniforms.uMap,
     earthWebglTextureReady,
+  )
+
+  void loadSameOriginCelestialTexture(
+    EARTH_NIGHT_TEXTURE,
+    earthUniforms.uNightMap,
+    earthNightTextureReady,
   )
 
   void loadSameOriginCelestialTexture(
@@ -1457,40 +1626,33 @@ function createTideMaterial() {
       transparent: true,
       depthWrite: false,
       depthTest: true,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       uniforms: {
         uOpacity: { value: 1 },
       },
       vertexShader: `
         varying vec3 vLocalNormal;
+        varying vec3 vViewNormal;
+        varying vec3 vViewDirection;
         void main() {
-          vLocalNormal = normalize(normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vLocalNormal = normalize(position);
+          vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+          vViewNormal = normalize(normalMatrix * normal);
+          vViewDirection = -viewPosition.xyz;
+          gl_Position = projectionMatrix * viewPosition;
         }
       `,
       fragmentShader: `
         uniform float uOpacity;
         varying vec3 vLocalNormal;
+        varying vec3 vViewNormal;
+        varying vec3 vViewDirection;
 
         void main() {
           float axisValue = abs(normalize(vLocalNormal).z);
-          vec3 color;
-          float alpha;
-
-          if (axisValue > 0.90) {
-            color = vec3(1.0, 0.30, 0.30);
-            alpha = 0.66;
-          } else if (axisValue > 0.55) {
-            color = vec3(0.90, 0.74, 0.74);
-            alpha = 0.40;
-          } else if (axisValue < 0.15) {
-            color = vec3(0.30, 1.00, 0.30);
-            alpha = 0.60;
-          } else {
-            color = vec3(0.70, 0.90, 0.74);
-            alpha = 0.38;
-          }
-
+          vec3 color = mix(vec3(0.20, 0.82, 0.75), vec3(1.0, 0.46, 0.38), smoothstep(0.45, 0.9, axisValue));
+          float rim = pow(1.0 - abs(dot(normalize(vViewNormal), normalize(vViewDirection))), 3.0);
+          float alpha = 0.025 + rim * 0.24;
           gl_FragColor = vec4(color, alpha * uOpacity);
         }
       `,
@@ -1504,6 +1666,91 @@ function createTideMaterial() {
   return material
 }
 
+function createSeaReferences() {
+  if (!scene || !tideMesh) return
+  const baselinePoints = Array.from({ length: 257 }, (_, index) => {
+    const angle = index / 256 * Math.PI * 2
+    return [Math.sin(angle) * MEAN_SEA_RADIUS, 0, Math.cos(angle) * MEAN_SEA_RADIUS]
+  }).flat()
+  meanSeaLine = createStroke(baselinePoints, {
+    color: '#c3d3ed', width: 1.1, opacity: 0.64, dashSize: 0.13, gapSize: 0.11,
+  })
+  scene.add(meanSeaLine)
+
+  const colors = new Float32Array(257 * 3)
+  const high = new THREE.Color('#ff8975')
+  const low = new THREE.Color('#48dcc8')
+  for (let index = 0; index <= 256; index += 1) {
+    const height = equilibriumHeight(Math.cos(index / 256 * Math.PI * 2))
+    const color = low.clone().lerp(high, THREE.MathUtils.smoothstep(height, -0.15, 0.75))
+    color.toArray(colors, index * 3)
+  }
+  tideOutline = createStroke(baselinePoints, {
+    width: 2.4, opacity: 0.98, vertexColors: true, glowWidth: 8, glowOpacity: 0.2,
+  })
+  tideOutline.setColors(colors)
+  scene.add(tideOutline)
+  const positions = tideMesh.geometry.getAttribute('position')
+  tideBaseDirections = new Float32Array(positions.count * 3)
+  const direction = new THREE.Vector3()
+  for (let index = 0; index < positions.count; index += 1) {
+    direction.fromBufferAttribute(positions, index).normalize().toArray(tideBaseDirections, index * 3)
+  }
+}
+
+function updateSeaGeometry(strength: number) {
+  if (!tideMesh || !tideOutline || !tideBaseDirections || strength === lastTideStrength) return
+  lastTideStrength = strength
+  const positions = tideMesh.geometry.getAttribute('position') as THREE.BufferAttribute
+  const directions = tideBaseDirections
+  for (let index = 0; index < positions.count; index += 1) {
+    const x = directions[index * 3]!
+    const y = directions[index * 3 + 1]!
+    const z = directions[index * 3 + 2]!
+    const radius = seaRadius(z, strength)
+    positions.setXYZ(index, x * radius, y * radius, z * radius)
+  }
+  positions.needsUpdate = true
+  tideMesh.geometry.computeVertexNormals()
+  tideMesh.geometry.computeBoundingSphere()
+  const outline = new Float32Array(257 * 3)
+  for (let index = 0; index <= 256; index += 1) {
+    const angle = index / 256 * Math.PI * 2
+    const radius = seaRadius(Math.cos(angle), strength)
+    outline[index * 3] = Math.sin(angle) * radius
+    outline[index * 3 + 2] = Math.cos(angle) * radius
+  }
+  tideOutline.setPositions(outline)
+}
+
+function updateSceneAnnotations() {
+  if (!camera || !threeContainerRef.value) return
+  const width = threeContainerRef.value.clientWidth
+  const height = threeContainerRef.value.clientHeight
+  const project = (element: HTMLElement | null, point: THREE.Vector3, visible = true) => {
+    if (!element) return
+    const position = point.project(camera!)
+    element.style.display = visible && Math.abs(position.x) < 0.96 && Math.abs(position.y) < 0.9 ? 'block' : 'none'
+    element.style.left = `${(position.x + 1) * width / 2}px`
+    element.style.top = `${(1 - position.y) * height / 2}px`
+  }
+  const direction = tmpDirection.clone()
+  const strength = highlightDeformation.value ? deformationStrength.value : 0.45
+  const fromAbove = Math.abs(camera.getWorldDirection(new THREE.Vector3()).y) > 0.8
+  project(nearTideLabelRef.value, direction.clone().multiplyScalar(seaRadius(1, strength) + 0.9), showTideLayer.value && fromAbove)
+  project(farTideLabelRef.value, direction.clone().multiplyScalar(-seaRadius(1, strength) - 0.9), showTideLayer.value && fromAbove)
+  project(lowTideLabelRef.value, new THREE.Vector3(-direction.z, 0, direction.x).multiplyScalar(seaRadius(0, strength) + 0.55), showTideLayer.value && fromAbove)
+  project(oppositeLowTideLabelRef.value, new THREE.Vector3(direction.z, 0, -direction.x).multiplyScalar(seaRadius(0, strength) + 0.55), showTideLayer.value && fromAbove)
+  if (observerMarker) {
+    const point = observerMarker.getWorldPosition(new THREE.Vector3())
+    const towardCamera = camera.position.clone().sub(controls?.target ?? new THREE.Vector3()).normalize()
+    const visible = point.dot(towardCamera) > -0.15
+    // Keep A inside the reference globe so it cannot cover the high-water labels.
+    project(observerLabelRef.value, point.normalize().multiplyScalar(EARTH_RADIUS * 0.88), visible)
+  }
+  project(moonLabelRef.value, tmpMoonPosition.clone().add(new THREE.Vector3(0, 0, 1.3)))
+}
+
 function createCelestialScene() {
   if (!scene) return
 
@@ -1512,10 +1759,7 @@ function createCelestialScene() {
   earthTiltGroup.rotation.z = EARTH_AXIS_TILT
   earthSpinGroup = new THREE.Group()
 
-  earthMaterial =
-    createCelestialSphereMaterial(
-      earthUniforms,
-    )
+  earthMaterial = registerMaterial(createEarthSurfaceMaterial(earthUniforms))
 
   earthMesh = new THREE.Mesh(
     registerGeometry(
@@ -1531,6 +1775,14 @@ function createCelestialScene() {
   earthMesh.renderOrder = 1
   earthSpinGroup.add(earthMesh)
 
+  const atmosphere = new THREE.Mesh(
+    // Keep the halo inside even the most exaggerated low-water contour.
+    registerGeometry(new THREE.SphereGeometry(EARTH_RADIUS * 1.025, 96, 96)),
+    registerMaterial(createEarthAtmosphereMaterial(earthUniforms)),
+  )
+  atmosphere.renderOrder = 2
+  earthSpinGroup.add(atmosphere)
+
   observerMarker = new THREE.Mesh(
     registerGeometry(new THREE.SphereGeometry(0.09, 18, 12)),
     registerMaterial(
@@ -1539,25 +1791,14 @@ function createCelestialScene() {
       }),
     ),
   )
-  observerMarker.position.set(EARTH_RADIUS + 0.08, 0, 0)
+  observerMarker.position.set(0, 0, EARTH_RADIUS + 0.08)
   earthSpinGroup.add(observerMarker)
+  observerStem = createDynamicLine({ color: '#ffe080', width: 1.8, opacity: 0.95, glowWidth: 5, glowOpacity: 0.12 })
+  earthSpinGroup.add(observerStem)
 
-  const axisGeometry = registerGeometry(
-    new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, -4.1, 0),
-      new THREE.Vector3(0, 4.1, 0),
-    ]),
-  )
-  earthAxisLine = new THREE.Line(
-    axisGeometry,
-    registerMaterial(
-      new THREE.LineBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.9,
-      }),
-    ),
-  )
+  earthAxisLine = createStroke([0, -4.1, 0, 0, 4.1, 0], {
+    color: '#b5b9e5', width: 1.4, opacity: 0.7, dashSize: 0.22, gapSize: 0.13,
+  })
 
   earthTiltGroup.add(earthSpinGroup)
   earthTiltGroup.add(earthAxisLine)
@@ -1578,6 +1819,7 @@ function createCelestialScene() {
   tideMesh.renderOrder = 4
   tideMesh.userData.objectType = 'tide'
   scene.add(tideMesh)
+  createSeaReferences()
 
   moonMaterial =
     createCelestialSphereMaterial(
@@ -1601,7 +1843,7 @@ function createCelestialScene() {
   orbitLine = createOrbitLine(MOON_ORBIT_RADIUS)
   scene.add(orbitLine)
 
-  earthMoonLine = createDynamicLine(0x38f1d6, 0.95)
+  earthMoonLine = createDynamicLine({ color: '#7ee8d4', width: 1.8, opacity: 0.86, glowWidth: 6, glowOpacity: 0.1 })
   earthMoonLine.renderOrder = 5
   scene.add(earthMoonLine)
 
@@ -1611,6 +1853,7 @@ function createCelestialScene() {
     registerMaterial(
       new THREE.MeshBasicMaterial({
         color: 0xff5c5c,
+        depthTest: false,
       }),
     ),
   )
@@ -1622,6 +1865,7 @@ function createCelestialScene() {
     registerMaterial(
       new THREE.MeshBasicMaterial({
         color: 0xff7c7c,
+        depthTest: false,
         transparent: true,
         opacity: 0.9,
       }),
@@ -1632,7 +1876,7 @@ function createCelestialScene() {
   barycenterGroup.add(barycenterRing)
   scene.add(barycenterGroup)
 
-  barycenterLine = createDynamicLine(0xff5555, 0.82)
+  barycenterLine = createDynamicLine({ color: '#f39f9a', width: 1.5, opacity: 0.78, dashSize: 0.08, gapSize: 0.14 })
   updateLinePositions(
     barycenterLine,
     new THREE.Vector3(0, -4.4, 0),
@@ -1654,11 +1898,8 @@ function getEarthAndMoonPositions() {
     0,
     Math.cos(angle) * MOON_ORBIT_RADIUS,
   )
-  tmpEarthPosition.set(
-    Math.sin(angle + Math.PI) * EARTH_BARY_RADIUS,
-    0,
-    Math.cos(angle + Math.PI) * EARTH_BARY_RADIUS,
-  )
+  // Geocentric display: the observer's motion is easier to follow with Earth fixed.
+  tmpEarthPosition.set(0, 0, 0)
   return {
     earthPosition: tmpEarthPosition,
     moonPosition: tmpMoonPosition,
@@ -1688,44 +1929,19 @@ function updateScenePositions() {
       tmpDirection,
     )
 
-    const strength =
-      highlightDeformation.value
-        ? deformationStrength.value
-        : 0
-
-    /*
-     * 横向半径始终保持在地球表面外约 0.6%～0.8%：
-     * - 不再出现潮汐层悬浮在地球外侧的明显空隙；
-     * - 地月连线方向仍保留教学需要的夸张潮汐隆起；
-     * - 关闭“突出显示形变”后恢复为贴合地表的薄球壳。
-     */
-    const sideScale =
-      1 +
-      TIDE_SURFACE_GAP -
-      strength *
-        TIDE_TRANSVERSE_COMPRESSION_PER_STRENGTH
-
-    const axialScale =
-      1 +
-      TIDE_SURFACE_GAP +
-      strength *
-        TIDE_AXIAL_BULGE_PER_STRENGTH
-
-    tideMesh.scale.set(
-      Math.max(
-        1.004,
-        sideScale,
-      ),
-      Math.max(
-        1.004,
-        sideScale,
-      ),
-      Math.max(
-        1.004,
-        axialScale,
-      ),
-    )
+    const strength = highlightDeformation.value ? deformationStrength.value : 0.45
+    updateSeaGeometry(strength)
+    tideOutline?.quaternion.copy(tideMesh.quaternion)
+    const observerRadius = showTideLayer.value
+      ? seaRadius(Math.cos(THREE.MathUtils.degToRad(earthRotationDeg.value - moonAngleDeg.value)), strength) + 0.08
+      : EARTH_RADIUS + 0.08
+    observerMarker?.position.set(0, 0, observerRadius)
+    updateLinePositions(observerStem, new THREE.Vector3(0, 0, EARTH_RADIUS), new THREE.Vector3(0, 0, observerRadius))
   }
+
+  const barycenter = tmpDirection.clone().multiplyScalar(EARTH_BARY_RADIUS)
+  barycenterGroup?.position.copy(barycenter)
+  barycenterLine?.position.copy(barycenter)
 
   if (earthMoonLine) {
     const start = earthPosition.clone().addScaledVector(tmpDirection, -EARTH_RADIUS * 1.65)
@@ -1740,6 +1956,8 @@ function updateLayerVisibility() {
   if (tideMesh) {
     tideMesh.visible = showTideLayer.value
   }
+  if (tideOutline) tideOutline.visible = showTideLayer.value
+  if (meanSeaLine) meanSeaLine.visible = showTideLayer.value
   if (earthMoonLine) {
     earthMoonLine.visible = showEarthMoonLine.value
   }
@@ -1753,7 +1971,7 @@ function updateLayerVisibility() {
     barycenterLine.visible = showBarycenter.value
   }
   if (tideMaterial) {
-    tideMaterial.uniforms.uOpacity.value = highlightDeformation.value ? 1 : 0.42
+    tideMaterial.uniforms.uOpacity!.value = 1
   }
 }
 
@@ -1763,7 +1981,7 @@ function setView(view: string) {
 
   if (view === 'top') {
     camera.position.set(0, 20, 0.01)
-    camera.zoom = 0.93
+    camera.zoom = 1
     controls.target.set(0, 0, 0)
   } else if (view === 'side') {
     camera.position.set(19, 2.2, 0)
@@ -1897,25 +2115,20 @@ function animateScene(
   previousSceneFrameTime =
     frameTime
 
-  if (isPlaying.value && moonOrbitEnabled.value) {
-    moonAngleDeg.value = (moonAngleDeg.value + delta * 7.2 * playbackSpeed.value) % 360
-  }
-
-  if (isPlaying.value && earthRotationEnabled.value) {
-    /*
-     * 使用 Three.js 球体自身连续旋转。
-     * 经纬展开图由球体 UV 自动包裹，不再移动二维 DOM 图片。
-     */
-    earthRotationDeg.value += delta * 34 * playbackSpeed.value
-
-    if (Math.abs(earthRotationDeg.value) > 360000) {
-      earthRotationDeg.value %= 360
-    }
+  if (isPlaying.value) {
+    const next = advanceAngles(
+      earthRotationDeg.value, moonAngleDeg.value,
+      delta * SIMULATION_HOURS_PER_SECOND * playbackSpeed.value,
+      earthRotationEnabled.value, moonOrbitEnabled.value,
+    )
+    earthRotationDeg.value = next.earth
+    moonAngleDeg.value = next.moon
   }
 
   updateScenePositions()
   controls?.update()
   updateCelestialTextureOverlays()
+  updateSceneAnnotations()
 
   if (renderer && scene && camera) {
     renderer.render(scene, camera)
@@ -1985,7 +2198,7 @@ function initScene() {
   createStars()
   createCelestialScene()
   resizeSceneNow()
-  setView('overview')
+  setView('top')
 
   renderer.domElement.addEventListener('pointerup', handleCanvasPointerUp)
 
@@ -2012,28 +2225,25 @@ function pauseForManualPosition() {
 
 function togglePlay() {
   isPlaying.value = !isPlaying.value
-  if (isPlaying.value) {
-    moonOrbitEnabled.value = true
-  }
 }
 
 function resetControls() {
   moonOrbitEnabled.value = true
-  earthRotationEnabled.value = false
+  earthRotationEnabled.value = true
   showTideLayer.value = true
   highlightDeformation.value = true
   deformationStrength.value = 1.2
   showBarycenter.value = false
   showEarthMoonLine.value = true
   showEarthAxis.value = true
-  moonAngleDeg.value = 0
-  earthRotationDeg.value = 180
+  moonAngleDeg.value = 90
+  earthRotationDeg.value = 90
   playbackSpeed.value = 1
   isPlaying.value = true
   selectedObject.value = 'earth'
   updateLayerVisibility()
   updateScenePositions()
-  setView('overview')
+  setView('top')
   scheduleSceneResize(90)
 }
 
@@ -2058,6 +2268,8 @@ function disposeScene() {
   controls = null
 
   registeredTextures.forEach((texture) => texture.dispose())
+  sceneStrokes.forEach((stroke) => stroke.dispose())
+  sceneStrokes.length = 0
   registeredMaterials.forEach((material) => material.dispose())
   registeredGeometries.forEach((geometry) => geometry.dispose())
   registeredTextures.length = 0
@@ -2084,6 +2296,11 @@ function disposeScene() {
   barycenterGroup = null
   barycenterLine = null
   observerMarker = null
+  observerStem = null
+  meanSeaLine = null
+  tideOutline = null
+  tideBaseDirections = null
+  lastTideStrength = -1
   stars = null
   earthMaterial = null
   moonMaterial = null
@@ -2107,6 +2324,7 @@ function disposeScene() {
   earthDomTextureReady.value = false
   moonDomTextureReady.value = false
   earthWebglTextureReady.value = false
+  earthNightTextureReady.value = false
   moonWebglTextureReady.value = false
 
   hideCelestialOverlay(
@@ -2348,49 +2566,47 @@ onBeforeUnmount(() => {
 
 .stage-legend {
   position: absolute;
-  top: auto;
-  bottom: clamp(92px, 12vh, 124px);
+  bottom: clamp(124px, 15vh, 176px);
   left: clamp(16px, 1.6vw, 26px);
   z-index: 6;
-  width: min(290px, 31%);
-  padding: 13px 15px;
+  width: min(326px, calc(100vw - 32px));
+  padding: 15px;
   color: #dceef5;
-  font-size: clamp(10px, 0.72vw, 12px);
-  background: rgba(3, 18, 31, 0.82);
-  border: 1px solid rgba(106, 165, 190, 0.28);
-  border-radius: 12px;
-  pointer-events: none;
+  font-size: 11px;
+  background: linear-gradient(145deg, rgba(8, 29, 44, 0.97), rgba(4, 17, 30, 0.94));
+  border: 1px solid rgba(99, 173, 196, 0.3);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px #00000032;
+  pointer-events: auto;
 }
-
-.stage-legend h3 {
-  margin: 0 0 10px;
-  color: #ffffff;
-  font-size: clamp(12px, 0.9vw, 15px);
-}
-
-.stage-legend p {
-  margin: 8px 0 0;
-  color: #85a4b1;
-  line-height: 1.55;
-}
-
-.legend-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-top: 7px;
-  line-height: 1.45;
-}
+.legend-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.legend-heading h3 { display: flex; align-items: center; gap: 8px; margin: 0; color: #e3f7fc; font-size: 14px; font-weight: 650; }
+.legend-heading h3 > span { color: #61d8cd; font-size: 24px; line-height: 1; font-weight: 400; }
+.legend-model-badge { color: #87adbd; font-size: 10px; border: 1px solid #365062; border-radius: 5px; padding: 3px 6px; }
+.legend-tide-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.legend-tide-item { display: grid; gap: 7px; padding: 10px 9px; border: 1px solid #abcddd14; border-radius: 8px; background: #a3d4e507; }
+.legend-tide-item strong { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #e6edf3; }
+.legend-tide-item > span { color: #a5bdca; font-size: 10px; white-space: nowrap; }
+.legend-reference-list { display: grid; gap: 11px; margin: 15px 0; }
+.legend-reference-row { display: grid; grid-template-columns: 24px 65px 1fr; align-items: center; column-gap: 8px; }
+.legend-reference-row strong { font-size: 11px; font-weight: 500; color: #d3e3eb; }
+.legend-reference-row > span { color: #88a5b5; font-size: 10px; }
+.legend-observer-swatch { display: grid; place-items: center; width: 18px; height: 18px; border: 1px solid #b8963d; border-radius: 5px; color: #ffe080; font: 700 10px/1 sans-serif; }
+.legend-model-note { border-top: 1px solid #b5dbea1a; padding-top: 10px; color: #8ba8b8; font-size: 10px; }
+.legend-model-note summary { cursor: pointer; }
+.legend-model-note summary > span { float: right; color: #728d9e; }
+.legend-model-note p { margin: 10px 0 0; line-height: 1.7; color: #a1bbc9; }
+.legend-model-note summary:focus-visible { outline: 2px solid #61d8cd; outline-offset: 4px; }
 
 .legend-swatch,
 .legend-line {
-  width: 28px;
+  width: 22px;
   flex: 0 0 auto;
   border-radius: 999px;
 }
 
 .legend-swatch {
-  height: 7px;
+  height: 5px;
 }
 
 .legend-line {
@@ -2398,16 +2614,117 @@ onBeforeUnmount(() => {
 }
 
 .high-tide-swatch {
-  background: rgba(255, 63, 56, 0.82);
+  background: linear-gradient(90deg, #ffb39c, #ff8975);
+  box-shadow: 0 0 7px #ff897545;
 }
 
 .low-tide-swatch {
-  background: rgba(48, 255, 104, 0.74);
+  background: linear-gradient(90deg, #48dcc8, #a2f1db);
+  box-shadow: 0 0 7px #48dcc845;
 }
 
 .earth-moon-line-swatch {
-  background: #38f1d6;
+  height: 2px;
+  background: #7ee8d4;
+  box-shadow: 0 0 6px #7ee8d444;
 }
+
+.orbit-line-swatch {
+  position: relative;
+  height: 1px;
+  background: #8caac9;
+}
+.orbit-line-swatch::after {
+  content: '';
+  position: absolute;
+  width: 1px;
+  height: 7px;
+  left: 10px;
+  top: -3px;
+  background: #bdd7ee;
+}
+
+.mean-sea-swatch {
+  height: 0;
+  border-top: 1px dashed #c3d3ed;
+}
+
+.scene-annotations {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.scene-label {
+  position: absolute;
+  display: none;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: rgba(2, 12, 24, 0.85);
+  font-size: 12px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+
+.high-label { color: #ffad9e; transform: translate(-50%, -150%); }
+.low-label { color: #69e8d7; }
+.observer-label { color: #ffe080; font-weight: 800; border: 1px solid #b8963d; }
+.moon-label { color: #d5e2f2; }
+
+.observer-floating-card.collapsed { top: 212px !important; right: 18px; left: auto !important; }
+.observer-floating-card:not(.collapsed) { width: min(480px, 42vw); height: min(730px, calc(100vh - 182px)); }
+.observer-floating-card :deep(.feature-card-content) { overflow: auto; scrollbar-gutter: stable; padding-bottom: 24px; }
+.observer-floating-card.resizing,
+.observer-floating-card.resizing .observer-content,
+.observer-floating-card.resizing .observer-coast { transition: none !important; }
+.observer-content { display: flex; flex-direction: column; height: 100%; min-height: 425px; }
+.observer-coast { flex: 1 1 auto; min-height: 210px; }
+.observer-details { flex: 0 0 auto; padding: 9px 12px 8px; background: rgba(3, 18, 31, 0.97); }
+.coast-stage-options { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 8px 0 2px; }
+.coast-stage-options button { padding: 5px 3px; border: 1px solid #375267; border-radius: 6px; background: #122b3c; color: #bcd7e3; font-size: 11px; cursor: pointer; }
+.coast-stage-options button.active { border-color: #59cfc4; background: #174c52; color: #d6fff8; }
+.coast-stage-options .coast-play { color: #ffe18a; border-color: #746738; }
+.coast-stage-options button:focus-visible { outline: 2px solid #ffe18a; outline-offset: 2px; }
+.coast-reference-legend { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; font-size: 10px; color: #c0d3df; }
+.coast-reference { display: inline-block; width: 15px; margin-right: 4px; vertical-align: middle; border-top: 2px dashed; }
+.high-reference { border-color: #ffac7f; }
+.low-reference { border-color: #69dfff; }
+.current-reference { border-color: #f1fff4; border-top-style: solid; }
+.coast-process-copy { margin: 6px 0; color: #d8e9ef; font-size: 11px; line-height: 1.5; min-height: 17px; }
+
+.observer-heading, .observer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.observer-heading strong { color: #ffe080; white-space: nowrap; }
+.observer-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #ffdc55;
+}
+.observer-note {
+  margin: 5px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #a6bfce;
+}
+.observer-footer { color: #c9dbe7; font-size: 11px; }
+.observer-note { color: #90abba; font-size: 10px; }
+.tide-chart { display: block; width: 100%; height: 94px; margin: 5px 0; overflow: visible; }
+.chart-reference { stroke: #899bad; stroke-width: 1; stroke-dasharray: 4 4; }
+.chart-reference-text { fill: #98afc0; font-size: 12px; }
+.chart-curve { fill: none; stroke: #65d6dc; stroke-width: 2.5; }
+.chart-cursor { stroke: #e9c75e; stroke-opacity: 0.35; stroke-dasharray: 3 3; }
+.chart-point { fill: #ffdc55; stroke: #132433; stroke-width: 2; }
+.chart-extreme { fill: #b9cbd9; font-size: 12px; text-anchor: middle; }
 
 .wide-data-card {
   grid-column: 1 / -1;
@@ -2450,8 +2767,22 @@ onBeforeUnmount(() => {
     display: none;
   }
 
+  .observer-floating-card:not(.collapsed) { width: min(410px, calc(100vw - 36px)); }
+}
+
+@media (max-width: 700px) {
   .stage-legend {
-    width: min(250px, 38%);
+    bottom: 116px;
+    width: min(306px, calc(100vw - 32px));
+    padding: 12px;
   }
+  .observer-floating-card:not(.collapsed) { width: calc(100vw - 36px); }
+  .scene-label { font-size: 10px; padding: 3px 5px; }
+  .stage-status-badge { left: 16px; transform: none; max-width: 48%; }
+}
+
+@media (max-height: 650px) and (min-width: 701px) {
+  .stage-legend { bottom: 110px; }
+  .stage-status-badge { top: 72px; }
 }
 </style>

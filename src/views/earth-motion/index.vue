@@ -606,7 +606,7 @@ const isPlaying = ref(true)
 const daySpeed = ref(1.4)
 const sunLightPower = ref(1.45)
 const nightMapPower = ref(1.75)
-const nightLightPower = ref(2.15)
+const nightLightPower = ref(0.5)
 const darkSideSurfacePower = ref(0.05)
 const ambientLightPower = ref(1.15)
 const focusMode = ref<FocusMode>('sun')
@@ -957,7 +957,7 @@ const earthUniforms = {
   atmosphereTwilightColor: atmosphereTwilightColorUniform,
   sunLightPower: { value: 1.45 },
   nightMapPower: { value: 1.75 },
-  nightLightPower: { value: 2.15 },
+  nightLightPower: { value: 0.5 },
   darkSideSurfacePower: { value: 0.05 }
 }
 
@@ -1306,9 +1306,9 @@ function createEarth() {
 
         float terminatorMask = (1.0 - smoothstep(0.0, 0.035, abs(lightAmount))) * showTerminator;
         float dawnSignal = dot(cross(normalize(axisDirection), nWorld), sWorld);
-        vec3 dawnColor = vec3(0.25, 0.72, 1.0);
-        vec3 duskColor = vec3(1.0, 0.25, 0.43);
-        color = mix(color, dawnSignal >= 0.0 ? dawnColor : duskColor, terminatorMask * 0.90);
+        vec3 dawnColor = vec3(0.12, 0.38, 0.56);
+        vec3 duskColor = vec3(0.56, 0.12, 0.22);
+        color = mix(color, dawnSignal >= 0.0 ? dawnColor : duskColor, terminatorMask * 0.52);
 
         // 与 three.js 官方案例一致：地表内缘也参与大气颜色混合。
         // 只在菲涅耳边缘生效，保留厚实层次但不会形成整球透明罩。

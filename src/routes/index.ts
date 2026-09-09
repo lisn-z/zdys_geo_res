@@ -408,6 +408,24 @@ export const routes = [
     component: () =>
       import('@/views/thermal-circulation-laboratory/index.vue'),
   },
+  {
+    path: '/narrowing-effect',
+    name: 'narrowing-effect',
+    meta: {
+      title: '狭管效应',
+    },
+    component: () =>
+      import('@/views/narrowing-effect/index.vue'),
+  },
+  {
+    path: '/three-feature-of-map',
+    name: 'three-feature-of-map',
+    meta: {
+      title: '地图三要素',
+    },
+    component: () =>
+      import('@/views/three-feature-of-map/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {

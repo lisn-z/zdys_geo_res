@@ -6,36 +6,28 @@
           src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png" alt="logo"></div>
       <h1 class="page-title">大气受热过程</h1>
       <div class="toolbar-actions">
-        <button class="theme-btn toolbar-btn" :class="{ active: cameraFollow }"
+        <div class="scene-mode-switch" role="group" aria-label="场景模式">
+          <button :class="{ active: sceneMode === '3d' }" @click="setSceneMode('3d')">3D 场景</button>
+          <button :class="{ active: sceneMode === '2d' }" @click="setSceneMode('2d')">2D 图解</button>
+        </div>
+        <button v-if="sceneMode === '3d'" class="theme-btn toolbar-btn" :class="{ active: cameraFollow }"
           @click="cameraFollow = !cameraFollow">镜头跟随</button>
-        <button class="theme-btn toolbar-btn" @click="resetView">重置视角</button>
+        <button v-if="sceneMode === '3d'" class="theme-btn toolbar-btn" @click="resetView">重置视角</button>
       </div>
     </header>
     <main class="workspace" v-bind="workspaceAttrs">
       <section class="center-stage">
         <div class="stage-content">
-          <div ref="threeContainerRef" class="scene-host three-host"></div>
-          <div class="corner-atmosphere" :style="cornerStyle" aria-hidden="true"><i class="tl"></i><i class="tr"></i><i
+          <div v-show="sceneMode === '3d'" ref="threeContainerRef" class="scene-host three-host"></div>
+          <AtmosphericHeating2D v-show="sceneMode === '2d'" :stage-index="currentStageIndex" :progress="progress"
+            :balance-phase="balancePhase" />
+          <div v-show="sceneMode === '3d'" class="corner-atmosphere" :style="cornerStyle" aria-hidden="true"><i class="tl"></i><i class="tr"></i><i
               class="bl"></i><i class="br"></i></div>
-          <div class="process-badge" :class="{ expanded: stageTipVisible }">
+          <div v-if="sceneMode === '3d'" class="process-badge">
             <Transition name="stage-copy" mode="out-in">
-              <div :key="currentStage.id" class="process-summary"><span>{{ currentGroup.name }} · {{ currentStageIndex +
-                  1 }}/{{
-                    stages.length }}</span><strong>{{ currentStage.title }}</strong><small>{{ currentStage.flow }}</small>
+              <div :key="`${currentStage.id}-${isFinalOverview}`" class="process-summary"><span>{{ isFinalOverview ? '完整总览 · 全部能量路径' : currentStageIndex === 8 ? `动态平衡 · ${balancePhaseNames[balancePhase]}` : `${currentGroup.name} · ${currentStageIndex + 1}/${stages.length}` }}</span><strong>{{ isFinalOverview ? '大气受热过程完整效果' : currentStage.title }}</strong>
               </div>
             </Transition>
-            <Transition name="stage-tip" mode="out-in">
-              <section v-if="stageTipVisible" :key="currentStage.id" class="process-reason">
-                <div><span>为什么会这样？</span><button @click="stageTipVisible = false">×</button></div>
-                <p>{{ currentStage.reason }}</p><small>观察提示：{{ currentStage.focus }}</small>
-              </section>
-            </Transition>
-          </div>
-          <div class="scene-legend">
-            <strong>当前箭头表示什么？</strong>
-            <div><i class="arrow-symbol" :style="{ color: currentArrowGuide.color }"></i><b>{{ currentArrowGuide.name
-                }}</b></div>
-            <small>{{ currentArrowGuide.meaning }}</small>
           </div>
           <div v-if="sceneError" class="scene-error">场景初始化失败：{{ sceneError }}</div>
         </div>
@@ -59,6 +51,15 @@
       :min-width="350" :min-height="330">
       <div class="heating-insight" style="padding: 16px;">
         <p class="lead">太阳先加热地表，地表再以长波辐射、感热和潜热加热大气；大气逆辐射会减缓地表冷却。</p>
+        <section class="current-insight">
+          <div class="current-insight-title"><span>当前阶段 {{ currentStageIndex + 1 }}</span><strong>{{ currentStage.title
+              }}</strong></div>
+          <p>{{ currentStage.reason }}</p>
+          <small>观察重点：{{ currentStage.focus }}</small>
+          <div class="current-arrow-guide"><i class="arrow-symbol"
+              :style="{ color: currentArrowGuide.color }"></i><span><b>{{ currentArrowGuide.name }}</b><small>{{
+                currentArrowGuide.meaning }}</small></span></div>
+        </section>
         <div class="budget">
           <div><span>到达地球系统</span><strong>100%</strong></div>
           <div class="budget-bar"><i class="r"></i><i class="a"></i><i class="s"></i></div><small>全球平均教学示意：约 30% 返回太空，约
@@ -98,9 +99,9 @@
     </FloatingFeatureCard>
     <FloatingFeatureCard v-model:collapsed="stageCollapsed" class="stage-card" title="阶段控制"
       :subtitle="currentStage.title" variant="track" :initial-top="74" :initial-right="16" :bottom-inset="86"
-      :min-width="470" :min-height="310">
+      :min-width="400" :min-height="260">
       <template #header-meta><span class="stage-progress">{{ Math.round(progress) }}%</span></template>
-      <div class="controller" style="padding: 16px;">
+      <div class="controller" style="padding: 12px;">
         <div class="process-groups"><button v-for="(group, index) in processGroups" :key="group.id"
             :class="{ active: currentGroupIndex === index }" @click="goToGroup(index)"><span>{{ index + 1
               }}</span><strong>{{
@@ -112,9 +113,6 @@
         <section class="stage-detail">
           <div><span>阶段 {{ currentStageIndex + 1 }}</span><strong>{{ currentStage.title }}</strong></div>
           <p>{{ currentStage.description }}</p><small>观察重点 · {{ currentStage.focus }}</small>
-          <div class="stage-arrow-hint"><i class="arrow-symbol"
-              :style="{ color: currentArrowGuide.color }"></i><span><b>{{
-                currentArrowGuide.name }}</b><small>{{ currentArrowGuide.meaning }}</small></span></div>
         </section>
         <div class="stage-actions"><button class="theme-btn option-btn" :disabled="currentStageIndex === 0"
             @click="goToStage(currentStageIndex - 1)">← 上一阶段</button><button class="theme-btn option-btn"
@@ -132,18 +130,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+import AtmosphericHeating2D from './AtmosphericHeating2D.vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
 
 type Mode = 'all' | 'stage' | 'loop' | null
-interface ArrowFlow { group: THREE.Group; materials: THREE.MeshBasicMaterial[]; pieces: { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; baseT: number }[]; start: number; opacity: number; phase: number }
-interface Label { sprite: THREE.Sprite; material: THREE.SpriteMaterial; start: number }
+type ArrowStyle = 'straight' | 'wavy' | 'scatter'
+interface ArrowFlow { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial; points: THREE.Vector3[]; segmentLengths: number[]; totalLength: number; focus: THREE.Vector3; start: number; opacity: number; phase: number; style: ArrowStyle }
+type LabelKind = 'ground' | 'atmosphere' | 'cloud' | 'flow'
+interface Label { sprite: THREE.Sprite; material: THREE.SpriteMaterial; start: number; kind: LabelKind }
+interface MoleculeMotion { group: THREE.Group; base: THREE.Vector3; phase: number; speed: number }
+interface AbsorptionEffect { group: THREE.Group; core: THREE.Sprite; coreMaterial: THREE.SpriteMaterial; ripples: THREE.Sprite[]; rippleMaterials: THREE.SpriteMaterial[]; start: number; phase: number }
 const WATER_NORMALS = '/geo-resources-folder/images/waternormals.jpg', SUN_TEXTURE = '/geo-resources-folder/images/sun.png', SUN_POS = new THREE.Vector3(-12.5, 21.2, 8), UP = new THREE.Vector3(0, 1, 0)
 const processGroups = [
   { id: 'sun-ground', name: '太阳暖大地', summary: '短波进入并被地表吸收', stages: [0, 1, 2] },
@@ -178,10 +181,15 @@ const stageArrowGuides = [
   { name: '红色感热 / 青色潜热', color: '#5ce7df', meaning: '都从地表向上：红色靠空气运动，青色靠水的相变输送热量。' },
   { name: '粉色箭头 · 大气辐射', color: '#ff8aac', meaning: '暖大气同时向上和向下发射长波；向上部分最终离开地球。' },
   { name: '洋红箭头 · 大气逆辐射', color: '#ff71ba', meaning: '从大气返回地面，表示大气补偿地表损失的部分热量。' },
-  { name: '全部箭头 · 动态平衡', color: '#ffffff', meaning: '按颜色追踪输入、反射、地面放热、大气放热、感热和潜热的完整循环。' }
+  { name: '完整路径 · 动态平衡', color: '#ffffff', meaning: '演示结束后保留全部能量路径，并持续显示箭头的流动方向。' }
 ] as const
+const balancePhaseNames = ['太阳能输入', '地表长波释放', '温室气体吸收', '感热与潜热', '大气双向辐射', '逆辐射回地表'] as const
+const balanceFlowSets = [[14, 23, 28], [34, 38], [45], [56, 62], [68, 73], [79, 85]] as const
 const progress = ref(0), playbackSpeed = ref(1), isPlaying = ref(false), continuousMode = ref(false), playbackMode = ref<Mode>(null), stopAt = ref(100), cameraFollow = ref(true)
-const insightCollapsed = ref(true), stageCollapsed = ref(false), stageTipVisible = ref(true), sceneError = ref(''), speedOptions = [.5, 1, 2]
+const sceneMode = ref<'3d' | '2d'>('3d')
+const insightCollapsed = ref(true), stageCollapsed = ref(false), sceneError = ref(''), speedOptions = [.5, 1, 2]
+const balancePhase = ref(0)
+const isFinalOverview = computed(() => progress.value >= 99.9)
 const currentStageIndex = computed(() => { const v = Math.min(progress.value, 99.999), i = stages.findIndex(s => v >= s.start && v < s.end); return Math.max(0, i) })
 const currentStage = computed(() => stages[currentStageIndex.value]!)
 const currentArrowGuide = computed(() => stageArrowGuides[currentStageIndex.value]!)
@@ -189,17 +197,31 @@ const currentGroupIndex = computed(() => processGroups.findIndex(group => group.
 const currentGroup = computed(() => processGroups[Math.max(0, currentGroupIndex.value)]!)
 const visibleStages = computed(() => currentGroup.value.stages.map(index => ({ index, stage: stages[index]! })))
 const surfaceState = computed(() => progress.value < 23 ? '等待短波抵达' : progress.value < 45 ? '正在吸热升温' : '持续辐射与交换')
-const cornerStyle = computed(() => ({ '--corner-opacity': String(THREE.MathUtils.clamp((progress.value - 20) / 52, 0, .72)) }))
+const cornerStyle = computed(() => ({ '--corner-opacity': String(THREE.MathUtils.clamp((progress.value - 20) / 90, 0, .28)) }))
 const threeContainerRef = ref<HTMLElement | null>(null)
 let scene: THREE.Scene | null = null, camera: THREE.PerspectiveCamera | null = null, renderer: THREE.WebGLRenderer | null = null, controls: OrbitControls | null = null, root: THREE.Group | null = null, water: Water | null = null, sun: THREE.Mesh | null = null
-let landMat: THREE.MeshStandardMaterial | null = null, oceanMat: THREE.MeshStandardMaterial | null = null, sunBeam: THREE.Mesh | null = null, sunBeamMat: THREE.MeshBasicMaterial | null = null
+let landMat: THREE.MeshStandardMaterial | null = null, oceanMat: THREE.MeshStandardMaterial | null = null, sunBeam: THREE.Mesh | null = null, sunBeamMat: THREE.MeshBasicMaterial | null = null, moleculeGroup: THREE.Group | null = null, scatterCore: THREE.Group | null = null
 let raf = 0, observer: ResizeObserver | null = null, resizeTimer: ReturnType<typeof setTimeout> | null = null, lastW = 0, lastH = 0, disposed = false, ambientTime = 0
 const clock = new THREE.Clock(), geometries: THREE.BufferGeometry[] = [], materials: THREE.Material[] = [], textures: THREE.Texture[] = [], flows: ArrowFlow[] = [], labels: Label[] = [], atmosphereLayerMaterials: THREE.ShaderMaterial[] = [], clouds: { group: THREE.Group; baseX: number; phase: number }[] = []
+const molecules: MoleculeMotion[] = [], absorptionEffects: AbsorptionEffect[] = []
+const flowPosition = new THREE.Vector3(), flowDirection = new THREE.Vector3(), flowViewNormal = new THREE.Vector3(), flowRight = new THREE.Vector3(), flowBasis = new THREE.Matrix4(), flowQuaternion = new THREE.Quaternion()
 const regG = <T extends THREE.BufferGeometry>(v: T) => (geometries.push(v), v), regM = <T extends THREE.Material>(v: T) => (materials.push(v), v), regT = <T extends THREE.Texture>(v: T) => (textures.push(v), v), smooth = (a: number, b: number, v = progress.value) => THREE.MathUtils.smoothstep(v, a, b)
 function scheduleResize(delay = 90) { if (resizeTimer) clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { resizeTimer = null; if (!draggingSide.value && !viewportResizing.value) requestAnimationFrame(resize) }, delay) }
+function setSceneMode(mode: '3d' | '2d') { sceneMode.value = mode }
 const { rootRef: pageRef, layoutMode, draggingSide, viewportResizing, workspaceAttrs } = useGeoPanelLayout({ left: { enabled: false }, right: { enabled: false }, onLayoutChange(s) { if (!s.resizing) scheduleResize() }, onResize(p) { if (p.phase === 'end' || p.phase === 'reset') scheduleResize(0) } })
+watch(sceneMode, mode => { if (mode === '3d') scheduleResize(0) })
 
 function glowTexture(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255,255,0)') { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d')!, g = x.createRadialGradient(128, 128, 5, 128, 128, 126); g.addColorStop(0, inner); g.addColorStop(.3, inner); g.addColorStop(1, outer); x.fillStyle = g; x.fillRect(0, 0, 256, 256); const t = regT(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; return t }
+function absorptionRingTexture() { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d')!; x.strokeStyle = 'rgba(255,255,255,.95)'; x.lineWidth = 12; x.shadowColor = 'rgba(255,255,255,.75)'; x.shadowBlur = 18; x.beginPath(); x.arc(128, 128, 82, 0, Math.PI * 2); x.stroke(); const t = regT(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; return t }
+function createAbsorptionEffect(position: THREE.Vector3, start: number, color: number, phase = 0) {
+  if (!scene) return
+  const group = new THREE.Group(), glowMap = glowTexture('rgba(255,244,206,.96)', 'rgba(255,255,255,0)'), ringMap = absorptionRingTexture()
+  const coreMaterial = regM(new THREE.SpriteMaterial({ map: glowMap, color, transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending })), core = new THREE.Sprite(coreMaterial)
+  core.scale.set(1.65, 1.65, 1); core.renderOrder = 24; group.add(core)
+  const ripples: THREE.Sprite[] = [], rippleMaterials: THREE.SpriteMaterial[] = []
+  for (let index = 0; index < 3; index++) { const material = regM(new THREE.SpriteMaterial({ map: ringMap, color, transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending })), ripple = new THREE.Sprite(material); ripple.renderOrder = 23; group.add(ripple); ripples.push(ripple); rippleMaterials.push(material) }
+  group.position.copy(position); group.visible = false; scene.add(group); absorptionEffects.push({ group, core, coreMaterial, ripples, rippleMaterials, start, phase })
+}
 function skyTexture() { const c = document.createElement('canvas'); c.width = 1536; c.height = 768; const x = c.getContext('2d')!, g = x.createLinearGradient(0, 0, 0, c.height); g.addColorStop(0, '#06162e'); g.addColorStop(.42, '#174a70'); g.addColorStop(.72, '#d0785a'); g.addColorStop(1, '#39292e'); x.fillStyle = g; x.fillRect(0, 0, c.width, c.height); const haze = x.createRadialGradient(c.width * .54, c.height * .69, 4, c.width * .54, c.height * .69, c.width * .34); haze.addColorStop(0, 'rgba(255,203,145,.24)'); haze.addColorStop(.42, 'rgba(118,193,219,.08)'); haze.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = haze; x.fillRect(0, 0, c.width, c.height); const t = regT(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; return t }
 const TERRAIN_RADIUS = 22.5
 function fract(value: number) { return value - Math.floor(value) }
@@ -211,13 +233,13 @@ function terrainTextures() { const size = 512, colorCanvas = document.createElem
 function createSemicircleTerrainGeometry() { const radialSegments = 76, angularSegments = 152, positions: number[] = [0, 0, circularTerrainHeight(0, 0)], uvs: number[] = [.5, .5], colors: number[] = [], indices: number[] = [], low = new THREE.Color(0x405a35), middle = new THREE.Color(0x687252), high = new THREE.Color(0x8b867a), exposed = new THREE.Color(0x77736c), color = new THREE.Color(); const pushColor = (x: number, z: number, h: number) => { const heightBlend = THREE.MathUtils.smoothstep(h, .65, 5.1), moisture = fbmNoise(x * .13 - 4, z * .13 + 9, 4), sample = .22, slope = THREE.MathUtils.clamp(Math.hypot(circularTerrainHeight(x + sample, z) - circularTerrainHeight(x - sample, z), circularTerrainHeight(x, z + sample) - circularTerrainHeight(x, z - sample)) / (sample * 2) * .55, 0, 1); color.lerpColors(low, middle, THREE.MathUtils.smoothstep(heightBlend, 0, .52)).lerp(high, THREE.MathUtils.smoothstep(heightBlend, .48, 1)).lerp(exposed, THREE.MathUtils.smoothstep(slope, .38, .9)); color.offsetHSL(0, (moisture - .5) * .045, (moisture - .5) * .035); colors.push(color.r, color.g, color.b) }; pushColor(0, 0, circularTerrainHeight(0, 0)); for (let ring = 1; ring <= radialSegments; ring++) { const radius = TERRAIN_RADIUS * ring / radialSegments; for (let segment = 0; segment <= angularSegments; segment++) { const angle = -Math.PI * .5 + Math.PI * segment / angularSegments, x = Math.cos(angle) * radius, planeY = Math.sin(angle) * radius, worldZ = -planeY, height = circularTerrainHeight(x, worldZ); positions.push(x, planeY, height); uvs.push((x / TERRAIN_RADIUS + 1) * .5, (worldZ / TERRAIN_RADIUS + 1) * .5); pushColor(x, worldZ, height) } } const firstRing = 1; for (let segment = 0; segment < angularSegments; segment++) indices.push(0, firstRing + segment, firstRing + segment + 1); for (let ring = 1; ring < radialSegments; ring++) { const inner = 1 + (ring - 1) * (angularSegments + 1), outer = inner + angularSegments + 1; for (let segment = 0; segment < angularSegments; segment++) { const a = inner + segment, b = outer + segment, c = outer + segment + 1, d = inner + segment + 1; indices.push(a, b, c, a, c, d) } } const geometry = regG(new THREE.BufferGeometry()); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3)); geometry.setIndex(indices); geometry.computeVertexNormals(); return geometry }
 function cloudTexture() { const c = document.createElement('canvas'); c.width = 512; c.height = 256; const x = c.getContext('2d')!;[[90, 165, 62], [170, 130, 92], [270, 105, 104], [365, 145, 82], [430, 170, 54]].forEach(p => { const g = x.createRadialGradient(p[0]!, p[1]!, 5, p[0]!, p[1]!, p[2]!); g.addColorStop(0, 'rgba(255,255,255,.97)'); g.addColorStop(.55, 'rgba(232,242,248,.84)'); g.addColorStop(1, 'rgba(210,226,236,0)'); x.fillStyle = g; x.fillRect(p[0]! - p[2]!, p[1]! - p[2]!, p[2]! * 2, p[2]! * 2) }); const t = regT(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; return t }
 function labelTexture(text: string, color: string, sub = '') { const c = document.createElement('canvas'); c.width = 768; c.height = 192; const x = c.getContext('2d')!; x.fillStyle = 'rgba(5,16,28,.9)'; x.strokeStyle = color; x.lineWidth = 4; x.beginPath(); x.roundRect(10, 10, 748, 172, 28); x.fill(); x.stroke(); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = color; x.font = '800 56px Microsoft YaHei'; x.fillText(text, 384, sub ? 72 : 96); if (sub) { x.fillStyle = '#e8f5fa'; x.font = '500 29px Microsoft YaHei'; x.fillText(sub, 384, 138) } const t = regT(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t }
-function addLabel(text: string, color: string, p: THREE.Vector3, start = 0, scale = .65, sub = '') { if (!scene) return; const material = regM(new THREE.SpriteMaterial({ map: labelTexture(text, color, sub), transparent: true, opacity: start ? 0 : 1, depthTest: false })), sprite = new THREE.Sprite(material); sprite.position.copy(p); sprite.scale.set(scale * 4, scale, 1); sprite.renderOrder = 30; scene.add(sprite); labels.push({ sprite, material, start }) }
+function addLabel(text: string, color: string, p: THREE.Vector3, start = 0, scale = .65, sub = '', kind: LabelKind = 'flow') { if (!scene) return; const material = regM(new THREE.SpriteMaterial({ map: labelTexture(text, color, sub), transparent: true, opacity: 0, depthTest: false })), sprite = new THREE.Sprite(material), emphasis = kind === 'flow' ? 1.18 : 1; sprite.position.copy(p); sprite.scale.set(scale * 4 * emphasis, scale * emphasis, 1); sprite.renderOrder = 30; sprite.visible = false; scene.add(sprite); labels.push({ sprite, material, start, kind }) }
 function addBox(size: [number, number, number], p: [number, number, number], color: number) { if (!root) return; const m = new THREE.Mesh(regG(new THREE.BoxGeometry(...size)), regM(new THREE.MeshStandardMaterial({ color, roughness: .94 }))); m.position.set(...p); m.castShadow = m.receiveShadow = true; root.add(m); return m }
 
 function createSkySun() {
   if (!scene) return; scene.add(new THREE.HemisphereLight(0xc9edff, 0x283522, 2.08)); const light = new THREE.DirectionalLight(0xffdfa2, 3.1); light.position.copy(SUN_POS); light.castShadow = true; light.shadow.mapSize.set(2048, 2048); scene.add(light)
-  const mat = regM(new THREE.MeshStandardMaterial({ color: 0xffb53a, emissive: 0xff7117, emissiveIntensity: 2.6, roughness: .7 })), tex = regT(new THREE.TextureLoader().load(SUN_TEXTURE, t => { if (disposed) return; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(renderer?.capabilities.getMaxAnisotropy?.() ?? 4, 8); mat.map = t; mat.emissiveMap = t; mat.needsUpdate = true }, undefined, () => console.warn('太阳纹理加载失败'))); tex.colorSpace = THREE.SRGBColorSpace; sun = new THREE.Mesh(regG(new THREE.SphereGeometry(1.35, 48, 32)), mat); sun.position.copy(SUN_POS); const gm = regM(new THREE.SpriteMaterial({ map: glowTexture('rgba(255,232,150,.94)', 'rgba(255,150,40,0)'), transparent: true, opacity: .34, blending: THREE.AdditiveBlending, depthWrite: false })), glow = new THREE.Sprite(gm); glow.scale.set(7.5, 7.5, 1); sun.add(glow); scene.add(sun)
-  const target = new THREE.Vector3(4, .7, 0), direction = target.clone().sub(SUN_POS), length = direction.length(); sunBeamMat = regM(new THREE.MeshBasicMaterial({ color: 0xffc66d, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })); sunBeam = new THREE.Mesh(regG(new THREE.CylinderGeometry(1.45, .08, length, 36, 1, true)), sunBeamMat); sunBeam.position.copy(SUN_POS).add(target).multiplyScalar(.5); sunBeam.quaternion.setFromUnitVectors(UP, direction.normalize()); sunBeam.renderOrder = 5; scene.add(sunBeam)
+  const mat = regM(new THREE.MeshStandardMaterial({ color: 0xffad32, emissive: 0xff6815, emissiveIntensity: 2.15, roughness: .74 })), tex = regT(new THREE.TextureLoader().load(SUN_TEXTURE, t => { if (disposed) return; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(renderer?.capabilities.getMaxAnisotropy?.() ?? 4, 8); mat.map = t; mat.emissiveMap = t; mat.needsUpdate = true }, undefined, () => console.warn('太阳纹理加载失败'))); tex.colorSpace = THREE.SRGBColorSpace; sun = new THREE.Mesh(regG(new THREE.SphereGeometry(1.35, 48, 32)), mat); sun.position.copy(SUN_POS); const gm = regM(new THREE.SpriteMaterial({ map: glowTexture('rgba(255,184,62,.9)', 'rgba(255,92,18,0)'), color: 0xffb33e, transparent: true, opacity: .27, blending: THREE.AdditiveBlending, depthWrite: false })), glow = new THREE.Sprite(gm); glow.scale.set(7.1, 7.1, 1); sun.add(glow); scene.add(sun)
+  const target = new THREE.Vector3(4, .7, 0), direction = target.clone().sub(SUN_POS), length = direction.length(); sunBeamMat = regM(new THREE.MeshBasicMaterial({ color: 0xffa52f, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.NormalBlending })); sunBeamMat.toneMapped = false; sunBeam = new THREE.Mesh(regG(new THREE.CylinderGeometry(1.35, .08, length, 36, 1, true)), sunBeamMat); sunBeam.position.copy(SUN_POS).add(target).multiplyScalar(.5); sunBeam.quaternion.setFromUnitVectors(UP, direction.normalize()); sunBeam.renderOrder = 5; scene.add(sunBeam)
 }
 function createGroundLegacy() {
   if (!root || !renderer) return
@@ -233,7 +255,7 @@ function createGroundLegacy() {
   const shore = new THREE.Mesh(regG(new THREE.PlaneGeometry(1.15, depth)), regM(new THREE.MeshStandardMaterial({ color: 0xc9ae72, roughness: 1 }))); shore.rotation.x = -Math.PI / 2; shore.position.set(-1.55, .16, 0); root.add(shore)
   const trunkGeo = regG(new THREE.CylinderGeometry(.055, .09, .58, 7)), crownGeo = regG(new THREE.ConeGeometry(.38, .92, 10)), trunkMat = regM(new THREE.MeshStandardMaterial({ color: 0x58412f, roughness: 1 })), pineMats = [regM(new THREE.MeshStandardMaterial({ color: 0x1f4d35, roughness: 1 })), regM(new THREE.MeshStandardMaterial({ color: 0x2c603e, roughness: 1 })), regM(new THREE.MeshStandardMaterial({ color: 0x365e35, roughness: 1 }))]; for (let i = 0; i < 76; i++) { const localX = -9.2 + (i % 13) * 1.62, z = -14 + Math.floor(i / 13) * 5.2 + (i % 3) * .32, x = localX + landCenter, y = terrainHeight(localX, z), scale = .78 + (i % 5) * .07, trunk = new THREE.Mesh(trunkGeo, trunkMat); trunk.position.set(x, y + .29 * scale, z); trunk.scale.setScalar(scale); const lower = new THREE.Mesh(crownGeo, pineMats[i % pineMats.length]!), upper = new THREE.Mesh(crownGeo, pineMats[(i + 1) % pineMats.length]!); lower.position.set(x, y + .82 * scale, z); lower.scale.set(.95 * scale, .82 * scale, .95 * scale); upper.position.set(x, y + 1.16 * scale, z); upper.scale.set(.68 * scale, .72 * scale, .68 * scale); lower.castShadow = upper.castShadow = true; root.add(trunk, lower, upper) }
   for (let i = 0; i < 18; i++) { const localX = 1.5 + (i % 6) * 2.05, z = -11 + Math.floor(i / 6) * 8.7 + (i % 2) * .5, h = terrainHeight(localX, z), rock = new THREE.Mesh(regG(new THREE.DodecahedronGeometry(.38 + (i % 4) * .12, 0)), regM(new THREE.MeshStandardMaterial({ color: i % 2 ? 0x625f59 : 0x777268, roughness: 1 }))); rock.position.set(localX + landCenter, h + .18, z); rock.scale.y = .55 + (i % 3) * .16; rock.rotation.set(i * .31, i * .63, 0); root.add(rock) }
-  addLabel('海洋', '#74dfff', new THREE.Vector3(-13, 1.15, 12.4), 0, .68, '蒸发 · 储热 · 潜热'); addLabel('复杂山地', '#ffd078', new THREE.Vector3(12, 6.2, 12.2), 0, .68, '山脊 · 谷地 · 岩层森林')
+  addLabel('海洋', '#74dfff', new THREE.Vector3(-13, 1.15, 12.4), 0, .68, '蒸发 · 储热 · 潜热', 'ground'); addLabel('陆地', '#ffd078', new THREE.Vector3(12, 6.2, 12.2), 0, .68, '升温快 · 地面长波', 'ground')
 }
 function createGround() {
   if (!root || !renderer) return
@@ -251,7 +273,7 @@ function createGround() {
   const trunkGeometry = regG(new THREE.CylinderGeometry(.045, .075, .52, 7)), crownGeometry = regG(new THREE.ConeGeometry(.31, .82, 9)), trunkMaterial = regM(new THREE.MeshStandardMaterial({ color: 0x49372d, roughness: 1 })), pineMaterials = [regM(new THREE.MeshStandardMaterial({ color: 0x173d2d, roughness: 1 })), regM(new THREE.MeshStandardMaterial({ color: 0x234b34, roughness: 1 })), regM(new THREE.MeshStandardMaterial({ color: 0x2f5738, roughness: 1 }))]
   for (let i = 0; i < 94; i++) { const angle = -Math.PI * .5 + hashNoise(i * 1.91, 4.7) * Math.PI, radial = 3.1 + Math.sqrt(hashNoise(i * 2.73, 11.2)) * (radius - 4.4), x = Math.cos(angle) * radial, z = Math.sin(angle) * radial; if (x < 1.4) continue; const y = circularTerrainHeight(x, z), scale = .55 + hashNoise(i * 3.17, -7.1) * .56, trunk = new THREE.Mesh(trunkGeometry, trunkMaterial); trunk.position.set(x, y + .26 * scale, z); trunk.scale.setScalar(scale); trunk.rotation.y = hashNoise(i, 33) * Math.PI; const lower = new THREE.Mesh(crownGeometry, pineMaterials[i % pineMaterials.length]!), upper = new THREE.Mesh(crownGeometry, pineMaterials[(i + 1) % pineMaterials.length]!); lower.position.set(x, y + .7 * scale, z); lower.scale.set(.95 * scale, .8 * scale, .95 * scale); upper.position.set(x, y + 1.0 * scale, z); upper.scale.set(.66 * scale, .66 * scale, .66 * scale); lower.rotation.y = upper.rotation.y = hashNoise(i, 54) * Math.PI; lower.castShadow = upper.castShadow = true; root.add(trunk, lower, upper) }
   const rockMaterials = [regM(new THREE.MeshStandardMaterial({ color: 0x5c5b56, roughness: 1 })), regM(new THREE.MeshStandardMaterial({ color: 0x777269, roughness: 1 }))]; for (let i = 0; i < 28; i++) { const angle = -Math.PI * .47 + hashNoise(i * 4.3, 2.8) * Math.PI * .94, radial = 5 + Math.sqrt(hashNoise(i * 5.7, -8.6)) * (radius - 6.3), x = Math.cos(angle) * radial, z = Math.sin(angle) * radial, y = circularTerrainHeight(x, z), size = .28 + hashNoise(i, 17) * .55, rock = new THREE.Mesh(regG(new THREE.DodecahedronGeometry(size, 0)), rockMaterials[i % 2]!); rock.position.set(x, y + size * .22, z); rock.scale.set(1, .48 + hashNoise(i, 8) * .45, .72 + hashNoise(i, 6) * .45); rock.rotation.set(hashNoise(i, 5), hashNoise(i, 9) * Math.PI, hashNoise(i, 3) * .35); rock.castShadow = true; root.add(rock) }
-  addLabel('海洋半圆', '#74dfff', new THREE.Vector3(-11.2, 1.2, 13.8), 0, .68, '水体储热 · 蒸发 · 潜热'); addLabel('噪声山地半圆', '#ffd078', new THREE.Vector3(11.4, 6.8, 13.2), 0, .72, '分形山脊 · 谷地 · 岩坡森林')
+  addLabel('海洋', '#74dfff', new THREE.Vector3(-11.2, 1.2, 13.8), 0, .68, '储热 · 蒸发 · 潜热', 'ground'); addLabel('陆地', '#ffd078', new THREE.Vector3(11.4, 6.8, 13.2), 0, .72, '升温快 · 地面长波', 'ground')
 }
 function createAtmosphere() {
   if (!scene) return
@@ -266,49 +288,200 @@ function createAtmosphere() {
     const dome = new THREE.Mesh(regG(new THREE.SphereGeometry(1, 96, 42, 0, Math.PI * 2, 0, Math.PI * .5)), material); dome.scale.set(item.radius, item.height, item.radius); dome.position.y = .06; dome.renderOrder = -3 + index; scene!.add(dome)
     const rimMaterial = regM(new THREE.MeshBasicMaterial({ color: item.color, transparent: true, opacity: .38 - index * .055, depthWrite: false })), rim = new THREE.Mesh(regG(new THREE.TorusGeometry(item.radius, .038, 10, 256)), rimMaterial); rim.rotation.x = Math.PI * .5; rim.position.y = .065 + index * .022; rim.renderOrder = 3 + index; scene!.add(rim)
   })
-  const moleculeGroup = new THREE.Group(); scene.add(moleculeGroup)
-  const addMolecule = (p: THREE.Vector3, color: number, ozone = false) => { const group = new THREE.Group(), atomMat = regM(new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .18, roughness: .4 })), count = ozone ? 3 : 2; for (let i = 0; i < count; i++) { const atom = new THREE.Mesh(regG(new THREE.SphereGeometry(.09, 10, 8)), atomMat); atom.position.x = (i - (count - 1) / 2) * .2; atom.position.y = ozone && i === 1 ? .08 : 0; group.add(atom) } group.position.copy(p); group.rotation.set(Math.sin(p.x) * .5, Math.cos(p.z) * .8, Math.sin(p.z) * .4); moleculeGroup.add(group) }
-  for (let i = 0; i < 72; i++) { const angle = hashNoise(i * 1.7, 3.1) * Math.PI * 2, radius = Math.sqrt(hashNoise(i * 2.9, -4.6)) * 20.8; addMolecule(new THREE.Vector3(Math.cos(angle) * radius, 2.1 + hashNoise(i, 8.2) * 3.5, Math.sin(angle) * radius), i % 3 ? 0x78d8f0 : 0xff796f) }
-  for (let i = 0; i < 54; i++) { const angle = hashNoise(i * 3.3, 14.1) * Math.PI * 2, radius = Math.sqrt(hashNoise(i * 4.8, -9.7)) * 23.6; addMolecule(new THREE.Vector3(Math.cos(angle) * radius, 7.7 + hashNoise(i, 18.4) * 3.2, Math.sin(angle) * radius), 0x8fa7ff, true) }
-  addLabel('对流层罩', '#79e6ff', new THREE.Vector3(18.2, 6.2, -8.2), 0, .72, '水汽、CO₂、云和对流'); addLabel('平流层罩', '#9fb8ff', new THREE.Vector3(18.2, 11.0, -8.2), 0, .72, '臭氧吸收紫外线'); addLabel('高层大气罩', '#cba8ff', new THREE.Vector3(18.2, 16.0, -8.2), 0, .72, '稀薄气体吸收高能辐射')
+  moleculeGroup = new THREE.Group(); moleculeGroup.visible = false; scene.add(moleculeGroup)
+  const atomGeometry = regG(new THREE.SphereGeometry(.1, 16, 12)), bondGeometry = regG(new THREE.CylinderGeometry(.022, .022, 1, 8))
+  const addMolecule = (p: THREE.Vector3, color: number, ozone = false, phase = 0) => {
+    const group = new THREE.Group(), atomMat = regM(new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .22, roughness: .3, transparent: true, opacity: .8 })), bondMat = regM(new THREE.MeshBasicMaterial({ color: 0xd9f2fa, transparent: true, opacity: .48 })), atomPositions = ozone ? [new THREE.Vector3(-.2, -.025, 0), new THREE.Vector3(0, .075, 0), new THREE.Vector3(.2, -.035, 0)] : [new THREE.Vector3(-.14, 0, 0), new THREE.Vector3(.14, 0, 0)]
+    atomPositions.forEach(position => { const atom = new THREE.Mesh(atomGeometry, atomMat); atom.position.copy(position); group.add(atom) })
+    for (let index = 0; index < atomPositions.length - 1; index++) { const from = atomPositions[index]!, to = atomPositions[index + 1]!, direction = to.clone().sub(from), bond = new THREE.Mesh(bondGeometry, bondMat); bond.position.copy(from).add(to).multiplyScalar(.5); bond.scale.y = direction.length(); bond.quaternion.setFromUnitVectors(UP, direction.normalize()); group.add(bond) }
+    group.position.copy(p); group.rotation.set(Math.sin(p.x) * .5, Math.cos(p.z) * .8, Math.sin(p.z) * .4); group.scale.setScalar(.82 + hashNoise(phase, p.x) * .42); moleculeGroup!.add(group); molecules.push({ group, base: p.clone(), phase, speed: .18 + hashNoise(phase, p.z) * .22 })
+  }
+  for (let i = 0; i < 20; i++) { const angle = hashNoise(i * 1.7, 3.1) * Math.PI * 2, radius = Math.sqrt(hashNoise(i * 2.9, -4.6)) * 20.8; addMolecule(new THREE.Vector3(Math.cos(angle) * radius, 2.1 + hashNoise(i, 8.2) * 3.5, Math.sin(angle) * radius), i % 3 ? 0x69cde8 : 0xf06f69, false, i * .73) }
+  for (let i = 0; i < 12; i++) { const angle = hashNoise(i * 3.3, 14.1) * Math.PI * 2, radius = Math.sqrt(hashNoise(i * 4.8, -9.7)) * 23.6; addMolecule(new THREE.Vector3(Math.cos(angle) * radius, 7.7 + hashNoise(i, 18.4) * 3.2, Math.sin(angle) * radius), 0x879cf2, true, 30 + i * .91) }
+  addLabel('对流层', '#79e6ff', new THREE.Vector3(18.2, 6.2, -8.2), 0, .68, '水汽、CO₂、云和对流', 'atmosphere'); addLabel('平流层', '#9fb8ff', new THREE.Vector3(18.2, 11.0, -8.2), 0, .68, '臭氧吸收紫外线', 'atmosphere'); addLabel('高层大气', '#cba8ff', new THREE.Vector3(18.2, 16.0, -8.2), 0, .68, '稀薄气体吸收高能辐射', 'atmosphere')
 }
-function createClouds() { if (!scene) return; const tex = cloudTexture();[[-5.2, 7.1, -1.2], [2.6, 6.6, 3.6], [7.8, 7.7, -3.8]].forEach((p, n) => { const group = new THREE.Group(); for (let i = 0; i < 5; i++) { const m = regM(new THREE.SpriteMaterial({ map: tex, color: i % 2 ? 0xddeaf0 : 0xffffff, transparent: true, opacity: .68, depthWrite: false })), s = new THREE.Sprite(m); s.position.set((i - 2) * .75, (i % 2) * .2, (i % 3 - 1) * .35); s.scale.set(3.6, 1.7, 1); group.add(s) } group.position.set(p[0]!, p[1]!, p[2]!); scene!.add(group); clouds.push({ group, baseX: p[0]!, phase: n * 2.1 }) }); addLabel('云层', '#f0f7fb', new THREE.Vector3(-5.2, 8.35, -1.2), 0, .6, '反射短波 · 吸收长波') }
-function flatArrowGeometry(width = .82, length = 1.85) { const shape = new THREE.Shape(), half = width * .5, tail = width * .2, shoulder = length * .12; shape.moveTo(0, length * .5); shape.lineTo(half, shoulder); shape.lineTo(tail, shoulder); shape.lineTo(tail, -length * .5); shape.lineTo(-tail, -length * .5); shape.lineTo(-tail, shoulder); shape.lineTo(-half, shoulder); shape.closePath(); return regG(new THREE.ShapeGeometry(shape)) }
-function addFlatFlow(points: THREE.Vector3[], color: number, start: number, opacity = .82, phase = 0) {
-  if (!scene) return; const group = new THREE.Group(), material = regM(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, depthTest: false, side: THREE.DoubleSide })), materials = [material], pieces: ArrowFlow['pieces'] = [], arrowGeometry = flatArrowGeometry()
-  for (let segment = 0; segment < points.length - 1; segment++) { const from = points[segment]!, to = points[segment + 1]!, direction = to.clone().sub(from), length = direction.length(), arrowCount = Math.max(2, Math.ceil(length / 2.35)); for (let i = 0; i < arrowCount; i++) { const t = (i + .5) / arrowCount, arrow = new THREE.Mesh(arrowGeometry, material); arrow.position.copy(from).lerp(to, t); arrow.quaternion.setFromUnitVectors(UP, direction.clone().normalize()); arrow.renderOrder = 19; group.add(arrow); pieces.push({ mesh: arrow, from: from.clone(), to: to.clone(), baseT: t }) } }
-  scene.add(group); flows.push({ group, materials, pieces, start, opacity, phase })
+function createClouds() { if (!scene) return; const tex = cloudTexture();[[-5.2, 7.1, -1.2], [2.6, 6.6, 3.6], [7.8, 7.7, -3.8]].forEach((p, n) => { const group = new THREE.Group(); for (let i = 0; i < 5; i++) { const m = regM(new THREE.SpriteMaterial({ map: tex, color: i % 2 ? 0xddeaf0 : 0xffffff, transparent: true, opacity: .6, depthWrite: false })), s = new THREE.Sprite(m); s.position.set((i - 2) * .75, (i % 2) * .2, (i % 3 - 1) * .35); s.scale.set(3.6, 1.7, 1); group.add(s) } group.position.set(p[0]!, p[1]!, p[2]!); scene!.add(group); clouds.push({ group, baseX: p[0]!, phase: n * 2.1 }) }); addLabel('云层', '#f0f7fb', new THREE.Vector3(-5.2, 8.35, -1.2), 0, .6, '反射短波 · 吸收长波', 'cloud') }
+function longFlatArrowGeometry(width: number, length: number) { const shape = new THREE.Shape(), half = width * .5, tail = width * .19, shoulder = length * .16; shape.moveTo(0, length * .5); shape.lineTo(half, shoulder); shape.lineTo(tail, shoulder); shape.lineTo(tail, -length * .5); shape.lineTo(-tail, -length * .5); shape.lineTo(-tail, shoulder); shape.lineTo(-half, shoulder); shape.closePath(); return regG(new THREE.ShapeGeometry(shape)) }
+function wavyFlatArrowGeometry(width: number, length: number) {
+  const bodyWidth = width * .22, amplitude = width * .36, bottom = -length * .5, shoulder = length * .24, segments = 40, waves = .82
+  const positions: number[] = [], indices: number[] = []
+  for (let index = 0; index <= segments; index++) {
+    const t = index / segments, y = THREE.MathUtils.lerp(bottom, shoulder, t), phase = t * Math.PI * 2 * waves
+    const sine = Math.sin(Math.PI * t), envelope = sine * sine
+    const x = Math.sin(phase) * amplitude * envelope
+    const dxdt = amplitude * (Math.cos(phase) * Math.PI * 2 * waves * envelope + Math.sin(phase) * Math.PI * 2 * sine * Math.cos(Math.PI * t))
+    const dxdy = dxdt / (shoulder - bottom), normalLength = Math.hypot(1, dxdy), nx = 1 / normalLength, ny = -dxdy / normalLength
+    const taper = THREE.MathUtils.lerp(1, .82, t), halfBody = bodyWidth * taper * .5
+    positions.push(x - nx * halfBody, y - ny * halfBody, 0, x + nx * halfBody, y + ny * halfBody, 0)
+    if (index < segments) { const a = index * 2, b = a + 1, c = a + 3, d = a + 2; indices.push(a, b, c, a, c, d) }
+  }
+  const headBase = positions.length / 3
+  positions.push(-width * .5, shoulder, 0, width * .5, shoulder, 0, 0, length * .5, 0)
+  indices.push(headBase, headBase + 1, headBase + 2)
+  const geometry = regG(new THREE.BufferGeometry())
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.setIndex(indices); geometry.computeVertexNormals()
+  return geometry
+}
+function sampleArrowPath(points: THREE.Vector3[], segmentLengths: number[], totalLength: number, progress: number, position: THREE.Vector3, direction: THREE.Vector3) { let distance = THREE.MathUtils.clamp(progress, 0, 1) * totalLength, segmentIndex = 0; for (let index = 0; index < segmentLengths.length; index++) { const length = segmentLengths[index]!; if (distance <= length || index === segmentLengths.length - 1) { segmentIndex = index; break } distance -= length } const from = points[segmentIndex]!, to = points[segmentIndex + 1]!, segmentLength = segmentLengths[segmentIndex]!, localProgress = segmentLength > 0 ? THREE.MathUtils.clamp(distance / segmentLength, 0, 1) : 0; position.copy(from).lerp(to, localProgress); direction.copy(to).sub(from).normalize() }
+function addArrowFlow(points: THREE.Vector3[], color: number, start: number, opacity = .82, phase = 0, style: ArrowStyle = 'straight') {
+  if (!scene || points.length < 2) return
+  const segmentLengths = points.slice(0, -1).map((point, index) => point.distanceTo(points[index + 1]!)), totalLength = segmentLengths.reduce((sum, length) => sum + length, 0)
+  const arrowLength = style === 'wavy' ? THREE.MathUtils.clamp(totalLength * .76, 4.8, 6.2) : style === 'scatter' ? THREE.MathUtils.clamp(totalLength * .64, 2.5, 3.2) : THREE.MathUtils.clamp(totalLength * .38, 2.9, 4.5), arrowWidth = style === 'wavy' ? THREE.MathUtils.clamp(arrowLength * .19, .9, 1.15) : style === 'scatter' ? THREE.MathUtils.clamp(arrowLength * .24, .64, .78) : THREE.MathUtils.clamp(arrowLength * .27, .82, 1.12), material = regM(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, depthTest: false, side: THREE.DoubleSide })), geometry = style === 'wavy' ? wavyFlatArrowGeometry(arrowWidth, arrowLength) : longFlatArrowGeometry(arrowWidth, arrowLength), mesh = new THREE.Mesh(geometry, material), pathPoints = points.map(point => point.clone()), focus = new THREE.Vector3(), focusDirection = new THREE.Vector3()
+  sampleArrowPath(pathPoints, segmentLengths, totalLength, .55, focus, focusDirection); mesh.quaternion.setFromUnitVectors(UP, focusDirection); mesh.renderOrder = 19; mesh.visible = false; scene.add(mesh)
+  flows.push({ mesh, material, points: pathPoints, segmentLengths, totalLength, focus, start, opacity, phase, style })
 }
 function createFlows() {
-  addFlatFlow([new THREE.Vector3(-8, 13.2, 5.4), new THREE.Vector3(-6.2, 10.3, 4.1)], 0xb9a2ff, 11, .8, .1)
-  addFlatFlow([new THREE.Vector3(-4.2, 7.3, -.8), new THREE.Vector3(-7.5, 10.5, -2.8), new THREE.Vector3(-10.5, 14, -4.5)], 0xaeeaff, 13, .88, .4)
-  addFlatFlow([new THREE.Vector3(-1, 7.1, 2), new THREE.Vector3(3.8, 9.2, 5.2), new THREE.Vector3(8.5, 11.3, 6.4)], 0x70d8ff, 15, .76, .8)
-  addFlatFlow([new THREE.Vector3(-7.5, 12.8, 5.3), new THREE.Vector3(-4.8, 9.1, 3.7), new THREE.Vector3(2.8, .75, 1.2)], 0xffd35c, 18, .86, .2)
-  addFlatFlow([new THREE.Vector3(-2, 3.2, -3), new THREE.Vector3(-8, .35, -3.4)], 0xffd86d, 23, .8, .5); addFlatFlow([new THREE.Vector3(3.5, 3.2, 1), new THREE.Vector3(8, 1.2, 1)], 0xffbc52, 25, .84, .7)
-  addFlatFlow([new THREE.Vector3(8, 1.4, -1), new THREE.Vector3(7.2, 5.3, -.4), new THREE.Vector3(6.6, 8.7, .2)], 0xff714d, 34, .86, .1); addFlatFlow([new THREE.Vector3(-9, .35, 3), new THREE.Vector3(-8.2, 4.8, 3.1), new THREE.Vector3(-7.4, 8, 3)], 0xff9464, 36, .76, .5); addFlatFlow([new THREE.Vector3(15, 2.8, -4), new THREE.Vector3(16.2, 9.4, -4.5), new THREE.Vector3(17, 15.8, -5)], 0xffad6f, 38, .7, .8)
-  addFlatFlow([new THREE.Vector3(4, 1.1, 4.3), new THREE.Vector3(3.8, 3.8, 4.5), new THREE.Vector3(4.1, 6.1, 4.6)], 0xff554c, 56, .84, .2); addFlatFlow([new THREE.Vector3(-9, .35, 5.2), new THREE.Vector3(-8.4, 3.2, 5.4), new THREE.Vector3(-7.8, 6.5, 5.6)], 0x55dedb, 58, .84, .6)
-  addFlatFlow([new THREE.Vector3(5.8, 7.2, 0), new THREE.Vector3(7.2, 11.2, -1), new THREE.Vector3(8.6, 15.3, -2)], 0xff8aac, 68, .78, .2); addFlatFlow([new THREE.Vector3(5.8, 7, .4), new THREE.Vector3(5, 4.2, .8), new THREE.Vector3(4.4, 1.2, 1.2)], 0xff70be, 70, .9, .6)
-  addFlatFlow([new THREE.Vector3(-5.5, 6.6, 2.4), new THREE.Vector3(-6.2, 3.5, 2.8), new THREE.Vector3(-7, .4, 3.2)], 0xce72ff, 79, .84, .4); addFlatFlow([new THREE.Vector3(10, 7, 4), new THREE.Vector3(10.5, 4.2, 4.3), new THREE.Vector3(11, 1.7, 4.6)], 0xff70be, 82, .86, .8)
-  addLabel('臭氧吸收', '#bda8ff', new THREE.Vector3(-5.7, 11, 4.1), 11, .58, '紫外线被截获'); addLabel('云反射', '#bcecff', new THREE.Vector3(-8.2, 11.4, -3.2), 13, .58, '短波返回太空'); addLabel('分子散射', '#77dcff', new THREE.Vector3(4.5, 10.1, 5.4), 15, .58, '蓝光向多方向传播'); addLabel('大气折射', '#ffdc72', new THREE.Vector3(-3.2, 8.8, 3.4), 18, .58, '跨层传播方向偏折'); addLabel('地表吸收', '#ffc35f', new THREE.Vector3(5, 2.8, 1), 23, .6, '转化为内能'); addLabel('地面长波', '#ff8562', new THREE.Vector3(7.4, 5.8, -.2), 34, .6, '红外辐射'); addLabel('温室气体吸收', '#ff8c73', new THREE.Vector3(5.7, 7.2, -.1), 45, .6, '水汽、CO₂与云'); addLabel('感热', '#ff6c62', new THREE.Vector3(3.7, 4.5, 4.8), 56, .55, '湍流输送'); addLabel('潜热', '#64e6df', new THREE.Vector3(-8.5, 4.6, 5.9), 58, .55, '蒸发—凝结'); addLabel('大气向外辐射', '#ff91ad', new THREE.Vector3(7.6, 12, -1), 68, .58, '释放到太空'); addLabel('大气逆辐射', '#ff7ac5', new THREE.Vector3(4.5, 4.2, 1.2), 79, .6, '大气还大地')
+  addArrowFlow([new THREE.Vector3(-8, 13.2, 5.4), new THREE.Vector3(-6.2, 10.3, 4.1)], 0xb9a2ff, 11, .8, .1)
+  addArrowFlow([new THREE.Vector3(-4.2, 7.3, -.8), new THREE.Vector3(-7.5, 10.5, -2.8), new THREE.Vector3(-10.5, 14, -4.5)], 0xaeeaff, 14, .88, .4)
+  const scatterPoint = new THREE.Vector3(-1, 9, 2)
+  addArrowFlow([scatterPoint, new THREE.Vector3(-1.7, 13.7, 2)], 0x8be7ff, 17, .9, .02, 'scatter')
+  addArrowFlow([scatterPoint, new THREE.Vector3(-4.4, 12.6, 2)], 0x8be7ff, 17, .9, .18, 'scatter')
+  addArrowFlow([scatterPoint, new THREE.Vector3(-5.9, 9.8, 2)], 0x8be7ff, 17, .9, .34, 'scatter')
+  addArrowFlow([scatterPoint, new THREE.Vector3(-5.2, 6.8, 2)], 0x8be7ff, 17, .9, .5, 'scatter')
+  addArrowFlow([scatterPoint, new THREE.Vector3(-2.8, 4.8, 2)], 0x8be7ff, 17, .9, .66, 'scatter')
+  addArrowFlow([new THREE.Vector3(5.2, 14, 2), scatterPoint], 0xffd35c, 17, .88, .82, 'scatter')
+  scatterCore = new THREE.Group(); scatterCore.position.copy(scatterPoint); scatterCore.visible = false
+  const scatterSphere = new THREE.Mesh(regG(new THREE.SphereGeometry(.3, 18, 12)), regM(new THREE.MeshBasicMaterial({ color: 0xeaffff, transparent: true, opacity: .95, depthTest: false }))), scatterGlow = new THREE.Sprite(regM(new THREE.SpriteMaterial({ map: glowTexture('rgba(170,244,255,.95)', 'rgba(80,205,255,0)'), transparent: true, opacity: .62, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending })))
+  scatterGlow.scale.set(2.1, 2.1, 1); scatterSphere.renderOrder = scatterGlow.renderOrder = 21; scatterCore.add(scatterSphere, scatterGlow); scene?.add(scatterCore)
+  addArrowFlow([new THREE.Vector3(-7.5, 12.8, 5.3), new THREE.Vector3(-4.8, 9.1, 3.7), new THREE.Vector3(2.8, .75, 1.2)], 0xffd35c, 20, .86, .2)
+  addArrowFlow([new THREE.Vector3(-2, 3.2, -3), new THREE.Vector3(-8, .35, -3.4)], 0xffd86d, 23, .8, .5); addArrowFlow([new THREE.Vector3(3.5, 3.2, 1), new THREE.Vector3(8, 1.2, 1)], 0xffbc52, 28, .84, .7)
+  addArrowFlow([new THREE.Vector3(8, 1.4, -1), new THREE.Vector3(7.2, 5.3, -.4), new THREE.Vector3(6.6, 8.7, .2)], 0xff714d, 34, .86, .1); addArrowFlow([new THREE.Vector3(-9, .35, 3), new THREE.Vector3(-8.2, 4.8, 3.1), new THREE.Vector3(-7.4, 8, 3)], 0xff9464, 38, .76, .5); addArrowFlow([new THREE.Vector3(15, 2.8, -4), new THREE.Vector3(16.2, 9.4, -4.5), new THREE.Vector3(17, 15.8, -5)], 0xffad6f, 42, .7, .8)
+  addArrowFlow([new THREE.Vector3(6, 1.1, 0), new THREE.Vector3(6.15, 4.6, 0), new THREE.Vector3(6.2, 7.5, 0)], 0xff8562, 45, .86, .3)
+  addArrowFlow([new THREE.Vector3(4, 1.1, 4.3), new THREE.Vector3(3.8, 3.8, 4.5), new THREE.Vector3(4.1, 6.1, 4.6)], 0xff554c, 56, .84, .2, 'wavy'); addArrowFlow([new THREE.Vector3(-9, .35, 5.2), new THREE.Vector3(-8.4, 3.2, 5.4), new THREE.Vector3(-7.8, 6.5, 5.6)], 0x55dedb, 62, .84, .6, 'wavy')
+  addArrowFlow([new THREE.Vector3(5.8, 7.2, 0), new THREE.Vector3(7.2, 11.2, -1), new THREE.Vector3(8.6, 15.3, -2)], 0xff8aac, 68, .78, .2); addArrowFlow([new THREE.Vector3(5.8, 7, .4), new THREE.Vector3(5, 4.2, .8), new THREE.Vector3(4.4, 1.2, 1.2)], 0xff70be, 73, .9, .6)
+  addArrowFlow([new THREE.Vector3(-5.5, 6.6, 2.4), new THREE.Vector3(-6.2, 3.5, 2.8), new THREE.Vector3(-7, .4, 3.2)], 0xce72ff, 79, .84, .4); addArrowFlow([new THREE.Vector3(10, 7, 4), new THREE.Vector3(10.5, 4.2, 4.3), new THREE.Vector3(11, 1.7, 4.6)], 0xff70be, 85, .86, .8)
+  createAbsorptionEffect(new THREE.Vector3(-6.2, 10.3, 4.1), 11, 0xb9a2ff, .1)
+  createAbsorptionEffect(new THREE.Vector3(-8, .35, -3.4), 23, 0xffd86d, .35)
+  createAbsorptionEffect(new THREE.Vector3(8, 1.2, 1), 28, 0xffb84f, .6)
+  createAbsorptionEffect(new THREE.Vector3(6.2, 7.5, 0), 45, 0xff7958, .85)
+  addLabel('臭氧吸收', '#bda8ff', new THREE.Vector3(-6.7, 11.6, 4.6), 11, .56, '紫外线被截获')
+  addLabel('云层反射', '#bcecff', new THREE.Vector3(-8.1, 11.2, -3.1), 14, .56, '短波返回太空')
+  addLabel('分子散射', '#77dcff', new THREE.Vector3(-4.1, 10.1, 3.1), 17, .56, '一束光向多个方向分散')
+  addLabel('大气折射', '#ffdc72', new THREE.Vector3(-3.1, 7.7, 3.3), 20, .56, '跨层后偏向地面')
+  addLabel('海洋吸收短波', '#ffda72', new THREE.Vector3(-5.2, 1.8, -3.1), 23, .53, '海水储存太阳能')
+  addLabel('陆地吸收短波', '#ffc35f', new THREE.Vector3(5.8, 2.7, 1), 28, .53, '陆地升温较快')
+  addLabel('陆地长波', '#ff7954', new THREE.Vector3(7.4, 5.8, -.2), 34, .53, '地面红外向上')
+  addLabel('海洋长波', '#ff9464', new THREE.Vector3(-8.2, 4.7, 3.1), 38, .53, '海面红外向上')
+  addLabel('大气窗口逸出', '#ffad6f', new THREE.Vector3(16.1, 9.6, -4.5), 42, .53, '部分长波直达太空')
+  addLabel('温室气体吸收', '#ff8c73', new THREE.Vector3(6.2, 7.5, 0), 45, .56, '水汽、CO₂与云')
+  addLabel('感热', '#ff6c62', new THREE.Vector3(3.8, 4.1, 4.7), 56, .53, '湍流输送')
+  addLabel('潜热', '#64e6df', new THREE.Vector3(-8.4, 3.8, 5.6), 62, .53, '蒸发—凝结')
+  addLabel('大气向外辐射', '#ff91ad', new THREE.Vector3(7.4, 11.6, -1), 68, .53, '释放到太空')
+  addLabel('大气向下辐射', '#ff70be', new THREE.Vector3(5, 4.2, .8), 73, .53, '长波返回地面')
+  addLabel('海洋逆辐射', '#ce72ff', new THREE.Vector3(-6.2, 4.1, 3), 79, .53, '补偿海面热量')
+  addLabel('陆地逆辐射', '#ff70be', new THREE.Vector3(10.5, 4.3, 4.3), 85, .53, '补偿陆地热量')
+}
+
+function getActiveFlowStarts() {
+  if (isFinalOverview.value) return [...new Set(flows.map(flow => flow.start))]
+  if (currentStageIndex.value === 8) return [...balanceFlowSets[balancePhase.value]!]
+  const stage = currentStage.value
+  const reached = flows.filter(flow => flow.start >= stage.start && flow.start < stage.end && progress.value >= flow.start).map(flow => flow.start)
+  if (currentStageIndex.value === 5 && progress.value >= 65) return [56, 62]
+  return reached.length ? [reached[reached.length - 1]!] : []
 }
 
 function updateScene(delta: number) {
-  ambientTime += delta; const heat = smooth(23, 34), air = smooth(45, 68), allVisible = progress.value >= 91; if (landMat) { landMat.emissive.set(0x4b1209); landMat.emissiveIntensity = heat * .34 } oceanMat?.color.lerpColors(new THREE.Color(0x123949), new THREE.Color(0x246478), heat * .48); atmosphereLayerMaterials.forEach((material, index) => { material.uniforms.uWarm!.value = air; material.uniforms.uOpacity!.value = [.076, .06, .047][index]! * (1 + air * .16) }); if (water) { const u = (water.material as THREE.ShaderMaterial).uniforms.time; if (u) u.value += delta * .42 } if (sun) sun.rotation.y += delta * .045; const beamScope = currentGroupIndex.value === 0 || allVisible ? 1 : 0; if (sunBeamMat) sunBeamMat.opacity = smooth(.5, 9) * beamScope * (.052 + .018 * Math.sin(ambientTime * 1.7)); if (sunBeam) sunBeam.visible = beamScope > 0; clouds.forEach(c => c.group.position.x = c.baseX + Math.sin(ambientTime * .1 + c.phase) * .72)
-  flows.forEach(f => { const groupIndex = f.start < 34 ? 0 : f.start < 68 ? 1 : 2, scope = allVisible || groupIndex === currentGroupIndex.value ? 1 : 0, k = smooth(f.start, f.start + 3.5), alpha = k * scope * f.opacity * (.94 + .06 * Math.sin(ambientTime * 2.1 + f.phase)), travel = ambientTime * .3 + f.phase; f.materials.forEach(material => material.opacity = alpha); f.group.visible = alpha > .01; f.pieces.forEach((piece, index) => { const t = (piece.baseT + travel + index * .024) % 1; piece.mesh.position.copy(piece.from).lerp(piece.to, t); const pulse = Math.sin(ambientTime * 3.2 + index * .7) * .06; piece.mesh.scale.set(1 + pulse, 1 + pulse, 1) }) }); labels.forEach(l => { const groupIndex = l.start < 34 ? 0 : l.start < 68 ? 1 : 2, scope = l.start === 0 || allVisible || groupIndex === currentGroupIndex.value ? 1 : 0, k = l.start ? smooth(l.start, l.start + 3.5) : 1; l.material.opacity = k * scope; l.sprite.visible = k * scope > .01 })
+  ambientTime += delta
+  if (currentStageIndex.value === 8) balancePhase.value = Math.floor(ambientTime / 5.2) % balanceFlowSets.length
+  const heat = smooth(23, 34), air = smooth(45, 68), activeStarts = new Set(getActiveFlowStarts())
+  if (landMat) { landMat.emissive.set(0x4b1209); landMat.emissiveIntensity = heat * .34 }
+  oceanMat?.color.lerpColors(new THREE.Color(0x123949), new THREE.Color(0x246478), heat * .48)
+  atmosphereLayerMaterials.forEach((material, index) => { material.uniforms.uWarm!.value = air; material.uniforms.uOpacity!.value = [.052, .038, .028][index]! * (1 + air * .12) })
+  if (water) { const u = (water.material as THREE.ShaderMaterial).uniforms.time; if (u) u.value += delta * .28 }
+  if (sun) sun.rotation.y += delta * .025
+  const beamScope = currentStageIndex.value === 0 || isFinalOverview.value || (currentStageIndex.value === 8 && balancePhase.value === 0) ? 1 : 0
+  if (sunBeamMat) sunBeamMat.opacity = smooth(.5, 9) * beamScope * (.095 + .018 * Math.sin(ambientTime * 1.2))
+  if (sunBeam) sunBeam.visible = beamScope > 0
+  const moleculesVisible = isFinalOverview.value || currentStageIndex.value === 1 || currentStageIndex.value === 4
+  if (moleculeGroup) moleculeGroup.visible = moleculesVisible
+  if (moleculesVisible) molecules.forEach(molecule => { molecule.group.position.set(molecule.base.x + Math.sin(ambientTime * molecule.speed + molecule.phase) * .2, molecule.base.y + Math.sin(ambientTime * molecule.speed * .72 + molecule.phase * 1.4) * .13, molecule.base.z + Math.cos(ambientTime * molecule.speed * .8 + molecule.phase) * .17); molecule.group.rotation.x += delta * molecule.speed * .55; molecule.group.rotation.y += delta * molecule.speed })
+  if (scatterCore) { scatterCore.visible = activeStarts.has(17); scatterCore.scale.setScalar(1 + Math.sin(ambientTime * 3.2) * .13) }
+  absorptionEffects.forEach(effect => {
+    const active = activeStarts.has(effect.start); effect.group.visible = active
+    if (!active) return
+    const pulse = .92 + Math.sin(ambientTime * 4.2 + effect.phase * 6) * .14; effect.core.scale.set(1.65 * pulse, 1.65 * pulse, 1); effect.coreMaterial.opacity = .62 + Math.sin(ambientTime * 4.2 + effect.phase * 6) * .16
+    effect.ripples.forEach((ripple, index) => { const t = (ambientTime * .58 + effect.phase + index / effect.ripples.length) % 1, scale = .55 + (1 - t) * 2.75; ripple.scale.set(scale, scale, 1); effect.rippleMaterials[index]!.opacity = Math.sin(Math.PI * t) * .46 })
+  })
+  clouds.forEach(c => c.group.position.x = c.baseX + Math.sin(ambientTime * .07 + c.phase) * .42)
+  flows.forEach(f => {
+    const active = activeStarts.has(f.start), age = progress.value - f.start
+    const introducing = active && isPlaying.value && currentStageIndex.value < 8 && age >= 0 && age <= 5.2
+    const travel = f.style === 'scatter'
+      ? introducing
+        ? .16 + THREE.MathUtils.smoothstep(age, 0, 2.3) * .54
+        : .7 + Math.sin(ambientTime * 1.65 + f.phase * Math.PI * 2) * .07
+      : introducing ? THREE.MathUtils.smoothstep(age, 0, 5.2) : (ambientTime * .1 + f.phase) % 1
+    const edgeFade = f.style === 'scatter' ? 1 : THREE.MathUtils.smoothstep(travel, 0, .1) * (1 - THREE.MathUtils.smoothstep(travel, .88, 1))
+    const reveal = !isPlaying.value || currentStageIndex.value === 8 ? 1 : smooth(f.start, f.start + .8)
+    const alpha = active ? reveal * f.opacity * edgeFade : 0
+    sampleArrowPath(f.points, f.segmentLengths, f.totalLength, travel, flowPosition, flowDirection)
+    f.mesh.position.copy(flowPosition)
+    if (camera) {
+      flowViewNormal.copy(camera.position).sub(flowPosition).addScaledVector(flowDirection, -flowViewNormal.dot(flowDirection))
+      if (flowViewNormal.lengthSq() < .0001) flowViewNormal.set(0, 0, 1)
+      flowViewNormal.normalize(); flowRight.crossVectors(flowDirection, flowViewNormal).normalize(); flowBasis.makeBasis(flowRight, flowDirection, flowViewNormal); flowQuaternion.setFromRotationMatrix(flowBasis); f.mesh.quaternion.slerp(flowQuaternion, 1 - Math.exp(-delta * 10))
+    } else f.mesh.quaternion.setFromUnitVectors(UP, flowDirection)
+    f.mesh.scale.setScalar(1 + Math.sin(ambientTime * 2 + f.phase) * .018); f.material.opacity = alpha; f.mesh.visible = alpha > .01
+  })
+  labels.forEach(label => {
+    let visible = false
+    if (label.kind === 'flow') visible = activeStarts.has(label.start)
+    else if (label.kind === 'ground') visible = isFinalOverview.value || currentStageIndex.value === 2
+    else if (label.kind === 'atmosphere') visible = isFinalOverview.value || currentStageIndex.value === 0
+    else if (label.kind === 'cloud') visible = isFinalOverview.value || currentStageIndex.value === 1 || currentStageIndex.value === 4
+    const target = visible ? .96 : 0, easing = 1 - Math.exp(-delta * 7)
+    label.material.opacity = THREE.MathUtils.lerp(label.material.opacity, target, easing); label.sprite.visible = label.material.opacity > .02
+  })
 }
 const views = [[[38, 22, 43], [1, 8, 0]], [[31, 18, 36], [0, 9, 1]], [[27, 14, 32], [5, 2.8, 0]], [[31, 16, 36], [6, 5.5, 0]], [[27, 15, 32], [5, 6, 0]], [[29, 14, 34], [-2, 4.5, 3]], [[30, 18, 36], [5, 9, 0]], [[27, 14, 32], [5, 4.5, 1]], [[38, 22, 43], [1, 8, 0]]]
-function updateCamera(delta: number) { if (!camera || !controls || !cameraFollow.value) return; const v = views[currentStageIndex.value]!, p = new THREE.Vector3(...v[0] as [number, number, number]), t = new THREE.Vector3(...v[1] as [number, number, number]), e = 1 - Math.exp(-delta * 1.7); camera.position.lerp(p, e); controls.target.lerp(t, e) }
+function updateCamera(delta: number) { if (!camera || !controls || !cameraFollow.value) return; const v = views[currentStageIndex.value]!, p = new THREE.Vector3(...v[0] as [number, number, number]), t = new THREE.Vector3(...v[1] as [number, number, number]), activeStarts = getActiveFlowStarts(), featuredFlow = flows.find(flow => flow.start === activeStarts[activeStarts.length - 1]); if (featuredFlow && currentStageIndex.value < 8) { const age = progress.value - featuredFlow.start, push = isPlaying.value ? THREE.MathUtils.smoothstep(age, 0, 1.8) * (1 - THREE.MathUtils.smoothstep(age, 4.4, 5.8)) : .84, focus = featuredFlow.style === 'scatter' && scatterCore ? scatterCore.position : featuredFlow.focus, direction = p.clone().sub(t).normalize(), closePosition = focus.clone().addScaledVector(direction, Math.max(featuredFlow.style === 'scatter' ? 14.5 : 10.5, p.distanceTo(t) * .34)); p.lerp(closePosition, push); t.lerp(focus, push) } const e = 1 - Math.exp(-delta * .5); camera.position.lerp(p, e); controls.target.lerp(t, e) }
 function resize() { const e = threeContainerRef.value; if (!e || !camera || !renderer) return; const w = Math.max(1, e.clientWidth), h = Math.max(1, e.clientHeight); if (w === lastW && h === lastH) return; lastW = w; lastH = h; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false) }
 function animate() { raf = requestAnimationFrame(animate); const d = Math.min(clock.getDelta(), .05); updatePlayback(d); updateScene(d); updateCamera(d); controls?.update(); if (renderer && scene && camera) renderer.render(scene, camera) }
 function init() { const e = threeContainerRef.value; if (!e) return; try { scene = new THREE.Scene(); scene.background = skyTexture(); scene.fog = new THREE.FogExp2(0x173449, .0038); camera = new THREE.PerspectiveCamera(45, 1, .1, 400); camera.position.set(38, 22, 43); renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.04; renderer.shadowMap.enabled = true; renderer.domElement.className = 'three-canvas'; e.appendChild(renderer.domElement); controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.minDistance = 10; controls.maxDistance = 86; controls.maxPolarAngle = Math.PI * .48; controls.target.set(1, 8, 0); controls.addEventListener('start', () => cameraFollow.value = false); root = new THREE.Group(); scene.add(root); createSkySun(); createGround(); createAtmosphere(); createClouds(); createFlows(); resize(); observer = new ResizeObserver(() => scheduleResize()); observer.observe(e); clock.start(); animate() } catch (err) { console.error(err); sceneError.value = err instanceof Error ? err.message : '未知错误' } }
-function pause() { isPlaying.value = false; continuousMode.value = false; playbackMode.value = null } function play(mode: Exclude<Mode, null>, end = 100) { continuousMode.value = false; isPlaying.value = true; playbackMode.value = mode; stopAt.value = end; cameraFollow.value = true; stageTipVisible.value = true }
-function togglePlayback() { if (isPlaying.value || continuousMode.value) { pause(); return } if (progress.value >= 99.9) progress.value = 0; play('all') } function playCurrentStage() { const s = currentStage.value; if (isPlaying.value && playbackMode.value === 'stage') { pause(); return } if (progress.value >= s.end - .1) progress.value = s.start; play('stage', s.end) } function toggleLoop() { if (isPlaying.value && playbackMode.value === 'loop') { pause(); return } if (progress.value >= 99.9) progress.value = 0; play('loop') } function toggleContinuous() { if (continuousMode.value) { pause(); return } isPlaying.value = false; playbackMode.value = null; progress.value = 100; continuousMode.value = true; cameraFollow.value = false; stageTipVisible.value = true }
-function updatePlayback(d: number) { if (!isPlaying.value) return; progress.value += d * playbackSpeed.value * 5.2; if (playbackMode.value === 'loop' && progress.value >= 100) { progress.value = 0; return } if (progress.value >= stopAt.value) { progress.value = stopAt.value; pause() } } function handleScrub(v: number) { pause(); progress.value = v; cameraFollow.value = false; stageTipVisible.value = true } function goToStage(i: number) { const n = THREE.MathUtils.clamp(i, 0, stages.length - 1); pause(); progress.value = stages[n]!.start + .1; cameraFollow.value = true; stageTipVisible.value = true } function goToGroup(i: number) { const group = processGroups[THREE.MathUtils.clamp(i, 0, processGroups.length - 1)]!; goToStage(group.stages[0]) } function goToNextStage() { goToStage(currentStageIndex.value === stages.length - 1 ? 0 : currentStageIndex.value + 1) } function resetView() { if (!camera || !controls) return; camera.position.set(38, 22, 43); controls.target.set(1, 8, 0); controls.update(); cameraFollow.value = true }
-function dispose() { disposed = true; cancelAnimationFrame(raf); if (resizeTimer) clearTimeout(resizeTimer); observer?.disconnect(); controls?.dispose(); geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose()); renderer?.dispose(); renderer?.domElement.remove(); scene = camera = renderer = controls = root = water = sun = null }
+function pause() { isPlaying.value = false; continuousMode.value = false; playbackMode.value = null } function play(mode: Exclude<Mode, null>, end = 100) { continuousMode.value = false; isPlaying.value = true; playbackMode.value = mode; stopAt.value = end; cameraFollow.value = true }
+function togglePlayback() { if (isPlaying.value || continuousMode.value) { pause(); return } if (progress.value >= 99.9) progress.value = 0; play('all') } function playCurrentStage() { const s = currentStage.value; if (isPlaying.value && playbackMode.value === 'stage') { pause(); return } if (progress.value >= s.end - .1) progress.value = s.start; play('stage', s.end) } function toggleLoop() { if (isPlaying.value && playbackMode.value === 'loop') { pause(); return } if (progress.value >= 99.9) progress.value = 0; play('loop') } function toggleContinuous() { if (continuousMode.value) { pause(); return } isPlaying.value = false; playbackMode.value = null; progress.value = 100; continuousMode.value = true; cameraFollow.value = true }
+function updatePlayback(d: number) { if (!isPlaying.value) return; progress.value += d * playbackSpeed.value * 1.2; if (playbackMode.value === 'loop' && progress.value >= 100) { progress.value = 0; return } if (progress.value >= stopAt.value) { progress.value = stopAt.value; pause() } } function handleScrub(v: number) { pause(); progress.value = v; cameraFollow.value = false } function goToStage(i: number) { const n = THREE.MathUtils.clamp(i, 0, stages.length - 1); pause(); progress.value = stages[n]!.start + .1; cameraFollow.value = true } function goToGroup(i: number) { const group = processGroups[THREE.MathUtils.clamp(i, 0, processGroups.length - 1)]!; goToStage(group.stages[0]) } function goToNextStage() { goToStage(currentStageIndex.value === stages.length - 1 ? 0 : currentStageIndex.value + 1) } function resetView() { if (!camera || !controls) return; camera.position.set(38, 22, 43); controls.target.set(1, 8, 0); controls.update(); cameraFollow.value = true }
+function dispose() { disposed = true; cancelAnimationFrame(raf); if (resizeTimer) clearTimeout(resizeTimer); observer?.disconnect(); controls?.dispose(); geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose()); molecules.length = 0; absorptionEffects.length = 0; renderer?.dispose(); renderer?.domElement.remove(); scene = camera = renderer = controls = root = water = sun = moleculeGroup = scatterCore = null }
 onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 </script>
 
 <style scoped>
+.atmospheric-heating-container .toolbar-actions {
+  max-width: none;
+}
+
+.atmospheric-heating-container .toolbar-actions .toolbar-btn {
+  min-width: 88px;
+}
+
+.scene-mode-switch {
+  display: flex;
+  overflow: hidden;
+  padding: 3px;
+  background: rgba(5, 22, 36, .72);
+  border: 1px solid rgba(112, 210, 234, .22);
+  border-radius: 9px
+}
+
+.scene-mode-switch button {
+  min-width: 74px;
+  padding: 6px 11px;
+  color: rgba(210, 231, 240, .64);
+  font-size: 12px;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  transition: .2s ease
+}
+
+.scene-mode-switch button.active {
+  color: #fff;
+  background: linear-gradient(135deg, #2fc5d4, #287cf5);
+  box-shadow: 0 4px 14px rgba(40, 151, 245, .26)
+}
+
 .atmospheric-heating-container .center-stage {
   min-width: 0;
   overflow: hidden
@@ -347,7 +520,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
   height: 240px;
   opacity: var(--corner-opacity);
   filter: blur(16px);
-  animation: pulse 1.35s ease-in-out infinite alternate
+  animation: pulse 4.5s ease-in-out infinite alternate
 }
 
 .tl {
@@ -387,140 +560,66 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 .process-badge {
   position: absolute;
   top: 20px;
-  left: 50%;
+  left: calc(50% - 80px);
   z-index: 18;
-  width: min(590px, calc(100% - 800px));
-  min-width: 350px;
-  padding: 11px 16px;
+  width: min(430px, calc(100% - 520px));
+  min-width: 320px;
+  padding: 7px 12px;
   color: #f2faff;
   text-align: center;
   pointer-events: none;
-  background: rgba(5, 20, 34, .9);
-  border: 1px solid rgba(255, 180, 96, .3);
-  border-radius: 14px;
-  backdrop-filter: blur(14px);
+  background: rgba(5, 20, 34, .82);
+  border: 1px solid rgba(255, 180, 96, .24);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
   transform: translateX(-50%)
-}
-
-.process-badge.expanded {
-  width: min(680px, calc(100% - 740px))
 }
 
 .process-summary {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 13px
+  gap: 10px
 }
 
 .process-summary span {
   color: #ffc06e;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800
 }
 
 .process-summary strong {
-  font-size: 17px
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap
 }
 
 .process-summary small {
   color: #cde2ec;
-  font-size: 12px
+  font-size: 11px
 }
 
-.process-reason {
-  margin-top: 10px;
-  padding-top: 10px;
-  text-align: left;
-  pointer-events: auto;
-  border-top: 1px solid #755433
+.process-brief {
+  overflow: hidden;
+  margin: 5px 0 0;
+  color: #c8dce5;
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap
 }
 
-.process-reason div {
-  display: flex;
-  justify-content: space-between
-}
-
-.process-reason div span {
-  color: #ffc179;
-  font-size: 14px;
-  font-weight: 800
-}
-
-.process-reason button {
-  width: 25px;
-  height: 25px;
-  color: #fff;
-  font-size: 20px;
-  background: #ffffff12;
-  border: 1px solid #ffffff18;
-  border-radius: 50%
-}
-
-.process-reason p {
-  margin: 7px 0 5px;
-  font-size: 15px;
-  line-height: 1.68
-}
-
-.process-reason small {
-  color: #78dfef;
-  font-size: 13px
-}
-
-.stage-tip-enter-active,
-.stage-tip-leave-active,
 .stage-copy-enter-active,
 .stage-copy-leave-active {
   transition: .3s
 }
 
-.stage-tip-enter-from,
 .stage-copy-enter-from,
-.stage-tip-leave-to,
 .stage-copy-leave-to {
   opacity: 0;
   filter: blur(3px);
   transform: translateY(8px)
-}
-
-.scene-legend {
-  position: absolute;
-  bottom: 118px;
-  left: 50%;
-  z-index: 8;
-  display: grid;
-  width: 300px;
-  gap: 7px;
-  padding: 11px 13px;
-  color: #dcebf2;
-  font-size: 12px;
-  background: #05121ee8;
-  border: 1px solid #69d9ee38;
-  border-radius: 11px;
-  transform: translateX(-50%)
-}
-
-.scene-legend>strong {
-  color: #7ee4f3;
-  font-size: 11px
-}
-
-.scene-legend div {
-  display: flex;
-  align-items: center;
-  gap: 10px
-}
-
-.scene-legend b {
-  color: #fff;
-  font-size: 13px
-}
-
-.scene-legend small {
-  color: #b9d0da;
-  font-size: 11px;
-  line-height: 1.55
 }
 
 .arrow-symbol {
@@ -573,8 +672,72 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 .lead {
   margin: 0;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.72
+}
+
+.current-insight {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #ffac4514;
+  border: 1px solid #ffb75b35;
+  border-radius: 11px
+}
+
+.current-insight-title {
+  display: grid;
+  gap: 3px
+}
+
+.current-insight-title span {
+  color: #ffc071;
+  font-size: 12px;
+  font-weight: 800
+}
+
+.current-insight-title strong {
+  color: #fff;
+  font-size: 16px
+}
+
+.current-insight>p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65
+}
+
+.current-insight>small {
+  color: #79dce9;
+  font-size: 12px;
+  line-height: 1.55
+}
+
+.current-arrow-guide {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  background: #061722b8;
+  border: 1px solid #ffffff14;
+  border-radius: 9px
+}
+
+.current-arrow-guide>span {
+  display: grid;
+  gap: 3px;
+  min-width: 0
+}
+
+.current-arrow-guide b {
+  color: #fff;
+  font-size: 13px
+}
+
+.current-arrow-guide small {
+  color: #b9d0da;
+  font-size: 12px;
+  line-height: 1.5
 }
 
 .budget {
@@ -587,12 +750,12 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 .budget>div:first-child {
   display: flex;
   justify-content: space-between;
-  font-size: 12px
+  font-size: 14px
 }
 
 .budget strong {
   color: #ffd27d;
-  font-size: 17px
+  font-size: 20px
 }
 
 .budget-bar {
@@ -619,7 +782,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 .budget small,
 .note {
   color: #b8d0da;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.55
 }
 
@@ -629,7 +792,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
   justify-content: center;
   gap: 5px;
   flex-wrap: wrap;
-  font-size: 10px
+  font-size: 12px
 }
 
 .cause-chain span {
@@ -660,7 +823,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 .metrics dt,
 .metrics dd {
-  font-size: 11px
+  font-size: 13px
 }
 
 .metrics dd {
@@ -679,12 +842,12 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 .arrow-key>strong {
   color: #7ee4f3;
-  font-size: 12px
+  font-size: 14px
 }
 
 .arrow-key>small {
   color: #c2d8e0;
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.35
 }
 
@@ -724,7 +887,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 .arrow-key-grid b {
   overflow: hidden;
   color: #f3f8fa;
-  font-size: 9px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap
 }
@@ -732,7 +895,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 .arrow-key-grid small {
   overflow: hidden;
   color: #9fb8c2;
-  font-size: 8px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap
 }
@@ -748,7 +911,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 .factors>strong {
   color: #7eddeb;
-  font-size: 11px
+  font-size: 13px
 }
 
 .factors div {
@@ -759,7 +922,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 .factors span {
   padding: 3px 6px;
-  font-size: 9px;
+  font-size: 12px;
   background: #ffffff0b;
   border-radius: 999px
 }
@@ -772,7 +935,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 .controller {
   display: grid;
-  gap: 12px
+  gap: 9px
 }
 
 .process-groups {
@@ -784,7 +947,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 .process-groups button {
   display: grid;
   grid-template-columns: 22px 1fr;
-  gap: 2px 6px;
+  gap: 0 6px;
   align-items: center;
   min-width: 0;
   padding: 8px;
@@ -799,7 +962,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
   display: grid;
   width: 22px;
   height: 22px;
-  grid-row: span 2;
+  grid-row: auto;
   place-items: center;
   background: rgba(255, 255, 255, .07);
   border-radius: 50%
@@ -807,17 +970,13 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 .process-groups strong {
   overflow: hidden;
-  font-size: 11px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap
 }
 
 .process-groups small {
-  overflow: hidden;
-  color: rgba(180, 207, 220, .55);
-  font-size: 8px;
-  text-overflow: ellipsis;
-  white-space: nowrap
+  display: none
 }
 
 .process-groups .active {
@@ -855,14 +1014,14 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
   height: 20px;
   flex: 0 0 20px;
   place-items: center;
-  font-size: 9px;
+  font-size: 11px;
   background: #ffffff0f;
   border-radius: 50%
 }
 
 .stage-tabs strong {
   overflow: hidden;
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap
 }
@@ -878,7 +1037,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 }
 
 .stage-detail {
-  padding: 11px;
+  padding: 9px 10px;
   background: #ffa64612;
   border: 1px solid #ffb45c2b;
   border-radius: 11px
@@ -891,22 +1050,22 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 .stage-detail div span {
   color: #ffc070;
-  font-size: 10px
+  font-size: 12px
 }
 
 .stage-detail div strong {
-  font-size: 14px
+  font-size: 16px
 }
 
 .stage-detail p {
-  margin: 7px 0;
-  font-size: 12px;
-  line-height: 1.62
+  margin: 5px 0;
+  font-size: 13px;
+  line-height: 1.5
 }
 
 .stage-detail small {
   color: #70dae8;
-  font-size: 11px
+  font-size: 12px
 }
 
 .stage-detail .stage-arrow-hint {
@@ -928,24 +1087,25 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 }
 
 .stage-arrow-hint b {
-  font-size: 11px
+  font-size: 13px
 }
 
 .stage-arrow-hint small {
   color: #b8d1da;
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.45
 }
 
 .stage-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 7px
+  gap: 6px
 }
 
 .stage-actions .option-btn {
   min-width: 0;
-  font-size: 11px
+  padding-inline: 7px;
+  font-size: 12px
 }
 
 .stage-actions .continuous {
@@ -955,7 +1115,7 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 .stage-progress {
   padding: 3px 8px;
   color: #ffd08c;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   background: #ffb04a1a;
   border: 1px solid #ffbb5a3b;
@@ -969,10 +1129,9 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 @media(max-width:1500px) {
 
-  .process-badge,
-  .process-badge.expanded {
-    left: calc(50% - 40px);
-    width: min(500px, calc(100% - 820px))
+  .process-badge {
+    left: calc(50% - 90px);
+    width: min(410px, calc(100% - 500px))
   }
 
   .process-summary small {
@@ -982,15 +1141,10 @@ onMounted(async () => { await nextTick(); init() }); onBeforeUnmount(dispose)
 
 @media(max-width:1080px) {
 
-  .process-badge,
-  .process-badge.expanded {
+  .process-badge {
     left: 50%;
     width: min(620px, calc(100% - 36px));
     min-width: 0
-  }
-
-  .scene-legend {
-    display: none
   }
 }
 </style>
