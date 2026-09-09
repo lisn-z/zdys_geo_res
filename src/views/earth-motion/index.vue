@@ -1301,8 +1301,13 @@ function createEarth() {
 
         float lat = asin(clamp(normalize(vLocalNormal).y, -1.0, 1.0));
         float latMask = latitudeLineMask(lat);
-        color = mix(color, dayArcColor, latMask * dayMask * showDayArc * 0.78);
-        color = mix(color, nightArcColor, latMask * (1.0 - dayMask) * showNightArc * 0.76);
+        // 昼夜弧以晨昏线的 lightAmount = 0 为界，不能复用地表光照的宽渐变。
+        // 抗锯齿仅向各自半球内部过渡，避免弧线越过晨昏线。
+        float arcEdgeWidth = max(fwidth(lightAmount), 0.0001);
+        float dayArcMask = smoothstep(0.0, arcEdgeWidth, lightAmount);
+        float nightArcMask = smoothstep(0.0, arcEdgeWidth, -lightAmount);
+        color = mix(color, dayArcColor, latMask * dayArcMask * showDayArc * 0.78);
+        color = mix(color, nightArcColor, latMask * nightArcMask * showNightArc * 0.76);
 
         float terminatorMask = (1.0 - smoothstep(0.0, 0.035, abs(lightAmount))) * showTerminator;
         float dawnSignal = dot(cross(normalize(axisDirection), nWorld), sWorld);

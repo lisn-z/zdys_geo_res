@@ -58,6 +58,27 @@
               </div>
             </section>
 
+            <section class="geo-card control-section control-card control-card-solar-terms">
+              <div class="ctrl-title">🌿 24 节气</div>
+              <div class="solar-term-overview">
+                <div class="solar-term-current">
+                  <span>当前节气</span>
+                  <strong>{{ currentSolarTerm.name }}</strong>
+                </div>
+                <div class="solar-term-meta">
+                  <span>约 {{ currentSolarTerm.date }}</span>
+                  <b>太阳直射 {{ formatSolarDeclination(solarDeclinationDeg) }}</b>
+                </div>
+              </div>
+              <div class="solar-term-grid" aria-label="切换二十四节气">
+                <button v-for="term in solarTerms" :key="term.name" type="button" class="theme-btn solar-term-btn"
+                  :class="{ active: currentSolarTerm.name === term.name }" :title="`${term.name} · 约${term.date}`"
+                  @click="selectSolarTerm(term)">
+                  {{ term.name }}
+                </button>
+              </div>
+            </section>
+
             <section class="geo-card control-section control-card control-card-layers">
               <div class="ctrl-title">🎨 可视图层</div>
               <div class="toggle-list">
@@ -106,14 +127,18 @@
             </div>
 
             <div class="grid-labels-overlay">
-              <div v-for="(g, i) in gridLabelScreenData" :key="i" v-show="g.visible" class="grid-label"
-                :class="{ special: g.special }" :style="{ left: g.x + 'px', top: g.y + 'px' }">
+              <div v-for="(g, i) in gridLabelScreenData" :key="i" :ref="el => registerOverlayLabel('grid-' + i, el)"
+                v-show="g.visible" class="grid-label"
+                :class="[{ special: g.special }, g.kind + '-label', g.tone ? g.tone + '-label' : null]"
+                :style="{ left: g.x + 'px', top: g.y + 'px' }">
                 {{ g.text }}
               </div>
             </div>
 
             <div class="grid-labels-overlay">
-              <div v-for="(t, i) in tzLabelScreenData" :key="'tz' + i" v-show="t.visible" class="grid-label tz-label"
+              <div v-for="(t, i) in tzLabelScreenData" :key="'tz' + i" :ref="el => registerOverlayLabel('tz-' + i, el)"
+                v-show="t.visible" class="grid-label tz-label"
+                title="教学模拟：理想时区中央经线的地方时；城市法定区时（含夏令时）请查看城市信息。"
                 :class="{ 'tz-label-with-time': layers.tzTimes }" :style="{ left: t.x + 'px', top: t.y + 'px' }">
                 <i class="tz-label-dot" aria-hidden="true"></i>
                 <span class="tz-label-copy">
@@ -210,13 +235,13 @@
               style="background:#ef4444"></span>国际日界线（现代制图近似）</div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#2ec4b6"></span>时区线 / 时区范围
           </div>
-          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#7c3aed"></span>夜弧</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" :style="{ background: NIGHT_ARC_COLOR }"></span>夜弧</div>
         </div>
       </aside>
 
       <!-- 卡片一：A/B 同时刻对比 -->
       <FloatingFeatureCard v-show="panelsVisible" class="ab-comparison-floating-card" title="⏱ A / B 同时刻对比"
-        subtitle="两地地方时与昼夜状态" variant="data" :initial-top="152" :initial-right="18" :bottom-inset="112"
+        subtitle="模拟地方时与昼夜状态" variant="data" :initial-top="152" :initial-right="18" :bottom-inset="112"
         :initial-collapsed="true" :min-width="300" :min-height="180" v-model:collapsed="abCardCollapsed">
         <div class="right-panel floating-card-body">
           <div class="geo-card ab-compare-panel right-info-card">
@@ -228,20 +253,21 @@
                   <div class="ab-lon">{{ formatLon(pointA.lon) }}</div>
                 </div>
                 <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointA.lon)) }}</div>
+                <div class="simulation-date">{{ getPointLocalDate(pointA.lon) }}</div>
                 <div class="ab-status" :class="getPointSunStatus(pointA.lon).kind">
                   <strong>{{ getPointSunStatus(pointA.lon).icon }} {{ getPointSunStatus(pointA.lon).label }}</strong>
                 </div>
-                <div class="ab-sun-events">
+                <div class="ab-sun-events" :title="sunEventModelDescription">
                   <span><i class="sunrise"></i><small>日出</small><b>{{ formatSunEventTime(pointSunCycle.sunrise,
-                      pointSunCycle.condition) }}</b></span>
+                    pointSunCycle.condition) }}</b></span>
                   <span><i class="sunset"></i><small>日落</small><b>{{ formatSunEventTime(pointSunCycle.sunset,
-                      pointSunCycle.condition) }}</b></span>
+                    pointSunCycle.condition) }}</b></span>
                 </div>
               </div>
 
-              <div class="ab-divider">
+              <div class="ab-divider" title="按东经为正、西经为负计算地方时差，并结合两侧日期读取；不是地球上最短连接弧对应的时差。">
                 <div class="ab-diff">{{ formatTimeDiff(calcLonDiff(pointA.lon, pointB.lon) / 15) }}</div>
-                <div class="ab-arrow">{{ pointA.lon > pointB.lon ? 'A早' : 'B早' }}</div>
+                <div class="ab-arrow">{{ pointA.lon === pointB.lon ? '同时间' : pointA.lon > pointB.lon ? 'A早' : 'B早' }}</div>
               </div>
 
               <div class="ab-card ab-b">
@@ -251,17 +277,19 @@
                   <div class="ab-lon">{{ formatLon(pointB.lon) }}</div>
                 </div>
                 <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointB.lon)) }}</div>
+                <div class="simulation-date">{{ getPointLocalDate(pointB.lon) }}</div>
                 <div class="ab-status" :class="getPointSunStatus(pointB.lon).kind">
                   <strong>{{ getPointSunStatus(pointB.lon).icon }} {{ getPointSunStatus(pointB.lon).label }}</strong>
                 </div>
-                <div class="ab-sun-events">
+                <div class="ab-sun-events" :title="sunEventModelDescription">
                   <span><i class="sunrise"></i><small>日出</small><b>{{ formatSunEventTime(pointSunCycle.sunrise,
-                      pointSunCycle.condition) }}</b></span>
+                    pointSunCycle.condition) }}</b></span>
                   <span><i class="sunset"></i><small>日落</small><b>{{ formatSunEventTime(pointSunCycle.sunset,
-                      pointSunCycle.condition) }}</b></span>
+                    pointSunCycle.condition) }}</b></span>
                 </div>
               </div>
             </div>
+            <p class="simulation-time-note" :title="simulationModelDescription">教学模拟 · 日出日落为几何地方时</p>
           </div>
         </div>
       </FloatingFeatureCard>
@@ -276,8 +304,9 @@
             <div class="preview-body">
               <div class="city-preview-summary">
                 <div class="city-preview-time">
-                  <span>当前地方时</span>
+                  <span :title="simulationModelDescription">模拟地方时</span>
                   <strong>{{ formatLocalTime(getCityLocalHour(selectedCity)) }}</strong>
+                  <small class="simulation-date">{{ getPointLocalDate(selectedCity.lon) }}</small>
                 </div>
                 <div class="city-preview-day-state"
                   :class="{ day: isCityDaytime(selectedCity), night: !isCityDaytime(selectedCity) }">
@@ -290,12 +319,16 @@
               </div>
 
               <div class="city-preview-details">
+                <div class="city-preview-detail city-preview-zone-clock">
+                  <span title="同一模拟日期时刻，按城市法定时区规则换算，包含夏令时；并非现实此刻。">模拟区时</span>
+                  <strong>{{ selectedCityZoneClock?.time }}<small>{{ selectedCityZoneClock?.date }}</small></strong>
+                </div>
                 <div class="city-preview-detail">
                   <span>国家 / 地区</span>
                   <strong>{{ selectedCity.country }}</strong>
                 </div>
                 <div class="city-preview-detail">
-                  <span>所属时区</span>
+                  <span>该模拟日期的时区</span>
                   <strong>{{ getCityTimezoneInfo(selectedCity).label }}</strong>
                 </div>
                 <div class="city-preview-detail city-preview-coordinate">
@@ -307,10 +340,11 @@
                   </strong>
                 </div>
                 <div class="city-preview-detail city-preview-beijing-diff">
-                  <span>与北京时间</span>
+                  <span>区时与北京时间差</span>
                   <strong>{{ getCityTimezoneInfo(selectedCity).beijingDiff }}</strong>
                 </div>
               </div>
+              <p class="simulation-time-note" :title="simulationModelDescription">地方时按经度；区时按城市时区规则</p>
             </div>
           </div>
         </div>
@@ -491,35 +525,85 @@ import {
   useGeoPanelLayout,
 } from '@/hooks/useGeoPanelLayout'
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+import {
+  formatBeijingDifference,
+  formatClockHour,
+  formatHourDifference,
+  formatRelativeDay,
+  formatUtcOffset,
+  getSimulationUtcMs,
+  getSolarClock,
+  getSolarTermDeclination,
+  getZonedClock,
+  normalizeHours,
+  splitDayHour,
+} from './time-model'
+import { findLabelPlacement, getGridLabelFallbackSize, getLabelBounds, type LabelSize } from './label-layout'
 
 // ===================== 常量 =====================
 const EARTH_RADIUS = 2
 const TILT = 23.5 * Math.PI / 180
 const POINT_LATITUDE = 20
+const NIGHT_ARC_COLOR = '#8d86ff' // 与 earth-motion 保持一致。
 
 const TEXTURE_BASE = '/geo-resources-folder/images'
 const RAW_TEXTURES = {
-  earth: `${TEXTURE_BASE}/earth.jpg`,
+  // 与 earth-motion 使用同一张高细节地表贴图。
+  earth: `${TEXTURE_BASE}/Material.002_diffuse.jpg`,
   night: `${TEXTURE_BASE}/emissive.jpg`,
 }
 const GALAXY_SKYBOX_URL = `${TEXTURE_BASE}/milky-way-6k.jpg`
 
+type SolarTerm = {
+  name: string
+  date: string
+  day: number
+}
+
+// 日期采用教学中常用的平年近似值；赤纬由节气太阳黄经计算，统一使用地轴倾角。
+const solarTerms: SolarTerm[] = [
+  { name: '立春', date: '2月4日', day: 35 },
+  { name: '雨水', date: '2月19日', day: 50 },
+  { name: '惊蛰', date: '3月5日', day: 64 },
+  { name: '春分', date: '3月21日', day: 80 },
+  { name: '清明', date: '4月5日', day: 95 },
+  { name: '谷雨', date: '4月20日', day: 110 },
+  { name: '立夏', date: '5月5日', day: 125 },
+  { name: '小满', date: '5月21日', day: 141 },
+  { name: '芒种', date: '6月6日', day: 157 },
+  { name: '夏至', date: '6月21日', day: 172 },
+  { name: '小暑', date: '7月7日', day: 188 },
+  { name: '大暑', date: '7月23日', day: 204 },
+  { name: '立秋', date: '8月7日', day: 219 },
+  { name: '处暑', date: '8月23日', day: 235 },
+  { name: '白露', date: '9月7日', day: 250 },
+  { name: '秋分', date: '9月23日', day: 266 },
+  { name: '寒露', date: '10月8日', day: 281 },
+  { name: '霜降', date: '10月23日', day: 296 },
+  { name: '立冬', date: '11月7日', day: 311 },
+  { name: '小雪', date: '11月22日', day: 326 },
+  { name: '大雪', date: '12月7日', day: 341 },
+  { name: '冬至', date: '12月22日', day: 356 },
+  { name: '小寒', date: '1月5日', day: 5 },
+  { name: '大寒', date: '1月20日', day: 20 },
+]
+
 // 世界主要城市
 const cityData = [
-  { name: '北京', lat: 39.9, lon: 116.4, country: '中国', tz: 'UTC+8' },
-  { name: '上海', lat: 31.2, lon: 121.5, country: '中国', tz: 'UTC+8' },
-  { name: '东京', lat: 35.7, lon: 139.7, country: '日本', tz: 'UTC+9' },
-  { name: '纽约', lat: 40.7, lon: -74.0, country: '美国', tz: 'UTC-5' },
-  { name: '伦敦', lat: 51.5, lon: -0.1, country: '英国', tz: 'UTC+0' },
-  { name: '巴黎', lat: 48.9, lon: 2.3, country: '法国', tz: 'UTC+1' },
-  { name: '莫斯科', lat: 55.8, lon: 37.6, country: '俄罗斯', tz: 'UTC+3' },
-  { name: '悉尼', lat: -33.9, lon: 151.2, country: '澳大利亚', tz: 'UTC+10' },
-  { name: '开罗', lat: 30.0, lon: 31.2, country: '埃及', tz: 'UTC+2' },
-  { name: '新德里', lat: 28.6, lon: 77.2, country: '印度', tz: 'UTC+5:30' },
-  { name: '洛杉矶', lat: 34.1, lon: -118.2, country: '美国', tz: 'UTC-8' },
-  { name: '里约热内卢', lat: -22.9, lon: -43.2, country: '巴西', tz: 'UTC-3' },
-  { name: '新加坡', lat: 1.3, lon: 103.8, country: '新加坡', tz: 'UTC+8' },
-  { name: '迪拜', lat: 25.3, lon: 55.3, country: '阿联酋', tz: 'UTC+4' },
+  { name: '北京', lat: 39.9, lon: 116.4, country: '中国', timeZone: 'Asia/Shanghai' },
+  { name: '上海', lat: 31.2, lon: 121.5, country: '中国', timeZone: 'Asia/Shanghai' },
+  { name: '东京', lat: 35.7, lon: 139.7, country: '日本', timeZone: 'Asia/Tokyo' },
+  { name: '纽约', lat: 40.7, lon: -74.0, country: '美国', timeZone: 'America/New_York' },
+  { name: '伦敦', lat: 51.5, lon: -0.1, country: '英国', timeZone: 'Europe/London' },
+  { name: '巴黎', lat: 48.9, lon: 2.3, country: '法国', timeZone: 'Europe/Paris' },
+  { name: '莫斯科', lat: 55.8, lon: 37.6, country: '俄罗斯', timeZone: 'Europe/Moscow' },
+  { name: '悉尼', lat: -33.9, lon: 151.2, country: '澳大利亚', timeZone: 'Australia/Sydney' },
+  { name: '开罗', lat: 30.0, lon: 31.2, country: '埃及', timeZone: 'Africa/Cairo' },
+  { name: '新德里', lat: 28.6, lon: 77.2, country: '印度', timeZone: 'Asia/Kolkata' },
+  { name: '洛杉矶', lat: 34.1, lon: -118.2, country: '美国', timeZone: 'America/Los_Angeles' },
+  { name: '里约热内卢', lat: -22.9, lon: -43.2, country: '巴西', timeZone: 'America/Sao_Paulo' },
+  { name: '新加坡', lat: 1.3, lon: 103.8, country: '新加坡', timeZone: 'Asia/Singapore' },
+  { name: '迪拜', lat: 25.3, lon: 55.3, country: '阿联酋', timeZone: 'Asia/Dubai' },
 ]
 
 // 知识点
@@ -548,8 +632,16 @@ const layerDefs = [
 ] as const
 
 // 经纬线标注定义 — 每15°经纬线均标注
-const gridLabelDefs: { text: string; lat: number; lon: number; special?: boolean }[] = (() => {
-  const labels: { text: string; lat: number; lon: number; special?: boolean }[] = []
+type GridLabelDefinition = {
+  text: string
+  lat: number
+  lon: number
+  kind: 'latitude' | 'longitude'
+  special?: boolean
+  tone?: 'equator' | 'tropic' | 'polar'
+}
+const gridLabelDefs: GridLabelDefinition[] = (() => {
+  const labels: GridLabelDefinition[] = []
   // 经线标注（每15°）
   for (let lon = -180; lon <= 180; lon += 15) {
     const abs = Math.abs(lon)
@@ -557,7 +649,7 @@ const gridLabelDefs: { text: string; lat: number; lon: number; special?: boolean
     const text = lon === 0 ? '0°' : lon === 180 || lon === -180 ? '180°' : `${abs}°${dir}`
     // 交替纬度位置减少重叠
     const lat = ((lon / 15) % 2 === 0) ? 12 : -12
-    labels.push({ text, lat, lon })
+    labels.push({ text, lat, lon, kind: 'longitude' })
   }
   // 纬线标注（每15°，跳过赤道单独标注）
   for (let lat = -75; lat <= 75; lat += 15) {
@@ -566,14 +658,14 @@ const gridLabelDefs: { text: string; lat: number; lon: number; special?: boolean
     const dir = lat > 0 ? 'N' : 'S'
     // 交替经度位置减少重叠
     const lon = ((lat / 15) % 2 === 0) ? 25 : -25
-    labels.push({ text: `${abs}°${dir}`, lat, lon })
+    labels.push({ text: `${abs}°${dir}`, lat, lon, kind: 'latitude' })
   }
   // 特殊纬线
-  labels.push({ text: '赤道', lat: 0, lon: 40, special: true })
-  labels.push({ text: '北回归线', lat: 23.5, lon: 90, special: true })
-  labels.push({ text: '南回归线', lat: -23.5, lon: 90, special: true })
-  labels.push({ text: '北极圈', lat: 66.5, lon: 30, special: true })
-  labels.push({ text: '南极圈', lat: -66.5, lon: 30, special: true })
+  labels.push({ text: '赤道 0°', lat: 0, lon: 40, special: true, kind: 'latitude', tone: 'equator' })
+  labels.push({ text: '北回归线 23.5°N', lat: 23.5, lon: 90, special: true, kind: 'latitude', tone: 'tropic' })
+  labels.push({ text: '南回归线 23.5°S', lat: -23.5, lon: 90, special: true, kind: 'latitude', tone: 'tropic' })
+  labels.push({ text: '北极圈 66.5°N', lat: 66.5, lon: 30, special: true, kind: 'latitude', tone: 'polar' })
+  labels.push({ text: '南极圈 66.5°S', lat: -66.5, lon: 30, special: true, kind: 'latitude', tone: 'polar' })
   return labels
 })()
 
@@ -591,6 +683,29 @@ const abCardCollapsed = ref(true)
 const cityPreviewCardCollapsed = ref(true)
 const trainingCardCollapsed = ref(true)
 const cityShortcutCardCollapsed = ref(true)
+
+const selectedSolarTermName = ref('冬至')
+const currentSolarTerm = computed(() => (
+  solarTerms.find(term => term.name === selectedSolarTermName.value) ?? solarTerms[21]!
+))
+
+function getSolarDeclination(term: SolarTerm): number {
+  return getSolarTermDeclination(solarTerms.indexOf(term), THREE.MathUtils.radToDeg(TILT))
+}
+
+const solarDeclinationDeg = computed(() => getSolarDeclination(currentSolarTerm.value))
+
+function formatSolarDeclination(declination: number): string {
+  if (Math.abs(declination) < 0.05) return '赤道（0°）'
+  return `${Math.abs(declination).toFixed(1)}°${declination > 0 ? 'N' : 'S'}`
+}
+
+function selectSolarTerm(term: SolarTerm) {
+  if (selectedSolarTermName.value === term.name) return
+  // 切换节气时保留地球朝向与钟面相位，但不要把上个节气已演示的天数累加到新日期。
+  simulationDayOffset.value = Math.floor(rotationAngle / (2 * Math.PI) + 0.5)
+  selectedSolarTermName.value = term.name
+}
 
 let sceneResizeObserver:
   | ResizeObserver
@@ -751,8 +866,8 @@ const isPlaying = ref(true)
 const rotSpeed = ref(2)
 const brightness = ref(1.2)
 const nightMapPower = ref(1.8)
-const nightLightPower = ref(1.65)
-const darkSideSurfacePower = ref(0.42)
+const nightLightPower = ref(0.3)
+const darkSideSurfacePower = ref(0.05)
 const currentView = ref('equator')
 const selectedCity = ref<typeof cityData[0] | null>(null)
 const citySearch = ref('')
@@ -769,7 +884,9 @@ const filteredCities = computed(() => {
   })
 })
 const cityScreenData = ref(cityData.map(c => ({ name: c.name, x: 0, y: 0, visible: false, daytime: true })))
-const gridLabelScreenData = ref(gridLabelDefs.map(l => ({ text: l.text, x: 0, y: 0, visible: false, special: !!l.special })))
+const gridLabelScreenData = ref(gridLabelDefs.map(l => ({
+  text: l.text, x: 0, y: 0, visible: false, special: !!l.special, kind: l.kind, tone: l.tone,
+})))
 
 // 时区名称标注
 const tzLabelDefs = (() => {
@@ -793,6 +910,31 @@ const tzLabelScreenData = ref(tzLabelDefs.map(l => ({
   visible: false,
 })))
 
+const overlayLabelSizes = new Map<string, LabelSize>()
+const overlayLabelElements = new Map<string, HTMLElement>()
+const overlayLabelKeys = new WeakMap<Element, string>()
+const gridLabelAnchorShifts = new Map<number, number>()
+let overlayLabelResizeObserver: ResizeObserver | null = null
+
+function registerOverlayLabel(key: string, element: unknown) {
+  if (!(element instanceof HTMLElement) || overlayLabelElements.get(key) === element) return
+  const previous = overlayLabelElements.get(key)
+  if (previous) overlayLabelResizeObserver?.unobserve(previous)
+  overlayLabelElements.set(key, element)
+  overlayLabelKeys.set(element, key)
+  overlayLabelResizeObserver ??= new ResizeObserver(entries => {
+    for (const entry of entries) {
+      const labelKey = overlayLabelKeys.get(entry.target)
+      const target = entry.target as HTMLElement
+      // Cache border-box dimensions only when visible; v-show produces zero-sized observations.
+      const width = entry.borderBoxSize[0]?.inlineSize ?? target.offsetWidth
+      const height = entry.borderBoxSize[0]?.blockSize ?? target.offsetHeight
+      if (labelKey && width > 0 && height > 0) overlayLabelSizes.set(labelKey, { width, height })
+    }
+  })
+  overlayLabelResizeObserver.observe(element)
+}
+
 const layers = reactive({
   graticule: true,
   gridLabels: true,
@@ -809,6 +951,8 @@ const layers = reactive({
   stars: true,
 })
 
+const atmosphereDayColorUniform = { value: new THREE.Color('#4db2ff') }
+const atmosphereTwilightColorUniform = { value: new THREE.Color('#bc490b') }
 
 const earthUniforms = {
   dayMap: {
@@ -820,11 +964,17 @@ const earthUniforms = {
   sunDirection: {
     value: new THREE.Vector3(1, 0, 0),
   },
+  axisDirection: {
+    value: new THREE.Vector3(0, 1, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), TILT),
+  },
   showTerminator: {
     value: 1,
   },
   showNightArc: {
     value: 1,
+  },
+  nightArcColor: {
+    value: new THREE.Color(NIGHT_ARC_COLOR),
   },
   sunLightPower: {
     value: 1.35,
@@ -838,6 +988,16 @@ const earthUniforms = {
   darkSideSurfacePower: {
     value: 0.42,
   },
+  atmosphereDayColor: atmosphereDayColorUniform,
+  atmosphereTwilightColor: atmosphereTwilightColorUniform,
+}
+
+const earthAtmosphereUniforms = {
+  sunDirection: {
+    value: new THREE.Vector3(1, 0, 0),
+  },
+  atmosphereDayColor: atmosphereDayColorUniform,
+  atmosphereTwilightColor: atmosphereTwilightColorUniform,
 }
 
 // ===================== Three.js 变量 =====================
@@ -847,6 +1007,7 @@ let renderer: THREE.WebGLRenderer
 let controls: OrbitControls
 let earthGroup: THREE.Group
 let earthMesh: THREE.Mesh
+let earthAtmosphere: THREE.Mesh | null = null
 let sunLight: THREE.DirectionalLight
 let ambientLight: THREE.AmbientLight
 let raycaster: THREE.Raycaster
@@ -856,7 +1017,6 @@ let graticuleGroup: THREE.Group
 let dateLineGroup: THREE.Group
 let timeZoneGroup: THREE.Group
 let timeZoneRangeGroup: THREE.Group
-let terminatorLine: THREE.Group
 let nightArcMesh: THREE.Group | null
 let coriolisGroup: THREE.Group
 let rotationArrowGroup: THREE.Group
@@ -867,10 +1027,38 @@ let subsolarMarker: THREE.Mesh
 
 let rotationAngle = 0
 const displayRotationAngle = ref(0)
-let lastTimeDisplayRefresh = 0
+const simulationDayOffset = ref(0)
+const simulationYear = new Date().getFullYear()
+const simulationModelDescription = '教学模拟：以本年所选节气的近似日期 UTC 12:00 为起点，每转一圈推进一天；太阳赤纬保持所选节气，不含均时差修正，不代表现实此刻。'
+const sunEventModelDescription = '几何日出/日落：太阳中心高度为 0° 的模拟地方时，不含大气折射、太阳半径及地形影响，不是实际钟表日出日落预报。'
+const simulationUtcMs = computed(() => getSimulationUtcMs(
+  simulationYear, currentSolarTerm.value.day, displayRotationAngle.value - simulationDayOffset.value * 2 * Math.PI,
+))
+const selectedCityZoneClock = computed(() => selectedCity.value
+  ? getZonedClock(simulationUtcMs.value, selectedCity.value.timeZone)
+  : null)
 let animationId = 0
 let clock = new THREE.Clock()
 const sunDirection = new THREE.Vector3(1, 0, 0)
+const earthTiltAxis = new THREE.Vector3(0, 0, 1)
+
+function updateSolarTermScene() {
+  const declination = THREE.MathUtils.degToRad(solarDeclinationDeg.value)
+
+  // 先在地球本地坐标中构造直射纬度，再应用固定的 23.5° 地轴倾角。
+  // 冬至时结果仍接近原来的世界坐标 +X，保证默认画面不突变。
+  sunDirection
+    .set(Math.cos(declination), Math.sin(declination), 0)
+    .applyAxisAngle(earthTiltAxis, TILT)
+    .normalize()
+
+  earthUniforms.sunDirection.value.copy(sunDirection)
+  earthAtmosphereUniforms.sunDirection.value.copy(sunDirection)
+
+  if (sunLight) {
+    sunLight.position.copy(sunDirection).multiplyScalar(10)
+  }
+}
 
 // ===================== 辅助函数 =====================
 function latLonToVec3(lat: number, lon: number, radius: number): THREE.Vector3 {
@@ -884,51 +1072,48 @@ function latLonToVec3(lat: number, lon: number, radius: number): THREE.Vector3 {
 }
 
 function formatLocalTime(hours: number): string {
-  const h = Math.floor(hours) % 24
-  const m = Math.floor((hours % 1) * 60)
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  return formatClockHour(hours)
 }
 
 function getCityLocalHour(city: typeof cityData[0]): number {
-  const sunLon = -THREE.MathUtils.radToDeg(displayRotationAngle.value)
-  let diff = city.lon - sunLon
-  diff = ((diff + 540) % 360) - 180
-  return (12 + diff / 15 + 24) % 24
+  return getPointLocalHour(city.lon)
 }
 
 function isCityDaytime(city: typeof cityData[0]): boolean {
-  const sunLon = -THREE.MathUtils.radToDeg(displayRotationAngle.value)
-  let diff = Math.abs(city.lon - sunLon)
-  diff = Math.min(diff, 360 - diff)
-  return diff < 90
+  return isLocationDaytime(city.lat, city.lon)
 }
 
 function getCityTimezoneInfo(city: typeof cityData[0]): { label: string; beijingDiff: string } {
-  const offset = Math.round(city.lon / 15)
-  const sign = offset >= 0 ? '+' : ''
-  const label = `UTC${sign}${offset}`
-  const beijingOffset = offset - 8
-  const beijingDiff = beijingOffset === 0
-    ? '与北京相同'
-    : beijingOffset > 0
-      ? `比北京早${beijingOffset}h`
-      : `比北京晚${Math.abs(beijingOffset)}h`
-  return { label, beijingDiff }
+  const zoneClock = selectedCity.value === city && selectedCityZoneClock.value
+    ? selectedCityZoneClock.value
+    : getZonedClock(simulationUtcMs.value, city.timeZone)
+  return {
+    label: formatUtcOffset(zoneClock.offsetMinutes),
+    beijingDiff: formatBeijingDifference(zoneClock.offsetMinutes),
+  }
 }
 
 // A/B 点的地方时和昼夜判断
 function getPointLocalHour(lon: number): number {
-  const sunLon = -THREE.MathUtils.radToDeg(displayRotationAngle.value)
-  let diff = lon - sunLon
-  diff = ((diff + 540) % 360) - 180
-  return (12 + diff / 15 + 24) % 24
+  return getSolarClock(simulationUtcMs.value, lon).hour
+}
+
+function getPointLocalDate(lon: number): string {
+  return getSolarClock(simulationUtcMs.value, lon).date
 }
 
 function isPointDaytime(lon: number): boolean {
-  const sunLon = -THREE.MathUtils.radToDeg(displayRotationAngle.value)
-  let diff = Math.abs(lon - sunLon)
-  diff = Math.min(diff, 360 - diff)
-  return diff < 90
+  return isLocationDaytime(POINT_LATITUDE, lon)
+}
+
+function isLocationDaytime(latitude: number, longitude: number): boolean {
+  const latitudeRad = THREE.MathUtils.degToRad(latitude)
+  const declinationRad = THREE.MathUtils.degToRad(solarDeclinationDeg.value)
+  const hourAngle = THREE.MathUtils.degToRad((getPointLocalHour(longitude) - 12) * 15)
+  const solarAltitudeSignal =
+    Math.sin(latitudeRad) * Math.sin(declinationRad) +
+    Math.cos(latitudeRad) * Math.cos(declinationRad) * Math.cos(hourAngle)
+  return solarAltitudeSignal > 0
 }
 
 type PointSunStatus = {
@@ -947,12 +1132,8 @@ type PointSunCycle = {
 }
 
 function calculatePointSunCycle(latitude: number): PointSunCycle {
-  // 当前场景中太阳固定在世界坐标 +X，地轴绕 Z 轴倾斜 TILT，
-  // 因而太阳赤纬由地轴方向与太阳方向的夹角直接得到。
-  const axisWorld = new THREE.Vector3(0, 1, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), TILT)
-  const declination = THREE.MathUtils.radToDeg(Math.asin(
-    THREE.MathUtils.clamp(axisWorld.dot(sunDirection.clone().normalize()), -1, 1)
-  ))
+  // 与地表昼夜、夜弧统一：以太阳中心高度 h=0° 为边界，而非折射后的实际日出。
+  const declination = solarDeclinationDeg.value
   const latitudeRad = THREE.MathUtils.degToRad(latitude)
   const declinationRad = THREE.MathUtils.degToRad(declination)
   const cosHourAngle = -Math.tan(latitudeRad) * Math.tan(declinationRad)
@@ -975,8 +1156,9 @@ function calculatePointSunCycle(latitude: number): PointSunCycle {
 }
 
 const pointSunCycle = computed(() => {
-  // 与场景显示时钟建立响应式关联；后续若太阳方向由季节控制改变，也会随画面刷新重算。
+  // 同时跟随自转显示时钟和节气对应的太阳赤纬。
   void displayRotationAngle.value
+  void solarDeclinationDeg.value
   return calculatePointSunCycle(POINT_LATITUDE)
 })
 
@@ -1003,7 +1185,7 @@ function getPointSunStatus(lon: number): PointSunStatus {
 
   const sunrise = cycle.sunrise as number
   const sunset = cycle.sunset as number
-  const circularDistance = (target: number) => Math.abs(((hour - target + 12) % 24) - 12)
+  const circularDistance = (target: number) => Math.abs(normalizeHours(hour - target + 12) - 12)
 
   if (circularDistance(sunrise) <= 0.5) {
     return { kind: 'sunrise', icon: '🌅', label: '日出时段' }
@@ -1117,34 +1299,95 @@ function createNightEmissiveTexture(): THREE.CanvasTexture {
 // ===================== 经纬网 =====================
 function createGraticule(): THREE.Group {
   const group = new THREE.Group()
-  const mat = new THREE.LineBasicMaterial({ color: 0x66aacc, transparent: true, opacity: 0.6 })
-  const eqMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.85 })
-  const tropicMat = new THREE.LineBasicMaterial({ color: 0xaaccee, transparent: true, opacity: 0.65 })
+  group.name = 'earth-graticule'
+  const minorMat = new THREE.LineBasicMaterial({
+    color: 0x8bafc5,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+    toneMapped: false,
+  })
+  const majorMat = new THREE.LineBasicMaterial({
+    color: 0xb1cad9,
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false,
+    toneMapped: false,
+  })
+  const tropicMat = new THREE.LineDashedMaterial({
+    color: 0xf4cc77,
+    transparent: true,
+    opacity: 0.94,
+    dashSize: EARTH_RADIUS * 0.038,
+    gapSize: EARTH_RADIUS * 0.024,
+    depthWrite: false,
+    toneMapped: false,
+  })
+  const polarMat = new THREE.LineDashedMaterial({
+    color: 0x67dce5,
+    transparent: true,
+    opacity: 0.94,
+    dashSize: EARTH_RADIUS * 0.032,
+    gapSize: EARTH_RADIUS * 0.022,
+    depthWrite: false,
+    toneMapped: false,
+  })
 
-  // 经线
+  // 30° 主线稍亮，15° 辅线降低存在感，避免网格抢过地表和教学重点。
   for (let lon = -180; lon < 180; lon += 15) {
     const pts: THREE.Vector3[] = []
-    for (let lat = -90; lat <= 90; lat += 2) {
-      pts.push(latLonToVec3(lat, lon, EARTH_RADIUS * 1.002))
-    }
-    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat))
-  }
-  // 纬线
-  for (let lat = -75; lat <= 75; lat += 15) {
-    const pts: THREE.Vector3[] = []
-    for (let lon = -180; lon <= 180; lon += 2) {
-      pts.push(latLonToVec3(lat, lon, EARTH_RADIUS * 1.002))
-    }
-    const m = lat === 0 ? eqMat : tropicMat
-    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), m))
-  }
-  // 回归线 & 极圈
-  for (const lat of [23.5, -23.5, 66.5, -66.5]) {
-    const pts: THREE.Vector3[] = []
-    for (let lon = -180; lon <= 180; lon += 2) {
+    for (let lat = -90; lat <= 90; lat += 1) {
       pts.push(latLonToVec3(lat, lon, EARTH_RADIUS * 1.003))
     }
-    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), tropicMat))
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      lon % 30 === 0 ? majorMat : minorMat
+    )
+    line.name = `meridian-${lon}`
+    line.userData = { kind: 'meridian', longitude: lon, major: lon % 30 === 0 }
+    group.add(line)
+  }
+
+  for (let lat = -75; lat <= 75; lat += 15) {
+    if (lat === 0) continue
+    const pts: THREE.Vector3[] = []
+    for (let lon = -180; lon <= 180; lon += 1) {
+      pts.push(latLonToVec3(lat, lon, EARTH_RADIUS * 1.003))
+    }
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      lat % 30 === 0 ? majorMat : minorMat
+    )
+    line.name = `parallel-${lat}`
+    line.userData = { kind: 'parallel', latitude: lat, major: lat % 30 === 0 }
+    group.add(line)
+  }
+
+  // 细圆管让赤道在高分屏仍有稳定厚度，不依赖 WebGL 通常忽略的 linewidth。
+  const equator = new THREE.Mesh(
+    new THREE.TorusGeometry(EARTH_RADIUS * 1.007, EARTH_RADIUS * 0.0015, 6, 256),
+    new THREE.MeshBasicMaterial({ color: 0xef4444, toneMapped: false })
+  )
+  equator.rotation.x = Math.PI / 2
+  equator.name = 'equator'
+  equator.userData = { kind: 'equator', latitude: 0 }
+  group.add(equator)
+
+  // 四条特殊纬线使用实距虚线；距离属性必需，否则 LineDashedMaterial 无法分段。
+  for (const lat of [23.5, -23.5, 66.5, -66.5]) {
+    const pts: THREE.Vector3[] = []
+    for (let lon = -180; lon <= 180; lon += 0.5) {
+      pts.push(latLonToVec3(lat, lon, EARTH_RADIUS * 1.008))
+    }
+    const kind = Math.abs(lat) < 30 ? 'tropic' : 'polar'
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      kind === 'tropic' ? tropicMat : polarMat
+    )
+    line.computeLineDistances()
+    line.name = `${kind}-${lat}`
+    line.userData = { kind, latitude: lat }
+    group.add(line)
   }
   return group
 }
@@ -1639,31 +1882,6 @@ function createTimeZoneRanges(): THREE.Group {
   return group
 }
 
-// ===================== 晨昏线 =====================
-function createTerminator(): THREE.Group {
-  const group = new THREE.Group()
-  const segments = 128
-  const r = EARTH_RADIUS * 1.008
-  // 晨昏线是垂直于太阳方向的大圆，太阳方向 (1,0,0)，大圆在 YZ 平面
-  // Z > 0 半圆 = 晨线（日出），Z < 0 半圆 = 昏线（日落）
-  const dawnPts: THREE.Vector3[] = []   // 晨线
-  const duskPts: THREE.Vector3[] = []   // 昏线
-  for (let i = 0; i <= segments; i++) {
-    const angle = (i / segments) * Math.PI * 2
-    const pt = new THREE.Vector3(0, r * Math.cos(angle), r * Math.sin(angle))
-    if (pt.z >= 0) dawnPts.push(pt)
-    if (pt.z <= 0) duskPts.push(pt)
-  }
-  // 晨线 - 橙色
-  const dawnMat = new THREE.LineBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.95 })
-  group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(dawnPts), dawnMat))
-  // 昏线 - 蓝紫色
-  const duskMat = new THREE.LineBasicMaterial({ color: 0x6366f1, transparent: true, opacity: 0.95 })
-  group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(duskPts), duskMat))
-  return group
-}
-
-
 function createNightArcShader(): THREE.Group {
   // 夜弧不再创建独立蓝色纬线/圆圈对象。
   // 它在地球 ShaderMaterial 中根据本地纬线和夜半球计算夜弧，
@@ -1901,6 +2119,10 @@ function initThree() {
         'high-performance',
     })
 
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.05
+
   /*
    * 先设置 DPR，再同步真实 drawing buffer 尺寸，
    * 避免默认 300×150 画布被 CSS 拉伸。
@@ -1954,32 +2176,45 @@ function initThree() {
 
   const earthMat = new THREE.ShaderMaterial({
     uniforms: earthUniforms,
+    toneMapped: true,
     vertexShader: `
       varying vec2 vUv;
       varying vec3 vLocalNormal;
       varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
 
       void main() {
         vUv = uv;
         vLocalNormal = normalize(normal);
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
         vWorldNormal = normalize(mat3(modelMatrix) * normal);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
       }
     `,
     fragmentShader: `
       uniform sampler2D dayMap;
       uniform sampler2D nightMap;
       uniform vec3 sunDirection;
+      uniform vec3 axisDirection;
       uniform float showTerminator;
       uniform float showNightArc;
+      uniform vec3 nightArcColor;
       uniform float sunLightPower;
       uniform float nightMapPower;
       uniform float nightLightPower;
       uniform float darkSideSurfacePower;
+      uniform vec3 atmosphereDayColor;
+      uniform vec3 atmosphereTwilightColor;
 
       varying vec2 vUv;
       varying vec3 vLocalNormal;
       varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+
+      float earthLuma(vec3 color) {
+        return dot(color, vec3(0.2126, 0.7152, 0.0722));
+      }
 
       float latitudeLineMask(float lat) {
         float stepValue = 3.14159265359 / 12.0;
@@ -2001,57 +2236,47 @@ function initThree() {
       void main() {
         vec3 nWorld = normalize(vWorldNormal);
         vec3 sWorld = normalize(sunDirection);
+        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
 
         vec3 dayColor = texture2D(dayMap, vUv).rgb;
-        vec3 nightColor = texture2D(nightMap, vUv).rgb * nightMapPower;
+        dayColor = pow(max(dayColor, vec3(0.0)), vec3(1.08));
+        vec3 nightColor = texture2D(nightMap, vUv).rgb;
 
         float lightAmount = dot(nWorld, sWorld);
-        float dayMask = smoothstep(-0.08, 0.18, lightAmount);
+        // 地表明暗使用宽渐变；夜弧的几何范围必须单独按太阳高度 0° 截取。
+        float dayMask = smoothstep(-0.24, 0.34, lightAmount);
         float nightMask = 1.0 - dayMask;
+        float nightEdgeWidth = max(fwidth(lightAmount), 0.00001);
+        float geometricNightMask = 1.0 - smoothstep(-nightEdgeWidth, 0.0, lightAmount);
 
-        vec3 litDay =
-          dayColor *
-          (0.38 + sunLightPower * 1.22 * max(lightAmount, 0.0));
+        // 参考 earth-motion：从地表贴图估算海洋与云层，给海洋单独增加镜面高光。
+        float surfaceLuma = earthLuma(dayColor);
+        float blueDominance = dayColor.b - max(dayColor.r, dayColor.g);
+        float oceanMask = smoothstep(-0.025, 0.115, blueDominance)
+          * (1.0 - smoothstep(0.48, 0.82, surfaceLuma));
+        float cloudMask = smoothstep(0.64, 0.94, surfaceLuma)
+          * (1.0 - oceanMask * 0.72);
 
-        vec3 darkSurface =
-          dayColor *
-          darkSideSurfacePower *
-          (0.58 + 0.42 * pow(1.0 - abs(lightAmount), 0.72)) *
-          nightMask;
+        float directLight = max(lightAmount, 0.0);
+        vec3 litDay = dayColor * (0.18 + sunLightPower * 0.58 * directLight);
+        litDay *= mix(1.0, 1.02, cloudMask);
+        litDay *= mix(vec3(1.0), vec3(0.74, 0.86, 1.0), oceanMask * 0.48);
 
-        vec3 nightLit =
-          nightColor *
-          (0.18 + nightLightPower) *
-          nightMask;
+        vec3 halfDirection = normalize(sWorld + viewDirection);
+        float specularPower = mix(28.0, 105.0, oceanMask);
+        float specular = pow(max(dot(nWorld, halfDirection), 0.0), specularPower)
+          * oceanMask * directLight * dayMask;
+        vec3 oceanGlint = mix(vec3(0.40, 0.64, 0.82), vec3(1.0), specular)
+          * specular * (0.42 + sunLightPower * 0.22);
 
-        vec3 color =
-          mix(
-            darkSurface + nightLit,
-            litDay,
-            dayMask
-          );
+        vec3 nightLit = nightColor * nightMapPower
+          * (0.26 + nightLightPower) * nightMask;
+        float rimFill = 0.48 + 0.52 * pow(1.0 - abs(lightAmount), 0.72);
+        vec3 darkSurface = dayColor * darkSideSurfacePower * 0.34 * rimFill * nightMask;
+        vec3 color = mix(darkSurface + nightLit, litDay + oceanGlint, dayMask);
 
-        float terminatorMask =
-          (1.0 - smoothstep(0.0, 0.045, abs(lightAmount))) *
-          showTerminator;
-
-        vec3 terminatorColor =
-          mix(
-            vec3(0.18, 0.48, 1.0),
-            vec3(1.0, 0.45, 0.15),
-            smoothstep(-0.08, 0.08, lightAmount)
-          );
-
-        color =
-          mix(
-            color,
-            terminatorColor,
-            terminatorMask * 0.78
-          );
-
-        // 夜弧：不是晨昏线，而是夜半球里“不受光的纬线弧段”。
-        // 参考地球运动组件：先用本地法线计算纬线 mask，
-        // 再只在 nightMask 区域显示蓝色夜弧。
+        // 夜弧是纬线在夜半球内的部分。抗锯齿仅向夜侧过渡，白昼侧恒为 0。
+        // 极夜纬线自然形成整圈，极昼纬线则完全隐藏。
         float lat =
           asin(
             clamp(
@@ -2063,32 +2288,66 @@ function initThree() {
 
         float nightArcMask =
           latitudeLineMask(lat) *
-          nightMask *
+          geometricNightMask *
           showNightArc;
 
         color =
           mix(
             color,
-            vec3(0.20, 0.50, 1.0),
-            nightArcMask * 0.72
+            nightArcColor,
+            nightArcMask * 0.76
           );
 
-        color +=
-          vec3(0.06, 0.18, 0.26) *
-          pow(1.0 - abs(lightAmount), 2.0) *
-          0.22;
+        // 晨昏线使用同一受光判据，并在夜弧之后着色，保持交点清晰。
+        float terminatorMask =
+          (1.0 - smoothstep(0.0, 0.035, abs(lightAmount))) *
+          showTerminator;
+        float dawnSignal = dot(cross(normalize(axisDirection), nWorld), sWorld);
+        vec3 dawnColor = vec3(0.12, 0.38, 0.56);
+        vec3 duskColor = vec3(0.56, 0.12, 0.22);
+        color = mix(
+          color,
+          dawnSignal >= 0.0 ? dawnColor : duskColor,
+          terminatorMask * 0.52
+        );
+
+        // 与 earth-motion 一致：只在视角边缘混合大气颜色，不向背光地表叠加蓝色补光。
+        float atmosphereDayStrength = smoothstep(-0.5, 1.0, lightAmount);
+        float atmosphereFresnel = 1.0 - abs(dot(nWorld, viewDirection));
+        vec3 innerAtmosphereColor = mix(
+          atmosphereTwilightColor,
+          atmosphereDayColor,
+          smoothstep(-0.25, 0.75, lightAmount)
+        );
+        float innerAtmosphereMix = clamp(
+          atmosphereDayStrength * pow(atmosphereFresnel, 2.0) * 0.46,
+          0.0,
+          0.46
+        );
+        color = mix(color, innerAtmosphereColor, innerAtmosphereMix);
 
         gl_FragColor = vec4(color, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `,
   })
 
   const texLoader = new THREE.TextureLoader()
 
+  const prepareEarthTexture = (texture: THREE.Texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace
+    texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
+    texture.minFilter = THREE.LinearMipmapLinearFilter
+    texture.magFilter = THREE.LinearFilter
+    texture.generateMipmaps = true
+    texture.needsUpdate = true
+  }
+
   texLoader.load(
-    '/geo-resources-folder/images/earth.jpg',
+    RAW_TEXTURES.earth,
     (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace
+      prepareEarthTexture(tex)
       earthUniforms.dayMap.value = tex
     },
     undefined,
@@ -2096,9 +2355,9 @@ function initThree() {
   )
 
   texLoader.load(
-    '/geo-resources-folder/images/emissive.jpg',
+    RAW_TEXTURES.night,
     (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace
+      prepareEarthTexture(tex)
       earthUniforms.nightMap.value = tex
     },
     undefined,
@@ -2107,6 +2366,55 @@ function initThree() {
 
   earthMesh = new THREE.Mesh(earthGeo, earthMat)
   earthGroup.add(earthMesh)
+
+  // 与 earth-motion 一致：背面壳层由地球深度遮挡，只在轮廓外呈现渐隐辉光。
+  const atmosphereMaterial = new THREE.ShaderMaterial({
+    uniforms: earthAtmosphereUniforms,
+    transparent: true,
+    blending: THREE.NormalBlending,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.BackSide,
+    toneMapped: true,
+    vertexShader: `
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 sunDirection;
+      uniform vec3 atmosphereDayColor;
+      uniform vec3 atmosphereTwilightColor;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec3 normalDirection = normalize(vWorldNormal);
+        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+        float fresnel = 1.0 - abs(dot(normalDirection, viewDirection));
+        float sunOrientation = dot(normalDirection, normalize(sunDirection));
+        float daylight = smoothstep(-0.5, 1.0, sunOrientation);
+        float atmosphereMix = smoothstep(-0.25, 0.75, sunOrientation);
+        float innerEdge = 1.0 - smoothstep(0.67, 1.0, fresnel);
+        float alpha = pow(innerEdge, 2.65) * daylight;
+        if (alpha < 0.004) discard;
+        vec3 glowColor = mix(atmosphereTwilightColor, atmosphereDayColor, atmosphereMix);
+        gl_FragColor = vec4(glowColor * 1.08, min(alpha * 1.10, 1.0));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  })
+  earthAtmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(EARTH_RADIUS * 1.055, 96, 96),
+    atmosphereMaterial,
+  )
+  earthAtmosphere.renderOrder = 2
+  earthGroup.add(earthAtmosphere)
 
   // 自转轴
   const axisPts = [
@@ -2134,8 +2442,7 @@ function initThree() {
   timeZoneRangeGroup.visible = false
   earthMesh.add(timeZoneRangeGroup)
 
-  terminatorLine = createTerminator()
-  scene.add(terminatorLine)
+  updateSolarTermScene()
 
   nightArcMesh = createNightArcShader()
   // 夜弧由地球 shader 实现，不再向场景添加独立蓝圈。
@@ -2223,12 +2530,8 @@ function animate() {
     earthMesh.rotation.y = rotationAngle
   }
 
-  // Three.js 的 rotationAngle 不是响应式数据；以 100ms 为间隔同步给 Vue，
-  // 让 A/B 时间、城市时间和昼夜状态持续更新，同时避免每帧刷新文字 DOM。
-  if (now - lastTimeDisplayRefresh >= 100) {
-    displayRotationAngle.value = rotationAngle
-    lastTimeDisplayRefresh = now
-  }
+  // 与渲染帧使用同一自转角；高速演示时不能按 100ms 节流，否则会相差数十个模拟分钟。
+  displayRotationAngle.value = rotationAngle
 
   // 更新直射点位置
   const subsolarPos = sunDirection.clone().multiplyScalar(EARTH_RADIUS * 1.02)
@@ -2242,8 +2545,8 @@ function animate() {
 
   // 更新城市标签
   updateCityLabels()
-  updateGridLabels()
   updateTzLabels()
+  updateGridLabels()
   animateABRipples(now)
 }
 
@@ -2286,17 +2589,74 @@ function updateGridLabels() {
   const rotAxis = new THREE.Vector3(0, 1, 0)
   const tiltAxis = new THREE.Vector3(0, 0, 1)
 
-  gridLabelScreenData.value = gridLabelDefs.map(label => {
-    const localPos = latLonToVec3(label.lat, label.lon, EARTH_RADIUS * 1.01)
+  const projectLabel = (label: GridLabelDefinition, shift = 0) => {
+    // Only slide along the labelled line: latitude labels keep their latitude, and vice versa.
+    const lat = label.lat + (label.kind === 'longitude' ? shift : 0)
+    const lon = label.lon + (label.kind === 'latitude' ? shift : 0)
+    const localPos = latLonToVec3(lat, lon, EARTH_RADIUS * 1.01)
     localPos.applyAxisAngle(rotAxis, rotationAngle)
     localPos.applyAxisAngle(tiltAxis, TILT)
     const dot = localPos.clone().normalize().dot(camDir)
-    const visible = dot > 0.1 && layers.gridLabels
+    const visible = Math.abs(lat) <= 80 && dot > 0.1 && layers.gridLabels
     const screenPos = localPos.clone().project(camera)
     const x = (screenPos.x * 0.5 + 0.5) * w
     const y = (-screenPos.y * 0.5 + 0.5) * h
-    return { text: label.text, x, y, visible, special: !!label.special }
+    return { text: label.text, x, y, visible, special: !!label.special, kind: label.kind, tone: label.tone, shift }
+  }
+
+  const projected = gridLabelDefs.map(label => projectLabel(label))
+  if (!layers.gridLabels) {
+    gridLabelAnchorShifts.clear()
+    gridLabelScreenData.value = projected
+    return
+  }
+
+  // Use this frame's time-label rectangles as fixed obstacles; do not read DOM layout each frame.
+  const occupied = tzLabelScreenData.value.flatMap((label, index) => {
+    if (!label.visible) return []
+    const fallback = {
+      width: Math.max(110, label.text.length * 14 + 36),
+      height: layers.tzLabels && layers.tzTimes ? 56 : 36,
+    }
+    return [getLabelBounds(label, overlayLabelSizes.get('tz-' + index) ?? fallback)]
   })
+  const priorityOrder = gridLabelDefs.map((label, index) => ({ label, index }))
+    .sort((a, b) => Number(!!b.label.special) - Number(!!a.label.special) ||
+      Number(b.label.kind === 'latitude') - Number(a.label.kind === 'latitude'))
+  const localCamera = camera.position.clone()
+    .applyAxisAngle(tiltAxis, -TILT)
+    .applyAxisAngle(rotAxis, -rotationAngle)
+  const facingLongitude = THREE.MathUtils.radToDeg(Math.atan2(-localCamera.z, localCamera.x))
+
+  for (const { label, index } of priorityOrder) {
+    const original = projected[index]!
+    // Meridians on the far side stay hidden; each latitude circle instead gets a front-facing anchor.
+    if (label.kind === 'longitude' && !original.visible) {
+      gridLabelAnchorShifts.delete(index)
+      continue
+    }
+    const fallback = getGridLabelFallbackSize(label)
+    const size = overlayLabelSizes.get('grid-' + index) ?? fallback
+    // Prefer the last valid anchor to avoid flipping between sides during continuous rotation.
+    const latitudeShifts = [0, 20, -20, 40, -40, 60, -60, 80, -80].map(offset =>
+      ((facingLongitude + offset - label.lon + 540) % 360) - 180)
+    const shifts = [...new Set([
+      gridLabelAnchorShifts.get(index) ?? (label.kind === 'latitude' ? latitudeShifts[0]! : 0),
+      ...(label.kind === 'latitude' ? latitudeShifts : [0, 8, -8, 16, -16, 24, -24, 36, -36]),
+    ])]
+    const placement = findLabelPlacement(
+      shifts.map(shift => projectLabel(label, shift)), size, occupied, { width: w, height: h }, 8,
+    )
+    if (placement) {
+      projected[index] = placement.candidate
+      occupied.push(placement.bounds)
+      gridLabelAnchorShifts.set(index, placement.candidate.shift)
+    } else {
+      // Dense views can temporarily omit a label; its geographic anchor is never moved off its line.
+      projected[index] = { ...original, visible: false }
+    }
+  }
+  gridLabelScreenData.value = projected
 }
 
 // ===================== 城市标签更新 =====================
@@ -2426,21 +2786,16 @@ const skillLabels: Record<string, string> = {
 
 function formatLon(lon: number): string {
   if (lon === 0) return '0°'
-  if (lon === 180 || lon === -180) return '180°'
   return `${Math.abs(lon)}°${lon > 0 ? 'E' : 'W'}`
 }
 
 function calcLonDiff(lon1: number, lon2: number): number {
-  const sameSide = (lon1 >= 0 && lon2 >= 0) || (lon1 < 0 && lon2 < 0)
-  if (sameSide) return Math.abs(lon1 - lon2)
-  return Math.abs(lon1) + Math.abs(lon2)
+  // 读作带日期的地方时差，不能替换成 0–180° 的最短弧。
+  return Math.abs(lon1 - lon2)
 }
 
 function formatTimeDiff(hours: number): string {
-  const h = Math.floor(hours)
-  const m = Math.round((hours - h) * 60)
-  if (m === 0) return `${h}小时`
-  return `${h}小时${m}分`
+  return formatHourDifference(hours)
 }
 
 function generateProblem() {
@@ -2499,6 +2854,7 @@ function generateProblem() {
       const targetLon = givenIsA ? lon2 : lon1
       const targetEast = targetLon > givenLon
       const resultTime = targetEast ? baseTime + timeDiff : baseTime - timeDiff
+      const result = splitDayHour(resultTime)
       const givenName = givenIsA ? 'A' : 'B'
       const targetName = givenIsA ? 'B' : 'A'
 
@@ -2511,8 +2867,10 @@ function generateProblem() {
           lonDiff: diff,
           timeDiff: timeDiff,
           operation: targetEast ? '加' : '减',
-          result: resultTime,
+          result: result.hour,
         },
+        resultDayOffset: result.dayOffset,
+        explanation: `${baseTime}:00 ${targetEast ? '+' : '−'} ${timeDiff}小时 = ${formatRelativeDay(result.dayOffset)} ${formatLocalTime(result.hour)}。`,
         givenTime: baseTime,
         givenName, targetName, givenLon, targetLon,
       }
@@ -2523,8 +2881,7 @@ function generateProblem() {
       const dcDiff = Math.floor(Math.random() * 4) + 3 // 3-6h
       const dcEast = Math.random() > 0.5
       const rawResult = dcEast ? baseTime + dcDiff : baseTime - dcDiff
-      const resultHour = ((rawResult % 24) + 24) % 24
-      const dateOffset = rawResult >= 24 ? 1 : rawResult < 0 ? -1 : 0
+      const { hour: resultHour, dayOffset: dateOffset } = splitDayHour(rawResult)
 
       currentProblem.value = {
         type: 'dateCrossing',
@@ -2533,9 +2890,7 @@ function generateProblem() {
         answerHour: resultHour,
         answerDate: `7月${10 + dateOffset}日`,
         dateOffset,
-        explanation: dcEast
-          ? `乙地更早(东侧)，${baseTime}:00 + ${dcDiff}h = ${baseTime + dcDiff}:00 → 超过24:00 → ${resultHour}:00，日期+1天 → 7月11日`
-          : `乙地更晚(西侧)，${baseTime}:00 − ${dcDiff}h = ${baseTime - dcDiff}:00 → 低于0:00 → ${resultHour}:00，日期-1天 → 7月9日`,
+        explanation: `乙地${dcEast ? '位于东侧，东加' : '位于西侧，西减'}：${baseTime}:00 ${dcEast ? '+' : '−'} ${dcDiff}小时 = ${formatRelativeDay(dateOffset)} ${formatLocalTime(resultHour)}，即 7月${10 + dateOffset}日 ${formatLocalTime(resultHour)}。`,
       }
       break
     }
@@ -2586,7 +2941,7 @@ function getCorrectAnswerText(
       }
 
       if (field === 'result') {
-        return `${value}:00`
+        return `${formatRelativeDay(problem.resultDayOffset ?? 0)} ${formatLocalTime(Number(value))}`
       }
 
       return String(value)
@@ -2983,7 +3338,6 @@ function applyLayerVisibility() {
   if (dateLineGroup) dateLineGroup.visible = layers.dateLine
   if (timeZoneGroup) timeZoneGroup.visible = layers.timeZones
   if (timeZoneRangeGroup) timeZoneRangeGroup.visible = layers.timeZoneRanges
-  if (terminatorLine) terminatorLine.visible = layers.terminator
   earthUniforms.showTerminator.value = layers.terminator ? 1 : 0
   earthUniforms.showNightArc.value = layers.nightArc ? 1 : 0
   if (coriolisGroup) coriolisGroup.visible = layers.coriolis
@@ -2999,8 +3353,16 @@ function applyLayerVisibility() {
 // 监听图层变化
 watch(layers, () => applyLayerVisibility(), { deep: true })
 watch(brightness, () => applyLayerVisibility())
+watch(selectedSolarTermName, () => updateSolarTermScene())
 watch(trainingPhase, () => generateProblem())
 watch([() => pointA.lon, () => pointB.lon], () => updateABMarkers())
+watch([() => layers.tzLabels, () => layers.tzTimes], () => {
+  // Name-only/time-only/two-line labels have different heights. Use safe estimates until remeasured.
+  for (const key of overlayLabelSizes.keys()) {
+    if (key.startsWith('tz-')) overlayLabelSizes.delete(key)
+  }
+  gridLabelAnchorShifts.clear()
+}, { flush: 'sync' })
 
 // ===================== 生命周期 =====================
 onMounted(async () => {
@@ -3038,6 +3400,11 @@ onUnmounted(() => {
 
   sceneResizeObserver?.disconnect()
   sceneResizeObserver = null
+  overlayLabelResizeObserver?.disconnect()
+  overlayLabelResizeObserver = null
+  overlayLabelSizes.clear()
+  overlayLabelElements.clear()
+  gridLabelAnchorShifts.clear()
 
   window.removeEventListener(
     'pointermove',
@@ -7416,6 +7783,33 @@ body.geo-panel-resizing {
   gap: 5px;
 }
 
+.earth-rotation-template .simulation-date {
+  min-width: 0;
+  color: rgba(178, 210, 230, 0.72);
+  font-size: 10px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.earth-rotation-template .simulation-time-note {
+  margin: 8px 0 0;
+  color: rgba(172, 203, 223, 0.64);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.earth-rotation-template .city-preview-zone-clock strong small {
+  display: block;
+  margin-top: 3px;
+  color: rgba(178, 210, 230, 0.72);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .earth-rotation-template .city-preview-time>span {
   color: rgba(173, 211, 226, 0.6);
   font-size: 9px;
@@ -7561,6 +7955,115 @@ body.geo-panel-resizing {
 
   .earth-rotation-template .city-preview-details {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ===================== v35: 二十四节气切换 ===================== */
+.earth-rotation-template .control-card-solar-terms {
+  --card-accent: #81cc7c;
+  --card-accent-rgb: 129, 204, 124;
+  height: max-content !important;
+  min-height: 232px;
+  max-height: none !important;
+  flex: none;
+}
+
+.earth-rotation-template .control-floating-card .floating-control-body .panel-scroll {
+  grid-auto-rows: max-content;
+}
+
+.earth-rotation-template .solar-term-overview {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(129, 204, 124, 0.14);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(129, 204, 124, 0.12), transparent 48%),
+    rgba(3, 14, 26, 0.42);
+}
+
+.earth-rotation-template .solar-term-current {
+  min-width: 72px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+}
+
+.earth-rotation-template .solar-term-current span,
+.earth-rotation-template .solar-term-meta span {
+  color: rgba(183, 215, 220, 0.58);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.earth-rotation-template .solar-term-current strong {
+  color: #dcfce7;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.earth-rotation-template .solar-term-meta {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  justify-items: end;
+  gap: 3px;
+  text-align: right;
+}
+
+.earth-rotation-template .solar-term-meta b {
+  color: #fde68a;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .solar-term-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: 27px;
+  gap: 5px;
+}
+
+.earth-rotation-template .solar-term-btn {
+  min-width: 0;
+  min-height: 27px;
+  padding: 4px 3px;
+  border: 1px solid rgba(132, 180, 191, 0.12);
+  border-radius: 7px;
+  color: rgba(207, 229, 235, 0.7);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.earth-rotation-template .solar-term-btn:hover {
+  color: #ecfdf5;
+  border-color: rgba(129, 204, 124, 0.3);
+  background: rgba(129, 204, 124, 0.08);
+}
+
+.earth-rotation-template .solar-term-btn.active {
+  color: #fefce8;
+  border-color: rgba(250, 204, 21, 0.48);
+  background: linear-gradient(135deg, rgba(129, 204, 124, 0.2), rgba(250, 204, 21, 0.12));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 10px rgba(129, 204, 124, 0.1);
+}
+
+@media (max-width: 430px) {
+  .earth-rotation-template .solar-term-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 </style>

@@ -52,7 +52,7 @@
                   <button type="button" class="theme-btn option-btn" :disabled="points.length !== 2"
                     @click="swapPoints">交换 A / B</button>
                 </div>
-                <p class="teaching-note">本图保持正北朝上：上北、下南、左西、右东。交换参照点后，再判断一次。</p>
+                <p class="teaching-note">标完 A、B 后，以 A 为中心显示八方位线。本图保持正北朝上；交换 A / B 后，方向线随新的 A 点移动。</p>
               </template>
               <template v-else-if="lesson === 'scale'">
                 <div class="concept-line">比例尺 = 图上距离 ÷ 实地距离</div>
@@ -138,12 +138,20 @@
                 type="button" class="theme-btn option-btn" @click="goToExample">虹桥机场视图</button></div>
             <p class="muted">已有绘制保留在原位置；复位视图回到当前校园。</p>
           </form>
-          <div class="compass geo-card" aria-label="指北针：正北朝上">
-            <span class="compass-north">北 N</span>
-            <div class="compass-middle"><span>西</span><svg viewBox="0 0 40 64" aria-hidden="true">
-                <path d="M20 2 L36 52 L20 43 Z" fill="#72e5da" />
-                <path d="M20 2 L4 52 L20 43 Z" fill="#e9ffff" />
-              </svg><span>东</span></div><span class="compass-south">南</span>
+          <div class="compass geo-card" role="img" aria-label="八方位指向标：正北朝上，北、东北、东、东南、南、西南、西、西北">
+            <svg viewBox="0 0 160 160" aria-hidden="true">
+              <circle cx="80" cy="80" r="43" class="compass-ring" />
+              <line v-for="direction in mapDirections" :key="'spoke-' + direction.bearing"
+                :x1="80 + direction.dx * 10" :y1="80 + direction.dy * 10"
+                :x2="80 + direction.dx * 41" :y2="80 + direction.dy * 41" class="compass-spoke" />
+              <path d="M80 33L90 87L80 76Z" fill="#72e5da" />
+              <path d="M80 33L70 87L80 76Z" fill="#e9ffff" />
+              <circle cx="80" cy="80" r="3" fill="#e9ffff" />
+              <text v-for="direction in mapDirections" :key="direction.bearing"
+                :x="80 + direction.dx * 64" :y="80 + direction.dy * 64"
+                text-anchor="middle" dominant-baseline="central" class="compass-label"
+                :class="{ 'is-cardinal': direction.bearing % 90 === 0, 'is-north': direction.bearing === 0 }">{{ direction.label }}</text>
+            </svg>
           </div>
           <aside v-if="lesson === 'legend' || lesson === 'practice' || features.length" class="map-legend geo-card"
             aria-label="地图图例">
@@ -192,6 +200,7 @@ import { bearingBetween, directionName, featureTypes, textbookFeatureTypes, text
 import { developmentTiandituKey, suppliedTiandituKey, tiandituTemplate, tiandituMinNativeZoom, tiandituMaxNativeZoom } from './basemaps'
 import type { CampusFeature } from './campus-3d-layout'
 import { drawMapFeature } from './map-feature-renderer'
+import { directionGuideMetrics, directionGuideSvg, mapDirections } from './direction-guide'
 
 const Campus3DModal = defineAsyncComponent({ loader: () => import('./Campus3DModal.vue'), onError(_error, _retry, fail) { closeCampusPreview(); announce('3D 组件加载失败，请稍后重新生成。'); fail() } })
 const campusPreview = shallowRef<{ features: CampusFeature[]; center: Coordinate } | null>(null)
@@ -315,6 +324,15 @@ function labelledMarker(point: Coordinate, label: string, color: string, target:
 function renderPair() {
   pairLayer?.clearLayers()
   if (!pairLayer || (lesson.value !== 'direction' && lesson.value !== 'scale')) return
+  if (lesson.value === 'direction' && points.value.length === 2 && leafletMap) {
+    const mapSize = leafletMap.getSize()
+    const metrics = directionGuideMetrics(Math.min(190, Math.max(110, Math.min(mapSize.x, mapSize.y) * 0.23)))
+    L.marker(points.value[0]!, {
+      interactive: false, keyboard: false, zIndexOffset: -1000,
+      icon: L.divIcon({ className: 'direction-guide-marker', html: directionGuideSvg(metrics.radius),
+        iconSize: [metrics.size, metrics.size], iconAnchor: [metrics.center, metrics.center] }),
+    }).addTo(pairLayer)
+  }
   if (points.value.length === 2) L.polyline(points.value, { color: '#fcdf8a', weight: 4, dashArray: '8 7', interactive: false }).addTo(pairLayer)
   points.value.forEach((point, index) => labelledMarker(point, index === 0 ? 'A' : 'B', index === 0 ? '#087e82' : '#b66d22', pairLayer!))
 }
@@ -469,6 +487,7 @@ onMounted(async () => {
   leafletMap.on('click', onMapClick)
   leafletMap.on('zoomend', () => { zoom.value = leafletMap!.getZoom() })
   leafletMap.on('moveend', renderFeatures)
+  leafletMap.on('resize', renderPair)
   resizeObserver = new ResizeObserver(scheduleSceneResize); resizeObserver.observe(leafletContainerRef.value)
   document.addEventListener('fullscreenchange', syncFullscreen); document.addEventListener('keydown', onKeyDown); scheduleSceneResize()
 })
