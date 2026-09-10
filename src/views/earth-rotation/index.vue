@@ -183,10 +183,9 @@
                         }}</b></span>
                     <span class="axis-point-summary axis-point-summary-b"><small>B 经度</small><b>{{ formatLon(pointB.lon)
                         }}</b></span>
-                    <span><small>经度差</small><b>{{ calcLonDiff(pointA.lon, pointB.lon) }}°</b></span>
-                    <span><small>时差</small><b>{{ formatTimeDiff(calcLonDiff(pointA.lon, pointB.lon) / 15) }}</b></span>
-                    <span class="axis-relation">{{ pointA.lon > pointB.lon ? 'A 在 B 东侧' : pointA.lon < pointB.lon
-                      ? 'B 在 A 东侧' : 'A / B 同经度' }}</span>
+                    <span title="沿较短经度弧计算，范围 0°–180°。"><small>经度夹角</small><b>{{ abLongitudeRelation.angularSeparation }}°</b></span>
+                    <span title="较短经度弧对应的钟面时差，不包含跨日日期调整；完整日期与时差见 A/B 卡片。"><small>钟面时差</small><b>{{ formatTimeDiff(abLongitudeRelation.angularSeparation / 15) }}</b></span>
+                    <span class="axis-relation" title="按较短经度弧判断东西；相差 180° 时两个方向等距。">{{ describeLongitudeDirection(pointA.lon, pointB.lon) }}</span>
                   </div>
                 </div>
                 <div class="axis-scale-wrap">
@@ -225,6 +224,9 @@
           <div class="panel-rotation-legend-item"><span class="legend-dot" style="background:#ef4444"></span>A 点</div>
           <div class="panel-rotation-legend-item"><span class="legend-dot" style="background:#247cff"></span>B 点</div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#fbbf24"></span>经度弧</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#ef4444"></span>赤道</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="height:0;background:none;border-top:2px dashed #f4cc77"></span>南北回归线</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="height:0;background:none;border-top:2px dashed #67dce5"></span>南北极圈</div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#ff8800"></span>晨线（日出）
           </div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#6366f1"></span>昏线（日落）
@@ -266,8 +268,9 @@
               </div>
 
               <div class="ab-divider" title="按东经为正、西经为负计算地方时差，并结合两侧日期读取；不是地球上最短连接弧对应的时差。">
+                <small class="ab-diff-label">含日期时差</small>
                 <div class="ab-diff">{{ formatTimeDiff(calcLonDiff(pointA.lon, pointB.lon) / 15) }}</div>
-                <div class="ab-arrow">{{ pointA.lon === pointB.lon ? '同时间' : pointA.lon > pointB.lon ? 'A早' : 'B早' }}</div>
+                <div class="ab-arrow">{{ abLongitudeRelation.signedTimeDifference === 0 ? '同时间' : abLongitudeRelation.signedTimeDifference > 0 ? 'B 领先' : 'A 领先' }}</div>
               </div>
 
               <div class="ab-card ab-b">
@@ -289,6 +292,8 @@
                 </div>
               </div>
             </div>
+            <p v-if="abLongitudeRelation.dateLineCorrectionDays !== 0 || abLongitudeRelation.direction === 'opposite'"
+              class="simulation-time-note">{{ abTimeComparisonNote }}</p>
             <p class="simulation-time-note" :title="simulationModelDescription">教学模拟 · 日出日落为几何地方时</p>
           </div>
         </div>
@@ -539,6 +544,7 @@ import {
   splitDayHour,
 } from './time-model'
 import { findLabelPlacement, getGridLabelFallbackSize, getLabelBounds, type LabelSize } from './label-layout'
+import { compareLongitudes, describeLongitudeDirection } from './longitude'
 
 // ===================== 常量 =====================
 const EARTH_RADIUS = 2
@@ -643,7 +649,7 @@ type GridLabelDefinition = {
 const gridLabelDefs: GridLabelDefinition[] = (() => {
   const labels: GridLabelDefinition[] = []
   // 经线标注（每15°）
-  for (let lon = -180; lon <= 180; lon += 15) {
+  for (let lon = -180; lon < 180; lon += 15) {
     const abs = Math.abs(lon)
     const dir = lon > 0 ? 'E' : lon < 0 ? 'W' : ''
     const text = lon === 0 ? '0°' : lon === 180 || lon === -180 ? '180°' : `${abs}°${dir}`
@@ -971,6 +977,9 @@ const earthUniforms = {
     value: 1,
   },
   showNightArc: {
+    value: 1,
+  },
+  showGraticule: {
     value: 1,
   },
   nightArcColor: {
@@ -2199,6 +2208,7 @@ function initThree() {
       uniform vec3 axisDirection;
       uniform float showTerminator;
       uniform float showNightArc;
+      uniform float showGraticule;
       uniform vec3 nightArcColor;
       uniform float sunLightPower;
       uniform float nightMapPower;
@@ -2290,6 +2300,8 @@ function initThree() {
           latitudeLineMask(lat) *
           geometricNightMask *
           showNightArc;
+        // 网格开启时赤道使用独立红线，避免夜弧的宽紫色高亮在红线两侧形成紫边。
+        nightArcMask *= mix(1.0, smoothstep(0.014, 0.018, abs(lat)), showGraticule);
 
         color =
           mix(
@@ -2505,6 +2517,7 @@ function initThree() {
 }
 
 function updateEarthShaderUniforms() {
+  earthUniforms.showGraticule.value = layers.graticule ? 1 : 0
   earthUniforms.sunLightPower.value =
     Math.max(0.2, brightness.value)
   earthUniforms.nightMapPower.value =
@@ -2767,6 +2780,13 @@ const diagnostics = reactive({
 // A/B 两地经度
 const pointA = reactive({ lon: 120 })
 const pointB = reactive({ lon: 30 })
+const abLongitudeRelation = computed(() => compareLongitudes(pointA.lon, pointB.lon))
+const abTimeComparisonNote = computed(() => {
+  const relation = abLongitudeRelation.value
+  if (relation.direction === 'same') return '同一条 180° 经线：按东、西经侧标识，钟面相同而日期相差一天。'
+  if (relation.direction === 'opposite') return '相差 180° 时不唯一判定东西；日期与时刻按东、西经标识计算。'
+  return `B = A ${relation.shortestDelta < 0 ? '−' : '＋'} ${formatTimeDiff(relation.angularSeparation / 15)} ${relation.dateLineCorrectionDays > 0 ? '＋' : '−'} ${Math.abs(relation.dateLineCorrectionDays)}天（跨日调整）`
+})
 
 const phaseDefs = [
   { key: 'direction', label: '方向反射', desc: '判断东早西晚' },
@@ -2807,6 +2827,9 @@ function generateProblem() {
   const lons: number[] = []
   while (lons.length < 2) {
     const v = Math.floor(Math.random() * 24) * 15 - 180
+    // 入门东西方位 / 东加西减题不混入日界线修正或 180° 等距情形。
+    if (lons.length === 1 && (trainingPhase.value === 'direction' || trainingPhase.value === 'fullChain') &&
+      Math.abs(v - lons[0]!) >= 180) continue
     if (!lons.includes(v)) lons.push(v)
   }
   pointA.lon = lons[0]!
@@ -2830,7 +2853,7 @@ function generateProblem() {
     case 'longitudeDiff':
       currentProblem.value = {
         type: 'lonDiff',
-        text: `计算 A地(${formatLon(lon1)}) 与 B地(${formatLon(lon2)}) 的经度差。`,
+        text: `按东经为正、西经为负，计算 A地(${formatLon(lon1)}) 与 B地(${formatLon(lon2)}) 的经度数差绝对值（用于含日期的地方时换算）。`,
         answer: diff,
         explanation: (lon1 >= 0) === (lon2 >= 0)
           ? `同为${lon1 >= 0 ? '东' : '西'}经，大数减小数：${Math.max(Math.abs(lon1), Math.abs(lon2))}° − ${Math.min(Math.abs(lon1), Math.abs(lon2))}° = ${diff}°`
@@ -2840,7 +2863,7 @@ function generateProblem() {
     case 'timeConversion':
       currentProblem.value = {
         type: 'timeConv',
-        text: `两地经度差为 ${diff}°，地方时相差多少？`,
+        text: `两地按带符号经度计算的经度数差为 ${diff}°，含日期的地方时相差多少？`,
         lonDiff: diff,
         answerHours: timeDiff,
         answerText: formatTimeDiff(timeDiff),
@@ -2890,7 +2913,7 @@ function generateProblem() {
         answerHour: resultHour,
         answerDate: `7月${10 + dateOffset}日`,
         dateOffset,
-        explanation: `乙地${dcEast ? '位于东侧，东加' : '位于西侧，西减'}：${baseTime}:00 ${dcEast ? '+' : '−'} ${dcDiff}小时 = ${formatRelativeDay(dateOffset)} ${formatLocalTime(resultHour)}，即 7月${10 + dateOffset}日 ${formatLocalTime(resultHour)}。`,
+        explanation: `乙地地方时${dcEast ? '领先，做加法' : '落后，做减法'}：${baseTime}:00 ${dcEast ? '+' : '−'} ${dcDiff}小时 = ${formatRelativeDay(dateOffset)} ${formatLocalTime(resultHour)}，即 7月${10 + dateOffset}日 ${formatLocalTime(resultHour)}。`,
       }
       break
     }
@@ -3222,9 +3245,7 @@ function updateABMarkers() {
   const pts: THREE.Vector3[] = []
   const lon1 = pointA.lon, lon2 = pointB.lon
   // 取较短弧
-  let dl = lon2 - lon1
-  if (dl > 180) dl -= 360
-  if (dl < -180) dl += 360
+  const dl = compareLongitudes(lon1, lon2).shortestDelta
   const steps = 30
   for (let i = 0; i <= steps; i++) {
     const lon = lon1 + dl * (i / steps)
@@ -3935,6 +3956,43 @@ body {
   background: rgba(8, 12, 28, 0.8);
   padding: 2px 8px;
   border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.earth-rotation-template .grid-label:not(.tz-label) {
+  padding: 3px 7px;
+  border-radius: 5px;
+  color: #c9dce9;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  background: rgba(5, 16, 29, 0.86);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+}
+
+.earth-rotation-template .grid-label.latitude-label {
+  color: #e0edf5;
+}
+
+.earth-rotation-template .grid-label.special {
+  padding: 4px 9px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.earth-rotation-template .grid-label.equator-label {
+  color: #ff9298;
+  border-color: rgba(239, 68, 68, 0.7);
+}
+
+.earth-rotation-template .grid-label.tropic-label {
+  color: #f4cc77;
+  border-color: rgba(244, 204, 119, 0.55);
+}
+
+.earth-rotation-template .grid-label.polar-label {
+  color: #67dce5;
+  border-color: rgba(103, 220, 229, 0.55);
 }
 
 .grid-label.tz-label {
@@ -7266,7 +7324,8 @@ body.geo-panel-resizing {
   min-height: 24px;
   margin: 0 0 9px;
   padding: 0 0 8px 1px;
-  font-size: 13px;
+  font-size: 16px;
+  line-height: 1.4;
   letter-spacing: 0.02em;
 }
 
@@ -7294,11 +7353,12 @@ body.geo-panel-resizing {
 
 .earth-rotation-template .control-floating-card .mini-control-label {
   color: rgba(226, 242, 255, 0.72);
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .earth-rotation-template .control-floating-card .control-value {
-  font-size: 12px;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -7313,14 +7373,14 @@ body.geo-panel-resizing {
   min-height: 31px;
   gap: 6px;
   padding: 3px 5px 3px 7px;
-  font-size: 11px;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .earth-rotation-template .control-floating-card .control-card-layers .toggle-item>span:first-child {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .earth-rotation-template .control-floating-card .control-card-view .btn-grid {
@@ -7527,6 +7587,7 @@ body.geo-panel-resizing {
   align-items: center;
   min-width: 0;
   gap: 7px;
+  flex-wrap: wrap;
 }
 
 .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-badge {
@@ -7534,14 +7595,14 @@ body.geo-panel-resizing {
   width: 24px !important;
   height: 24px !important;
   margin: 0 !important;
-  font-size: 11px !important;
+  font-size: 14px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.24);
 }
 
 .earth-rotation-template .ab-comparison-floating-card .ab-location-name {
   min-width: 0;
   color: rgba(230, 246, 255, 0.92);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -7550,7 +7611,7 @@ body.geo-panel-resizing {
   min-width: 0;
   margin-left: auto;
   color: rgba(169, 213, 232, 0.7);
-  font-size: 10px !important;
+  font-size: 14px !important;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   overflow: hidden;
@@ -7561,7 +7622,7 @@ body.geo-panel-resizing {
 .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-time {
   justify-self: stretch;
   color: #f1fbff;
-  font-size: 27px !important;
+  font-size: clamp(32px, 1.4vw, 36px) !important;
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -7582,8 +7643,9 @@ body.geo-panel-resizing {
 }
 
 .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-status>strong {
-  font-size: 9px;
-  line-height: 1.1;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: normal;
   letter-spacing: 0.03em;
 }
 
@@ -7638,8 +7700,8 @@ body.geo-panel-resizing {
   grid-row: 1;
   min-width: 0;
   color: rgba(181, 211, 227, 0.58);
-  font-size: 8px;
-  line-height: 1.1;
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .earth-rotation-template .ab-comparison-floating-card .ab-sun-events b {
@@ -7648,10 +7710,10 @@ body.geo-panel-resizing {
   min-width: 0;
   margin: 0;
   color: rgba(241, 249, 255, 0.94);
-  font-size: 11px;
-  line-height: 1.15;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 14px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-divider {
@@ -7673,16 +7735,18 @@ body.geo-panel-resizing {
   max-width: none !important;
   padding: 5px 7px !important;
   color: #ffd166;
-  font-size: 10px !important;
-  line-height: 1;
-  white-space: nowrap;
+  font-size: 14px !important;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-arrow {
   margin: 0 !important;
   color: rgba(183, 216, 231, 0.64);
-  font-size: 9px !important;
-  white-space: nowrap;
+  font-size: 12px !important;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 @media (max-width: 620px) {
@@ -7702,7 +7766,7 @@ body.geo-panel-resizing {
   }
 
   .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-time {
-    font-size: 22px !important;
+    font-size: 32px !important;
   }
 
   .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-divider {
@@ -7786,8 +7850,8 @@ body.geo-panel-resizing {
 .earth-rotation-template .simulation-date {
   min-width: 0;
   color: rgba(178, 210, 230, 0.72);
-  font-size: 10px;
-  line-height: 1.3;
+  font-size: 12px;
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -7796,7 +7860,7 @@ body.geo-panel-resizing {
 .earth-rotation-template .simulation-time-note {
   margin: 8px 0 0;
   color: rgba(172, 203, 223, 0.64);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -7804,7 +7868,8 @@ body.geo-panel-resizing {
   display: block;
   margin-top: 3px;
   color: rgba(178, 210, 230, 0.72);
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.4;
   font-weight: 500;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -7812,14 +7877,14 @@ body.geo-panel-resizing {
 
 .earth-rotation-template .city-preview-time>span {
   color: rgba(173, 211, 226, 0.6);
-  font-size: 9px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.08em;
 }
 
 .earth-rotation-template .city-preview-time>strong {
   color: #f2fcff;
-  font-size: 29px;
+  font-size: clamp(32px, 1.4vw, 36px);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.025em;
@@ -7853,16 +7918,16 @@ body.geo-panel-resizing {
 
 .earth-rotation-template .city-preview-day-state strong {
   color: #e8f5fb;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 900;
-  line-height: 1.1;
+  line-height: 1.4;
 }
 
 .earth-rotation-template .city-preview-day-state small {
   color: rgba(177, 207, 222, 0.52);
-  font-size: 8px;
-  line-height: 1.1;
-  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .earth-rotation-template .city-preview-day-state.day {
@@ -7905,7 +7970,8 @@ body.geo-panel-resizing {
 
 .earth-rotation-template .city-preview-detail>span {
   color: rgba(164, 201, 219, 0.56);
-  font-size: 8px;
+  font-size: 12px;
+  line-height: 1.4;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -7913,16 +7979,15 @@ body.geo-panel-resizing {
 .earth-rotation-template .city-preview-detail>strong {
   min-width: 0;
   color: rgba(235, 247, 253, 0.9);
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .earth-rotation-template .city-preview-coordinate>strong {
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .earth-rotation-template .city-preview-coordinate em {
@@ -7945,7 +8010,7 @@ body.geo-panel-resizing {
   }
 
   .earth-rotation-template .city-preview-time>strong {
-    font-size: 25px;
+    font-size: 32px;
   }
 
   .earth-rotation-template .city-preview-day-state {
@@ -7996,14 +8061,15 @@ body.geo-panel-resizing {
 .earth-rotation-template .solar-term-current span,
 .earth-rotation-template .solar-term-meta span {
   color: rgba(183, 215, 220, 0.58);
-  font-size: 8px;
+  font-size: 12px;
+  line-height: 1.4;
   font-weight: 700;
   letter-spacing: 0.06em;
 }
 
 .earth-rotation-template .solar-term-current strong {
   color: #dcfce7;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 900;
   line-height: 1.1;
 }
@@ -8019,10 +8085,10 @@ body.geo-panel-resizing {
 
 .earth-rotation-template .solar-term-meta b {
   color: #fde68a;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 800;
-  line-height: 1.2;
-  white-space: nowrap;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .earth-rotation-template .solar-term-grid {
@@ -8040,7 +8106,7 @@ body.geo-panel-resizing {
   border-radius: 7px;
   color: rgba(207, 229, 235, 0.7);
   background: rgba(255, 255, 255, 0.025);
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -8064,6 +8130,102 @@ body.geo-panel-resizing {
 @media (max-width: 430px) {
   .earth-rotation-template .solar-term-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* 本页三个浮动面板的阅读字号；按卡片实际宽度重排，兼容拖动缩放。 */
+.earth-rotation-template :is(.control-floating-card, .ab-comparison-floating-card, .city-preview-floating-card) {
+  container: earth-panel / inline-size;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.earth-rotation-template :is(.control-floating-card, .ab-comparison-floating-card, .city-preview-floating-card) :deep(.feature-card-title-label) {
+  font-size: 18px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.earth-rotation-template :is(.control-floating-card, .ab-comparison-floating-card, .city-preview-floating-card) :deep(.feature-card-title strong) {
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.earth-rotation-template .control-floating-card .floating-control-body .panel-scroll {
+  gap: 12px;
+}
+
+.earth-rotation-template .ab-comparison-floating-card .simulation-time-note {
+  margin: 0;
+  padding: 10px 14px;
+}
+
+@container earth-panel (max-width: 500px) {
+  .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-cards {
+    grid-template-areas:
+      "a b"
+      "divider divider" !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-divider {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    justify-content: center !important;
+    padding: 8px 10px !important;
+    border-top: 1px solid rgba(96, 180, 205, 0.1) !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .ab-sun-events {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .ab-sun-events span {
+    grid-template-columns: 6px auto minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .ab-sun-events i {
+    grid-row: 1;
+  }
+
+  .earth-rotation-template .ab-comparison-floating-card .ab-sun-events b {
+    grid-column: 3;
+    grid-row: 1;
+    text-align: right;
+  }
+}
+
+@container earth-panel (max-width: 400px) {
+  .earth-rotation-template .control-floating-card .control-card-layers .toggle-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .earth-rotation-template .control-floating-card .solar-term-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container earth-panel (max-width: 380px) {
+  .earth-rotation-template .ab-comparison-floating-card .right-panel .ab-cards {
+    grid-template-areas: "a" "divider" "b" !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .earth-rotation-template .city-preview-floating-card .city-preview-summary {
+    flex-wrap: wrap;
+  }
+
+  .earth-rotation-template .city-preview-floating-card .city-preview-details {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>
