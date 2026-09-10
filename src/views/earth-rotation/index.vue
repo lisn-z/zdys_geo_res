@@ -184,7 +184,7 @@
                     <span class="axis-point-summary axis-point-summary-b"><small>B 经度</small><b>{{ formatLon(pointB.lon)
                         }}</b></span>
                     <span title="沿较短经度弧计算，范围 0°–180°。"><small>经度夹角</small><b>{{ abLongitudeRelation.angularSeparation }}°</b></span>
-                    <span title="较短经度弧对应的钟面时差，不包含跨日日期调整；完整日期与时差见 A/B 卡片。"><small>钟面时差</small><b>{{ formatTimeDiff(abLongitudeRelation.angularSeparation / 15) }}</b></span>
+                    <span title="不看日期，按24小时循环取最短间隔；日期与时间读数的差值见 A/B 卡片。"><small>最短间隔</small><b>{{ formatTimeDiff(abLongitudeRelation.angularSeparation / 15) }}</b></span>
                     <span class="axis-relation" title="按较短经度弧判断东西；相差 180° 时两个方向等距。">{{ describeLongitudeDirection(pointA.lon, pointB.lon) }}</span>
                   </div>
                 </div>
@@ -245,58 +245,10 @@
       <FloatingFeatureCard v-show="panelsVisible" class="ab-comparison-floating-card" title="⏱ A / B 同时刻对比"
         subtitle="模拟地方时与昼夜状态" variant="data" :initial-top="152" :initial-right="18" :bottom-inset="112"
         :initial-collapsed="true" :min-width="300" :min-height="180" v-model:collapsed="abCardCollapsed">
-        <div class="right-panel floating-card-body">
-          <div class="geo-card ab-compare-panel right-info-card">
-            <div class="ab-cards">
-              <div class="ab-card ab-a">
-                <div class="ab-location-head">
-                  <div class="ab-badge a">A</div>
-                  <span class="ab-location-name">A 点</span>
-                  <div class="ab-lon">{{ formatLon(pointA.lon) }}</div>
-                </div>
-                <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointA.lon)) }}</div>
-                <div class="simulation-date">{{ getPointLocalDate(pointA.lon) }}</div>
-                <div class="ab-status" :class="getPointSunStatus(pointA.lon).kind">
-                  <strong>{{ getPointSunStatus(pointA.lon).icon }} {{ getPointSunStatus(pointA.lon).label }}</strong>
-                </div>
-                <div class="ab-sun-events" :title="sunEventModelDescription">
-                  <span><i class="sunrise"></i><small>日出</small><b>{{ formatSunEventTime(pointSunCycle.sunrise,
-                    pointSunCycle.condition) }}</b></span>
-                  <span><i class="sunset"></i><small>日落</small><b>{{ formatSunEventTime(pointSunCycle.sunset,
-                    pointSunCycle.condition) }}</b></span>
-                </div>
-              </div>
-
-              <div class="ab-divider" title="按东经为正、西经为负计算地方时差，并结合两侧日期读取；不是地球上最短连接弧对应的时差。">
-                <small class="ab-diff-label">含日期时差</small>
-                <div class="ab-diff">{{ formatTimeDiff(calcLonDiff(pointA.lon, pointB.lon) / 15) }}</div>
-                <div class="ab-arrow">{{ abLongitudeRelation.signedTimeDifference === 0 ? '同时间' : abLongitudeRelation.signedTimeDifference > 0 ? 'B 领先' : 'A 领先' }}</div>
-              </div>
-
-              <div class="ab-card ab-b">
-                <div class="ab-location-head">
-                  <div class="ab-badge b">B</div>
-                  <span class="ab-location-name">B 点</span>
-                  <div class="ab-lon">{{ formatLon(pointB.lon) }}</div>
-                </div>
-                <div class="ab-time">{{ formatLocalTime(getPointLocalHour(pointB.lon)) }}</div>
-                <div class="simulation-date">{{ getPointLocalDate(pointB.lon) }}</div>
-                <div class="ab-status" :class="getPointSunStatus(pointB.lon).kind">
-                  <strong>{{ getPointSunStatus(pointB.lon).icon }} {{ getPointSunStatus(pointB.lon).label }}</strong>
-                </div>
-                <div class="ab-sun-events" :title="sunEventModelDescription">
-                  <span><i class="sunrise"></i><small>日出</small><b>{{ formatSunEventTime(pointSunCycle.sunrise,
-                    pointSunCycle.condition) }}</b></span>
-                  <span><i class="sunset"></i><small>日落</small><b>{{ formatSunEventTime(pointSunCycle.sunset,
-                    pointSunCycle.condition) }}</b></span>
-                </div>
-              </div>
-            </div>
-            <p v-if="abLongitudeRelation.dateLineCorrectionDays !== 0 || abLongitudeRelation.direction === 'opposite'"
-              class="simulation-time-note">{{ abTimeComparisonNote }}</p>
-            <p class="simulation-time-note" :title="simulationModelDescription">教学模拟 · 日出日落为几何地方时</p>
-          </div>
-        </div>
+        <AbTimeComparison :points="abComparisonPoints" :clock-gap="abComparisonSummary.clockGap"
+          :dated-gap="abComparisonSummary.datedGap" :leader="abComparisonSummary.leader"
+          :equation="abComparisonSummary.equation" :explanation="abComparisonSummary.explanation"
+          :sun-event-description="sunEventModelDescription" :model-description="simulationModelDescription" />
       </FloatingFeatureCard>
 
       <!-- 卡片二：选中城市的信息预览 -->
@@ -545,6 +497,7 @@ import {
 } from './time-model'
 import { findLabelPlacement, getGridLabelFallbackSize, getLabelBounds, type LabelSize } from './label-layout'
 import { compareLongitudes, describeLongitudeDirection } from './longitude'
+import AbTimeComparison from './AbTimeComparison.vue'
 
 // ===================== 常量 =====================
 const EARTH_RADIUS = 2
@@ -2781,11 +2734,37 @@ const diagnostics = reactive({
 const pointA = reactive({ lon: 120 })
 const pointB = reactive({ lon: 30 })
 const abLongitudeRelation = computed(() => compareLongitudes(pointA.lon, pointB.lon))
-const abTimeComparisonNote = computed(() => {
+const abComparisonPoints = computed(() => [pointA, pointB].map((point, index) => {
+  const clock = getSolarClock(simulationUtcMs.value, point.lon)
+  const status = getPointSunStatus(point.lon)
+  const cycle = pointSunCycle.value
+  return {
+    name: index === 0 ? 'A' : 'B',
+    longitude: formatLon(point.lon),
+    time: clock.time,
+    date: clock.date,
+    statusKind: status.kind,
+    statusIcon: status.icon,
+    statusLabel: status.label,
+    sunrise: formatSunEventTime(cycle.sunrise, cycle.condition),
+    sunset: formatSunEventTime(cycle.sunset, cycle.condition),
+  }
+}))
+const abComparisonSummary = computed(() => {
   const relation = abLongitudeRelation.value
-  if (relation.direction === 'same') return '同一条 180° 经线：按东、西经侧标识，钟面相同而日期相差一天。'
-  if (relation.direction === 'opposite') return '相差 180° 时不唯一判定东西；日期与时刻按东、西经标识计算。'
-  return `B = A ${relation.shortestDelta < 0 ? '−' : '＋'} ${formatTimeDiff(relation.angularSeparation / 15)} ${relation.dateLineCorrectionDays > 0 ? '＋' : '−'} ${Math.abs(relation.dateLineCorrectionDays)}天（跨日调整）`
+  const clockGap = formatTimeDiff(relation.angularSeparation / 15)
+  const datedHours = Math.abs(relation.signedTimeDifference)
+  const datedGap = formatTimeDiff(datedHours)
+  const leader = relation.signedTimeDifference > 0 ? 'B' : relation.signedTimeDifference < 0 ? 'A' : ''
+  return {
+    clockGap, datedGap, leader,
+    equation: datedHours > 12 ? `24小时 − ${clockGap} = ${datedGap}` : '',
+    explanation: datedHours === 24
+      ? `180°经线东、西侧采用不同的日期记法：钟面相同，${leader}的地方日期领先1天。`
+      : datedHours > 12
+      ? `钟面每24小时重复一次；连同上方日期一起比较，${leader}的地方时读数领先${datedGap}。`
+      : leader ? `这组经度的两种比较结果相同：${leader}的地方时读数领先${datedGap}。` : 'A、B 的日期和时间读数相同。',
+  }
 })
 
 const phaseDefs = [
