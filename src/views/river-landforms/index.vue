@@ -1,5 +1,5 @@
 <template>
-  <section ref="rootRef" class="river-landforms-page geo-template-page geo-page theme-dark layout-floating"
+  <section ref="rootRef" class="river-landforms-page geo-template-page geo-page theme-dark"
     :class="['layout-' + layoutMode, { 'timeline-hidden': !timelineDockVisible }]">
     <header class="top-toolbar">
       <div class="brand-area">
@@ -96,7 +96,7 @@
         :subtitle="selectedFeature.zone" variant="data" :initial-top="184" :initial-right="18"
         :bottom-inset="timelineDockVisible ? 140 : 10" :min-width="300" :min-height="210" initial-collapsed>
         <template #title-prefix><span class="landform-type-symbol" aria-hidden="true">{{ selectedKind.glyph
-            }}</span></template>
+        }}</span></template>
         <div class="landform-card-body" aria-live="polite">
           <section>
             <span class="landform-card-label">地貌类型</span>

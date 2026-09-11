@@ -1,5 +1,5 @@
 <template>
-  <div ref="pageRef" class="apparent-motion-of-the-sun-container geo-template-page geo-page theme-light layout-floating"
+  <div ref="pageRef" class="apparent-motion-of-the-sun-container geo-template-page geo-page theme-light"
     :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
@@ -21,158 +21,174 @@
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <FloatingFeatureCard v-if="panelsVisible" class="control-floating-card" title="控制面板"
-        subtitle="设定纬度、节气、时间和图层，观察太阳视运动规律" variant="data" :initial-top="96"
-        :initial-right="18" :min-width="310" :min-height="360" light v-model:collapsed="controlCardCollapsed">
-        <div class="panel-scroll">
-          <div class="panel-heading">
-            <div>
-              <h2>观测与场景设置</h2>
-              <p>设定纬度、节气、时间和图层，观察太阳视运动规律</p>
-            </div>
+      <aside v-show="panelsVisible" class="sun-panel-stack" aria-label="观测控制与数据">
+        <FloatingFeatureCard class="control-floating-card" title="控制面板" subtitle="调整观测纬度、日期与场景图层" variant="control"
+          :initial-top="floatingPanelTop"
+          :initial-right="18" :bottom-inset="floatingPanelBottomInset" :min-height="120" draggable resizable light
+          v-model:collapsed="controlCardCollapsed">
+          <div class="panel-scroll">
+            <section class="geo-card control-section">
+              <div class="section-title-row">
+                <h3 class="section-title">观测位置</h3>
+                <strong class="control-value">
+                  {{ latDisplay }}
+                </strong>
+              </div>
 
-            <span class="panel-badge">CONTROL</span>
+              <div class="option-grid city-grid">
+                <button v-for="city in cities" :key="city.name" type="button" class="theme-btn option-btn"
+                  :class="{ active: activeCity === city.name }" @click="setLocation(city.lat, city.name)">
+                  {{ city.name }}
+                </button>
+              </div>
+
+              <div class="section-title-row compact-title-row">
+                <span class="mini-control-label">纬度微调</span>
+                <strong class="control-value">
+                  -90° ～ 90°
+                </strong>
+              </div>
+
+              <el-slider :model-value="currentLatitude" :min="-90" :max="90" :step="0.5" :show-tooltip="false"
+                aria-label="观测纬度" @input="handleLatitudeSlider" />
+
+              <div class="scale-labels latitude-scale" role="group" aria-label="关键纬度快捷选择">
+                <button v-for="mark in latitudeMarks" :key="mark.value" type="button" class="latitude-mark"
+                  :style="{ left: `${(mark.value + 90) / 180 * 100}%` }"
+                  :aria-label="`选择${mark.name}（${mark.label}）`" :title="`选择${mark.name}（${mark.label}）`"
+                  :aria-pressed="currentLatitude === mark.value" @click="selectLatitudeMark(mark.value)">
+                  {{ mark.label }}
+                </button>
+              </div>
+            </section>
+
+            <section class="geo-card control-section">
+              <div class="section-title-row">
+                <h3 class="section-title">日期与参考节气</h3>
+                <strong class="control-value">
+                  {{ currentSeasonName }}
+                </strong>
+              </div>
+
+              <div class="option-grid season-grid">
+                <button v-for="season in seasons" :key="season.id" type="button" class="theme-btn option-btn"
+                  :class="{ active: activeSeason === season.id }" @click="setSeason(season.id)">
+                  {{ season.name }}
+                </button>
+              </div>
+
+              <div class="section-title-row compact-title-row">
+                <span class="mini-control-label">
+                  第 {{ currentDayOfYear }} 天
+                </span>
+                <strong class="control-value">
+                  {{ monthDayDisplay }}
+                </strong>
+              </div>
+
+              <el-slider :model-value="currentDayOfYear" :min="1" :max="365" :step="1" :show-tooltip="false"
+                aria-label="2026年日期" @input="handleDaySlider" />
+
+              <div class="parameter-banner">
+                <span>直射纬度 δ（近似）</span>
+                <strong>
+                  {{ declinationDisplay }}
+                </strong>
+              </div>
+            </section>
+
+            <section class="geo-card control-section">
+              <div class="section-title-row">
+                <h3 class="section-title">观察视角</h3>
+                <strong class="control-value">
+                  {{ currentViewName }}
+                </strong>
+              </div>
+
+              <div class="option-grid view-grid">
+                <button v-for="viewItem in views" :key="viewItem.id" type="button" class="theme-btn option-btn"
+                  :class="{ active: activeView === viewItem.id }" @click="setView(viewItem.id)">
+                  {{ viewItem.name }}
+                </button>
+              </div>
+            </section>
+
+            <section class="geo-card control-section">
+              <h3 class="section-title">场景图层</h3>
+
+              <div class="switch-row first-control-row">
+                <div class="control-copy">
+                  <strong>天穹半球</strong>
+                  <span>显示天空半球网格</span>
+                </div>
+
+                <el-switch v-model="showDome" aria-label="显示天穹网格" />
+              </div>
+
+              <div class="switch-row">
+                <div class="control-copy">
+                  <strong>城市建筑群</strong>
+                  <span>显示作为观测参照的城市建筑</span>
+                </div>
+
+                <el-switch v-model="showBuildings" aria-label="显示城市建筑" />
+              </div>
+
+              <div class="switch-row">
+                <div class="control-copy">
+                  <strong>太阳投影</strong>
+                  <span>显示随太阳位置变化的地面阴影</span>
+                </div>
+
+                <el-switch v-model="showShadows" aria-label="显示太阳投影" />
+              </div>
+
+              <div class="switch-row">
+                <div class="control-copy">
+                  <strong>方位辅助线</strong>
+                  <span>显示地面的南北、东西辅助线</span>
+                </div>
+
+                <el-switch v-model="showGrid" aria-label="显示方位辅助线" />
+              </div>
+
+              <div class="switch-row">
+                <div class="control-copy">
+                  <strong>太阳日周轨迹</strong>
+                  <span>实线为地平线上方，虚线为下方</span>
+                </div>
+
+                <el-switch v-model="showPath" aria-label="显示太阳日周轨迹" />
+              </div>
+            </section>
           </div>
 
-          <section class="geo-card control-section">
-            <div class="section-title-row">
-              <h3 class="section-title">观测位置</h3>
-              <strong class="control-value">
-                {{ latDisplay }}
-              </strong>
-            </div>
+        </FloatingFeatureCard>
 
-            <div class="option-grid city-grid">
-              <button v-for="city in cities" :key="city.name" type="button" class="theme-btn option-btn"
-                :class="{ active: activeCity === city.name }" @click="setLocation(city.lat, city.name)">
-                {{ city.name }}
-              </button>
-            </div>
-
-            <div class="section-title-row compact-title-row">
-              <span class="mini-control-label">纬度微调</span>
-              <strong class="control-value">
-                -90° ～ 90°
-              </strong>
-            </div>
-
-            <el-slider :model-value="currentLatitude" :min="-90" :max="90" :step="0.5" :show-tooltip="false"
-              @input="handleLatitudeSlider" />
-
-            <div class="scale-labels latitude-scale">
-              <span>90°S</span>
-              <span>66.5°S</span>
-              <span>23.5°S</span>
-              <span>0°</span>
-              <span>23.5°N</span>
-              <span>66.5°N</span>
-              <span>90°N</span>
-            </div>
-          </section>
-
-          <section class="geo-card control-section">
-            <div class="section-title-row">
-              <h3 class="section-title">节气与日期</h3>
-              <strong class="control-value">
-                {{ currentSeasonName }}
-              </strong>
-            </div>
-
-            <div class="option-grid season-grid">
-              <button v-for="season in seasons" :key="season.id" type="button" class="theme-btn option-btn"
-                :class="{ active: activeSeason === season.id }" @click="setSeason(season.dec, season.id)">
-                {{ season.name }}
-              </button>
-            </div>
-
-            <div class="section-title-row compact-title-row">
-              <span class="mini-control-label">
-                第 {{ currentDayOfYear }} 天
-              </span>
-              <strong class="control-value">
-                {{ monthDayDisplay }}
-              </strong>
-            </div>
-
-            <el-slider :model-value="currentDayOfYear" :min="1" :max="365" :step="1" :show-tooltip="false"
-              @input="handleDaySlider" />
-
-            <div class="parameter-banner">
-              <span>太阳直射纬度 δ</span>
-              <strong>
-                {{ currentDeclination.toFixed(2) }}°
-                <small>{{ decHemisphere }}</small>
-              </strong>
-            </div>
-          </section>
-
-          <section class="geo-card control-section">
-            <div class="section-title-row">
-              <h3 class="section-title">观察视角</h3>
-              <strong class="control-value">
-                {{ currentViewName }}
-              </strong>
-            </div>
-
-            <div class="option-grid view-grid">
-              <button v-for="viewItem in views" :key="viewItem.id" type="button" class="theme-btn option-btn"
-                :class="{ active: activeView === viewItem.id }" @click="setView(viewItem.id)">
-                {{ viewItem.name }}
-              </button>
-            </div>
-          </section>
-
-          <section class="geo-card control-section">
-            <h3 class="section-title">场景图层</h3>
-
-            <div class="switch-row first-control-row">
-              <div class="control-copy">
-                <strong>天穹半球</strong>
-                <span>显示天空半球与地平圈</span>
-              </div>
-
-              <el-switch v-model="showDome" />
-            </div>
-
-            <div class="switch-row">
-              <div class="control-copy">
-                <strong>城市建筑群</strong>
-                <span>显示地表参照物和建筑阴影</span>
-              </div>
-
-              <el-switch v-model="showBuildings" />
-            </div>
-
-            <div class="switch-row">
-              <div class="control-copy">
-                <strong>科学阴影</strong>
-                <span>根据太阳高度改变投影方向</span>
-              </div>
-
-              <el-switch v-model="showShadows" />
-            </div>
-
-            <div class="switch-row">
-              <div class="control-copy">
-                <strong>方位辅助线</strong>
-                <span>显示东南西北与地平圈辅助线</span>
-              </div>
-
-              <el-switch v-model="showGrid" />
-            </div>
-
-            <div class="switch-row">
-              <div class="control-copy">
-                <strong>太阳运行轨迹</strong>
-                <span>显示全天太阳视运动路径</span>
-              </div>
-
-              <el-switch v-model="showPath" />
-            </div>
-          </section>
-        </div>
-
-      </FloatingFeatureCard>
+        <FloatingFeatureCard class="data-floating-card" title="数据面板" subtitle="查看太阳高度、昼长与日出日落方位" variant="data"
+          :initial-top="floatingPanelTop + 72"
+          :initial-right="18" :bottom-inset="floatingPanelBottomInset" :min-height="120" draggable resizable light
+          v-model:collapsed="dataCardCollapsed">
+          <div class="data-grid sun-data-grid">
+            <article v-for="item in sunDataCards" :key="item.label" class="geo-card data-card" :class="item.className">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.description }}</small>
+            </article>
+          </div>
+          <div class="trajectory-note">
+            <strong>轨迹平面倾角 {{ trackInclination.toFixed(1) }}°</strong>
+            <p>与地平面的夹角为 90° − |纬度|。{{ trackTiltDescription }}</p>
+            <p>节气改变轨迹的位置，不改变这一夹角；屏幕上的投影角度会随视角变化。</p>
+          </div>
+          <details class="model-note">
+            <summary>模型说明</summary>
+            <p>采用2026年代表节气日期与近似直射纬度，城市纬度作教学取整。一天内保持直射纬度不变，以太阳中心经过地平线为日出、日落，未计入大气折射和太阳视半径。</p>
+            <p>地方太阳时12:00表示太阳经过当地子午线，不等于北京时间12:00。参考节气为距离所选日期最近的八个预设节气之一。</p>
+            <p v-if="Math.abs(currentLatitude) === 90">极点的东、南、西、北没有唯一的常规含义，场景以参考经线展示方向；二分日按太阳中心位于地平线上处理。</p>
+          </details>
+        </FloatingFeatureCard>
+      </aside>
 
       <section class="center-stage">
         <div class="stage-content">
@@ -203,7 +219,7 @@
             </div>
 
             <el-slider :model-value="currentHourAngle" :min="-180" :max="180" :step="1" :show-tooltip="false"
-              @input="handleHourSlider" />
+              aria-label="地方太阳时" @input="handleHourSlider" />
           </div>
 
           <div class="speed-options">
@@ -214,17 +230,6 @@
           </div>
         </div>
       </section>
-
-      <FloatingFeatureCard v-if="panelsVisible" title="数据面板" subtitle="读取实时结果，展开查看计算过程与易错提醒"
-        variant="data" :initial-top="158" :initial-right="18" light v-model:collapsed="dataCardCollapsed">
-        <div class="data-grid sun-data-grid" style="padding: 16px;">
-          <article v-for="item in sunDataCards" :key="item.label" class="geo-card data-card" :class="item.className">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-            <small>{{ item.description }}</small>
-          </article>
-        </div>
-      </FloatingFeatureCard>
 
     </main>
   </div>
@@ -246,8 +251,6 @@ import {
 } from 'three/examples/jsm/controls/OrbitControls.js'
 
 import {
-  ElCollapse,
-  ElCollapseItem,
   ElIcon,
   ElSlider,
   ElSwitch,
@@ -263,129 +266,50 @@ import {
   useGeoPanelLayout,
 } from '@/hooks/useGeoPanelLayout'
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+import { calculateSunPosition, closestSeason, dateFromDay, dayFromDate, declinationForDay, getDaylight, getTrackInclination, seasons } from './solar-model'
+import { advanceHourAngle } from './playback'
+import { getSkyAppearance } from './sky-appearance'
 
-// ===== 天空颜色模块（原 skyColors.ts） =====
-function lerpColor(c1: number[], c2: number[], t: number): number[] {
-  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)))
-  return [clamp(c1[0]! + (c2[0]! - c1[0]!) * t), clamp(c1[1]! + (c2[1]! - c1[1]!) * t), clamp(c1[2]! + (c2[2]! - c1[2]!) * t)]
+// ===== 按太阳高度更新天空、环境光与地面 =====
+function rgbStr(color: number[]): string {
+  return `rgb(${color[0]},${color[1]},${color[2]})`
 }
 
-function rgbStr(c: number[]): string {
-  return `rgb(${c[0]},${c[1]},${c[2]})`
-}
-
-const S = {
-  nightTop: [8, 12, 30], nightMid: [15, 25, 55], nightHorizon: [25, 35, 70],
-  dawnTop: [30, 40, 80], dawnMid: [80, 70, 100], dawnHorizon: [220, 120, 60],
-  sunriseTop: [70, 100, 160], sunriseMid: [140, 160, 200], sunriseHorizon: [255, 170, 80],
-  dayTop: [70, 130, 210], dayMid: [120, 170, 230], dayHorizon: [180, 210, 235],
-  noonTop: [80, 150, 220], noonMid: [150, 190, 240], noonHorizon: [200, 220, 240],
-  nightGround: [15, 25, 10], dawnGround: [30, 45, 20], dayGround: [60, 120, 50], noonGround: [70, 140, 55],
-  polarDayHorizon: [160, 180, 200], polarDayTop: [50, 80, 150],
-  polarNightHorizon: [20, 30, 55], polarNightTop: [5, 8, 20],
-}
-
-function setColor(material: THREE.Color, c: number[]) {
-  material.setRGB(c[0]! / 255, c[1]! / 255, c[2]! / 255)
+function setColor(material: THREE.Color, color: number[]) {
+  material.setRGB(color[0]! / 255, color[1]! / 255, color[2]! / 255)
 }
 
 function applySky(
   sunH: number,
-  isPolarDay: boolean,
-  isPolarNight: boolean,
   bgCanvas: HTMLCanvasElement,
   bgTexture: THREE.CanvasTexture,
   ambientLight: THREE.AmbientLight,
   hemiLight: THREE.HemisphereLight,
   groundMaterial: THREE.MeshLambertMaterial,
 ) {
-  let skyTop: number[], skyMid: number[], skyHorizon: number[]
-  let groundMid: number[], groundDark: number[]
-  let ambColor: number[], ambInt: number
-  let hSky: number[], hGround: number[], hInt: number
-  let groundColor: number[]
-
-  if (isPolarNight) {
-    skyTop = S.polarNightTop; skyMid = lerpColor(S.polarNightTop, S.polarNightHorizon, 0.5); skyHorizon = S.polarNightHorizon
-    groundMid = [12, 18, 8]; groundDark = [8, 12, 5]
-    ambColor = [20, 30, 55]; ambInt = 0.3
-    hSky = [20, 35, 65]; hGround = [15, 20, 10]; hInt = 0.25
-    groundColor = [15, 25, 12]
-  } else if (isPolarDay) {
-    const polarT = Math.min(Math.max(sunH, 0) / 40, 1)
-    skyTop = lerpColor(S.polarDayTop, S.noonTop, polarT)
-    skyMid = lerpColor(lerpColor(S.polarDayTop, S.polarDayHorizon, 0.5), S.noonMid, polarT)
-    skyHorizon = lerpColor(S.polarDayHorizon, S.noonHorizon, polarT)
-    groundMid = lerpColor(S.dawnGround, S.noonGround, polarT); groundDark = lerpColor(S.nightGround, S.dawnGround, polarT)
-    ambColor = lerpColor([40, 70, 130], [180, 220, 240], polarT); ambInt = 0.6 + polarT * 1.2
-    hSky = lerpColor([50, 80, 150], [180, 220, 240], polarT); hGround = lerpColor([25, 40, 18], S.noonGround, polarT); hInt = 0.4 + polarT * 1.1
-    groundColor = lerpColor([30, 50, 25], S.noonGround, polarT)
-  } else if (sunH < -12) {
-    skyTop = S.nightTop; skyMid = S.nightMid; skyHorizon = S.nightHorizon
-    groundMid = S.nightGround; groundDark = [10, 15, 6]
-    ambColor = [15, 25, 55]; ambInt = 0.3
-    hSky = [20, 35, 65]; hGround = S.nightGround; hInt = 0.25
-    groundColor = [18, 28, 14]
-  } else if (sunH < -6) {
-    const t = (sunH + 12) / 6
-    skyTop = lerpColor(S.nightTop, S.dawnTop, t * 0.4); skyMid = lerpColor(S.nightMid, S.dawnMid, t * 0.4); skyHorizon = lerpColor(S.nightHorizon, S.dawnHorizon, t * 0.5)
-    groundMid = lerpColor(S.nightGround, S.dawnGround, t * 0.3); groundDark = lerpColor([10, 15, 6], S.nightGround, t * 0.3)
-    ambColor = lerpColor([15, 25, 55], [25, 35, 70], t * 0.5); ambInt = 0.3 + t * 0.08
-    hSky = lerpColor([20, 35, 65], [30, 45, 85], t * 0.4); hGround = lerpColor(S.nightGround, S.dawnGround, t * 0.3); hInt = 0.25 + t * 0.08
-    groundColor = lerpColor([18, 28, 14], [22, 34, 16], t * 0.3)
-  } else if (sunH < 0) {
-    const t = (sunH + 6) / 6
-    skyTop = lerpColor(S.dawnTop, S.sunriseTop, t); skyMid = lerpColor(S.dawnMid, S.sunriseMid, t); skyHorizon = lerpColor(S.dawnHorizon, S.sunriseHorizon, t)
-    groundMid = lerpColor(S.dawnGround, S.dayGround, t * 0.4); groundDark = lerpColor(S.nightGround, S.dawnGround, t * 0.5)
-    ambColor = lerpColor([25, 35, 70], [100, 140, 200], t); ambInt = 0.38 + t * 0.6
-    hSky = lerpColor([30, 45, 85], [130, 160, 210], t); hGround = lerpColor(S.dawnGround, S.dayGround, t * 0.5); hInt = 0.33 + t * 0.6
-    groundColor = lerpColor([22, 34, 16], [50, 100, 40], t)
-  } else if (sunH < 15) {
-    const t = sunH / 15
-    skyTop = lerpColor(S.sunriseTop, S.dayTop, t); skyMid = lerpColor(S.sunriseMid, S.dayMid, t); skyHorizon = lerpColor(S.sunriseHorizon, S.dayHorizon, t)
-    groundMid = lerpColor(lerpColor(S.dawnGround, S.dayGround, 0.4), S.dayGround, t); groundDark = lerpColor(S.dawnGround, S.dayGround, t * 0.6)
-    ambColor = lerpColor([100, 140, 200], [160, 210, 240], t); ambInt = 1.1 + t * 0.5
-    hSky = lerpColor([130, 160, 210], [170, 210, 240], t); hGround = lerpColor([50, 100, 40], S.dayGround, t); hInt = 1.05 + t * 0.3
-    groundColor = lerpColor([50, 100, 40], [60, 120, 50], t)
-  } else if (sunH < 45) {
-    const t = (sunH - 15) / 30
-    skyTop = lerpColor(S.dayTop, S.noonTop, t); skyMid = lerpColor(S.dayMid, S.noonMid, t); skyHorizon = lerpColor(S.dayHorizon, S.noonHorizon, t)
-    groundMid = lerpColor(S.dayGround, S.noonGround, t); groundDark = lerpColor(S.dawnGround, S.dayGround, 0.6 + t * 0.4)
-    ambColor = lerpColor([160, 210, 240], [190, 230, 250], t); ambInt = 1.6 + t * 0.3
-    hSky = lerpColor([170, 210, 240], [190, 230, 250], t); hGround = lerpColor(S.dayGround, S.noonGround, t); hInt = 1.35 + t * 0.2
-    groundColor = lerpColor([60, 120, 50], S.noonGround, t)
-  } else {
-    skyTop = S.noonTop; skyMid = S.noonMid; skyHorizon = S.noonHorizon
-    groundMid = S.noonGround; groundDark = S.dayGround
-    ambColor = [190, 230, 250]; ambInt = 1.9
-    hSky = [190, 230, 250]; hGround = S.noonGround; hInt = 1.55
-    groundColor = S.noonGround
-  }
-
+  const appearance = getSkyAppearance(sunH)
   const bgCtx = bgCanvas.getContext('2d')!
   const bgGrad = bgCtx.createLinearGradient(0, 0, 0, 512)
-  bgGrad.addColorStop(0, rgbStr(skyTop))
-  bgGrad.addColorStop(0.35, rgbStr(skyMid))
-  bgGrad.addColorStop(0.55, rgbStr(skyHorizon))
-  bgGrad.addColorStop(0.75, rgbStr(groundMid))
-  bgGrad.addColorStop(1, rgbStr(groundDark))
+  bgGrad.addColorStop(0, rgbStr(appearance.skyTop))
+  bgGrad.addColorStop(0.35, rgbStr(appearance.skyMid))
+  bgGrad.addColorStop(0.55, rgbStr(appearance.skyHorizon))
+  bgGrad.addColorStop(0.75, rgbStr(appearance.groundMid))
+  bgGrad.addColorStop(1, rgbStr(appearance.groundDark))
   bgCtx.fillStyle = bgGrad
   bgCtx.fillRect(0, 0, 2, 512)
   bgTexture.needsUpdate = true
 
-  setColor(ambientLight.color, ambColor)
-  ambientLight.intensity = ambInt * 0.5
-
-  setColor(hemiLight.color, hSky)
-  setColor(hemiLight.groundColor, hGround)
-  hemiLight.intensity = hInt * 0.5
-
-  setColor(groundMaterial.color, groundColor.map(c => Math.max(Math.round(c * 0.55), 22)))
+  setColor(ambientLight.color, appearance.ambientColor)
+  ambientLight.intensity = appearance.ambientIntensity * 0.5
+  setColor(hemiLight.color, appearance.hemisphereSkyColor)
+  setColor(hemiLight.groundColor, appearance.hemisphereGroundColor)
+  hemiLight.intensity = appearance.hemisphereIntensity * 0.5
+  setColor(groundMaterial.color, appearance.groundColor.map(channel => Math.max(channel * 0.55, 22)))
 }
 // --- 城市与节气预设数据 ---
 const cities = [
   { lat: 90, name: '北极' },
-  { lat: 66.5, name: '北极圈' },
+  { lat: 66.56, name: '北极圈' },
   { lat: 45, name: '哈尔滨' },
   { lat: 40, name: '北京' },
   { lat: 31, name: '上海' },
@@ -395,44 +319,34 @@ const cities = [
   { lat: -23, name: '圣保罗' },
   { lat: -34, name: '悉尼' },
   { lat: -43, name: '霍巴特' },
-  { lat: -66.5, name: '南极圈' },
+  { lat: -66.56, name: '南极圈' },
   { lat: -90, name: '南极' },
 ]
 
-const seasons = [
-  { dec: 23.44, id: 'summer', name: '夏至' },
-  { dec: 11.72, id: 'liqiu', name: '立秋' },
-  { dec: 0, id: 'equinox', name: '秋分' },
-  { dec: -11.72, id: 'lidong', name: '立冬' },
-  { dec: -23.44, id: 'winter', name: '冬至' },
-  { dec: 11.72, id: 'lichun', name: '立春' },
-  { dec: 0, id: 'chunfen', name: '春分' },
-  { dec: 11.72, id: 'lixia', name: '立夏' },
-]
-
-const seasonDates: Record<string, string> = {
-  summer: '2026-06-21', liqiu: '2026-08-07', equinox: '2026-09-23',
-  lidong: '2026-11-07', winter: '2026-12-22', lichun: '2026-02-04',
-  chunfen: '2026-03-20', lixia: '2026-05-06',
-}
-
-const seasonNames: Record<string, string> = {
-  summer: '夏至', liqiu: '立秋', equinox: '秋分', lidong: '立冬',
-  winter: '冬至', lichun: '立春', chunfen: '春分', lixia: '立夏',
-}
 
 const views = [
-  { id: 'south', name: '正南' },
-  { id: 'north', name: '正北' },
-  { id: 'east', name: '正东' },
-  { id: 'west', name: '正西' },
+  { id: 'south', name: '从南看' },
+  { id: 'north', name: '从北看' },
+  { id: 'east', name: '从东看' },
+  { id: 'west', name: '从西看' },
   { id: 'top', name: '俯瞰' },
   { id: 'free', name: '自由' },
 ]
 
+const latitudeMarks = [
+  { value: -90, name: '南极' },
+  { value: -23.44, name: '南回归线' },
+  { value: 0, name: '赤道' },
+  { value: 23.44, name: '北回归线' },
+  { value: 90, name: '北极' },
+].map(mark => ({
+  ...mark,
+  label: mark.value === 0 ? '0°' : `${Math.abs(mark.value)}°${mark.value < 0 ? 'S' : 'N'}`,
+}))
+
 // --- 核心状态 ---
 const currentLatitude = ref(40)
-const currentDeclination = ref(23.44)
+const currentDeclination = ref(declinationForDay(dayFromDate('2026-06-21')))
 const currentHourAngle = ref(0)
 const currentSeasonName = ref('夏至')
 const currentDate = ref('2026-06-21')
@@ -440,7 +354,7 @@ const activeCity = ref('北京')
 const activeSeason = ref('summer')
 const activeView = ref('free')
 const isAnimating = ref(false)
-const animSpeed = ref(5)
+const animSpeed = ref(1)
 
 const threeContainerRef =
   ref<HTMLElement | null>(null)
@@ -460,6 +374,13 @@ const speedOptions =
 const controlCardCollapsed = ref(true)
 const dataCardCollapsed = ref(true)
 const panelsVisible = ref(true)
+const compactPanelViewport = ref(window.innerWidth <= 720)
+const floatingPanelTop = computed(() => compactPanelViewport.value ? 124 : 96)
+const floatingPanelBottomInset = computed(() => compactPanelViewport.value ? 176 : 112)
+
+function updatePanelViewport() {
+  compactPanelViewport.value = window.innerWidth <= 720
+}
 
 function togglePanelsVisibility() {
   panelsVisible.value = !panelsVisible.value
@@ -547,22 +468,14 @@ const haRad = computed(() => currentHourAngle.value * Math.PI / 180)
 const calcTerm1 = computed(() => Math.sin(latRad.value) * Math.sin(decRad.value))
 const calcTerm2 = computed(() => Math.cos(latRad.value) * Math.cos(decRad.value) * Math.cos(haRad.value))
 const calcSinH = computed(() => calcTerm1.value + calcTerm2.value)
-const currentSunHeight = computed(() => Math.asin(Math.max(-1, Math.min(1, calcSinH.value))) * 180 / Math.PI)
-
-const timeDisplay = computed(() => {
-  const time = 12 + currentHourAngle.value / 15
-  const t = time < 0 ? time + 24 : time
-  const hours = Math.floor(t)
-  const mins = Math.round((t - hours) * 60)
-  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')} (时角${currentHourAngle.value.toFixed(2)}°)`
+const currentSunHeight = computed(() => {
+  const altitude = Math.asin(Math.max(-1, Math.min(1, calcSinH.value))) * 180 / Math.PI
+  return Math.abs(altitude) < 1e-8 ? 0 : altitude
 })
 
 const solarTimeStr = computed(() => {
-  const time = 12 + currentHourAngle.value / 15
-  const t = time < 0 ? time + 24 : time
-  const hours = Math.floor(t)
-  const mins = Math.round((t - hours) * 60)
-  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+  const totalMinutes = Math.round((12 + currentHourAngle.value / 15) * 60)
+  return `${Math.floor(totalMinutes / 60).toString().padStart(2, '0')}:${(totalMinutes % 60).toString().padStart(2, '0')}`
 })
 
 const monthDayDisplay = computed(() => {
@@ -570,49 +483,46 @@ const monthDayDisplay = computed(() => {
   return `${parseInt(parts[1]!)}月${parseInt(parts[2]!)}日`
 })
 
-const currentDayOfYear = computed(() => {
-  const date = new Date(currentDate.value)
-  return getDayOfYear(date)
+const currentDayOfYear = computed(() => dayFromDate(currentDate.value))
+const declinationDisplay = computed(() =>
+  Math.abs(currentDeclination.value).toFixed(2) + decHemisphereUnit.value
+)
+const daylight = computed(() => getDaylight(currentLatitude.value, currentDeclination.value))
+const polarStatus = computed(() => ({
+  normal: '正常昼夜交替',
+  'polar-day': '极昼',
+  'polar-night': '极夜',
+  horizon: '太阳中心位于地平线',
+})[daylight.value.status])
+const riseSetValue = computed(() => {
+  if (daylight.value.status === 'horizon') return '位于地平线'
+  if (daylight.value.status !== 'normal') return '无日出日落'
+  if (currentDeclination.value > 0) return '东北 / 西北'
+  if (currentDeclination.value < 0) return '东南 / 西南'
+  return '正东 / 正西'
 })
-
-const riseDir = computed(() => {
-  if (currentDeclination.value > 0) return '东北'
-  if (currentDeclination.value < 0) return '东南'
-  return '正东'
-})
-
-const setDir = computed(() => {
-  if (currentDeclination.value > 0) return '西北'
-  if (currentDeclination.value < 0) return '西南'
-  return '正西'
-})
-
-const polarStatus = computed(() => {
-  const tanProd = -Math.tan(latRad.value) * Math.tan(decRad.value)
-  if (tanProd < -1) return '极昼'
-  if (tanProd > 1) return '极夜'
-  return '无'
-})
-
-const currentViewName = computed(() => {
-  return views.find((item) => item.id === activeView.value)?.name || '自由'
-})
-
-
+const riseSetDescription = computed(() => ({
+  normal: '依次为日出、日落的方位',
+  'polar-day': '太阳全天不落到地平线下',
+  'polar-night': '太阳全天不升到地平线上',
+  horizon: '极点二分日的理想几何状态',
+})[daylight.value.status])
 const dayLen = computed(() => {
-  const tanProd = -Math.tan(latRad.value) * Math.tan(decRad.value)
-  if (Math.abs(tanProd) <= 1) {
-    const halfDayAngle = Math.acos(tanProd) * 180 / Math.PI
-    const dayHours = 2 * halfDayAngle / 15
-    const h = Math.floor(dayHours)
-    const m = Math.round((dayHours - h) * 60)
-    return `${h}h ${m}m`
-  } else if (tanProd < -1) {
-    return '24h (极昼)'
-  } else {
-    return '0h (极夜)'
-  }
+  const hours = daylight.value.hours
+  if (hours === null) return '地平线临界'
+  const minutes = Math.round(hours * 60)
+  return `${Math.floor(minutes / 60)}小时${minutes % 60 ? `${minutes % 60}分` : ''}`
 })
+const trackInclination = computed(() => getTrackInclination(currentLatitude.value))
+const trackTiltDescription = computed(() => {
+  const lat = currentLatitude.value
+  if (Math.abs(lat) === 90) return '极点的轨迹平面与地平面平行。'
+  if (lat === 0) return '赤道上的轨迹平面与地平面垂直。'
+  return `轨迹平面的上缘向${lat > 0 ? '南' : '北'}倾斜。`
+})
+const currentViewName = computed(() =>
+  views.find(item => item.id === activeView.value)?.name || '自由'
+)
 
 const sunDataCards = computed(() => [
   {
@@ -623,16 +533,14 @@ const sunDataCards = computed(() => [
   },
   {
     label: '直射纬度 δ',
-    value:
-      Math.abs(currentDeclination.value).toFixed(2) +
-      decHemisphereUnit.value,
-    description: decHemisphere.value,
+    value: declinationDisplay.value,
+    description: `${decHemisphere.value} · 教学近似`,
     className: 'blue-card',
   },
   {
-    label: '当前节气',
+    label: '参考节气',
     value: currentSeasonName.value,
-    description: monthDayDisplay.value,
+    description: `所选日期：${monthDayDisplay.value}`,
     className: 'purple-card',
   },
   {
@@ -649,7 +557,7 @@ const sunDataCards = computed(() => [
     value:
       noonHeight.value.toFixed(2) +
       '°',
-    description: 'H正午 = 90° - |φ - δ|',
+    description: noonHeight.value < 0 ? '正午太阳仍在地平线下' : 'H = 90° − |φ − δ|',
     className: 'cyan-card',
   },
   {
@@ -657,16 +565,13 @@ const sunDataCards = computed(() => [
     value:
       currentSunHeight.value.toFixed(2) +
       '°',
-    description: '随地方太阳时变化',
+    description: currentSunHeight.value < 0 ? '太阳在地平线下' : '太阳与地平面的夹角',
     className: 'blue-card',
   },
   {
-    label: '日出 / 日落',
-    value:
-      riseDir.value +
-      ' / ' +
-      setDir.value,
-    description: '二分日为正东正西',
+    label: '日出 / 日落方位',
+    value: riseSetValue.value,
+    description: riseSetDescription.value,
     className: 'purple-card',
   },
   {
@@ -677,50 +582,6 @@ const sunDataCards = computed(() => [
   },
 ])
 
-const lectureText = computed(() => {
-  const lat = currentLatitude.value
-  const dec = currentDeclination.value
-  const nH = noonHeight.value
-  if (lat === 90) {
-    return `📌 <b>北极点特例：</b>太阳在地平圈上平行转动！出现<b>极昼</b>。正午太阳高度 ${nH.toFixed(1)}°`
-  } else if (lat === -90) {
-    return `📌 <b>南极点特例：</b>太阳在地平圈上平行转动！${dec > 0 ? '出现<b>极夜</b>' : '出现<b>极昼</b>'}。正午太阳高度 ${nH.toFixed(1)}°`
-  } else if (lat === 0 && dec === 0) {
-    return `📌 <b>赤道二分日：</b>太阳<b>正东</b>升<b>正西</b>落，正午高度<b>90°</b>（天顶直射）`
-  } else {
-    let riseSet = ''
-    if (dec > 0) riseSet = '<b>东北</b>升起，<b>西北</b>落下'
-    else if (dec < 0) riseSet = '<b>东南</b>升起，<b>西南</b>落下'
-    else riseSet = '<b>正东</b>升起，<b>正西</b>落下'
-    let sunDir = ''
-    if (lat > dec) sunDir = '正午太阳在<b>正南</b>天空'
-    else if (lat < dec) sunDir = '正午太阳在<b>正北</b>天空'
-    else sunDir = '正午太阳在<b>天顶</b>附近'
-    return `📍 纬度：${latDisplay.value}<br>🌅 ${riseSet}<br>☀️ 正午高度：${nH.toFixed(1)}°<br>🧭 ${sunDir}`
-  }
-})
-
-const mistakes = computed(() => {
-  const lat = currentLatitude.value
-  const dec = currentDeclination.value
-  const result: Array<{ wrong: string; correct: string; explain: string }> = []
-  result.push({ wrong: 'H = 90° - φ + δ', correct: 'H = 90° - |φ - δ|', explain: '正午太阳高度 = 90°减纬度差绝对值，不是简单加减！' })
-  if (dec > 0) result.push({ wrong: '夏至太阳直射南半球', correct: '夏至直射23.5°N（北半球）', explain: '太阳直射点始终在23.5°S~23.5°N间移动！' })
-  else if (dec < 0) result.push({ wrong: '冬至直射北半球', correct: '冬至直射23.5°S（南半球）', explain: '冬至时直射点移至南半球最南端！' })
-  if (lat > dec) result.push({ wrong: '正午太阳在正北天空', correct: '观测纬度>直射纬度时，正午太阳在正南', explain: '观测点比直射点更远离赤道时，正午太阳偏向赤道方向！' })
-  else if (lat < dec) result.push({ wrong: '正午太阳在正南天空', correct: '观测纬度<直射纬度时，正午太阳在正北', explain: '观测点比直射点更靠近赤道时，正午太阳偏向极方！' })
-  if (dec !== 0) result.push({ wrong: '太阳永远正东升正西落', correct: dec > 0 ? '东北升、西北落' : '东南升、西南落', explain: '只有二分日才正东升正西落！' })
-  if (lat >= 66.5) {
-    if (dec > 0) result.push({ wrong: '高纬度昼夜不变', correct: '≥66.5°N 夏至极昼', explain: '极昼极夜临界纬度 = 90° - |δ|！' })
-    else if (dec < 0) result.push({ wrong: '高纬度昼夜不变', correct: '≥66.5°N 冬至极夜', explain: '冬至时66.5°N以北极夜！' })
-  }
-  if (lat <= -66.5) {
-    if (dec < 0) result.push({ wrong: '高纬度昼夜不变', correct: '≥66.5°S 冬至极昼', explain: '南半球极昼极夜与北半球相反！' })
-    else if (dec > 0) result.push({ wrong: '高纬度昼夜不变', correct: '≥66.5°S 夏至极夜', explain: '北半球夏至时南极高纬极夜！' })
-  }
-  if (lat === 0) result.push({ wrong: '赤道永远正东升正西落', correct: '赤道仅二分日正东升正西落', explain: '日出方位仍受直射纬度影响！' })
-  return result
-})
 
 // --- Three.js 相关 ---
 let scene: THREE.Scene
@@ -735,17 +596,22 @@ let shTowerGroup: THREE.Group
 let buildingGroup: THREE.Group
 let gridLines: THREE.Line[] = []
 let pathLine: THREE.Object3D | null = null
-let sunMesh: THREE.Mesh | null = null
 let currentSunMarker: THREE.Mesh | null = null
-let sunGlowSprite: THREE.Sprite | null = null
 let curSunGlowSprite: THREE.Sprite | null = null
-let sunPointLight: THREE.PointLight | null = null
 let flagpoleGroup: THREE.Group | null = null
 let sunriseLabel: THREE.Sprite | null = null
 let sunsetLabel: THREE.Sprite | null = null
 let undergroundPath: THREE.Group | null = null
 let flagShaderMat: THREE.ShaderMaterial | null = null
 let animFrameId = 0
+let lastFrameTime: number | null = null
+let cameraTransition: {
+  startPosition: THREE.Vector3
+  endPosition: THREE.Vector3
+  startTarget: THREE.Vector3
+  endTarget: THREE.Vector3
+  startTime: number
+} | null = null
 let sceneResizeObserver:
   | ResizeObserver
   | null = null
@@ -768,203 +634,178 @@ let bgCanvasRef: HTMLCanvasElement
 let bgTextureRef: THREE.CanvasTexture
 let windowMatRef: THREE.MeshBasicMaterial
 
-function calculateSunPosition(latDeg: number, decDeg: number, hourAngleDeg: number) {
-  const lat = latDeg * Math.PI / 180
-  const dec = decDeg * Math.PI / 180
-  const h = hourAngleDeg * Math.PI / 180
-  const sinAlt = Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(h)
-  const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)))
-  const cosAlt = Math.cos(alt)
-  const R = 8
-  let az = 0
 
-  // 极地特判：cos(lat)≈0 时方位角公式除零失效，直接用时角作为方位角
-  // 北极：太阳在恒定高度绕天顶旋转，方位角即时角
-  if (Math.abs(Math.cos(lat)) < 0.01) {
-    if (h <= 0) {
-      az = -h // 上午：0→π
-    } else {
-      az = Math.PI * 2 - h // 下午：2π→π
+// 轨迹直接由连续时角求点，避免跨过午夜后把不相邻的点连接成假弦。
+class DailySunCurve extends THREE.Curve<THREE.Vector3> {
+  constructor(
+    private latitude: number,
+    private declination: number,
+    private startAngle: number,
+    private endAngle: number,
+  ) { super() }
+
+  override getPoint(t: number, target = new THREE.Vector3()) {
+    const position = calculateSunPosition(
+      this.latitude, this.declination,
+      this.startAngle + (this.endAngle - this.startAngle) * t,
+    )
+    return target.set(position.x, position.y, position.z)
+  }
+}
+
+function disposeSceneObject(object: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>()
+  const materials = new Set<THREE.Material>()
+  const textures = new Set<THREE.Texture>()
+  object.traverse(child => {
+    if (child instanceof THREE.Mesh || child instanceof THREE.Line || child instanceof THREE.Sprite) {
+      if (!(child instanceof THREE.Sprite)) geometries.add(child.geometry)
+      for (const material of Array.isArray(child.material) ? child.material : [child.material]) {
+        materials.add(material)
+        for (const value of Object.values(material)) {
+          if (value instanceof THREE.Texture) textures.add(value)
+        }
+      }
     }
-  } else if (cosAlt > 0.001) {
-    const cosAz = (Math.sin(dec) - Math.sin(lat) * sinAlt) / (Math.cos(lat) * cosAlt)
-    az = Math.acos(Math.max(-1, Math.min(1, cosAz)))
-    if (Math.sin(h) > 0) az = Math.PI * 2 - az
-  }
+  })
+  geometries.forEach(geometry => geometry.dispose())
+  materials.forEach(material => material.dispose())
+  textures.forEach(texture => texture.dispose())
+}
 
-  return {
-    x: R * cosAlt * Math.sin(az),
-    y: R * sinAlt,
-    z: R * cosAlt * Math.cos(az),
-    alt: alt * 180 / Math.PI,
-    azDeg: az * 180 / Math.PI,
-  }
+function makeSunLabel(text: string, position: THREE.Vector3) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 192
+  canvas.height = 72
+  const context = canvas.getContext('2d')!
+  context.font = 'bold 36px "Microsoft YaHei", sans-serif'
+  context.fillStyle = '#fff2a6'
+  context.strokeStyle = '#493408'
+  context.lineWidth = 5
+  context.textAlign = 'center'
+  context.textBaseline = 'middle'
+  context.strokeText(text, 96, 36)
+  context.fillText(text, 96, 36)
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false,
+  }))
+  sprite.scale.set(1.8, 0.675, 1)
+  sprite.position.copy(position)
+  sprite.position.y += 0.4
+  return sprite
 }
 
 function drawSunPath() {
-  if (pathLine) { scene.remove(pathLine); pathLine = null }
-  if (sunMesh) { scene.remove(sunMesh); sunMesh = null }
-  if (currentSunMarker) { scene.remove(currentSunMarker); currentSunMarker = null }
-  if (sunGlowSprite) { scene.remove(sunGlowSprite); sunGlowSprite = null }
-  if (curSunGlowSprite) { scene.remove(curSunGlowSprite); curSunGlowSprite = null }
-  if (sunPointLight) { scene.remove(sunPointLight); sunPointLight = null }
-  if (sunriseLabel) { scene.remove(sunriseLabel); sunriseLabel = null }
-  if (sunsetLabel) { scene.remove(sunsetLabel); sunsetLabel = null }
-  if (undergroundPath) { scene.remove(undergroundPath); undergroundPath = null }
-
-  // 生成太阳外发光纹理
-  const glowCanvas = document.createElement('canvas')
-  glowCanvas.width = 256
-  glowCanvas.height = 256
-  const glowCtx = glowCanvas.getContext('2d')!
-  const gradient = glowCtx.createRadialGradient(128, 128, 0, 128, 128, 128)
-  gradient.addColorStop(0, 'rgba(255,210,0,0.9)')
-  gradient.addColorStop(0.15, 'rgba(255,190,0,0.7)')
-  gradient.addColorStop(0.3, 'rgba(255,165,0,0.5)')
-  gradient.addColorStop(0.5, 'rgba(255,130,0,0.3)')
-  gradient.addColorStop(0.7, 'rgba(255,90,0,0.15)')
-  gradient.addColorStop(1, 'rgba(255,40,0,0.0)')
-  glowCtx.fillStyle = gradient
-  glowCtx.fillRect(0, 0, 256, 256)
-  const glowTexture = new THREE.CanvasTexture(glowCanvas)
-
-  const makeGlowSprite = (scale: number) => {
-    const spriteMat = new THREE.SpriteMaterial({
-      map: glowTexture,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      depthWrite: false,
-    })
-    const sprite = new THREE.Sprite(spriteMat)
-    sprite.scale.set(scale, scale, 1)
-    return sprite
-  }
-
-  // 收集所有轨迹点（含地表以下）
-  const allPoints: THREE.Vector3[] = []
-  const abovePoints: THREE.Vector3[] = []
-  for (let h = -180; h <= 180; h += 1) {
-    const pos = calculateSunPosition(currentLatitude.value, currentDeclination.value, h)
-    const p = new THREE.Vector3(pos.x, pos.y, pos.z)
-    allPoints.push(p)
-    if (pos.y >= -0.1) abovePoints.push(p.clone())
-  }
-
-  // 地下轨迹（半透明管道，区分于地上实线）
-  if (showPath.value && allPoints.length > 2) {
-    const belowPoints: THREE.Vector3[] = []
-    for (const p of allPoints) {
-      if (p.y < -0.1) belowPoints.push(p)
-    }
-    if (belowPoints.length > 2) {
-      const belowCurve = new THREE.CatmullRomCurve3(belowPoints, false, 'centripetal', 0)
-      const belowTube = new THREE.TubeGeometry(belowCurve, 80, 0.02, 6, false)
-      const belowMat = new THREE.MeshBasicMaterial({ color: 0x8a7a4a, transparent: true, opacity: 0.35 })
-      undergroundPath = new THREE.Group()
-      undergroundPath.add(new THREE.Mesh(belowTube, belowMat))
-      scene.add(undergroundPath)
+  for (const object of [pathLine, undergroundPath, sunriseLabel, sunsetLabel]) {
+    if (object) {
+      scene.remove(object)
+      disposeSceneObject(object)
     }
   }
+  pathLine = null
+  undergroundPath = null
+  sunriseLabel = null
+  sunsetLabel = null
 
-  if (showPath.value && abovePoints.length > 2) {
-    // 检测是否为闭合环（极昼路径：首尾点接近）
-    const first = abovePoints[0]!
-    const last = abovePoints[abovePoints.length - 1]!
-    const isClosedLoop = Math.abs(first.x - last.x) < 0.1 && Math.abs(first.z - last.z) < 0.1 && Math.abs(first.y - last.y) < 0.1
-    // 闭合环时去掉重复的尾点，使用 closed=true
-    const curvePoints = isClosedLoop ? abovePoints.slice(0, -1) : abovePoints
-    const curve = new THREE.CatmullRomCurve3(curvePoints, isClosedLoop, 'catmullrom', isClosedLoop ? 0 : 0.3)
-    const tubeGeo = new THREE.TubeGeometry(curve, isClosedLoop ? 200 : 150, 0.025, 8, isClosedLoop)
-    const mat = new THREE.MeshBasicMaterial({ color: 0xe4d28b })
-    pathLine = new THREE.Mesh(tubeGeo, mat)
-    scene.add(pathLine)
-
-    // 日出日落标记（非闭合环时）
-    if (!isClosedLoop) {
-      const makeSunLabel = (text: string, pos: THREE.Vector3) => {
-        const c = document.createElement('canvas')
-        c.width = 160
-        c.height = 64
-        const cx = c.getContext('2d')!
-        cx.font = 'bold 32px Arial'
-        cx.fillStyle = '#ffd000'
-        cx.strokeStyle = '#000'
-        cx.lineWidth = 4
-        cx.textAlign = 'center'
-        cx.textBaseline = 'middle'
-        cx.strokeText(text, 80, 32)
-        cx.fillText(text, 80, 32)
-        const tex = new THREE.CanvasTexture(c)
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }))
-        sp.scale.set(1.5, 0.6, 1)
-        sp.position.copy(pos)
-        sp.position.y += 0.5
-        return sp
+  if (showPath.value) {
+    const { status, sunriseHourAngle, sunsetHourAngle } = daylight.value
+    const addArc = (start: number, end: number, below: boolean, closed = false) => {
+      const curve = new DailySunCurve(currentLatitude.value, currentDeclination.value, start, end)
+      if (below) {
+        const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(360))
+        const line = new THREE.Line(geometry, new THREE.LineDashedMaterial({
+          color: 0x796343, transparent: true, opacity: 0.65, dashSize: 0.22, gapSize: 0.16,
+        }))
+        line.computeLineDistances()
+        undergroundPath = new THREE.Group()
+        undergroundPath.add(line)
+        scene.add(undergroundPath)
+      } else {
+        pathLine = new THREE.Mesh(
+          new THREE.TubeGeometry(curve, 240, 0.025, 8, closed),
+          new THREE.MeshBasicMaterial({ color: 0xf2bd38 }),
+        )
+        scene.add(pathLine)
       }
-      sunriseLabel = makeSunLabel('日出', first)
-      scene.add(sunriseLabel)
-      sunsetLabel = makeSunLabel('日落', last)
-      scene.add(sunsetLabel)
+      return curve
+    }
+    if (status === 'normal' && sunriseHourAngle !== null && sunsetHourAngle !== null) {
+      const daytime = addArc(sunriseHourAngle, sunsetHourAngle, false)
+      // 日落 → 次日日出，跨午夜但时角连续。
+      addArc(sunsetHourAngle, sunriseHourAngle + 360, true)
+      sunriseLabel = makeSunLabel('日出', daytime.getPoint(0))
+      sunsetLabel = makeSunLabel('日落', daytime.getPoint(1))
+      scene.add(sunriseLabel, sunsetLabel)
+    } else {
+      addArc(-180, 180, status === 'polar-night', true)
     }
   }
 
-  // 当前时刻太阳标记：真实发光体 + 外发光 + 点光源
-  const curPos = calculateSunPosition(currentLatitude.value, currentDeclination.value, currentHourAngle.value)
-  {
-    const markerGeo = new THREE.SphereGeometry(0.35, 32, 32)
-    const markerMat = new THREE.MeshBasicMaterial({ color: 0xffb800 })
-    currentSunMarker = new THREE.Mesh(markerGeo, markerMat)
-    currentSunMarker.position.set(curPos.x, curPos.y, curPos.z)
+  if (!currentSunMarker) {
+    currentSunMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.25, 24, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffc42b }),
+    )
     scene.add(currentSunMarker)
-
-    curSunGlowSprite = makeGlowSprite(3.5)
-    curSunGlowSprite.position.set(curPos.x, curPos.y, curPos.z)
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 128
+    const context = canvas.getContext('2d')!
+    const glow = context.createRadialGradient(64, 64, 0, 64, 64, 64)
+    glow.addColorStop(0, 'rgba(255,220,100,0.65)')
+    glow.addColorStop(0.3, 'rgba(255,200,70,0.25)')
+    glow.addColorStop(1, 'rgba(255,180,40,0)')
+    context.fillStyle = glow
+    context.fillRect(0, 0, 128, 128)
+    curSunGlowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(canvas), blending: THREE.AdditiveBlending,
+      transparent: true, depthWrite: false,
+    }))
+    curSunGlowSprite.scale.set(2.2, 2.2, 1)
     scene.add(curSunGlowSprite)
-
-    // 太阳点光源
-    sunPointLight = new THREE.PointLight(0xfff0d0, 1.5, 20, 1.5)
-    sunPointLight.position.set(curPos.x, curPos.y, curPos.z)
-    scene.add(sunPointLight)
   }
+  updateSunAtTime()
+}
 
-  // 光源跟随太阳
-  const sunLightPos = calculateSunPosition(currentLatitude.value, currentDeclination.value, currentHourAngle.value)
-  if (showShadows.value && sunLightPos.y > 0) {
-    const lightScale = 1.8
-    dirLight.position.set(sunLightPos.x * lightScale, sunLightPos.y * lightScale, sunLightPos.z * lightScale)
-    dirLight.intensity = 0.8 + (sunLightPos.y / 8) * 0.8
-    renderer.shadowMap.enabled = true
-  } else {
-    dirLight.position.set(0, 0.5, 5)
-    dirLight.intensity = 0.3
-    renderer.shadowMap.enabled = showShadows.value
+function updateSunAtTime() {
+  const position = calculateSunPosition(currentLatitude.value, currentDeclination.value, currentHourAngle.value)
+  const isAboveHorizon = position.alt > 1e-8
+  currentSunMarker?.position.set(position.x, position.y, position.z)
+  curSunGlowSprite?.position.set(position.x, position.y, position.z)
+  // 太阳位于地平线下时只保留暗色示意球，不发光、不投射太阳阴影。
+  if (currentSunMarker) {
+    ; (currentSunMarker.material as THREE.MeshBasicMaterial).color.setHex(isAboveHorizon ? 0xffc42b : 0x8b775b)
   }
-
-  // 旗杆太阳高度角演示：太阳光线、地面阴影、角度弧线、标注
-  updateFlagpoleAngle(curPos)
-
+  if (curSunGlowSprite) curSunGlowSprite.visible = isAboveHorizon
+  dirLight.position.set(position.x * 2, position.y * 2, position.z * 2)
+  dirLight.intensity = isAboveHorizon ? 0.8 + position.y / 8 * 0.8 : 0
+  dirLight.castShadow = showShadows.value && isAboveHorizon
+  renderer.shadowMap.enabled = dirLight.castShadow
+  updateFlagpoleAngle(position)
   updateSkyBackground()
 }
 
-function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: number; azDeg: number }) {
+function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: number }) {
   if (!flagpoleGroup) return
   // 清除上次的线条/弧线/标注
   for (let i = flagpoleGroup.children.length - 1; i >= 0; i--) {
     const child = flagpoleGroup.children[i]!
-    if ((child as any)._isDynamic) flagpoleGroup.remove(child)
+    if ((child as any)._isDynamic) {
+      flagpoleGroup.remove(child)
+      disposeSceneObject(child)
+    }
   }
 
   const sunPos = new THREE.Vector3(curPos.x, curPos.y, curPos.z)
   const horizDir = new THREE.Vector3(curPos.x, 0, curPos.z)
-  if (horizDir.length() < 0.01) return
+  if (horizDir.length() < 0.000001) horizDir.set(1, 0, 0)
   horizDir.normalize()
   // 太阳在地平线以下时不显示
-  if (curPos.y < -0.05) return
+  if (curPos.alt <= 1e-8) return
 
   const rayMat = new THREE.MeshBasicMaterial({ color: 0xe4d28b })
   const arcMat = new THREE.MeshBasicMaterial({ color: 0xe4d28b })
 
-  const altRad = Math.max(curPos.alt * Math.PI / 180, 0.5 * Math.PI / 180)
+  const altRad = curPos.alt * Math.PI / 180
   const center = new THREE.Vector3(0, 0.01, 0)
 
   // 太阳光线：从太阳直连正中心（圆柱体）
@@ -1008,22 +849,22 @@ function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: num
 
   // 标注太阳高度角文字
   const labelCanvas = document.createElement('canvas')
-  labelCanvas.width = 256
+  labelCanvas.width = 384
   labelCanvas.height = 64
   const lctx = labelCanvas.getContext('2d')!
   lctx.fillStyle = 'rgba(0,0,0,0)'
-  lctx.fillRect(0, 0, 256, 64)
+  lctx.clearRect(0, 0, labelCanvas.width, labelCanvas.height)
   lctx.font = 'bold 28px sans-serif'
   lctx.fillStyle = '#e4d28b'
   lctx.strokeStyle = '#000000'
   lctx.lineWidth = 4
-  const text = `太阳高度角 ${curPos.alt.toFixed(1)}°`
+  const text = curPos.alt > 89.999 ? '太阳高度角 90°（天顶）' : `太阳高度角 ${curPos.alt.toFixed(1)}°`
   lctx.strokeText(text, 8, 42)
   lctx.fillText(text, 8, 42)
   const labelTex = new THREE.CanvasTexture(labelCanvas)
   const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false })
   const labelSprite = new THREE.Sprite(labelMat)
-  labelSprite.scale.set(1.6, 0.4, 1)
+  labelSprite.scale.set(2.8, 0.7, 1)
   // 放在弧线中点上方
   const midAngle = altRad * 0.5
   const labelPos = center.clone()
@@ -1034,12 +875,10 @@ function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: num
   flagpoleGroup.add(labelSprite)
 }
 
-// --- 动态天空背景（委托给外部模块，避免Vue SFC编译器干扰） ---
+// --- 动态天空背景与城市夜景 ---
 function updateSkyBackground() {
   applySky(
     currentSunHeight.value,
-    polarStatus.value === '极昼',
-    polarStatus.value === '极夜',
     bgCanvasRef,
     bgTextureRef,
     ambientLightRef,
@@ -1064,6 +903,10 @@ function setLocation(lat: number, name: string) {
   drawSunPath()
 }
 
+function selectLatitudeMark(latitude: number) {
+  setLocation(latitude, cities.find(city => city.lat === latitude)?.name ?? '')
+}
+
 function updateLatitude(val: string) {
   currentLatitude.value = parseFloat(val)
   activeCity.value = ''
@@ -1072,63 +915,31 @@ function updateLatitude(val: string) {
 
 function updateHourAngle(val: number) {
   currentHourAngle.value = val
-  drawSunPath()
+  updateSunAtTime()
 }
 
-function setSeason(dec: number, seasonId: string) {
-  currentDeclination.value = dec
-  currentSeasonName.value = seasonNames[seasonId] || '自定义'
-  activeSeason.value = seasonId
-  currentDate.value = seasonDates[seasonId] || currentDate.value
-  drawSunPath()
-}
-
-function setDate(dateStr: string) {
-  const date = new Date(dateStr)
-  const dayOfYear = getDayOfYear(date)
-  const dec = 23.44 * Math.sin((360 / 365) * (dayOfYear + 284) * Math.PI / 180)
-  currentDeclination.value = Math.round(dec * 100) / 100
-  currentSeasonName.value = getClosestSeason(dayOfYear)
-  activeSeason.value = ''
-  drawSunPath()
+function setSeason(seasonId: string) {
+  const season = seasons.find(item => item.id === seasonId)
+  if (season) updateDayOfYear(season.day)
 }
 
 function updateDayOfYear(day: number) {
-  const year = 2026
-  const date = new Date(year, 0, day)
-  const dateStr = `${year}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
-  currentDate.value = dateStr
-  const dec = 23.44 * Math.sin((360 / 365) * (day + 284) * Math.PI / 180)
-  currentDeclination.value = Math.round(dec * 100) / 100
-  currentSeasonName.value = getClosestSeason(day)
-  activeSeason.value = ''
+  currentDate.value = dateFromDay(day)
+  currentDeclination.value = declinationForDay(day)
+  currentSeasonName.value = closestSeason(day).name
+  activeSeason.value = seasons.find(item => item.day === day)?.id || ''
   drawSunPath()
-}
-
-function getDayOfYear(date: Date): number {
-  const start = new Date(date.getFullYear(), 0, 0)
-  const diff = date.getTime() - start.getTime()
-  return Math.floor(diff / (1000 * 60 * 60 * 24))
-}
-
-function getClosestSeason(dayOfYear: number): string {
-  const seasonDays = [
-    { day: 172, name: '夏至' }, { day: 220, name: '立秋' }, { day: 266, name: '秋分' },
-    { day: 311, name: '立冬' }, { day: 356, name: '冬至' }, { day: 35, name: '立春' },
-    { day: 80, name: '春分' }, { day: 126, name: '立夏' },
-  ]
-  let closest = seasonDays[0]!
-  let minDiff = 999
-  for (const s of seasonDays) {
-    const diff = Math.abs(dayOfYear - s.day)
-    if (diff < minDiff) { minDiff = diff; closest = s }
-  }
-  return closest.name
 }
 
 // --- 动画控制 ---
 function toggleAnimation() {
   isAnimating.value = !isAnimating.value
+  resetAnimationClock()
+}
+
+function resetAnimationClock() {
+  // 切回页面或恢复播放时从新一帧计时，不补播后台停留的时间。
+  lastFrameTime = null
 }
 
 function updateSpeed(val: number) {
@@ -1153,7 +964,7 @@ function handleHourSlider(value: number | number[]) {
   }
 }
 
-// 面板交互由 useGeoPanelLayout 统一管理。
+// 卡片拖动、缩放和置顶由 FloatingFeatureCard 统一管理。
 
 // --- 视角切换 ---
 function setView(viewId: string) {
@@ -1173,23 +984,28 @@ function setView(viewId: string) {
 }
 
 function animateCamera(targetPos: { x: number; y: number; z: number }, lookTarget: THREE.Vector3) {
-  const startPos = { x: camera.position.x, y: camera.position.y, z: camera.position.z }
-  const duration = 800
-  const startTime = Date.now()
-  function step() {
-    const elapsed = Date.now() - startTime
-    const t = Math.min(elapsed / duration, 1)
-    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
-    camera.position.set(
-      startPos.x + (targetPos.x - startPos.x) * ease,
-      startPos.y + (targetPos.y - startPos.y) * ease,
-      startPos.z + (targetPos.z - startPos.z) * ease,
-    )
-    controls.target.copy(lookTarget)
-    controls.update()
-    if (t < 1) requestAnimationFrame(step)
+  // 只保留最近一次切换，避免连续点击或拖动时多个补间争夺相机。
+  cameraTransition = {
+    startPosition: camera.position.clone(),
+    endPosition: new THREE.Vector3(targetPos.x, targetPos.y, targetPos.z),
+    startTarget: controls.target.clone(),
+    endTarget: lookTarget.clone(),
+    startTime: performance.now(),
   }
-  step()
+}
+
+function updateCameraTransition(now: number) {
+  if (!cameraTransition) return
+  const t = Math.max(0, Math.min((now - cameraTransition.startTime) / 800, 1))
+  const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+  camera.position.lerpVectors(cameraTransition.startPosition, cameraTransition.endPosition, ease)
+  controls.target.lerpVectors(cameraTransition.startTarget, cameraTransition.endTarget, ease)
+  if (t === 1) cameraTransition = null
+}
+
+function handleOrbitStart() {
+  cameraTransition = null
+  activeView.value = 'free'
 }
 
 // --- 监听场景元素开关变化 ---
@@ -1216,6 +1032,7 @@ function initThree() {
     0.1,
     1000
   )
+  syncSceneFraming(width, height)
 
   renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -1233,6 +1050,7 @@ function initThree() {
   container.appendChild(renderer.domElement)
 
   controls = new OrbitControls(camera, renderer.domElement)
+  controls.addEventListener('start', handleOrbitStart)
   camera.position.set(15, 12, 20)
   controls.update()
 
@@ -1614,7 +1432,8 @@ function initThree() {
     bridge.position.set(x, h * 0.65, z)
     buildingGroup.add(bridge)
   }
-  const buildingStyles = [makeBox, makeStepped, makeCylinder, makeLShape, makeSlantRoof, makeTwin]
+  const makeRoundBuilding: typeof makeBox = (w, h, d, mat, x, z) => makeCylinder(Math.min(w, d) * 0.5, h, mat, x, z)
+  const buildingStyles = [makeBox, makeStepped, makeRoundBuilding, makeLShape, makeSlantRoof, makeTwin]
 
   let bi = 0
   const placed: Array<{ x: number; z: number; hw: number; hd: number }> = []
@@ -1645,13 +1464,9 @@ function initThree() {
         }
         if (!ok) continue
         blockPlaced.push({ x, z, hw: w / 2, hd: d / 2 })
-        const mat = pickMat(cfg.type)
+        const mat = pickMat(cfg.type)!
         const styleFn = buildingStyles[Math.floor(Math.random() * buildingStyles.length)]!
-        if (styleFn === makeCylinder) {
-          styleFn(Math.min(w, d) * 0.5, h, mat, x, z)
-        } else {
-          styleFn(w, h, d, mat, x, z)
-        }
+        styleFn(w, h, d, mat, x, z)
       }
       bi++
     }
@@ -1819,19 +1634,21 @@ function initThree() {
 }
 
 // --- 渲染循环 ---
-function animate() {
+function animate(now = performance.now()) {
   animFrameId = requestAnimationFrame(animate)
+  const deltaSeconds = lastFrameTime === null || document.hidden ? 0 : Math.max(0, (now - lastFrameTime) / 1000)
+  lastFrameTime = now
 
-  if (isAnimating.value) {
-    currentHourAngle.value += animSpeed.value * 0.15
-    if (currentHourAngle.value > 180) currentHourAngle.value = -180
-    drawSunPath()
+  if (isAnimating.value && deltaSeconds > 0) {
+    currentHourAngle.value = advanceHourAngle(currentHourAngle.value, animSpeed.value, deltaSeconds)
+    updateSunAtTime()
   }
 
   if (flagShaderMat) {
-    flagShaderMat.uniforms.uTime.value += 0.04
+    flagShaderMat.uniforms.uTime!.value += deltaSeconds * 2.4
   }
 
+  updateCameraTransition(now)
   controls.update()
   renderer.render(scene, camera)
 }
@@ -1881,6 +1698,7 @@ function applySceneResize(
   camera.aspect =
     safeWidth / safeHeight
 
+  syncSceneFraming(safeWidth, safeHeight)
   camera.updateProjectionMatrix()
 
   renderer.setSize(
@@ -1988,7 +1806,16 @@ function onResize() {
   scheduleSceneResizeFromContainer()
 }
 
+// 仅根据容器尺寸适配竖屏取景，悬浮面板的显示和展开状态不影响相机。
+function syncSceneFraming(width: number, height: number) {
+  if (!camera || width <= 0 || height <= 0) return
+  camera.zoom = Math.min(1, width / height / 1.2)
+  camera.updateProjectionMatrix()
+}
+
 onMounted(() => {
+  window.addEventListener('resize', updatePanelViewport)
+  document.addEventListener('visibilitychange', resetAnimationClock)
   initThree()
   animate()
 
@@ -2022,6 +1849,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updatePanelViewport)
+  document.removeEventListener('visibilitychange', resetAnimationClock)
   sceneResizeObserver?.disconnect()
   sceneResizeObserver = null
 
@@ -2043,9 +1872,12 @@ onUnmounted(() => {
 
   cancelAnimationFrame(animFrameId)
 
+  cameraTransition = null
+  controls?.removeEventListener('start', handleOrbitStart)
   controls?.dispose()
 
   if (renderer) {
+    if (scene) disposeSceneObject(scene)
     renderer.dispose()
     renderer.forceContextLoss()
 
@@ -2063,10 +1895,6 @@ onUnmounted(() => {
 
 
 <style scoped>
-.control-floating-card:not(.collapsed) {
-  height: min(760px, calc(100vh - 96px));
-}
-
 .apparent-motion-of-the-sun-container {
   font-family:
     "Microsoft YaHei",
@@ -2372,5 +2200,318 @@ onUnmounted(() => {
   display: block;
   width: 100% !important;
   height: 100% !important;
+}
+
+/* 默认右侧上下排列；位置和尺寸交回悬浮卡片组件，允许自由拖动、缩放。 */
+.apparent-motion-of-the-sun-container {
+  --font-size-xxs: 12px;
+  --font-size-xs: 13px;
+  --font-size-sm: 14px;
+  --font-size-base: 14px;
+  --text-muted: #506a7c;
+  --theme-primary: #087c80;
+}
+
+.sun-panel-stack {
+  --sun-panel-top: 96px;
+  --sun-panel-bottom: 112px;
+  position: fixed;
+  z-index: 44;
+  inset: 0;
+  pointer-events: none;
+}
+
+.sun-panel-stack .floating-feature-card {
+  width: min(380px, calc(100vw - 32px));
+  height: min(520px, calc(100vh - var(--sun-panel-top) - var(--sun-panel-bottom)));
+  max-width: calc(100vw - 20px);
+  max-height: calc(100vh - 62px - var(--sun-panel-bottom));
+  min-height: 0;
+  touch-action: auto;
+}
+
+.sun-panel-stack .floating-feature-card.collapsed {
+  width: 180px;
+  height: auto;
+}
+
+.sun-panel-stack :deep(.feature-card-head) {
+  min-height: 52px;
+  padding: 12px 14px;
+  gap: 8px;
+  touch-action: none;
+}
+
+.sun-panel-stack :deep(.feature-resize-handle) {
+  touch-action: none;
+}
+
+.sun-panel-stack :deep(.feature-card-title-label) {
+  font-size: 15px;
+}
+
+.sun-panel-stack :deep(.feature-card-title strong) {
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+  color: #456174;
+}
+
+.sun-panel-stack :deep(.collapse-btn) {
+  width: 32px;
+  height: 32px;
+}
+
+.sun-panel-stack :deep(.feature-card-content) {
+  padding: 0 0 40px;
+  overscroll-behavior: contain;
+}
+
+.sun-panel-stack .panel-scroll {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  padding: 14px;
+}
+
+.sun-panel-stack .section-title {
+  font-size: 14px;
+}
+
+.sun-panel-stack .option-btn {
+  font-size: 13px !important;
+  min-height: 36px;
+  padding: 7px 4px;
+}
+
+.sun-panel-stack .control-copy strong {
+  font-size: 14px !important;
+}
+
+.sun-panel-stack .control-copy span {
+  font-size: 12px !important;
+  line-height: 1.5;
+}
+
+.sun-panel-stack .view-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sun-panel-stack .parameter-banner {
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.sun-panel-stack .latitude-scale {
+  position: relative;
+  display: block;
+  height: 32px;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.latitude-mark {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  min-height: 28px;
+  padding: 3px 2px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-muted);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: #87b9c8;
+  text-underline-offset: 3px;
+}
+
+.latitude-mark:hover,
+.latitude-mark[aria-pressed="true"] {
+  color: #087c80;
+  background: #dceff4;
+}
+
+.latitude-mark:first-child {
+  transform: none;
+}
+
+.latitude-mark:last-child {
+  transform: translateX(-100%);
+}
+
+.sun-panel-stack .sun-data-grid {
+  padding: 14px;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sun-panel-stack .data-card {
+  padding: 12px;
+}
+
+.sun-panel-stack .data-card>span {
+  font-size: 13px !important;
+  color: #38566a;
+}
+
+.sun-panel-stack .data-card>strong {
+  font-size: 20px !important;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.sun-panel-stack .data-card>small {
+  font-size: 12px !important;
+  color: #506a7c;
+  line-height: 1.5;
+}
+
+.sun-panel-stack .cyan-card>strong {
+  color: #087c80;
+}
+
+.sun-panel-stack .blue-card>strong {
+  color: #086ca5;
+}
+
+.sun-panel-stack .purple-card>strong {
+  color: #6353b2;
+}
+
+.sun-panel-stack .orange-card>strong {
+  color: #906100;
+}
+
+.trajectory-note,
+.model-note {
+  margin: 0 14px 14px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #e8f4f7;
+  color: #38566a;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.trajectory-note strong {
+  font-size: 14px;
+  color: #087c80;
+}
+
+.trajectory-note p,
+.model-note p {
+  margin: 6px 0 0;
+}
+
+.model-note summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.apparent-motion-of-the-sun-container.theme-light.layout-floating .top-toolbar {
+  background: rgba(240, 249, 253, 0.94) !important;
+}
+
+.apparent-motion-of-the-sun-container .toolbar-btn {
+  font-size: 13px !important;
+  min-height: 36px;
+}
+
+.apparent-motion-of-the-sun-container .sun-timeline-dock {
+  background: rgba(244, 251, 255, 0.96) !important;
+  border-color: rgba(50, 113, 139, 0.3) !important;
+  bottom: 14px !important;
+  padding: 12px 16px;
+  min-height: 76px;
+}
+
+.sun-timeline-dock .time-markers,
+.sun-timeline-dock .solar-time-readout span {
+  color: #38566a;
+  font-size: 12px !important;
+}
+
+.sun-timeline-dock .solar-time-readout strong {
+  color: #087c80;
+  font-size: 17px !important;
+}
+
+.sun-timeline-dock .speed-btn {
+  font-size: 12px !important;
+  min-width: 36px;
+  min-height: 32px;
+}
+
+.sun-panel-stack :deep(button:focus-visible),
+.sun-timeline-dock button:focus-visible {
+  outline: 2px solid #087aa5;
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .sun-panel-stack {
+    --sun-panel-top: 124px;
+    --sun-panel-bottom: 176px;
+  }
+
+  .apparent-motion-of-the-sun-container .sun-timeline-dock {
+    width: calc(100% - 24px);
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: 8px 12px;
+    padding: 10px 12px;
+  }
+
+  .sun-timeline-dock .timeline-main {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .sun-timeline-dock .speed-options {
+    grid-column: 3;
+    grid-row: 1;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .sun-timeline-dock .speed-btn {
+    min-width: 28px;
+    padding: 4px;
+    font-size: 11px !important;
+  }
+
+  .apparent-motion-of-the-sun-container .top-toolbar {
+    --header-side-reserve: 120px;
+  }
+
+  .apparent-motion-of-the-sun-container .toolbar-actions {
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  .apparent-motion-of-the-sun-container .toolbar-btn {
+    font-size: 11px !important;
+    min-height: 25px;
+  }
+
+  .apparent-motion-of-the-sun-container .page-title {
+    font-size: 17px;
+  }
+
+  .sun-panel-stack .city-grid,
+  .sun-panel-stack .season-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  :global(.app-container:has(.apparent-motion-of-the-sun-container) > .back-home-btn) {
+    top: 68px;
+    bottom: auto;
+    right: auto;
+    left: 12px;
+    width: 40px;
+    height: 40px;
+  }
 }
 </style>

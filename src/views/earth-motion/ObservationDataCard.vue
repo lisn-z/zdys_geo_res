@@ -1,5 +1,5 @@
 <template>
-  <FloatingFeatureCard title="实时数据" :subtitle="place" variant="data" :initial-top="initialTop"
+  <FloatingFeatureCard title="观测数据" :subtitle="place" variant="data" :initial-top="initialTop"
     :initial-right="initialRight" :initial-collapsed="initialCollapsed">
     <div v-if="hasObservation" class="data-card-content">
       <div class="data-hero-row">
@@ -8,7 +8,7 @@
           <strong>{{ solarAltitude }}</strong>
         </article>
         <article>
-          <span>太阳时</span>
+          <span>当地太阳时</span>
           <strong>{{ solarTime }}</strong>
         </article>
       </div>
@@ -28,17 +28,27 @@
           <dd>{{ dayNightValue }}</dd>
         </div>
         <div>
-          <dt>日出</dt>
+          <dt>日出（估算）</dt>
           <dd>{{ sunrise }}</dd>
         </div>
         <div>
-          <dt>日落</dt>
+          <dt>日落（估算）</dt>
           <dd>{{ sunset }}</dd>
         </div>
+        <div>
+          <dt>自转角速度</dt>
+          <dd>{{ angularSpeed }}</dd>
+        </div>
+        <div>
+          <dt>自转线速度</dt>
+          <dd>{{ linearSpeed }}</dd>
+        </div>
       </dl>
+      <p class="speed-model-note">采用当地太阳时（非北京时间）。昼长、日出日落及自转速度按约 24 小时自转的理想模型估算；未计大气折射与地形，不代表演示中的实际时长或速度。</p>
+      <p v-if="orbitOnlyReference" class="speed-model-note">仅公转为假设演示：地球自转姿态不变，当地太阳时会随公转反向变化。</p>
     </div>
 
-    <p v-else class="empty-tip">选择城市后显示关键观测数据。</p>
+    <p v-else class="empty-tip">选择预设城市或点击地球选点，查看观测数据。</p>
   </FloatingFeatureCard>
 </template>
 
@@ -47,6 +57,7 @@ import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
 defineProps<{
   hasObservation: boolean
+  orbitOnlyReference?: boolean
   place: string
   solarAltitude: string
   solarTime: string
@@ -57,6 +68,8 @@ defineProps<{
   dayNightValue: string
   sunrise: string
   sunset: string
+  angularSpeed: string
+  linearSpeed: string
   initialTop?: number
   initialRight?: number
   initialCollapsed?: boolean
@@ -111,6 +124,7 @@ defineProps<{
 
 .data-meta-line {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 10px;
   margin: 9px 1px 10px;
@@ -156,6 +170,13 @@ defineProps<{
   padding: 16px;
   color: var(--feature-muted);
   font-size: 12px;
+}
+
+.speed-model-note {
+  margin: 10px 0 0;
+  color: var(--feature-muted);
+  font-size: clamp(11px, 0.55vw, 14px);
+  line-height: 1.6;
 }
 
 @media (min-width: 1800px) and (min-height: 900px) {

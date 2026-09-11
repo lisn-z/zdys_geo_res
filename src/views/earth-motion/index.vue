@@ -1,6 +1,5 @@
 <template>
-  <section ref="rootRef"
-    class="earth-orbit-template earth-orbit-template5 geo-template-page geo-page theme-dark layout-floating"
+  <section ref="rootRef" class="earth-orbit-template earth-orbit-template5 geo-template-page geo-page theme-dark"
     :class="'layout-' + layoutMode">
     <Transition name="page-loading-fade">
       <div v-if="pageLoading" class="page-loading-overlay" role="status" aria-live="polite" aria-label="正在加载地球运动场景">
@@ -50,7 +49,6 @@
           <section class="geo-card control-section control-quick-section">
             <div class="control-subgroup">
               <div class="control-subgroup-head">
-                <span>VIEW</span>
                 <h3 class="section-title">视角中心</h3>
               </div>
               <div class="option-grid two-col-option-grid quick-option-grid">
@@ -65,7 +63,6 @@
 
             <div class="control-subgroup">
               <div class="control-subgroup-head">
-                <span>SEASON</span>
                 <h3 class="section-title">主要节气</h3>
               </div>
               <div class="solar-term-shortcuts quick-option-grid">
@@ -76,6 +73,7 @@
                 </button>
               </div>
             </div>
+            <p class="calendar-model-note"><span aria-hidden="true">i</span>示意日期 · 365 天教学年，不对应特定年份</p>
           </section>
 
           <section class="geo-card control-section parameter-section">
@@ -83,13 +81,25 @@
               <h3 class="section-title">运动与光照</h3>
               <span class="section-hint">实时调节</span>
             </div>
-            <div class="parameter-grid">
+            <div class="motion-mode-help">
+              <div class="motion-status-head"><span class="motion-status-dot" :class="{ playing: isPlaying }"></span><strong>{{ playbackCaption }}</strong><span>{{ isPlaying ? '演示运行中' : '日期与当地太阳时已固定' }}</span></div>
+              <p v-if="isPlaying">{{ playbackHint.split(' · ')[1] }}</p>
+              <small>公转、自转可独立播放；总按钮恢复上次组合。</small>
+            </div>
+            <div class="parameter-grid motion-speed-grid" role="group" aria-label="运动速度">
               <div class="parameter-control">
-                <div class="parameter-head"><span>自转速度</span><strong>{{ daySpeed.toFixed(2) }}×</strong></div>
-                <el-slider v-model="daySpeed" :min="0.05" :max="8" :step="0.05" :show-tooltip="false" />
+                <div class="parameter-head"><span>公转演示速度</span><strong>{{ orbitSpeed.toFixed(2) }}×</strong></div>
+                <el-slider v-model="orbitSpeed" :min="0.05" :max="8" :step="0.05" :show-tooltip="false" aria-label="公转演示速度" />
               </div>
               <div class="parameter-control">
-                <div class="parameter-head"><span>定向光强</span><strong>{{ sunLightPower.toFixed(2) }}×</strong></div>
+                <div class="parameter-head"><span>自转演示速度</span><strong>{{ daySpeed.toFixed(2) }}×</strong></div>
+                <el-slider v-model="daySpeed" :min="0.05" :max="8" :step="0.05" :show-tooltip="false" aria-label="自转演示速度" />
+              </div>
+            </div>
+            <p class="motion-speed-note">两项演示倍速独立调节，暂停时调整不会启动播放。</p>
+            <div class="parameter-grid">
+              <div class="parameter-control">
+                <div class="parameter-head"><span>太阳照明强度</span><strong>{{ sunLightPower.toFixed(2) }}×</strong></div>
                 <el-slider v-model="sunLightPower" :min="0.8" :max="3.5" :step="0.05" :show-tooltip="false" />
               </div>
               <div class="parameter-control">
@@ -97,7 +107,7 @@
                 <el-slider v-model="nightLightPower" :min="0.5" :max="4" :step="0.05" :show-tooltip="false" />
               </div>
               <div class="parameter-control">
-                <div class="parameter-head"><span>暗面地表</span><strong>{{ darkSideSurfacePower.toFixed(2) }}×</strong>
+                <div class="parameter-head"><span>夜半球地表亮度</span><strong>{{ darkSideSurfacePower.toFixed(2) }}×</strong>
                 </div>
                 <el-slider v-model="darkSideSurfacePower" :min="0.05" :max="1.2" :step="0.05" :show-tooltip="false" />
               </div>
@@ -106,8 +116,8 @@
 
           <section class="geo-card control-section layer-section">
             <div class="section-title-row dashboard-section-head">
-              <h3 class="section-title">地球图层</h3>
-              <div class="layer-bulk-actions" aria-label="地球图层批量控制">
+              <h3 class="section-title">场景图层</h3>
+              <div class="layer-bulk-actions" aria-label="场景图层批量控制">
                 <button type="button" class="layer-bulk-btn" :class="{ active: allEarthLayersEnabled }"
                   @click="setAllEarthLayers(true)">全开</button>
                 <button type="button" class="layer-bulk-btn" :class="{ active: allEarthLayersDisabled }"
@@ -122,6 +132,30 @@
             </div>
           </section>
 
+          <section class="geo-card control-section teaching-control-section">
+            <div class="section-title-row dashboard-section-head">
+              <h3 class="section-title">教学演示</h3>
+              <div class="layer-bulk-actions" aria-label="教学演示批量控制">
+                <button type="button" class="layer-bulk-btn" :class="{ active: allTeachingLayersEnabled }"
+                  @click="setAllTeachingLayers(true)">全开</button>
+                <button type="button" class="layer-bulk-btn" :class="{ active: allTeachingLayersDisabled }"
+                  @click="setAllTeachingLayers(false)">全关</button>
+              </div>
+            </div>
+            <div class="teaching-switch-list">
+              <div v-for="item in teachingOptions" :key="item.key" class="switch-row compact-switch-row">
+                <div class="control-copy"><strong>{{ item.label }}</strong><span>{{ item.description }}</span></div>
+                <el-switch v-model="toggles[item.key]" :aria-label="item.label" />
+              </div>
+            </div>
+            <button v-if="toggles.solarAltitude" type="button" class="theme-btn option-btn teaching-focus-btn"
+              @click="focusObserver">查看当前观测点</button>
+            <p v-if="toggles.subsolarTrail" class="teaching-control-note">{{ trailCycle === 'rotation' ? '按直射点经度累计变化保留最近约一圈轨迹' : '保留最近一轮公转的直射点轨迹' }}，尾部渐隐，高光由过去流向当前直射点；暂停定格，拖动时间轴、切换节气或运动模式后重新记录。</p>
+            <button v-if="toggles.rotationSpeeds" type="button" class="theme-btn option-btn teaching-focus-btn"
+              @click="focusRotationDemo">查看地球剖面</button>
+            <p v-if="toggles.rotationSpeeds" class="teaching-control-note">地球扇区剖开，露出纬线截面；关闭后恢复完整地球。速度按约 24 小时自转一周估算。</p>
+          </section>
+
           <section class="geo-card control-section observation-control-section">
             <div class="section-title-row dashboard-section-head">
               <h3 class="section-title">观测点</h3>
@@ -129,17 +163,17 @@
             </div>
             <div class="switch-row first-control-row observation-click-row">
               <div class="control-copy">
-                <strong>允许点击替换</strong>
+                <strong>点击地球选点</strong>
                 <span>点击地球表面更新当前观测点</span>
               </div>
-              <el-switch v-model="clickAddEnabled" />
+              <el-switch v-model="clickAddEnabled" aria-label="点击地球选点" />
             </div>
             <div class="preset-cloud">
               <button v-for="p in presetPlaces" :key="p.name" type="button"
                 class="theme-btn option-btn place-btn uniform-place-btn" :class="{ active: isPresetActive(p) }"
                 @click="addPreset(p)">{{ p.name }}</button>
             </div>
-            <button type="button" class="theme-btn reset-scene-btn" @click="clearObservationPoints">恢复上海</button>
+            <button type="button" class="theme-btn reset-scene-btn" @click="clearObservationPoints">重置观测点（上海）</button>
           </section>
         </div>
 
@@ -152,38 +186,97 @@
           </div>
 
           <div class="orbit-overlay-layer">
+            <div class="scene-teaching-status">
+              <div class="camera-follow-status" :class="{ locked: focusMode === 'earth' }" role="status"
+                aria-live="polite">
+                <el-icon>
+                  <Lock v-if="focusMode === 'earth'" />
+                  <Unlock v-else />
+                </el-icon>
+                <strong>{{ focusMode === 'earth' ? '锁定地球' : '自由观察' }}</strong>
+                <span>{{ focusMode === 'earth' ? '公转跟随 · 可旋转 / 缩放' : '太阳中心 · 未跟随地球' }}</span>
+              </div>
+              <div v-if="toggles.solarAltitude" class="teaching-scene-note altitude-scene-note">
+                <div class="teaching-note-heading"><strong>太阳高度角</strong><b>{{ observationCardData.solarAltitude }}</b>
+                </div>
+                <span>{{ currentObserverPoint.name }} · {{ (selectedObservation?.solarAltitude ?? 0) < 0
+                  ? '太阳位于地平线下，高度角为负；虚线仅示意太阳方向' : '太阳方向与当地水平面的夹角，水平面为 0°，上方为正' }}</span>
+                    <div class="teaching-legend"><i class="normal-swatch"></i>地表法线<i class="sun-swatch"></i>太阳光线</div>
+                    <button type="button" @click="focusObserver">查看观测点 <span aria-hidden="true">↗</span></button>
+              </div>
+              <div v-if="toggles.subsolarTrail" class="teaching-scene-note trail-scene-note">
+                <strong>直射点轨迹</strong>
+                <span>{{ trailCycle === 'rotation' ? '直射点近期轨迹' : '最近一轮公转轨迹' }} · 高光由过去流向当前直射点 · 暂停定格</span>
+                <div class="trail-age-legend"><span>过去</span><i></i><span>现在</span></div>
+              </div>
+              <div v-if="toggles.rotationSpeeds" class="teaching-scene-note speed-scene-note">
+                <strong>自转速度 · 地球剖面</strong>
+                <span>黄色扇形：约 4 小时转过 60°（参考模型）</span>
+                <span>红色弧线：相同时间，纬度越高路程越短</span>
+                <small>约 24 小时自转一周 · 两极位于地轴上，自转线速度为 0；不表示地球整体角速度为 0。</small>
+                <button type="button" @click="focusRotationDemo">查看剖面 <span aria-hidden="true">↗</span></button>
+              </div>
+            </div>
             <Transition name="solar-term-feedback">
               <div v-if="solarTermFeedback" :key="solarTermFeedbackKey" class="solar-term-feedback" role="status"
                 aria-live="polite">
                 <span class="solar-feedback-mark" aria-hidden="true"></span>
                 <strong>{{ solarTermFeedback.name }}</strong>
                 <i aria-hidden="true"></i>
-                <span>{{ solarTermFeedback.date }}</span>
+                <span>{{ solarTermFeedback.date }}（示意）</span>
                 <i aria-hidden="true"></i>
                 <span>太阳直射{{ solarTermFeedback.directPoint }}</span>
               </div>
             </Transition>
 
             <section v-show="timelineDockVisible" class="timeline-dock orbit-time-dock">
-              <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
-                :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
-                <el-icon>
-                  <VideoPause v-if="isPlaying" />
-                  <VideoPlay v-else />
-                </el-icon>
-              </button>
+              <div v-if="solarTimeReversing" class="solar-time-reverse-note" role="status">
+                <div class="solar-time-reverse-head">
+                  <strong>太阳时反向变化</strong>
+                  <p>{{ orbitOnlyMode ? '仅公转模式下，地球相对恒星的朝向保持不变。当地太阳时反向变化，模拟日期仍正向推进。' : '当前演示参数下，公转引起的太阳时反向变化超过自转引起的正向变化。当地太阳时呈反向变化，模拟日期仍正向推进。' }}</p>
+                </div>
+                <div v-if="orbitOnlyMode" class="solar-time-reverse-details">
+                  <p>
+                    <span class="reverse-detail-label">光照边界</span>
+                    <span>红蓝两段共同标示瞬时晨昏圈。春秋分时刻，晨昏圈经过南北极；同一时刻启停自转，不改变实际昼夜分界的位置。</span>
+                  </p>
+                  <p>
+                    <span class="reverse-detail-label">分色规则</span>
+                    <span>颜色表示当前运动条件下的入昼与入夜趋势。仅公转时，太阳相对地表的东西向运动与正常自转情形相反，分色相应调整；暂停时保留此前分色参考。换色点不代表晨昏圈与极圈相切。</span>
+                  </p>
+                </div>
+              </div>
+              <div class="timeline-master-control">
+                <button type="button" class="timeline-master-button" :class="{ active: isPlaying }"
+                  :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停所有运动' : '恢复上次运动组合'" @click="toggleAllMotion">
+                  <el-icon>
+                    <VideoPause v-if="isPlaying" />
+                    <VideoPlay v-else />
+                  </el-icon>
+                </button>
+                <span class="timeline-playback-caption" :class="{ paused: !isPlaying }" role="status" :aria-label="playbackHint" :title="playbackHint">
+                  <small aria-hidden="true">播放模式</small>
+                  <strong>{{ playbackCaption }}</strong>
+                </span>
+              </div>
               <div class="timeline-main orbit-timeline-main">
-                <div class="timeline-channel orbit-timeline-channel">
+                <div class="timeline-channel orbit-timeline-channel" :class="{ 'motion-paused': !motionPlayback.orbit }">
                   <div class="timeline-label timeline-inline-label">
+                    <button type="button" class="channel-play-btn" :class="{ active: motionPlayback.orbit }"
+                      :aria-label="motionPlayback.orbit ? '暂停公转' : '播放公转'" :aria-pressed="motionPlayback.orbit"
+                      :title="motionPlayback.orbit ? '暂停公转，固定日期' : '播放公转，不改变自转播放状态'" @click="toggleMotion('orbit')">
+                      <el-icon><VideoPause v-if="motionPlayback.orbit" /><VideoPlay v-else /></el-icon>
+                    </button>
                     <span>公转</span>
-                    <strong class="accent-value">{{ currentSolarTerm.name }}</strong>
+                    <strong class="accent-value">{{ currentSeasonLabel }}</strong>
                   </div>
                   <div class="timeline-slider-stack">
-                    <el-slider v-model="yearProgress" :min="0" :max="1" :step="0.001" :show-tooltip="false" />
+                    <el-slider v-model="yearProgress" :min="0" :max="1" :step="0.001" :show-tooltip="false"
+                      aria-label="公转日期" @input="onManualTimeChange('orbit')" />
                     <div class="timeline-term-scale" aria-label="主要节气刻度">
                       <button v-for="term in solarTerms" :key="term.name" type="button"
                         :class="{ active: isSolarTermActive(term) }" :style="{ left: sliderTrackLeft(term.progress) }"
-                        :title="`${term.name} ${term.date}`" @click="setSolarTerm(term.progress)">
+                        :title="`${term.name} ${term.date}（教学示意日期）`" @click="setSolarTerm(term.progress)">
                         <i></i>
                         <span>{{ term.name }}</span>
                       </button>
@@ -193,12 +286,27 @@
 
                 <i class="timeline-channel-divider" aria-hidden="true"></i>
 
-                <div class="timeline-channel rotation-timeline-channel">
-                  <div class="timeline-label timeline-inline-label">
-                    <span>自转</span>
-                    <strong class="accent-value">{{ observerSolarTime }}</strong>
+                <div class="timeline-channel rotation-timeline-channel" :class="{ 'motion-paused': !motionPlayback.rotation }">
+                    <button type="button" class="channel-play-btn rotation-play-control" :class="{ active: motionPlayback.rotation }"
+                      :aria-label="motionPlayback.rotation ? '暂停自转' : '播放自转'" :aria-pressed="motionPlayback.rotation"
+                      :title="motionPlayback.rotation ? '暂停自转，固定地球朝向；若继续公转，太阳时会反向变化' : '播放自转，不改变公转播放状态'" @click="toggleMotion('rotation')">
+                      <el-icon><VideoPause v-if="motionPlayback.rotation" /><VideoPlay v-else /></el-icon>
+                      <span>自转</span>
+                    </button>
+                  <div class="timeline-local-time">
+                    <div class="local-time-readout">
+                      <span>当地太阳时</span>
+                      <strong>{{ observerSolarTime }}</strong>
+                    </div>
+                    <div class="local-time-track">
+                      <div class="local-time-location" :title="observerLocationLabel">
+                        <strong v-if="observerCityName">{{ observerCityName }}</strong>
+                        <span>{{ observerCoordinateLabel }}</span>
+                      </div>
+                      <el-slider v-model="observerLocalHour" :min="0" :max="24" :step="0.05" :show-tooltip="false"
+                        :aria-label="`${observerLocationLabel}的当地太阳时`" @input="onManualTimeChange('rotation')" />
+                    </div>
                   </div>
-                  <el-slider v-model="observerLocalHour" :min="0" :max="24" :step="0.05" :show-tooltip="false" />
                 </div>
               </div>
             </section>
@@ -213,7 +321,8 @@
 
     <SolarTrackCard v-if="panelsVisible" :earth-texture="RAW_TEXTURES.earth" :track-path="mapTrackPath"
       :track-area-path="mapTrackAreaPath" :point-x="mapPointX" :point-y="mapPointY" :current-month-day="currentMonthDay"
-      :current-latitude="formatLat(currentDeclinationDeg)" :solar-term-name="currentSolarTerm.name"
+      :geographic-point-x="mapGeographicPointX" :geographic-point-y="mapPointY" :current-longitude="formatLon(currentSubsolarLongitude)"
+      :current-latitude="formatLat(currentDeclinationDeg)" :solar-term-name="currentSeasonLabel"
       :day-of-year="currentDayOfYear" :bottom-inset="timelineDockVisible ? 112 : 10" :initial-top="200"
       :initial-right="18" initial-collapsed />
 
@@ -262,9 +371,23 @@ import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import ObservationDataCard from './ObservationDataCard.vue'
 import SolarTrackCard from './SolarTrackCard.vue'
 import {
+  calendarProgressToSeasonProgress as toSeasonProgress, calendarOrbitRateScale,
+  calendarProgressToDayOfYear, seasonLabelForDay,
+} from './season-calendar'
+import { createSolarAltitudeDemo, solarAltitudeFrame } from './solar-altitude-demo'
+import { createObliquityHelper } from './obliquity-helper'
+import { createSubsolarTrail } from './subsolar-trail'
+import {
+  advanceMotion, createMotionPlayback, setMotionPlaying, toggleMotionPlayback,
+  solarHourFromSpinAngle, spinAngleFromSolarHour, solarHourRate, terminatorMotionAxis,
+  formatSolarHour as formatHour, formatSolarDuration as formatDuration, type MotionChannel,
+} from './motion-playback'
+import { createRotationSpeedDemo, rotationSpeedAtLatitude } from './rotation-speed-demo'
+import { applySurfaceCutaway, isInsideRotationCutaway, rotationCutawayShader, rotationCutawayUniforms } from './earth-cutaway'
+import {
   useGeoPanelLayout,
 } from '@/hooks/useGeoPanelLayout'
-import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import { Lock, Unlock, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 type FocusMode = 'sun' | 'earth'
 
 type SubViewMode =
@@ -280,6 +403,7 @@ interface ObservationPoint {
   name: string
   lat: number
   lon: number
+  source: 'preset' | 'custom'
 }
 
 interface PresetPlace {
@@ -339,6 +463,9 @@ interface DisplayToggleMap {
   sunRays: boolean
   sunGlow: boolean
   coordLabels: boolean
+  solarAltitude: boolean
+  subsolarTrail: boolean
+  rotationSpeeds: boolean
   [key: string]: boolean
 }
 
@@ -358,7 +485,6 @@ const DAY_ARC_COLOR = new THREE.Color(0xffc857)
 const NIGHT_ARC_COLOR = new THREE.Color(0x8d86ff)
 const YEAR_DAYS = 365
 const SPRING_EQUINOX_DAY = 80
-const SPIN_VISUAL_OFFSET = 0
 
 const TEXTURE_BASE = '/geo-resources-folder/images'
 const GALAXY_SKYBOX_URL = `${TEXTURE_BASE}/milky-way-6k.jpg`
@@ -593,6 +719,7 @@ function resizeMainRenderer() {
   /*
    * setSize 后立即补绘一帧，避免短暂空白。
    */
+  obliquityHelper?.updateForCamera(camera, toggles.tiltAngle, height)
   renderer.render(
     scene,
     camera
@@ -602,8 +729,24 @@ function resizeMainRenderer() {
 }
 
 
-const isPlaying = ref(true)
+const motionPlayback = reactive(createMotionPlayback())
+const isPlaying = computed(() => motionPlayback.orbit || motionPlayback.rotation)
+const orbitOnlyMode = computed(() => motionPlayback.orbit && !motionPlayback.rotation)
+const orbitOnlyReference = computed(() => orbitOnlyMode.value
+  || (!isPlaying.value && motionPlayback.resumeOrbit && !motionPlayback.resumeRotation))
+const playbackCaption = computed(() => !isPlaying.value ? '已暂停'
+  : motionPlayback.orbit && motionPlayback.rotation ? '联动' : motionPlayback.orbit ? '仅公转' : '仅自转')
+const playbackHint = computed(() => !isPlaying.value ? '全部暂停 · 日期和当地太阳时均固定'
+  : motionPlayback.orbit && motionPlayback.rotation ? '联动播放 · 日期向前，公转与自转共同决定当地太阳时'
+    : motionPlayback.orbit ? '仅公转 · 地球相对恒星的朝向保持不变；模拟日期正向推进，当地太阳时反向变化。晨、昏分色依据实际光照变化判定'
+      : '仅自转 · 固定日期，观察一天的昼夜变化')
+// Preserve the history basis through a total pause; changing demonstration mode starts a new trail.
+const trailCycle = computed(() => (isPlaying.value ? motionPlayback.rotation : motionPlayback.resumeRotation) ? 'rotation' : 'orbit')
 const daySpeed = ref(1.4)
+const orbitSpeed = ref(1)
+const solarTimeReversing = computed(() => solarHourRate(motionPlayback,
+  calendarProgressToSeasonProgress(yearProgress.value) * Math.PI * 2, EARTH_TILT,
+  daySpeed.value, orbitSpeed.value, calendarOrbitRateScale(yearProgress.value)) < -1e-8)
 const sunLightPower = ref(1.45)
 const nightMapPower = ref(1.75)
 const nightLightPower = ref(0.5)
@@ -625,7 +768,15 @@ const subRelativePosition = reactive({ x: 0.5, y: 0 })
 const subSceneCollapsed = ref(true)
 const subSceneZIndex = ref(44)
 let subDragState: { startX: number; startY: number; posX: number; posY: number } | null = null
-const referenceSolarHour = ref(3.9)
+// Keep orientation independent of the Sun: orbiting must never compensate a paused spin.
+const earthSpinAngle = ref(spinAngleFromSolarHour(3.9, calendarProgressToSeasonProgress(yearProgress.value) * Math.PI * 2, EARTH_TILT))
+const referenceSolarHour = computed({
+  get: () => solarHourFromSpinAngle(earthSpinAngle.value, calendarProgressToSeasonProgress(yearProgress.value) * Math.PI * 2, EARTH_TILT),
+  // Setting solar time is an explicit user action (scrubbing), not the animation clock.
+  set: (hour: number) => {
+    earthSpinAngle.value = spinAngleFromSolarHour(hour, calendarProgressToSeasonProgress(yearProgress.value) * Math.PI * 2, EARTH_TILT)
+  },
+})
 const panelsVisible = ref(true)
 
 function bringSubSceneToFront() {
@@ -738,14 +889,18 @@ const toggles = reactive<DisplayToggleMap>({
   nightArc: true,
   sunRays: true,
   sunGlow: false,
-  coordLabels: true
+  coordLabels: true,
+  solarAltitude: false,
+  subsolarTrail: false,
+  rotationSpeeds: false,
 })
 
 const displayOptions = [
   { key: 'orbit', label: '公转轨道' },
   { key: 'terminator', label: '晨昏线' },
   { key: 'grid', label: '经纬网' },
-  { key: 'tropics', label: '南北回归线' },
+  { key: 'coordLabels', label: '经纬度标签' },
+  { key: 'tropics', label: '赤道、回归线与极圈' },
   { key: 'zones', label: '五带划分' },
   { key: 'eclipticPlane', label: '黄道面' },
   { key: 'equatorPlane', label: '赤道面' },
@@ -754,13 +909,19 @@ const displayOptions = [
   { key: 'axis', label: '地球自转轴' },
   { key: 'dayArc', label: '昼弧' },
   { key: 'nightArc', label: '夜弧' },
-  { key: 'sunRays', label: '直射光来向' },
-  { key: 'sunGlow', label: '太阳光辉' },
-  { key: 'coordLabels', label: '经纬度标签' }
+  { key: 'sunRays', label: '太阳光线' },
+  { key: 'sunGlow', label: '太阳光束（示意）' }
 ]
 
+const teachingOptions = [
+  { key: 'solarAltitude', label: '太阳高度角', description: '观测点的法线、当地水平面与太阳光线' },
+  { key: 'subsolarTrail', label: '直射点轨迹', description: '淡化历史轨迹，高光向当前直射点流动' },
+  { key: 'rotationSpeeds', label: '角速度与线速度', description: '剖开地球，比较各纬度的自转速度' },
+]
 const allEarthLayersEnabled = computed(() => displayOptions.every((item) => toggles[item.key]))
 const allEarthLayersDisabled = computed(() => displayOptions.every((item) => !toggles[item.key]))
+const allTeachingLayersEnabled = computed(() => teachingOptions.every((item) => toggles[item.key]))
+const allTeachingLayersDisabled = computed(() => teachingOptions.every((item) => !toggles[item.key]))
 
 function setAllEarthLayers(enabled: boolean) {
   displayOptions.forEach((item) => {
@@ -807,20 +968,26 @@ const presetPlaces: PresetPlace[] = [
   { name: '悉尼，澳大利亚', lat: -33.8688, lon: 151.2093 }
 ]
 
-const DEFAULT_OBSERVATION: ObservationPoint = { id: 1, name: '上海，中国', lat: 31.2304, lon: 121.4737 }
+const DEFAULT_OBSERVATION: ObservationPoint = { id: 1, name: '上海，中国', lat: 31.2304, lon: 121.4737, source: 'preset' }
 const observationPoints = ref<ObservationPoint[]>([{ ...DEFAULT_OBSERVATION }])
 const selectedObservationId = ref(DEFAULT_OBSERVATION.id)
 let pointCounter = 1
 
 const currentDeclinationDeg = computed(() => getDeclination(yearProgress.value) * RAD)
+// The direct meridian is where local solar time (derived from the two physical phases) is 12:00.
+const currentSubsolarLongitude = computed(() => normalizeLon((12 - referenceSolarHour.value) * 15))
+const mapGeographicPointX = computed(() => (currentSubsolarLongitude.value + 180) * 2)
 const currentDayOfYear = computed(() => progressToDayOfYear(yearProgress.value))
 const currentMonthDay = computed(() => dayOfYearToMonthDay(currentDayOfYear.value))
+const currentSeasonLabel = computed(() => seasonLabelForDay(currentDayOfYear.value))
 const currentSolarTerm = computed<SolarTerm>(() => {
   const p = normalize01(yearProgress.value)
   const ordered = [...solarTerms].sort((a, b) => a.progress - b.progress)
   let active = ordered[ordered.length - 1]!
   for (const term of ordered) {
-    if (p >= term.progress) active = term
+    // Wrapping a fractional calendar date can lose an ulp; an exact equinox must
+    // not be labelled as the previous season after its transition finishes.
+    if (p + 1e-10 >= term.progress) active = term
   }
   return active
 })
@@ -830,24 +997,33 @@ const selectedObservation = computed(() => {
 })
 const observationCardData = computed(() => {
   const observation = selectedObservation.value
+  const speed = observation ? rotationSpeedAtLatitude(observation.lat) : null
   return {
     hasObservation: Boolean(observation),
+    orbitOnlyReference: orbitOnlyReference.value,
     place: observation?.name || '未选择观测点',
     solarAltitude: observation ? formatSignedDeg(observation.solarAltitude) : '--',
     solarTime: observation?.solarTime || '--:--',
-    dateLabel: `${currentMonthDay.value} · ${currentSolarTerm.value.name}`,
+    dateLabel: `${currentMonthDay.value} · ${currentSeasonLabel.value}（示意）`,
     coordinateLabel: observation ? `${formatLat(observation.lat)} · ${formatLon(observation.lon)}` : '--',
     directLatitude: formatLat(currentDeclinationDeg.value),
-    dayNightLabel: observation?.polarStatus ? '昼夜状态' : '昼长 / 夜长',
+    dayNightLabel: observation?.polarStatus ? '昼夜状态（参考）' : '昼长 / 夜长（参考）',
     dayNightValue: observation
       ? observation.polarStatus || `${observation.dayLength} / ${observation.nightLength}`
       : '--',
     sunrise: observation?.sunriseTime || '--:--',
     sunset: observation?.sunsetTime || '--:--',
+    angularSpeed: speed ? speed.angularDegPerHour === 0 ? '—（位于地轴）' : `≈ ${speed.angularDegPerHour}°/h` : '--',
+    linearSpeed: speed ? `${speed.linearKmPerHour === 0 ? '' : '≈ '}${Math.round(speed.linearKmPerHour)} km/h` : '--',
   }
 })
 
 const currentObserverPoint = computed(() => observationPoints.value.find((p) => p.id === selectedObservationId.value) || DEFAULT_OBSERVATION)
+// Preserve how the point was selected: even a custom point near a city stays unnamed.
+const observerCityName = computed(() => currentObserverPoint.value.source === 'preset'
+  ? currentObserverPoint.value.name.split('，')[0] : '')
+const observerCoordinateLabel = computed(() => `${formatLat(currentObserverPoint.value.lat)} · ${formatLon(currentObserverPoint.value.lon)}`)
+const observerLocationLabel = computed(() => [observerCityName.value, observerCoordinateLabel.value].filter(Boolean).join(' · '))
 const observerLocalHour = computed({
   get() {
     const observer = currentObserverPoint.value
@@ -931,6 +1107,7 @@ let axisGroup: THREE.Group | null = null
 let planesGroup: THREE.Group | null = null
 let equatorPlaneGroup: THREE.Group | null = null
 let tiltAngleGroup: THREE.Group | null = null
+let obliquityHelper: ReturnType<typeof createObliquityHelper> | null = null
 let rotationArrowGroup: THREE.Group | null = null
 let sunRaysGroup: THREE.Group | null = null
 let subsolarMarker: THREE.Mesh | null = null
@@ -939,15 +1116,25 @@ let markerGroup!: THREE.Group
 let directionalLight!: THREE.DirectionalLight
 let ambientLight!: THREE.AmbientLight
 let targetFocus = new THREE.Vector3(0, 0, 0)
+let solarAltitudeDemo: ReturnType<typeof createSolarAltitudeDemo> | null = null
+let subsolarTrail: ReturnType<typeof createSubsolarTrail> | null = null
+let rotationSpeedDemo: ReturnType<typeof createRotationSpeedDemo> | null = null
+let celestialStateDirty = false
+const teachingQuaternion = new THREE.Quaternion()
+const teachingDirection = new THREE.Vector3()
+const teachingCameraQuaternion = new THREE.Quaternion()
+const teachingScreenRight = new THREE.Vector3()
+const teachingScreenUp = new THREE.Vector3()
 
 const atmosphereDayColorUniform = { value: new THREE.Color('#4db2ff') }
 const atmosphereTwilightColorUniform = { value: new THREE.Color('#bc490b') }
 
 const earthUniforms = {
+  ...rotationCutawayUniforms,
   dayMap: { value: createPlaceholderTexture('#1e88e5', '#45d0ff') },
   nightMap: { value: createPlaceholderTexture('#07111f', '#ffda75') },
   sunDirection: { value: new THREE.Vector3(0, 0, 1) },
-  axisDirection: { value: new THREE.Vector3(0, 1, 0) },
+  motionAxis: { value: new THREE.Vector3(Math.sin(EARTH_TILT), Math.cos(EARTH_TILT), 0) },
   showTerminator: { value: 1 },
   showDayArc: { value: 1 },
   showNightArc: { value: 1 },
@@ -962,12 +1149,14 @@ const earthUniforms = {
 }
 
 const earthAtmosphereUniforms = {
+  ...rotationCutawayUniforms,
   sunDirection: { value: new THREE.Vector3(0, 0, 1) },
   atmosphereDayColor: atmosphereDayColorUniform,
   atmosphereTwilightColor: atmosphereTwilightColorUniform,
 }
 
 const earthSunGlowUniforms = {
+  ...rotationCutawayUniforms,
   sunDirection: { value: new THREE.Vector3(0, 0, 1) },
 }
 
@@ -1034,6 +1223,10 @@ onUnmounted(() => {
   galaxySkyboxTexture = null
   renderer?.dispose()
   subRenderer?.dispose()
+  solarAltitudeDemo?.dispose()
+  subsolarTrail?.dispose()
+  rotationSpeedDemo?.dispose()
+  obliquityHelper?.dispose()
   scene?.traverse((obj: THREE.Object3D) => {
     const disposable = obj as DisposableSceneObject
     if (disposable.geometry) disposable.geometry.dispose()
@@ -1045,14 +1238,25 @@ onUnmounted(() => {
 })
 
 watch(toggles, updateVisibility, { deep: true })
-watch([yearProgress, referenceSolarHour], () => {
-  updateCelestialState()
-})
+watch([yearProgress, earthSpinAngle], () => {
+  celestialStateDirty = true
+  if (!isPlaying.value) subsolarTrail?.clear()
+}, { flush: 'sync' })
+watch([() => motionPlayback.orbit, () => motionPlayback.rotation, daySpeed, orbitSpeed], () => {
+  celestialStateDirty = true
+}, { flush: 'sync' })
 watch(selectedObservationId, () => {
   updateCelestialState()
   updateObservationMarkers()
 })
-watch(focusMode, () => updateFocusTarget())
+watch(focusMode, () => {
+  updateFocusTarget()
+  if (controls) controls.enablePan = focusMode.value !== 'earth'
+})
+watch(() => toggles.subsolarTrail, () => subsolarTrail?.clear())
+watch(trailCycle, () => subsolarTrail?.clear())
+watch(() => toggles.solarAltitude, () => { if (earthRoot) updateCelestialState() })
+watch(() => toggles.rotationSpeeds, (enabled) => { if (enabled) focusRotationDemo() })
 watch([sunLightPower, nightMapPower, nightLightPower, darkSideSurfacePower], updateLightUniforms)
 watch(subViewMode, () => updateSubCamera())
 watch(panelsVisible, (visible) => {
@@ -1112,6 +1316,13 @@ function initScene() {
   createEarth()
   createTermLabels()
   createHelpers()
+  solarAltitudeDemo = createSolarAltitudeDemo(EARTH_RADIUS)
+  earthRoot.add(solarAltitudeDemo.group)
+  subsolarTrail = createSubsolarTrail(EARTH_RADIUS)
+  earthSpinGroup.add(subsolarTrail.group)
+  applySurfaceCutaway(subsolarTrail.group)
+  rotationSpeedDemo = createRotationSpeedDemo(EARTH_RADIUS)
+  earthTiltGroup.add(rotationSpeedDemo.group)
   loadTexturesAsync()
   setupResize()
   updateVisibility()
@@ -1232,9 +1443,10 @@ function createEarth() {
     `,
     fragmentShader: `
       uniform sampler2D dayMap;
+      ${rotationCutawayShader}
       uniform sampler2D nightMap;
       uniform vec3 sunDirection;
-      uniform vec3 axisDirection;
+      uniform vec3 motionAxis;
       uniform float showTerminator;
       uniform float showDayArc;
       uniform float showNightArc;
@@ -1263,6 +1475,7 @@ function createEarth() {
 
       void main() {
         vec3 nWorld = normalize(vWorldNormal);
+        if (insideRotationCutaway(nWorld)) discard;
         vec3 sWorld = normalize(sunDirection);
         vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
         vec3 dayColor = texture2D(dayMap, vUv).rgb;
@@ -1310,7 +1523,8 @@ function createEarth() {
         color = mix(color, nightArcColor, latMask * nightArcMask * showNightArc * 0.76);
 
         float terminatorMask = (1.0 - smoothstep(0.0, 0.035, abs(lightAmount))) * showTerminator;
-        float dawnSignal = dot(cross(normalize(axisDirection), nWorld), sWorld);
+        // Positive illumination derivative means night -> day, including orbit-only motion.
+        float dawnSignal = dot(cross(motionAxis, nWorld), sWorld);
         vec3 dawnColor = vec3(0.12, 0.38, 0.56);
         vec3 duskColor = vec3(0.56, 0.12, 0.22);
         color = mix(color, dawnSignal >= 0.0 ? dawnColor : duskColor, terminatorMask * 0.52);
@@ -1358,10 +1572,12 @@ function createEarth() {
       uniform vec3 sunDirection;
       uniform vec3 atmosphereDayColor;
       uniform vec3 atmosphereTwilightColor;
+      ${rotationCutawayShader}
       varying vec3 vWorldNormal;
       varying vec3 vWorldPosition;
       void main() {
         vec3 normalDirection = normalize(vWorldNormal);
+        if (insideRotationCutaway(normalDirection)) discard;
         vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
         float fresnel = 1.0 - abs(dot(normalDirection, viewDirection));
         float sunOrientation = dot(normalDirection, normalize(sunDirection));
@@ -1404,10 +1620,12 @@ function createEarth() {
     `,
     fragmentShader: `
       uniform vec3 sunDirection;
+      ${rotationCutawayShader}
       varying vec3 vWorldNormal;
       varying vec3 vWorldPosition;
       void main() {
         vec3 normalDirection = normalize(vWorldNormal);
+        if (insideRotationCutaway(normalDirection)) discard;
         vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
         float fresnel = 1.0 - abs(dot(normalDirection, viewDirection));
         float rim = pow(smoothstep(0.48, 0.99, fresnel), 2.75);
@@ -1489,6 +1707,7 @@ function createEarth() {
   earthSpinGroup.add(gridGroup)
   earthSpinGroup.add(tropicsGroup)
   earthSpinGroup.add(coordLabelGroup)
+  ;[zonesGroup, gridGroup, tropicsGroup, coordLabelGroup].forEach(applySurfaceCutaway)
 }
 
 function createOrbit() {
@@ -1542,10 +1761,6 @@ function createHelpers() {
   )
   axisCone.position.set(0, EARTH_RADIUS * 1.86, 0)
   axisGroup.add(axisCone)
-  const nLabel = createTextSprite('N', '#72e7ff')
-  nLabel.position.set(0, EARTH_RADIUS * 2.08, 0)
-  nLabel.scale.set(0.42, 0.24, 1)
-  axisGroup.add(nLabel)
   earthTiltGroup.add(axisGroup)
 
   rotationArrowGroup = new THREE.Group()
@@ -1587,7 +1802,10 @@ function createHelpers() {
   equatorPlaneGroup.add(equatorLabel)
   earthTiltGroup.add(equatorPlaneGroup)
 
-  tiltAngleGroup = createTiltAngleHelper()
+  obliquityHelper = createObliquityHelper(EARTH_RADIUS, EARTH_TILT, {
+    eclipticColor: ECLIPTIC_COLOR, equatorColor: EQUATOR_PLANE_COLOR,
+  })
+  tiltAngleGroup = obliquityHelper.group
   earthRoot.add(tiltAngleGroup)
 
   sunRaysGroup = new THREE.Group()
@@ -1606,46 +1824,6 @@ function createHelpers() {
   sunRaysGroup.add(subsolarMarker)
 }
 
-
-function createTiltAngleHelper() {
-  const group = new THREE.Group()
-  const r = EARTH_RADIUS * 1.95
-  const eclipticMat = new THREE.LineBasicMaterial({ color: ECLIPTIC_COLOR, transparent: true, opacity: 0.98 })
-  const equatorMat = new THREE.LineBasicMaterial({ color: EQUATOR_PLANE_COLOR, transparent: true, opacity: 0.98 })
-  const arcMat = new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 1 })
-
-  const eclipticLine = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(r, 0, 0)]),
-    eclipticMat
-  )
-  group.add(eclipticLine)
-
-  const equatorLine = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.cos(EARTH_TILT) * r, Math.sin(EARTH_TILT) * r, 0)]),
-    equatorMat
-  )
-  group.add(equatorLine)
-
-  const arc = new THREE.Line(createCircleArc(r * 0.58, 0, EARTH_TILT, 64, 'xy'), arcMat)
-  group.add(arc)
-  const arc2 = new THREE.Line(createCircleArc(r * 0.70, 0, EARTH_TILT, 64, 'xy'), new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.46 }))
-  group.add(arc2)
-
-  const arcTip = new THREE.Mesh(
-    new THREE.ConeGeometry(0.055, 0.16, 18),
-    new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 1 })
-  )
-  arcTip.position.set(Math.cos(EARTH_TILT) * r * 0.58, Math.sin(EARTH_TILT) * r * 0.58, 0)
-  arcTip.rotation.z = EARTH_TILT - Math.PI / 2
-  group.add(arcTip)
-
-  const label = createTextSprite('黄赤交角 23.44°', '#ffd27a')
-  label.position.set(Math.cos(EARTH_TILT * 0.52) * r * 0.92, Math.sin(EARTH_TILT * 0.52) * r * 0.92 - 0.18, 0.18)
-  label.scale.set(1.06, 0.26, 1)
-  group.add(label)
-
-  return group
-}
 
 function createNebulaBackdrop() {
   nebulaGroup = new THREE.Group()
@@ -1889,9 +2067,12 @@ function animate(time: number) {
   const dt = lastFrameTime ? Math.min((time - lastFrameTime) / 1000, 0.08) : 0
   lastFrameTime = time
 
-  if (isPlaying.value) {
-    yearProgress.value = normalize01(yearProgress.value + (dt / 36) * 0.45)
-    referenceSolarHour.value = normalizeHour(referenceSolarHour.value + dt * daySpeed.value * 0.9)
+  const nextMotion = advanceMotion(motionPlayback, yearProgress.value, earthSpinAngle.value, dt, daySpeed.value, orbitSpeed.value)
+  yearProgress.value = nextMotion.yearProgress
+  earthSpinAngle.value = nextMotion.spinAngle
+  if (celestialStateDirty) {
+    updateCelestialState()
+    celestialStateDirty = false
   }
 
   if (starField?.material) {
@@ -1924,11 +2105,45 @@ function animate(time: number) {
 
   smoothCameraTarget(dt)
   controls?.update()
+  updateTeachingOverlays(dt)
+  solarAltitudeDemo?.updateForCamera(camera, toggles.solarAltitude, renderer.domElement.clientHeight)
+  obliquityHelper?.updateForCamera(camera, toggles.tiltAngle, renderer.domElement.clientHeight)
   renderer?.render(scene, camera)
   if (subRenderer && subCamera) {
     updateSubCamera()
+    solarAltitudeDemo?.updateForCamera(subCamera, toggles.solarAltitude, subRenderer.domElement.clientHeight)
+    updateSpeedLabelsForCamera(subCamera, subRenderer.domElement.clientHeight)
+    obliquityHelper?.updateForCamera(subCamera, toggles.tiltAngle, subRenderer.domElement.clientHeight)
     subRenderer.render(scene, subCamera)
   }
+}
+
+function updateTeachingOverlays(dt: number) {
+  if (!earthSpinGroup || !camera) return
+  if (toggles.subsolarTrail && subsolarTrail) {
+    earthSpinGroup.getWorldQuaternion(teachingQuaternion).invert()
+    teachingDirection.copy(earthUniforms.sunDirection.value).applyQuaternion(teachingQuaternion)
+    subsolarTrail.update(teachingDirection, isPlaying.value && !yearTransitionActive ? dt : 0,
+      trailCycle.value === 'orbit' ? yearProgress.value : undefined)
+  }
+  if (toggles.rotationSpeeds && rotationSpeedDemo) {
+    updateSpeedLabelsForCamera(camera, renderer.domElement.clientHeight, true)
+    earthTiltGroup.getWorldQuaternion(teachingQuaternion)
+    rotationCutawayUniforms.cutawayDirection.value.copy(rotationSpeedDemo.cutawayDirection).applyQuaternion(teachingQuaternion)
+    rotationCutawayUniforms.cutawayAxis.value.set(0, 1, 0).applyQuaternion(teachingQuaternion)
+    rotationCutawayUniforms.cutawayCenter.value.copy(earthRoot.position)
+  }
+}
+
+function updateSpeedLabelsForCamera(viewCamera: THREE.PerspectiveCamera, viewportHeight: number, updateCutaway = false) {
+  if (!toggles.rotationSpeeds || !rotationSpeedDemo || !earthTiltGroup || viewportHeight < 1) return
+  earthTiltGroup.getWorldQuaternion(teachingQuaternion).invert()
+  viewCamera.getWorldQuaternion(teachingCameraQuaternion)
+  teachingDirection.copy(viewCamera.position).sub(earthRoot.position).applyQuaternion(teachingQuaternion)
+  teachingScreenRight.set(1, 0, 0).applyQuaternion(teachingCameraQuaternion).applyQuaternion(teachingQuaternion)
+  teachingScreenUp.set(0, 1, 0).applyQuaternion(teachingCameraQuaternion).applyQuaternion(teachingQuaternion)
+  const update = updateCutaway ? rotationSpeedDemo.update : rotationSpeedDemo.updateLabels
+  update(teachingDirection, teachingScreenRight, teachingScreenUp, viewportHeight, viewCamera.fov)
 }
 
 
@@ -1937,7 +2152,10 @@ function updateSubCamera() {
   const earthPos = earthRoot.position.clone()
   const sunDir = new THREE.Vector3().subVectors(new THREE.Vector3(0, 0, 0), earthPos).normalize()
   const axisWorld = new THREE.Vector3(0, 1, 0).applyQuaternion(earthTiltGroup.getWorldQuaternion(new THREE.Quaternion())).normalize()
-  const terminatorDir = new THREE.Vector3().crossVectors(axisWorld, sunDir).normalize()
+  const terminatorDir = new THREE.Vector3().crossVectors(earthUniforms.motionAxis.value, sunDir)
+  // If illumination is momentarily stationary, keep the last camera direction.
+  if ((subViewMode.value === 'dawn' || subViewMode.value === 'dusk') && terminatorDir.lengthSq() < 1e-12) return
+  terminatorDir.normalize()
   let viewDir
   switch (subViewMode.value) {
     case 'dusk':
@@ -1977,38 +2195,38 @@ function updateLightUniforms() {
   if (ambientLight) ambientLight.intensity = 0.75 * ambientLightPower.value
 }
 
-function computeSpinAngleForObserver(observer: ObservationPoint, localSolarHour: number, sunDir: THREE.Vector3) {
-  if (!earthTiltGroup) return 0
-  const desiredSubsolarLon = normalizeLon(observer.lon - (normalizeHour(localSolarHour) - 12) * 15)
-  const inverseTilt = earthTiltGroup.getWorldQuaternion(new THREE.Quaternion()).invert()
-  const sunInTiltLocal = sunDir.clone().applyQuaternion(inverseTilt).normalize()
-  const currentSunLon = vectorToLonDeg(sunInTiltLocal)
-  return (currentSunLon - desiredSubsolarLon) * DEG
-}
-
-function vectorToLonDeg(v: THREE.Vector3) {
-  return normalizeLon(Math.atan2(-v.z, v.x) * RAD)
-}
-
 function updateCelestialState() {
   if (!earthRoot) return
   const pos = getOrbitPosition(yearProgress.value)
+  const orbitDelta = pos.clone().sub(earthRoot.position)
   earthRoot.position.copy(pos)
+
+  // 地球中心视角需要让相机与观察目标一起随公转平移。
+  // 只更新 controls.target 会让相机留在原地，地球因此看起来越来越远。
+  if (focusMode.value === 'earth' && camera && controls && orbitDelta.lengthSq() > 0) {
+    camera.position.add(orbitDelta)
+    controls.target.add(orbitDelta)
+  }
 
   const sunDir = new THREE.Vector3().subVectors(new THREE.Vector3(0, 0, 0), pos).normalize()
 
-  // 自转时间轴表示当前观测点的地方太阳时。这里反解地球自转角，
-  // 使“观测点太阳时”和“该点处于昼/夜半球的视觉位置”严格一致。
+  // 自转姿态是独立状态；太阳时由姿态与太阳方向反算。只公转时不能补偿自转角。
   const observer = observationPoints.value.find((p) => p.id === selectedObservationId.value) || DEFAULT_OBSERVATION
-  earthSpinGroup.rotation.y = SPIN_VISUAL_OFFSET + computeSpinAngleForObserver(observer, observerLocalHour.value, sunDir)
+  earthSpinGroup.rotation.y = earthSpinAngle.value
 
   updateLightUniforms()
   earthUniforms.sunDirection.value.copy(sunDir)
   earthAtmosphereUniforms.sunDirection.value.copy(sunDir)
   earthSunGlowUniforms.sunDirection.value.copy(sunDir)
   updateSunGlowBeam()
-  const axisWorld = new THREE.Vector3(0, 1, 0).applyQuaternion(earthTiltGroup.getWorldQuaternion(new THREE.Quaternion())).normalize()
-  earthUniforms.axisDirection.value.copy(axisWorld)
+  const motionAxis = terminatorMotionAxis(motionPlayback, EARTH_TILT, daySpeed.value,
+    orbitSpeed.value, calendarOrbitRateScale(yearProgress.value), earthUniforms.motionAxis.value)
+  earthUniforms.motionAxis.value.set(motionAxis.x, motionAxis.y, motionAxis.z)
+  if (toggles.solarAltitude && solarAltitudeDemo) {
+    const observerNormal = latLonToVector(observer.lat, observer.lon, 1)
+      .applyQuaternion(earthSpinGroup.quaternion).applyQuaternion(earthTiltGroup.quaternion)
+    solarAltitudeDemo.update(observerNormal, sunDir)
+  }
 
   if (directionalLight) {
     directionalLight.position.set(0, 0, 0)
@@ -2097,11 +2315,16 @@ function updateVisibility() {
   if (sunRaysGroup) sunRaysGroup.visible = toggles.sunRays
   if (earthSunGlow) earthSunGlow.visible = toggles.sunGlow
   if (sunGlowBeam) sunGlowBeam.visible = toggles.sunGlow
+  if (solarAltitudeDemo) solarAltitudeDemo.group.visible = toggles.solarAltitude
+  if (subsolarTrail) subsolarTrail.group.visible = toggles.subsolarTrail
+  if (rotationSpeedDemo) rotationSpeedDemo.group.visible = toggles.rotationSpeeds
+  rotationCutawayUniforms.showRotationCutaway.value = toggles.rotationSpeeds ? 1 : 0
 }
 
 function smoothCameraTarget(dt: number) {
   if (!controls) return
-  controls.target.lerp(targetFocus, Math.min(1, dt * 2.2))
+  if (focusMode.value === 'earth') controls.target.copy(targetFocus)
+  else controls.target.lerp(targetFocus, Math.min(1, dt * 2.2))
 }
 
 function updateFocusTarget() {
@@ -2116,7 +2339,45 @@ function switchFocus(mode: FocusMode) {
     const direction = camera.position.clone().sub(controls.target).normalize()
     const distance = Math.max(5.4, Math.min(7.2, camera.position.distanceTo(controls.target) * 0.45))
     camera.position.copy(earthRoot.position.clone().add(direction.multiplyScalar(distance)))
+    controls.target.copy(earthRoot.position)
+    controls.enablePan = false
+    controls.update()
   }
+}
+
+function focusObserver() {
+  if (!camera || !controls || !earthRoot) return
+  updateCelestialState()
+  const observer = currentObserverPoint.value
+  const normal = latLonToVector(observer.lat, observer.lon, 1)
+    .applyQuaternion(earthSpinGroup.quaternion).applyQuaternion(earthTiltGroup.quaternion)
+  const frame = solarAltitudeFrame(normal, earthUniforms.sunDirection.value)
+  const view = normal.clone().addScaledVector(frame.horizontal, 0.5).addScaledVector(frame.sideways, 0.6).normalize()
+  focusMode.value = 'earth'
+  updateFocusTarget()
+  camera.position.copy(earthRoot.position).addScaledVector(view, 6.4)
+  camera.up.set(0, 1, 0)
+  controls.target.copy(earthRoot.position)
+  controls.enablePan = false
+  controls.update()
+}
+
+function setAllTeachingLayers(enabled: boolean) {
+  teachingOptions.forEach((item) => { toggles[item.key] = enabled })
+}
+
+function focusRotationDemo() {
+  if (!camera || !controls || !earthRoot || !earthTiltGroup) return
+  updateCelestialState()
+  earthTiltGroup.getWorldQuaternion(teachingQuaternion)
+  const view = new THREE.Vector3(0, 0.42, 1).normalize().applyQuaternion(teachingQuaternion)
+  focusMode.value = 'earth'
+  updateFocusTarget()
+  camera.position.copy(earthRoot.position).addScaledVector(view, 6.8)
+  camera.up.set(0, 1, 0)
+  controls.target.copy(earthRoot.position)
+  controls.enablePan = false
+  controls.update()
 }
 
 function resetCamera() {
@@ -2243,16 +2504,33 @@ function onSubResizeEnd() {
 }
 
 let yearProgressTweenId = 0
+let yearTransitionActive = false
 let solarTermFeedbackTimer: number | null = null
+function cancelYearTransition() {
+  cancelAnimationFrame(yearProgressTweenId)
+  yearProgressTweenId = 0
+  yearTransitionActive = false
+}
+
+function toggleAllMotion() {
+  cancelYearTransition()
+  toggleMotionPlayback(motionPlayback)
+}
+
+function toggleMotion(channel: MotionChannel) {
+  if (channel === 'orbit') cancelYearTransition()
+  setMotionPlaying(motionPlayback, channel, !motionPlayback[channel])
+}
 function isSolarTermActive(term: SolarTerm) {
-  const distance = Math.abs(normalize01(yearProgress.value) - term.progress)
-  return Math.min(distance, 1 - distance) < 0.004
+  return currentDayOfYear.value === term.day
 }
 
 function setSolarTerm(progress: number) {
-  isPlaying.value = false
-  animateYearProgress(progress)
-  showSolarTermFeedback(progress)
+  setMotionPlaying(motionPlayback, 'orbit', false)
+  subsolarTrail?.clear()
+  solarTermFeedback.value = null
+  // Announce arrival, not the intermediate latitudes during the camera/season tween.
+  animateYearProgress(progress, () => showSolarTermFeedback(progress))
 }
 
 function showSolarTermFeedback(progress: number) {
@@ -2277,18 +2555,25 @@ function showSolarTermFeedback(progress: number) {
   }, 2600)
 }
 
-function animateYearProgress(targetProgress: number) {
-  cancelAnimationFrame(yearProgressTweenId)
+function animateYearProgress(targetProgress: number, onComplete?: () => void) {
+  cancelYearTransition()
+  yearTransitionActive = true
   const start = yearProgress.value
   const target = normalize01(targetProgress)
   const duration = 850
   const startedAt = performance.now()
-  const ease = (t) => 1 - Math.pow(1 - t, 3)
-  const step = (now) => {
+  const ease = (t: number) => 1 - Math.pow(1 - t, 3)
+  const step = (now: number) => {
     const t = Math.min(1, (now - startedAt) / duration)
     yearProgress.value = start + (target - start) * ease(t)
     if (t < 1) yearProgressTweenId = requestAnimationFrame(step)
-    else yearProgress.value = target
+    else {
+      yearProgress.value = target
+      yearProgressTweenId = 0
+      yearTransitionActive = false
+      subsolarTrail?.clear()
+      onComplete?.()
+    }
   }
   yearProgressTweenId = requestAnimationFrame(step)
 }
@@ -2299,6 +2584,7 @@ function isPresetActive(preset: PresetPlace) {
     currentObserverPoint.value
 
   return (
+    current.source === 'preset' &&
     Math.abs(current.lat - preset.lat) < 0.01 &&
     Math.abs(
       normalizeLon(current.lon) -
@@ -2308,11 +2594,11 @@ function isPresetActive(preset: PresetPlace) {
 }
 
 function addPreset(preset: PresetPlace) {
-  setSingleObservation({ name: preset.name, lat: preset.lat, lon: preset.lon })
+  setSingleObservation({ name: preset.name, lat: preset.lat, lon: preset.lon, source: 'preset' })
 }
 
 function setSingleObservation(point: Omit<ObservationPoint, 'id'>) {
-  const nextPoint = { id: pointCounter += 1, name: point.name, lat: point.lat, lon: normalizeLon(point.lon) }
+  const nextPoint = { ...point, id: pointCounter += 1, lon: normalizeLon(point.lon) }
   observationPoints.value = [nextPoint]
   selectedObservationId.value = nextPoint.id
   updateObservationMarkers()
@@ -2337,13 +2623,16 @@ function onPointerDown(event: PointerEvent) {
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
   raycaster.setFromCamera(mouse, camera)
-  const hits = raycaster.intersectObject(earthMesh, true)
+  const hits = raycaster.intersectObject(earthMesh, true).filter((hit) =>
+    !isInsideRotationCutaway(hit.point.clone().sub(earthRoot.position)),
+  )
   if (!hits.length) return
   const local = earthMesh.worldToLocal(hits[0].point.clone()).normalize()
   const lat = Math.asin(THREE.MathUtils.clamp(local.y, -1, 1)) * RAD
   const lon = Math.atan2(-local.z, local.x) * RAD
   setSingleObservation({
     name: '手动观测点',
+    source: 'custom',
     lat,
     lon: normalizeLon(lon)
   })
@@ -2412,6 +2701,7 @@ function updateObservationMarkers() {
     pointGroup.userData.rippleRings = rippleRings
     markerGroup.add(pointGroup)
   })
+  applySurfaceCutaway(markerGroup)
 }
 
 function computeObservation(point: ObservationPoint): ObservationResult {
@@ -2473,6 +2763,8 @@ function createLatLonGrid() {
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat))
   }
   for (let lat = -75; lat <= 75; lat += 15) {
+    // 赤道由重点纬线图层单独绘制，避免普通网格线与红色实线叠色。
+    if (lat === 0) continue
     const pts = []
     for (let lon = -180; lon <= 180; lon += 3) pts.push(latLonToVector(lat, lon, EARTH_RADIUS * 1.007))
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat))
@@ -2482,16 +2774,48 @@ function createLatLonGrid() {
 
 function createTropics() {
   const group = new THREE.Group()
-  const tropicMat = new THREE.LineDashedMaterial({ color: 0xffd166, transparent: true, opacity: 0.95, dashSize: 0.08, gapSize: 0.06 })
-  const equatorMat = new THREE.LineBasicMaterial({ color: 0x49a5ff, transparent: true, opacity: 0.75 })
-    ;[-EARTH_TILT_DEG, 0, EARTH_TILT_DEG].forEach((lat) => {
-      const pts = []
-      for (let lon = -180; lon <= 180; lon += 2) pts.push(latLonToVector(lat, lon, EARTH_RADIUS * 1.012))
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lat === 0 ? equatorMat : tropicMat)
-      if (lat !== 0) line.computeLineDistances()
+  const equatorMat = new THREE.LineBasicMaterial({
+    color: 0xff4058,
+    transparent: true,
+    opacity: 0.98,
+  })
+  const tropicMat = new THREE.LineDashedMaterial({
+    color: 0xffd447,
+    transparent: true,
+    opacity: 0.98,
+    dashSize: 0.085,
+    gapSize: 0.055,
+  })
+  const polarCircleMat = new THREE.LineDashedMaterial({
+    color: 0x66d9ff,
+    transparent: true,
+    opacity: 0.9,
+    dashSize: 0.07,
+    gapSize: 0.055,
+  })
+
+    ;[
+      { latitude: -POLAR_CIRCLE_DEG, material: polarCircleMat, dashed: true },
+      { latitude: -EARTH_TILT_DEG, material: tropicMat, dashed: true },
+      { latitude: 0, material: equatorMat, dashed: false },
+      { latitude: EARTH_TILT_DEG, material: tropicMat, dashed: true },
+      { latitude: POLAR_CIRCLE_DEG, material: polarCircleMat, dashed: true },
+    ].forEach(({ latitude, material, dashed }) => {
+      const points: THREE.Vector3[] = []
+      for (let longitude = -180; longitude <= 180; longitude += 2) {
+        points.push(latLonToVector(latitude, longitude, EARTH_RADIUS * 1.012))
+      }
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), material)
+      if (dashed) line.computeLineDistances()
       group.add(line)
     })
   return group
+}
+
+function onManualTimeChange(channel: MotionChannel) {
+  cancelYearTransition()
+  setMotionPlaying(motionPlayback, channel, false)
+  subsolarTrail?.clear()
 }
 
 function createFiveZones() {
@@ -2566,13 +2890,13 @@ function createCoordinateLabels() {
     if (lat === 0) continue
     const label = createTextSprite(formatGridLat(lat), '#6fe7ff')
     label.position.copy(latLonToVector(lat, -165, EARTH_RADIUS * 1.1))
-    label.scale.set(0.5, 0.18, 1)
+    label.scale.set(0.42, 0.18, 1)
     group.add(label)
   }
   for (let lon = -180; lon < 180; lon += 60) {
     const label = createTextSprite(formatGridLon(lon), '#a7b7ff')
     label.position.copy(latLonToVector(0, lon, EARTH_RADIUS * 1.12))
-    label.scale.set(0.5, 0.18, 1)
+    label.scale.set(0.42, 0.18, 1)
     group.add(label)
   }
   return group
@@ -2722,18 +3046,16 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function progressToDayOfYear(progress: number) {
-  const term = solarTerms.find((item) => Math.abs(normalize01(progress) - item.progress) < 0.0008)
-  if (term) return term.day
-  return Math.max(1, Math.min(YEAR_DAYS, Math.round(normalize01(progress) * (YEAR_DAYS - 1)) + 1))
+  return calendarProgressToDayOfYear(progress)
 }
 
 function dayOfYearToCalendarProgress(day: number) {
-  return (Math.max(1, Math.min(YEAR_DAYS, day)) - 1) / (YEAR_DAYS - 1)
+  return (Math.max(1, Math.min(YEAR_DAYS, day)) - 1) / YEAR_DAYS
 }
 
 function calendarProgressToSeasonProgress(progress: number) {
-  const dayFloat = normalize01(progress) * (YEAR_DAYS - 1) + 1
-  return normalize01((dayFloat - SPRING_EQUINOX_DAY) / YEAR_DAYS)
+  // Share the four teaching-date anchors across the globe, map, and time labels.
+  return toSeasonProgress(progress)
 }
 
 function dayOfYearToMonthDay(dayOfYear: number) {
@@ -2780,19 +3102,6 @@ function formatLon(lon: number) {
 
 function formatSignedDeg(value: number) {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}°`
-}
-
-function formatHour(value: number) {
-  const h = normalizeHour(value)
-  const hour = Math.floor(h)
-  const minute = Math.round((h - hour) * 60)
-  return `${String(hour).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
-}
-
-function formatDuration(hours: number) {
-  const h = Math.floor(hours)
-  const m = Math.round((hours - h) * 60)
-  return `${h}小时${m}分`
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -2856,6 +3165,225 @@ function normalizeLon(value: number) {
   inset: 0;
   z-index: 12;
   pointer-events: none;
+}
+
+.scene-teaching-status {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  display: grid;
+  gap: 10px;
+  max-width: min(340px, calc(100vw - 240px));
+  color: #d8edf7;
+  font-size: clamp(12px, 0.68vw, 17px);
+}
+
+.camera-follow-status,
+.teaching-scene-note {
+  border: 1px solid rgba(109, 178, 207, 0.24);
+  background: rgba(5, 19, 30, 0.82);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+}
+
+.camera-follow-status {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 4px;
+  padding: 10px 13px;
+  width: fit-content;
+}
+
+.camera-follow-status .el-icon {
+  color: #aebed1;
+}
+
+.camera-follow-status.locked .el-icon {
+  color: #6ee9d7;
+}
+
+.camera-follow-status strong {
+  font-weight: 650;
+}
+
+.camera-follow-status>span {
+  grid-column: 2;
+  color: #9eb8c9;
+  font-size: 0.84em;
+}
+
+.teaching-scene-note {
+  display: grid;
+  gap: 7px;
+  padding: 12px 14px;
+  line-height: 1.55;
+}
+
+.teaching-scene-note>span,
+.teaching-scene-note>small {
+  color: #9fbacb;
+  font-size: 0.87em;
+}
+
+.teaching-note-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.teaching-note-heading b {
+  color: #ffdb7e;
+  font-size: 1.35em;
+  font-variant-numeric: tabular-nums;
+}
+
+.teaching-scene-note button {
+  justify-self: start;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-top: 2px;
+  padding: 5px 9px;
+  border: 1px solid rgba(113, 222, 238, 0.25);
+  border-radius: 6px;
+  color: #79dced;
+  background: rgba(68, 168, 191, 0.1);
+  font: inherit;
+  font-size: 0.88em;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.teaching-scene-note button:focus-visible {
+  outline: 2px solid #79dced;
+  outline-offset: 3px;
+}
+
+.teaching-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82em;
+}
+
+.teaching-legend i {
+  width: 15px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.normal-swatch {
+  background: #65e5f3;
+}
+
+.sun-swatch {
+  background: #ffd05b;
+  margin-left: 7px;
+}
+
+.trail-age-legend {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 0.8em;
+}
+
+.trail-age-legend i {
+  height: 3px;
+  flex: 1;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #377fba33, #63c5c6, #ffcf63);
+}
+
+.teaching-switch-list {
+  display: grid;
+  gap: 8px;
+}
+
+.teaching-switch-list .control-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.teaching-switch-list .control-copy>span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.teaching-focus-btn {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.teaching-control-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.earth-orbit-template.theme-light .scene-teaching-status {
+  color: #183d52;
+}
+
+.earth-orbit-template.theme-light .camera-follow-status,
+.earth-orbit-template.theme-light .teaching-scene-note {
+  background: rgba(245, 251, 254, 0.92);
+  border-color: rgba(37, 116, 145, 0.23);
+}
+
+.earth-orbit-template.theme-light .camera-follow-status>span,
+.earth-orbit-template.theme-light .teaching-scene-note>span,
+.earth-orbit-template.theme-light .teaching-scene-note>small {
+  color: #456578;
+}
+
+.earth-orbit-template.theme-light .camera-follow-status.locked .el-icon {
+  color: #157b76;
+}
+
+.earth-orbit-template.theme-light .teaching-note-heading b {
+  color: #997012;
+}
+
+.earth-orbit-template.theme-light .teaching-scene-note button {
+  color: #176980;
+  border-color: rgba(23, 105, 128, 0.25);
+}
+
+@media (max-width: 700px) {
+  .scene-teaching-status {
+    top: 10px;
+    left: 10px;
+    gap: 6px;
+    max-width: calc(100vw - 230px);
+    font-size: 11px;
+    max-height: calc(100% - 120px);
+    overflow-y: auto;
+    pointer-events: auto;
+  }
+
+  .camera-follow-status {
+    padding: 8px;
+  }
+
+  .camera-follow-status>span {
+    display: none;
+  }
+
+  .teaching-scene-note {
+    padding: 8px;
+    gap: 5px;
+  }
+
+  .teaching-legend {
+    flex-wrap: wrap;
+  }
 }
 
 .scene-float-card {
@@ -3787,21 +4315,44 @@ function normalizeLon(value: number) {
 .control-subgroup-head {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 6px;
   margin-bottom: 9px;
 }
 
-.control-subgroup-head>span {
-  color: rgba(var(--theme-primary-light-rgb), 0.66);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+.control-dashboard .section-title {
+  font-size: clamp(14px, 0.78vw, 18px) !important;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+  line-height: 1.4;
 }
 
 .control-subgroup-head .section-title {
-  font-size: 13px;
   white-space: nowrap;
+}
+
+.calendar-model-note {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--theme-primary-light-rgb), 0.1);
+  color: var(--text-secondary);
+  font-size: clamp(10px, 0.56vw, 13px);
+  line-height: 1.6;
+}
+
+.calendar-model-note > span {
+  display: inline-grid;
+  flex: 0 0 13px;
+  place-items: center;
+  height: 13px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), 0.4);
+  border-radius: 50%;
+  color: var(--theme-primary-light);
+  font: 600 9px / 1 Georgia, serif;
 }
 
 .quick-option-grid {
@@ -3834,6 +4385,10 @@ function normalizeLon(value: number) {
   gap: 7px;
 }
 
+.parameter-grid:not(.motion-speed-grid) .parameter-control:last-child {
+  grid-column: 1 / -1;
+}
+
 .parameter-control {
   min-width: 0;
   padding: 8px 9px 4px;
@@ -3860,6 +4415,19 @@ function normalizeLon(value: number) {
 .parameter-control :deep(.el-slider) {
   height: 24px;
   margin: 1px 2px 0;
+}
+
+.motion-speed-grid .parameter-control {
+  border-color: rgba(var(--theme-primary-light-rgb), 0.24);
+}
+
+.motion-speed-note {
+  margin: 7px 1px 12px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid rgba(var(--theme-primary-light-rgb), 0.12);
+  color: var(--text-muted);
+  font-size: clamp(11px, 0.6vw, 14px);
+  line-height: 1.5;
 }
 
 .layer-bulk-actions {
@@ -4741,8 +5309,267 @@ function normalizeLon(value: number) {
 }
 
 /* 底部时间轴：公转与自转合并为单行控制条 */
+.motion-mode-help {
+  margin: 0 0 12px;
+  padding: 10px 11px;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), 0.11);
+  border-radius: 10px;
+  background: rgba(var(--theme-primary-light-rgb), 0.035);
+  color: var(--text-secondary);
+  font-size: clamp(11px, 0.6vw, 14px);
+  line-height: 1.6;
+}
+
+.motion-mode-help p {
+  margin: 5px 0 0;
+}
+
+.motion-mode-help small {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: clamp(10px, 0.55vw, 13px);
+}
+
+.motion-status-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.motion-status-head strong {
+  color: var(--text-primary);
+  font-size: clamp(12px, 0.68vw, 16px);
+  font-weight: 600;
+}
+
+.motion-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.motion-status-dot.playing {
+  background: var(--theme-primary-light);
+  box-shadow: 0 0 7px rgba(var(--theme-primary-light-rgb), 0.35);
+}
+
+.solar-time-reverse-note {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 20px;
+  border: 1px solid rgba(255, 200, 87, 0.24);
+  border-radius: 12px;
+  background: rgba(7, 19, 28, 0.94);
+  color: #cadbe4;
+  font-size: clamp(13px, 0.72vw, 16px);
+  line-height: 1.65;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+}
+
+.solar-time-reverse-head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.solar-time-reverse-head strong {
+  flex: 0 0 auto;
+  color: #ffd580;
+  font-size: clamp(14px, 0.8vw, 18px);
+  font-weight: 650;
+}
+
+.solar-time-reverse-note p {
+  margin: 0;
+}
+
+.solar-time-reverse-details {
+  display: grid;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 200, 87, 0.12);
+  color: #b1c6d3;
+}
+
+.solar-time-reverse-details p {
+  display: grid;
+  grid-template-columns: 4em minmax(0, 1fr);
+  column-gap: 16px;
+}
+
+.solar-time-reverse-details .reverse-detail-label {
+  color: #d4e1e9;
+  font-weight: 600;
+}
+
+.earth-orbit-template.theme-light .solar-time-reverse-note {
+  border-color: rgba(154, 104, 20, 0.25);
+  background: rgba(255, 253, 245, 0.96);
+  color: #354f61;
+}
+
+.earth-orbit-template.theme-light .solar-time-reverse-head strong {
+  color: #896013;
+}
+
+.earth-orbit-template.theme-light .solar-time-reverse-details {
+  border-color: rgba(154, 104, 20, 0.14);
+  color: #5d7180;
+}
+
+.earth-orbit-template.theme-light .reverse-detail-label {
+  color: #354f61;
+}
+
+@media (max-width: 600px) {
+  .solar-time-reverse-note {
+    gap: 8px;
+    padding: 12px 14px;
+    max-height: 44vh;
+    overflow-y: auto;
+    pointer-events: auto;
+  }
+
+  .solar-time-reverse-head {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .solar-time-reverse-details p {
+    column-gap: 10px;
+  }
+}
+
+.timeline-master-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: center;
+  padding-right: 15px;
+  border-right: 1px solid rgba(var(--theme-primary-light-rgb), 0.18);
+}
+
+.timeline-master-button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: clamp(38px, 2.1vw, 48px);
+  height: clamp(38px, 2.1vw, 48px);
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid rgba(var(--theme-primary-light-rgb), 0.3);
+  border-radius: 12px;
+  color: var(--theme-primary-light);
+  background: rgba(var(--theme-primary-light-rgb), 0.1);
+  font-size: clamp(21px, 1.15vw, 26px);
+  cursor: pointer;
+  transition: background 150ms, box-shadow 150ms;
+}
+
+.timeline-master-button.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
+  box-shadow: 0 3px 12px rgba(var(--theme-primary-rgb), 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.timeline-master-button:hover {
+  box-shadow: 0 0 0 3px rgba(var(--theme-primary-light-rgb), 0.12);
+}
+
+.timeline-master-button:focus-visible {
+  outline: 2px solid var(--theme-primary-light);
+  outline-offset: 3px;
+}
+
+.earth-orbit-template.theme-light .timeline-master-button:not(.active) {
+  color: #126c86;
+  border-color: rgba(18, 108, 134, 0.25);
+  background: rgba(18, 108, 134, 0.08);
+}
+
+.timeline-playback-caption {
+  display: grid;
+  gap: 4px;
+  min-width: 3em;
+  color: var(--text-primary);
+  font-size: clamp(12px, 0.7vw, 16px);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.timeline-playback-caption small {
+  color: var(--text-muted);
+  font-size: clamp(9px, 0.5vw, 12px);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.timeline-playback-caption strong {
+  font-size: inherit;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.timeline-playback-caption.paused strong {
+  color: var(--text-secondary);
+}
+
+.channel-play-btn {
+  display: grid;
+  flex: 0 0 auto;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(var(--axis-accent-rgb), 0.25);
+  border-radius: 7px;
+  color: var(--axis-accent);
+  background: rgba(var(--axis-accent-rgb), 0.06);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 150ms, box-shadow 150ms;
+}
+
+.channel-play-btn.active {
+  background: rgba(var(--axis-accent-rgb), 0.19);
+  box-shadow: inset 0 0 0 1px rgba(var(--axis-accent-rgb), 0.12);
+}
+
+.channel-play-btn:hover {
+  background: rgba(var(--axis-accent-rgb), 0.3);
+}
+
+.channel-play-btn:focus-visible {
+  outline: 2px solid var(--axis-accent);
+  outline-offset: 3px;
+}
+
+.earth-orbit-template.theme-light .orbit-timeline-channel {
+  --axis-accent: #926413;
+  --axis-accent-rgb: 146, 100, 19;
+}
+
+.earth-orbit-template.theme-light .rotation-timeline-channel {
+  --axis-accent: #086f90;
+  --axis-accent-rgb: 8, 111, 144;
+}
+
+.motion-paused .timeline-inline-label {
+  background: rgba(var(--axis-accent-rgb), 0.04);
+  box-shadow: none;
+}
+
 .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
-  width: min(980px, calc(100% - 36px)) !important;
+  width: min(1180px, calc(100% - 36px)) !important;
   min-width: 0 !important;
   min-height: 76px;
   grid-template-columns: auto minmax(0, 1fr) !important;
@@ -4753,7 +5580,7 @@ function normalizeLon(value: number) {
 
 .earth-orbit-template .orbit-overlay-layer .orbit-timeline-main {
   display: grid;
-  grid-template-columns: minmax(240px, 1.2fr) 1px minmax(220px, 0.9fr);
+  grid-template-columns: minmax(260px, 1fr) 1px minmax(300px, 1fr);
   align-items: center;
   gap: 15px;
 }
@@ -4814,6 +5641,102 @@ function normalizeLon(value: number) {
 .rotation-timeline-channel .timeline-inline-label strong {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   letter-spacing: 0.01em;
+}
+
+.timeline-local-time {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.local-time-readout {
+  display: grid;
+  gap: 5px;
+  padding-right: 14px;
+  border-right: 1px solid rgba(var(--axis-accent-rgb), 0.15);
+  color: var(--text-secondary);
+  font-size: clamp(10px, 0.55vw, 13px);
+  white-space: nowrap;
+}
+
+.local-time-readout strong {
+  color: var(--axis-accent);
+  font: 600 clamp(23px, 1.15vw, 30px) / 1 "SFMono-Regular", Consolas, monospace;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.local-time-track {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+}
+
+.rotation-timeline-channel .rotation-play-control {
+  width: 36px;
+  height: 46px;
+  padding: 5px 0;
+  gap: 3px;
+  border-radius: 10px;
+  font-size: 18px;
+}
+
+.rotation-play-control > span {
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.08em;
+}
+
+.local-time-location {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px 9px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: clamp(10px, 0.54vw, 13px);
+}
+
+.local-time-location strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: clamp(12px, 0.63vw, 15px);
+}
+
+.local-time-location span {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+:deep(.timeline-local-time .el-slider) {
+  height: 25px;
+}
+
+:deep(.timeline-local-time .el-slider__runway) {
+  height: 4px;
+  background: rgba(var(--axis-accent-rgb), 0.12) !important;
+}
+
+:deep(.timeline-local-time .el-slider__bar) {
+  height: 4px;
+  background: linear-gradient(90deg, rgba(var(--axis-accent-rgb), 0.38), var(--axis-accent)) !important;
+}
+
+:deep(.timeline-local-time .el-slider__button-wrapper) {
+  top: -16px;
+}
+
+:deep(.timeline-local-time .el-slider__button) {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--axis-accent);
+  background: var(--text-primary);
+  box-shadow: 0 0 0 3px rgba(var(--axis-accent-rgb), 0.1);
 }
 
 .earth-orbit-template.theme-light .timeline-inline-label {
@@ -4884,6 +5807,27 @@ function normalizeLon(value: number) {
 }
 
 @media (max-width: 760px) {
+  .timeline-master-control {
+    gap: 6px;
+    padding-right: 8px;
+  }
+
+  .timeline-master-button {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    font-size: 19px;
+  }
+
+  .timeline-playback-caption {
+    font-size: 10px;
+    gap: 3px;
+  }
+
+  .timeline-playback-caption small {
+    font-size: 8px;
+  }
+
   .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
     width: calc(100% - 18px) !important;
     min-height: 70px;
@@ -4919,6 +5863,12 @@ function normalizeLon(value: number) {
     font-size: 9px;
   }
 
+  .channel-play-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+  }
+
   .timeline-channel-divider {
     height: 36px;
   }
@@ -4936,6 +5886,79 @@ function normalizeLon(value: number) {
 
   .timeline-inline-label {
     padding-inline: 6px;
+  }
+}
+
+@media (max-width: 900px) {
+  .earth-orbit-template .orbit-overlay-layer .orbit-timeline-main {
+    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .orbit-timeline-channel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .orbit-timeline-channel .timeline-inline-label {
+    justify-self: start;
+  }
+
+  .rotation-timeline-channel {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .rotation-timeline-channel .timeline-inline-label {
+    padding: 3px;
+  }
+
+  .rotation-timeline-channel .timeline-inline-label > span {
+    display: none;
+  }
+
+  .timeline-local-time {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .local-time-readout {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+  }
+
+  .local-time-readout strong {
+    font-size: 20px;
+  }
+
+  .local-time-location {
+    font-size: 10px;
+  }
+
+  .local-time-track {
+    gap: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .timeline-master-control {
+    justify-self: start;
+    border-right: 0;
+    padding: 0;
+  }
+
+  .timeline-playback-caption {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
   }
 }
 

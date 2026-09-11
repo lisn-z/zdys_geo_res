@@ -1,54 +1,29 @@
 <template>
-  <div
-    class="tidal-phenomenon-container geo-template-page geo-page theme-dark layout-floating"
-  >
+  <div class="tidal-phenomenon-container geo-template-page geo-page theme-dark">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="logo" />
       </div>
 
       <h1 class="page-title">潮汐现象</h1>
 
       <div class="toolbar-actions">
-        <button
-          type="button"
-          class="theme-btn toolbar-btn"
-          @click="focusEarth"
-        >
+        <button type="button" class="theme-btn toolbar-btn" @click="focusEarth">
           聚焦地球
         </button>
 
-        <button
-          type="button"
-          class="theme-btn toolbar-btn panel-toolbar-btn"
-          :aria-pressed="panelsVisible"
-          @click="panelsVisible = !panelsVisible"
-        >
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :aria-pressed="panelsVisible"
+          @click="panelsVisible = !panelsVisible">
           {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace">
-      <FloatingFeatureCard
-        v-show="panelsVisible"
-        v-model:collapsed="controlPanelCollapsed"
-        class="tidal-floating-card control-floating-card"
-        title="模拟控制"
-        subtitle="地月运动 · 潮汐形变 · 辅助图层"
-        variant="control"
-        :initial-top="84"
-        :initial-right="18"
-        :bottom-inset="96"
-        :min-width="320"
-        :min-height="260"
-        draggable
-        resizable
-      >
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlPanelCollapsed"
+        class="tidal-floating-card control-floating-card" title="模拟控制" subtitle="地月运动 · 潮汐形变 · 辅助图层" variant="control"
+        :initial-top="84" :initial-right="18" :bottom-inset="96" :min-width="320" :min-height="260" draggable resizable>
         <div class="panel-scroll">
           <section class="geo-card control-section">
             <h3 class="section-title">天体运动</h3>
@@ -86,11 +61,7 @@
                 <strong>增强形变显示</strong>
                 <span>仅改变视觉幅度，不改变潮汐周期</span>
               </div>
-              <el-switch
-                v-model="highlightDeformation"
-                aria-label="增强形变显示"
-                :disabled="!showTideLayer"
-              />
+              <el-switch v-model="highlightDeformation" aria-label="增强形变显示" :disabled="!showTideLayer" />
             </div>
 
             <div class="section-title-row compact-title-row">
@@ -100,15 +71,8 @@
               </strong>
             </div>
 
-            <el-slider
-              v-model="deformationStrength"
-              aria-label="示意形变强度"
-              :min="0.5"
-              :max="2"
-              :step="0.1"
-              :show-tooltip="false"
-              :disabled="!showTideLayer || !highlightDeformation"
-            />
+            <el-slider v-model="deformationStrength" aria-label="示意形变强度" :min="0.5" :max="2" :step="0.1"
+              :show-tooltip="false" :disabled="!showTideLayer || !highlightDeformation" />
 
             <div class="switch-row">
               <div class="control-copy">
@@ -141,15 +105,8 @@
               <strong class="control-value">{{ Math.round(moonAngleDeg) }}°</strong>
             </div>
 
-            <el-slider
-              v-model="moonAngleDeg"
-              aria-label="月球位置"
-              :min="0"
-              :max="360"
-              :step="1"
-              :show-tooltip="false"
-              @input="pauseForManualPosition"
-            />
+            <el-slider v-model="moonAngleDeg" aria-label="月球位置" :min="0" :max="360" :step="1" :show-tooltip="false"
+              @input="pauseForManualPosition" />
 
             <div class="position-scale">
               <span>0°</span>
@@ -164,23 +121,13 @@
             <h3 class="section-title">观察视角</h3>
 
             <div class="option-grid view-option-grid">
-              <button
-                v-for="item in viewOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn"
-                :class="{ active: currentView === item.value }"
-                @click="setView(item.value)"
-              >
+              <button v-for="item in viewOptions" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: currentView === item.value }" @click="setView(item.value)">
                 {{ item.label }}
               </button>
             </div>
 
-            <button
-              type="button"
-              class="theme-btn reset-scene-btn"
-              @click="resetControls"
-            >
+            <button type="button" class="theme-btn reset-scene-btn" @click="resetControls">
               恢复默认参数
             </button>
           </section>
@@ -190,27 +137,15 @@
       <section class="center-stage">
         <div class="stage-content tide-stage-content">
 
-          <div
-            class="celestial-texture-layer"
-            aria-hidden="true"
-          >
-            <div
-              ref="earthTextureOverlayRef"
-              class="celestial-texture-sphere earth-texture-sphere"
-              :style="{ backgroundImage: `url(${EARTH_TEXTURE_IMAGE})` }"
-            ></div>
+          <div class="celestial-texture-layer" aria-hidden="true">
+            <div ref="earthTextureOverlayRef" class="celestial-texture-sphere earth-texture-sphere"
+              :style="{ backgroundImage: `url(${EARTH_TEXTURE_IMAGE})` }"></div>
 
-            <div
-              ref="moonTextureOverlayRef"
-              class="celestial-texture-sphere moon-texture-sphere"
-              :style="{ backgroundImage: `url(${MOON_TEXTURE_IMAGE})` }"
-            ></div>
+            <div ref="moonTextureOverlayRef" class="celestial-texture-sphere moon-texture-sphere"
+              :style="{ backgroundImage: `url(${MOON_TEXTURE_IMAGE})` }"></div>
           </div>
 
-          <div
-            ref="threeContainerRef"
-            class="scene-host three-host tide-three-host"
-          ></div>
+          <div ref="threeContainerRef" class="scene-host three-host tide-three-host"></div>
 
           <div class="stage-status-badge">
             <span class="status-dot"></span>
@@ -269,14 +204,8 @@
         </div>
 
         <div class="timeline-dock">
-          <button
-            type="button"
-            class="timeline-icon-btn"
-            :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            :title="isPlaying ? '暂停' : '播放'"
-            @click="togglePlay"
-          >
+          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlay">
             <el-icon>
               <VideoPause v-if="isPlaying" />
               <VideoPlay v-else />
@@ -289,55 +218,26 @@
               <strong>{{ Math.round(moonAngleDeg) }}° · {{ moonQuadrantLabel }}</strong>
             </div>
 
-            <el-slider
-              v-model="moonAngleDeg"
-              aria-label="时间栏月球位置"
-              :min="0"
-              :max="360"
-              :step="1"
-              :show-tooltip="false"
-              @input="pauseForManualPosition"
-            />
+            <el-slider v-model="moonAngleDeg" aria-label="时间栏月球位置" :min="0" :max="360" :step="1" :show-tooltip="false"
+              @input="pauseForManualPosition" />
           </div>
 
           <div class="speed-options">
-            <button
-              v-for="item in speedOptions"
-              :key="item"
-              type="button"
-              class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }"
-              @click="playbackSpeed = item"
-            >
+            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
         </div>
       </section>
 
-      <FloatingFeatureCard
-        v-show="panelsVisible"
-        v-model:collapsed="observerPanelCollapsed"
-        class="tidal-floating-card observer-floating-card"
-        title="潮汐观察"
-        subtitle="观察点 A · 三维小岛与岸滩"
-        variant="track"
-        :initial-top="212"
-        :initial-right="18"
-        :bottom-inset="96"
-        :min-width="360"
-        :min-height="480"
-        :draggable="!observerPanelCollapsed"
-        resizable
-      >
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="observerPanelCollapsed"
+        class="tidal-floating-card observer-floating-card" title="潮汐观察" subtitle="观察点 A · 三维小岛与岸滩" variant="track"
+        :initial-top="212" :initial-right="18" :bottom-inset="96" :min-width="360" :min-height="480"
+        :draggable="!observerPanelCollapsed" resizable>
         <div class="observer-content">
-          <CoastalTideScene
-            class="observer-coast"
-            :height="localTide.height"
-            :playing="isPlaying"
-            :speed="playbackSpeed"
-            :active="panelsVisible && !observerPanelCollapsed"
-          />
+          <CoastalTideScene class="observer-coast" :height="localTide.height" :playing="isPlaying"
+            :speed="playbackSpeed" :active="panelsVisible && !observerPanelCollapsed" />
           <div class="observer-details">
             <div class="observer-heading">
               <span><i class="observer-dot"></i>A 点潮位 · 与地球同步</span>
@@ -347,61 +247,47 @@
               <button v-for="stage in coastStages" :key="stage.key" type="button"
                 :class="{ active: coastStageKey === stage.key }" :aria-pressed="coastStageKey === stage.key"
                 @click="setCoastStage(stage.phase)">{{ stage.label }}</button>
-              <button type="button" class="coast-play" :aria-label="isPlaying ? '暂停潮汐过程' : '播放潮汐过程'" @click="togglePlay">{{ isPlaying ? '暂停' : '播放' }}</button>
+              <button type="button" class="coast-play" :aria-label="isPlaying ? '暂停潮汐过程' : '播放潮汐过程'"
+                @click="togglePlay">{{ isPlaying ? '暂停' : '播放' }}</button>
             </div>
-        <svg class="tide-chart" viewBox="0 0 480 106" role="img" :aria-label="`观察点 A 的示意潮位：${localTide.stage}。一个相对周期内有两次高潮、两次低潮。`">
-          <line x1="14" y1="58" x2="466" y2="58" class="chart-reference" />
-          <text x="16" y="52" class="chart-reference-text">参考海面</text>
-          <path :d="tideChartPath" class="chart-curve" />
-          <line :x1="localTideChartPoint.x" y1="16" :x2="localTideChartPoint.x" y2="88" class="chart-cursor" />
-          <circle :cx="localTideChartPoint.x" :cy="localTideChartPoint.y" r="5" class="chart-point" />
-          <text x="127" y="14" class="chart-extreme">高潮</text>
-          <text x="353" y="14" class="chart-extreme">高潮</text>
-          <text x="14" y="100" class="chart-extreme">低潮</text>
-          <text x="240" y="100" class="chart-extreme">低潮</text>
-          <text x="466" y="100" class="chart-extreme">低潮</text>
-        </svg>
+            <svg class="tide-chart" viewBox="0 0 480 106" role="img"
+              :aria-label="`观察点 A 的示意潮位：${localTide.stage}。一个相对周期内有两次高潮、两次低潮。`">
+              <line x1="14" y1="58" x2="466" y2="58" class="chart-reference" />
+              <text x="16" y="52" class="chart-reference-text">参考海面</text>
+              <path :d="tideChartPath" class="chart-curve" />
+              <line :x1="localTideChartPoint.x" y1="16" :x2="localTideChartPoint.x" y2="88" class="chart-cursor" />
+              <circle :cx="localTideChartPoint.x" :cy="localTideChartPoint.y" r="5" class="chart-point" />
+              <text x="127" y="14" class="chart-extreme">高潮</text>
+              <text x="353" y="14" class="chart-extreme">高潮</text>
+              <text x="14" y="100" class="chart-extreme">低潮</text>
+              <text x="240" y="100" class="chart-extreme">低潮</text>
+              <text x="466" y="100" class="chart-extreme">低潮</text>
+            </svg>
             <div class="coast-reference-legend">
               <span><i class="coast-reference high-reference"></i>高潮岸线</span>
               <span><i class="coast-reference low-reference"></i>低潮岸线</span>
               <span><i class="coast-reference current-reference"></i>当前岸线</span>
             </div>
             <p class="coast-process-copy">{{ coastProcessCopy }}</p>
-        <div class="observer-footer">
-          <span>{{ motionPeriodLabel }}</span>
-          <span>{{ isPlaying ? '播放中' : '已暂停' }}</span>
-        </div>
+            <div class="observer-footer">
+              <span>{{ motionPeriodLabel }}</span>
+              <span>{{ isPlaying ? '播放中' : '已暂停' }}</span>
+            </div>
             <p class="observer-note">虚线保留高低潮岸线作对照；水位升降为教学放大，细小波纹表示海浪。</p>
           </div>
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard
-        v-show="panelsVisible"
-        v-model:collapsed="dataPanelCollapsed"
-        class="tidal-floating-card data-floating-card"
-        title="实时数据"
-        subtitle="潮汐位置 · 当前对象 · 判定结果"
-        variant="data"
-        :initial-top="148"
-        :initial-right="18"
-        :bottom-inset="96"
-        :min-width="320"
-        :min-height="220"
-        draggable
-        resizable
-      >
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="dataPanelCollapsed"
+        class="tidal-floating-card data-floating-card" title="实时数据" subtitle="潮汐位置 · 当前对象 · 判定结果" variant="data"
+        :initial-top="148" :initial-right="18" :bottom-inset="96" :min-width="320" :min-height="220" draggable
+        resizable>
         <div class="panel-scroll">
           <div class="data-grid tide-data-grid">
-            <article
-              v-for="item in dataCards"
-              :key="item.label"
-              class="geo-card data-card"
-              :class="[
-                item.className,
-                { 'wide-data-card': item.wide },
-              ]"
-            >
+            <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="[
+              item.className,
+              { 'wide-data-card': item.wide },
+            ]">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
               <small>{{ item.description }}</small>
@@ -1354,7 +1240,7 @@ function getSphereWorldRadius(
 ) {
   const geometry =
     mesh.geometry as
-      THREE.SphereGeometry
+    THREE.SphereGeometry
 
   const baseRadius =
     geometry.parameters.radius
@@ -1459,10 +1345,10 @@ function positionCelestialTextureOverlay(
     radiusPixels < 1 ||
     centerX + radiusPixels < 0 ||
     centerX - radiusPixels >
-      lastSceneWidth ||
+    lastSceneWidth ||
     centerY + radiusPixels < 0 ||
     centerY - radiusPixels >
-      lastSceneHeight
+    lastSceneHeight
   ) {
     hideCelestialOverlay(element)
     return
@@ -1566,7 +1452,7 @@ function updateCelestialTextureOverlays() {
     earthTextureOverlayRef.value,
     earthMesh,
     earthDomTextureReady.value &&
-      !earthWebglTextureReady.value,
+    !earthWebglTextureReady.value,
     'earth',
   )
 
@@ -1574,7 +1460,7 @@ function updateCelestialTextureOverlays() {
     moonTextureOverlayRef.value,
     moonMesh,
     moonDomTextureReady.value &&
-      !moonWebglTextureReady.value,
+    !moonWebglTextureReady.value,
     'moon',
   )
 }
@@ -2446,55 +2332,44 @@ onBeforeUnmount(() => {
 .celestial-texture-sphere::before {
   z-index: 1;
   background:
-    radial-gradient(
-      circle at 29% 24%,
+    radial-gradient(circle at 29% 24%,
       rgba(255, 255, 255, 0.22) 0%,
       rgba(255, 255, 255, 0.08) 22%,
       rgba(255, 255, 255, 0) 43%,
       rgba(0, 0, 0, 0.12) 61%,
       rgba(0, 0, 0, 0.48) 82%,
-      rgba(0, 0, 0, 0.88) 100%
-    );
+      rgba(0, 0, 0, 0.88) 100%);
 }
 
 .celestial-texture-sphere::after {
   z-index: 2;
   border:
-    1px solid
-    rgba(210, 236, 255, 0.18);
+    1px solid rgba(210, 236, 255, 0.18);
   box-shadow:
-    inset -14px -8px 25px
-      rgba(0, 0, 0, 0.28),
-    inset 8px 6px 14px
-      rgba(255, 255, 255, 0.05),
-    0 0 10px
-      rgba(70, 175, 255, 0.12);
+    inset -14px -8px 25px rgba(0, 0, 0, 0.28),
+    inset 8px 6px 14px rgba(255, 255, 255, 0.05),
+    0 0 10px rgba(70, 175, 255, 0.12);
 }
 
 .earth-texture-sphere {
   filter:
-    saturate(1.08)
-    contrast(1.05);
+    saturate(1.08) contrast(1.05);
 }
 
 .moon-texture-sphere {
   filter:
-    grayscale(0.03)
-    contrast(1.11)
-    brightness(0.96);
+    grayscale(0.03) contrast(1.11) brightness(0.96);
 }
 
 .moon-texture-sphere::before {
   background:
-    radial-gradient(
-      circle at 30% 25%,
+    radial-gradient(circle at 30% 25%,
       rgba(255, 255, 255, 0.16) 0%,
       rgba(255, 255, 255, 0.05) 28%,
       rgba(255, 255, 255, 0) 46%,
       rgba(0, 0, 0, 0.16) 65%,
       rgba(0, 0, 0, 0.52) 84%,
-      rgba(0, 0, 0, 0.9) 100%
-    );
+      rgba(0, 0, 0, 0.9) 100%);
 }
 
 .tide-three-host {
@@ -2548,7 +2423,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.stage-status-badge > span:last-child {
+.stage-status-badge>span:last-child {
   overflow: hidden;
   color: #91b7c5;
   text-overflow: ellipsis;
@@ -2579,24 +2454,130 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 30px #00000032;
   pointer-events: auto;
 }
-.legend-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.legend-heading h3 { display: flex; align-items: center; gap: 8px; margin: 0; color: #e3f7fc; font-size: 14px; font-weight: 650; }
-.legend-heading h3 > span { color: #61d8cd; font-size: 24px; line-height: 1; font-weight: 400; }
-.legend-model-badge { color: #87adbd; font-size: 10px; border: 1px solid #365062; border-radius: 5px; padding: 3px 6px; }
-.legend-tide-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.legend-tide-item { display: grid; gap: 7px; padding: 10px 9px; border: 1px solid #abcddd14; border-radius: 8px; background: #a3d4e507; }
-.legend-tide-item strong { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #e6edf3; }
-.legend-tide-item > span { color: #a5bdca; font-size: 10px; white-space: nowrap; }
-.legend-reference-list { display: grid; gap: 11px; margin: 15px 0; }
-.legend-reference-row { display: grid; grid-template-columns: 24px 65px 1fr; align-items: center; column-gap: 8px; }
-.legend-reference-row strong { font-size: 11px; font-weight: 500; color: #d3e3eb; }
-.legend-reference-row > span { color: #88a5b5; font-size: 10px; }
-.legend-observer-swatch { display: grid; place-items: center; width: 18px; height: 18px; border: 1px solid #b8963d; border-radius: 5px; color: #ffe080; font: 700 10px/1 sans-serif; }
-.legend-model-note { border-top: 1px solid #b5dbea1a; padding-top: 10px; color: #8ba8b8; font-size: 10px; }
-.legend-model-note summary { cursor: pointer; }
-.legend-model-note summary > span { float: right; color: #728d9e; }
-.legend-model-note p { margin: 10px 0 0; line-height: 1.7; color: #a1bbc9; }
-.legend-model-note summary:focus-visible { outline: 2px solid #61d8cd; outline-offset: 4px; }
+
+.legend-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.legend-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #e3f7fc;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.legend-heading h3>span {
+  color: #61d8cd;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 400;
+}
+
+.legend-model-badge {
+  color: #87adbd;
+  font-size: 10px;
+  border: 1px solid #365062;
+  border-radius: 5px;
+  padding: 3px 6px;
+}
+
+.legend-tide-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.legend-tide-item {
+  display: grid;
+  gap: 7px;
+  padding: 10px 9px;
+  border: 1px solid #abcddd14;
+  border-radius: 8px;
+  background: #a3d4e507;
+}
+
+.legend-tide-item strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #e6edf3;
+}
+
+.legend-tide-item>span {
+  color: #a5bdca;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.legend-reference-list {
+  display: grid;
+  gap: 11px;
+  margin: 15px 0;
+}
+
+.legend-reference-row {
+  display: grid;
+  grid-template-columns: 24px 65px 1fr;
+  align-items: center;
+  column-gap: 8px;
+}
+
+.legend-reference-row strong {
+  font-size: 11px;
+  font-weight: 500;
+  color: #d3e3eb;
+}
+
+.legend-reference-row>span {
+  color: #88a5b5;
+  font-size: 10px;
+}
+
+.legend-observer-swatch {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #b8963d;
+  border-radius: 5px;
+  color: #ffe080;
+  font: 700 10px/1 sans-serif;
+}
+
+.legend-model-note {
+  border-top: 1px solid #b5dbea1a;
+  padding-top: 10px;
+  color: #8ba8b8;
+  font-size: 10px;
+}
+
+.legend-model-note summary {
+  cursor: pointer;
+}
+
+.legend-model-note summary>span {
+  float: right;
+  color: #728d9e;
+}
+
+.legend-model-note p {
+  margin: 10px 0 0;
+  line-height: 1.7;
+  color: #a1bbc9;
+}
+
+.legend-model-note summary:focus-visible {
+  outline: 2px solid #61d8cd;
+  outline-offset: 4px;
+}
 
 .legend-swatch,
 .legend-line {
@@ -2634,6 +2615,7 @@ onBeforeUnmount(() => {
   height: 1px;
   background: #8caac9;
 }
+
 .orbit-line-swatch::after {
   content: '';
   position: absolute;
@@ -2667,33 +2649,140 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%);
 }
 
-.high-label { color: #ffad9e; transform: translate(-50%, -150%); }
-.low-label { color: #69e8d7; }
-.observer-label { color: #ffe080; font-weight: 800; border: 1px solid #b8963d; }
-.moon-label { color: #d5e2f2; }
+.high-label {
+  color: #ffad9e;
+  transform: translate(-50%, -150%);
+}
 
-.observer-floating-card.collapsed { top: 212px !important; right: 18px; left: auto !important; }
-.observer-floating-card:not(.collapsed) { width: min(480px, 42vw); height: min(730px, calc(100vh - 182px)); }
-.observer-floating-card :deep(.feature-card-content) { overflow: auto; scrollbar-gutter: stable; padding-bottom: 24px; }
+.low-label {
+  color: #69e8d7;
+}
+
+.observer-label {
+  color: #ffe080;
+  font-weight: 800;
+  border: 1px solid #b8963d;
+}
+
+.moon-label {
+  color: #d5e2f2;
+}
+
+.observer-floating-card.collapsed {
+  top: 212px !important;
+  right: 18px;
+  left: auto !important;
+}
+
+.observer-floating-card:not(.collapsed) {
+  width: min(480px, 42vw);
+  height: min(730px, calc(100vh - 182px));
+}
+
+.observer-floating-card :deep(.feature-card-content) {
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding-bottom: 24px;
+}
+
 .observer-floating-card.resizing,
 .observer-floating-card.resizing .observer-content,
-.observer-floating-card.resizing .observer-coast { transition: none !important; }
-.observer-content { display: flex; flex-direction: column; height: 100%; min-height: 425px; }
-.observer-coast { flex: 1 1 auto; min-height: 210px; }
-.observer-details { flex: 0 0 auto; padding: 9px 12px 8px; background: rgba(3, 18, 31, 0.97); }
-.coast-stage-options { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 8px 0 2px; }
-.coast-stage-options button { padding: 5px 3px; border: 1px solid #375267; border-radius: 6px; background: #122b3c; color: #bcd7e3; font-size: 11px; cursor: pointer; }
-.coast-stage-options button.active { border-color: #59cfc4; background: #174c52; color: #d6fff8; }
-.coast-stage-options .coast-play { color: #ffe18a; border-color: #746738; }
-.coast-stage-options button:focus-visible { outline: 2px solid #ffe18a; outline-offset: 2px; }
-.coast-reference-legend { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; font-size: 10px; color: #c0d3df; }
-.coast-reference { display: inline-block; width: 15px; margin-right: 4px; vertical-align: middle; border-top: 2px dashed; }
-.high-reference { border-color: #ffac7f; }
-.low-reference { border-color: #69dfff; }
-.current-reference { border-color: #f1fff4; border-top-style: solid; }
-.coast-process-copy { margin: 6px 0; color: #d8e9ef; font-size: 11px; line-height: 1.5; min-height: 17px; }
+.observer-floating-card.resizing .observer-coast {
+  transition: none !important;
+}
 
-.observer-heading, .observer-footer {
+.observer-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 425px;
+}
+
+.observer-coast {
+  flex: 1 1 auto;
+  min-height: 210px;
+}
+
+.observer-details {
+  flex: 0 0 auto;
+  padding: 9px 12px 8px;
+  background: rgba(3, 18, 31, 0.97);
+}
+
+.coast-stage-options {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  margin: 8px 0 2px;
+}
+
+.coast-stage-options button {
+  padding: 5px 3px;
+  border: 1px solid #375267;
+  border-radius: 6px;
+  background: #122b3c;
+  color: #bcd7e3;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.coast-stage-options button.active {
+  border-color: #59cfc4;
+  background: #174c52;
+  color: #d6fff8;
+}
+
+.coast-stage-options .coast-play {
+  color: #ffe18a;
+  border-color: #746738;
+}
+
+.coast-stage-options button:focus-visible {
+  outline: 2px solid #ffe18a;
+  outline-offset: 2px;
+}
+
+.coast-reference-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 10px;
+  color: #c0d3df;
+}
+
+.coast-reference {
+  display: inline-block;
+  width: 15px;
+  margin-right: 4px;
+  vertical-align: middle;
+  border-top: 2px dashed;
+}
+
+.high-reference {
+  border-color: #ffac7f;
+}
+
+.low-reference {
+  border-color: #69dfff;
+}
+
+.current-reference {
+  border-color: #f1fff4;
+  border-top-style: solid;
+}
+
+.coast-process-copy {
+  margin: 6px 0;
+  color: #d8e9ef;
+  font-size: 11px;
+  line-height: 1.5;
+  min-height: 17px;
+}
+
+.observer-heading,
+.observer-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2701,7 +2790,11 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
-.observer-heading strong { color: #ffe080; white-space: nowrap; }
+.observer-heading strong {
+  color: #ffe080;
+  white-space: nowrap;
+}
+
 .observer-dot {
   display: inline-block;
   width: 7px;
@@ -2710,21 +2803,66 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   background: #ffdc55;
 }
+
 .observer-note {
   margin: 5px 0 0;
   font-size: 11px;
   line-height: 1.6;
   color: #a6bfce;
 }
-.observer-footer { color: #c9dbe7; font-size: 11px; }
-.observer-note { color: #90abba; font-size: 10px; }
-.tide-chart { display: block; width: 100%; height: 94px; margin: 5px 0; overflow: visible; }
-.chart-reference { stroke: #899bad; stroke-width: 1; stroke-dasharray: 4 4; }
-.chart-reference-text { fill: #98afc0; font-size: 12px; }
-.chart-curve { fill: none; stroke: #65d6dc; stroke-width: 2.5; }
-.chart-cursor { stroke: #e9c75e; stroke-opacity: 0.35; stroke-dasharray: 3 3; }
-.chart-point { fill: #ffdc55; stroke: #132433; stroke-width: 2; }
-.chart-extreme { fill: #b9cbd9; font-size: 12px; text-anchor: middle; }
+
+.observer-footer {
+  color: #c9dbe7;
+  font-size: 11px;
+}
+
+.observer-note {
+  color: #90abba;
+  font-size: 10px;
+}
+
+.tide-chart {
+  display: block;
+  width: 100%;
+  height: 94px;
+  margin: 5px 0;
+  overflow: visible;
+}
+
+.chart-reference {
+  stroke: #899bad;
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.chart-reference-text {
+  fill: #98afc0;
+  font-size: 12px;
+}
+
+.chart-curve {
+  fill: none;
+  stroke: #65d6dc;
+  stroke-width: 2.5;
+}
+
+.chart-cursor {
+  stroke: #e9c75e;
+  stroke-opacity: 0.35;
+  stroke-dasharray: 3 3;
+}
+
+.chart-point {
+  fill: #ffdc55;
+  stroke: #132433;
+  stroke-width: 2;
+}
+
+.chart-extreme {
+  fill: #b9cbd9;
+  font-size: 12px;
+  text-anchor: middle;
+}
 
 .wide-data-card {
   grid-column: 1 / -1;
@@ -2763,11 +2901,13 @@ onBeforeUnmount(() => {
     max-width: 44%;
   }
 
-  .stage-status-badge > span:last-child {
+  .stage-status-badge>span:last-child {
     display: none;
   }
 
-  .observer-floating-card:not(.collapsed) { width: min(410px, calc(100vw - 36px)); }
+  .observer-floating-card:not(.collapsed) {
+    width: min(410px, calc(100vw - 36px));
+  }
 }
 
 @media (max-width: 700px) {
@@ -2776,13 +2916,30 @@ onBeforeUnmount(() => {
     width: min(306px, calc(100vw - 32px));
     padding: 12px;
   }
-  .observer-floating-card:not(.collapsed) { width: calc(100vw - 36px); }
-  .scene-label { font-size: 10px; padding: 3px 5px; }
-  .stage-status-badge { left: 16px; transform: none; max-width: 48%; }
+
+  .observer-floating-card:not(.collapsed) {
+    width: calc(100vw - 36px);
+  }
+
+  .scene-label {
+    font-size: 10px;
+    padding: 3px 5px;
+  }
+
+  .stage-status-badge {
+    left: 16px;
+    transform: none;
+    max-width: 48%;
+  }
 }
 
 @media (max-height: 650px) and (min-width: 701px) {
-  .stage-legend { bottom: 110px; }
-  .stage-status-badge { top: 72px; }
+  .stage-legend {
+    bottom: 110px;
+  }
+
+  .stage-status-badge {
+    top: 72px;
+  }
 }
 </style>

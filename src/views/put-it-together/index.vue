@@ -445,14 +445,34 @@ function zoomMap(direction: 'in' | 'out') {
     return
   }
 
-  chart.dispatchAction({
-    type: 'geoRoam',
-    componentType: 'geo',
-    geoIndex: 0,
-    zoom: direction === 'in' ? 1.22 : 1 / 1.22,
-    originX: chart.getWidth() / 2,
-    originY: chart.getHeight() / 2,
-  })
+  const option = chart.getOption()
+  const geoOption = Array.isArray(option.geo)
+    ? option.geo[0]
+    : option.geo
+  const optionZoom = Number(
+    (geoOption as { zoom?: number } | undefined)?.zoom
+  )
+  const currentZoom = Number.isFinite(optionZoom)
+    ? optionZoom
+    : 1.8
+  const zoomFactor = direction === 'in'
+    ? 1.25
+    : 0.8
+  const nextZoom = Math.min(
+    8,
+    Math.max(0.7, currentZoom * zoomFactor)
+  )
+
+  chart.setOption(
+    {
+      geo: {
+        zoom: nextZoom,
+      },
+    },
+    {
+      lazyUpdate: false,
+    }
+  )
 }
 
 // 高德 中国省级行政区.json 的最后一个辅助要素通常使用 adcode=100000_JD / adchar=JD，
