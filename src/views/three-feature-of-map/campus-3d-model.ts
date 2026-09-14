@@ -3,6 +3,7 @@ import { type CampusLayout, type ProjectedCampusFeature, isCampusBuilding } from
 import { createRoadMarkingGeometry } from './campus-3d-roads'
 import { createCampusWater } from './campus-3d-water'
 import { createCampusBuilding } from './campus-3d-buildings'
+import { createCampusPlaza } from './campus-3d-plaza'
 
 type GroundPoint = { x: number; z: number }
 export type CampusBuilding = { id: number; name: string; target: THREE.Vector3; radius: number; height: number }
@@ -38,7 +39,7 @@ function inset(points: GroundPoint[], center: GroundPoint, scale: number) {
 function closed(points: GroundPoint[]) { return points.length ? [...points, points[0]!] : points }
 
 // Every model is placed in the projected east/north frame. No layout rotation is applied.
-export function buildCampusModel(layout: CampusLayout): { group: THREE.Group; buildings: CampusBuilding[]; update: (elapsedSeconds: number) => void } {
+export function buildCampusModel(layout: CampusLayout, options: { includeBase?: boolean; includeLabels?: boolean; roadWidth?: number; fenceWidth?: number } = {}): { group: THREE.Group; buildings: CampusBuilding[]; update: (elapsedSeconds: number) => void } {
   const group = new THREE.Group()
   group.name = '地理方位校园'
   const buildings: CampusBuilding[] = []
@@ -113,6 +114,7 @@ export function buildCampusModel(layout: CampusLayout): { group: THREE.Group; bu
   }
 
   function label(text: string, x: number, y: number, z: number, accent: string, width = 11, cardinal = false) {
+    if (options.includeLabels === false) return
     if (typeof document === 'undefined') return
     const canvas = document.createElement('canvas')
     canvas.width = 512; canvas.height = cardinal ? 192 : 112
@@ -189,14 +191,15 @@ export function buildCampusModel(layout: CampusLayout): { group: THREE.Group; bu
   }
 
   function fence(feature: ProjectedCampusFeature) {
-    ribbon(feature.points, 0.65, 0, 2.3, 0xe8dcc6)
-    ribbon(feature.points, 0.85, 2.3, 0.23, 0xb1a392)
+    const widthScale = (options.fenceWidth ?? 1.1) / 1.1
+    ribbon(feature.points, 0.65 * widthScale, 0, 2.3, 0xe8dcc6)
+    ribbon(feature.points, 0.85 * widthScale, 2.3, 0.23, 0xb1a392)
     let pillarBudget = Math.min(remainingDetails, 36)
     for (let index = 1; index < feature.points.length && pillarBudget > 0; index++) {
       const a = feature.points[index - 1]!, b = feature.points[index]!
       const count = Math.min(12, Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 5)))
       for (let i = 0; i <= count && pillarBudget > 0; i++) {
-        box(a.x + (b.x - a.x) * i / count, 1.4, a.z + (b.z - a.z) * i / count, 1.1, 2.8, 1.1, 0xc7b6a0)
+        box(a.x + (b.x - a.x) * i / count, 1.4, a.z + (b.z - a.z) * i / count, 1.1 * widthScale, 2.8, 1.1 * widthScale, 0xc7b6a0)
         pillarBudget--; remainingDetails--
       }
     }
@@ -204,11 +207,18 @@ export function buildCampusModel(layout: CampusLayout): { group: THREE.Group; bu
   }
 
   function road(feature: ProjectedCampusFeature) {
-    const isPath = feature.kind === 'footpath', width = isPath ? 1.1 : 2.7
-    ribbon(feature.points, width + 0.5, 0.3, 0.1, isPath ? 0xd9c89e : 0xd3cbb8)
-    ribbon(feature.points, width, 0.4, 0.09, isPath ? 0xf0ddb1 : 0x7f8b87)
+    const isPath = feature.kind === 'footpath', width = options.roadWidth !== undefined ? Math.max(0.2, options.roadWidth - 0.5) : (isPath ? 1.1 : 2.7)
+    // Keep footpaths below the entire roadway, including its shoulder. A shared
+    // surface height makes their different colours flicker at crossings; fixed
+    // levels also keep intersections stable when either road is moved or rebuilt.
+    const shoulderTop = isPath ? 0.27 : 0.4
+    const surfaceTop = isPath ? 0.34 : 0.49
+    const shoulder = ribbon(feature.points, options.roadWidth ?? width + 0.5, 0.02, shoulderTop - 0.02, isPath ? 0xd9c89e : 0xd3cbb8)
+    const surface = ribbon(feature.points, width, shoulderTop, surfaceTop - shoulderTop, isPath ? 0xf0ddb1 : 0x7f8b87)
+    if (shoulder) shoulder.name = `${feature.kind}-shoulder`
+    if (surface) surface.name = `${feature.kind}-surface`
     if (isPath) return
-    const markings = mesh(createRoadMarkingGeometry(feature.points), 0xfff1c6)
+    const markings = mesh(createRoadMarkingGeometry(feature.points, 0.18, surfaceTop + 0.02), 0xfff1c6)
     markings.name = 'road-centerline'
     markings.castShadow = false
   }
@@ -257,13 +267,17 @@ export function buildCampusModel(layout: CampusLayout): { group: THREE.Group; bu
         box(point.x, size * 0.86 + 0.2, point.z, size * 1.05, size * 0.4, size * 1.15, 0xe9eadd)
       })
     } else if (feature.kind === 'plaza') {
-      polygon(points, 0.02, 0.18, 0xe5d4b2)
-      if (center) line(closed(inset(points, center, 0.88)), 0.23, 0xc6b598, 0.18)
+      const plaza = createCampusPlaza(points)
+      group.add(plaza.group)
+      animations.push(plaza.update)
+      label(feature.name, plaza.labelPosition.x, plaza.labelPosition.y, plaza.labelPosition.z, '#8f5146', clamp(shortSide * 0.75, 9, 15))
+      return
     } else return
     label(feature.name, feature.center.x, 2.3, feature.center.z, '#426c58', clamp(shortSide * 0.75, 9, 15))
   }
 
   // The circular base provides a quiet edge for the fixed geographical compass.
+  if (options.includeBase !== false) {
   mesh(new THREE.CylinderGeometry(layout.radius - 1, layout.radius - 3, 3.4, 96), 0xd2b996, 0, -2.6, 0)
   mesh(new THREE.CylinderGeometry(layout.radius, layout.radius, 0.9, 96), 0x739868, 0, -0.85, 0)
   mesh(new THREE.CylinderGeometry(layout.radius, layout.radius, 0.42, 96), 0x95bd73, 0, -0.21, 0)
@@ -279,6 +293,7 @@ export function buildCampusModel(layout: CampusLayout): { group: THREE.Group; bu
     label(direction.text, direction.x, 2.4, direction.z, direction.color, 16, true)
     const magnitude = Math.hypot(direction.x, direction.z)
     line([{ x: direction.x / magnitude * (layout.radius - 4), z: direction.z / magnitude * (layout.radius - 4) }, { x: direction.x / magnitude * (layout.radius - 1), z: direction.z / magnitude * (layout.radius - 1) }], 0.05, 0xfaf2d9, 0.7)
+  }
   }
 
   // Surface meshes precede structures so shadows and labels share one stable scene.
@@ -297,5 +312,10 @@ export function buildCampusModel(layout: CampusLayout): { group: THREE.Group; bu
     }
   }
 
+  // Single-object builder previews may not use either shared primitive.
+  const usedGeometries = new Set<THREE.BufferGeometry>()
+  group.traverse(object => { if (object instanceof THREE.Mesh) usedGeometries.add(object.geometry) })
+  if (!usedGeometries.has(boxGeometry)) boxGeometry.dispose()
+  if (!usedGeometries.has(treeGeometry)) treeGeometry.dispose()
   return { group, buildings, update: elapsedSeconds => animations.forEach(animate => animate(elapsedSeconds)) }
 }

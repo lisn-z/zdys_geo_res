@@ -130,6 +130,7 @@
                 <el-switch v-model="toggles[item.key]" />
               </div>
             </div>
+            <p v-if="toggles.terminator" class="teaching-control-note">蓝色：晨线　红色：昏线</p>
           </section>
 
           <section class="geo-card control-section teaching-control-section">
@@ -233,17 +234,7 @@
               <div v-if="solarTimeReversing" class="solar-time-reverse-note" role="status">
                 <div class="solar-time-reverse-head">
                   <strong>太阳时反向变化</strong>
-                  <p>{{ orbitOnlyMode ? '仅公转模式下，地球相对恒星的朝向保持不变。当地太阳时反向变化，模拟日期仍正向推进。' : '当前演示参数下，公转引起的太阳时反向变化超过自转引起的正向变化。当地太阳时呈反向变化，模拟日期仍正向推进。' }}</p>
-                </div>
-                <div v-if="orbitOnlyMode" class="solar-time-reverse-details">
-                  <p>
-                    <span class="reverse-detail-label">光照边界</span>
-                    <span>红蓝两段共同标示瞬时晨昏圈。春秋分时刻，晨昏圈经过南北极；同一时刻启停自转，不改变实际昼夜分界的位置。</span>
-                  </p>
-                  <p>
-                    <span class="reverse-detail-label">分色规则</span>
-                    <span>颜色表示当前运动条件下的入昼与入夜趋势。仅公转时，太阳相对地表的东西向运动与正常自转情形相反，分色相应调整；暂停时保留此前分色参考。换色点不代表晨昏圈与极圈相切。</span>
-                  </p>
+                  <p>{{ orbitOnlyMode ? '地球停止自转后，公转使当地太阳时反向变化；日期仍向前推进。' : '当前演示倍速的组合使当地太阳时反向变化；日期仍向前推进。' }}</p>
                 </div>
               </div>
               <div class="timeline-master-control">
@@ -379,7 +370,7 @@ import { createObliquityHelper } from './obliquity-helper'
 import { createSubsolarTrail } from './subsolar-trail'
 import {
   advanceMotion, createMotionPlayback, setMotionPlaying, toggleMotionPlayback,
-  solarHourFromSpinAngle, spinAngleFromSolarHour, solarHourRate, terminatorMotionAxis,
+  solarHourFromSpinAngle, spinAngleFromSolarHour, solarHourRate,
   formatSolarHour as formatHour, formatSolarDuration as formatDuration, type MotionChannel,
 } from './motion-playback'
 import { createRotationSpeedDemo, rotationSpeedAtLatitude } from './rotation-speed-demo'
@@ -519,6 +510,8 @@ sceneTextureLoadingManager.onLoad = () => {
   textureLoadingLabel.value = '场景准备完成'
   if (pageRevealTimer !== null) window.clearTimeout(pageRevealTimer)
   pageRevealTimer = window.setTimeout(() => {
+    // Start with a fresh frame clock; loading time must not advance the lesson.
+    lastFrameTime = 0
     pageLoading.value = false
     pageRevealTimer = null
   }, 180)
@@ -732,13 +725,11 @@ function resizeMainRenderer() {
 const motionPlayback = reactive(createMotionPlayback())
 const isPlaying = computed(() => motionPlayback.orbit || motionPlayback.rotation)
 const orbitOnlyMode = computed(() => motionPlayback.orbit && !motionPlayback.rotation)
-const orbitOnlyReference = computed(() => orbitOnlyMode.value
-  || (!isPlaying.value && motionPlayback.resumeOrbit && !motionPlayback.resumeRotation))
 const playbackCaption = computed(() => !isPlaying.value ? '已暂停'
   : motionPlayback.orbit && motionPlayback.rotation ? '联动' : motionPlayback.orbit ? '仅公转' : '仅自转')
 const playbackHint = computed(() => !isPlaying.value ? '全部暂停 · 日期和当地太阳时均固定'
   : motionPlayback.orbit && motionPlayback.rotation ? '联动播放 · 日期向前，公转与自转共同决定当地太阳时'
-    : motionPlayback.orbit ? '仅公转 · 地球相对恒星的朝向保持不变；模拟日期正向推进，当地太阳时反向变化。晨、昏分色依据实际光照变化判定'
+    : motionPlayback.orbit ? '仅公转 · 日期向前，当地太阳时反向变化'
       : '仅自转 · 固定日期，观察一天的昼夜变化')
 // Preserve the history basis through a total pause; changing demonstration mode starts a new trail.
 const trailCycle = computed(() => (isPlaying.value ? motionPlayback.rotation : motionPlayback.resumeRotation) ? 'rotation' : 'orbit')
@@ -747,6 +738,16 @@ const orbitSpeed = ref(1)
 const solarTimeReversing = computed(() => solarHourRate(motionPlayback,
   calendarProgressToSeasonProgress(yearProgress.value) * Math.PI * 2, EARTH_TILT,
   daySpeed.value, orbitSpeed.value, calendarOrbitRateScale(yearProgress.value)) < -1e-8)
+const showRiseSetReferenceNote = computed(() => {
+  // Keep the reference notice when the user pauses to inspect or capture a frame.
+  const playback = isPlaying.value ? motionPlayback : {
+    orbit: motionPlayback.resumeOrbit,
+    rotation: motionPlayback.resumeRotation,
+  }
+  return playback.orbit && (!playback.rotation || solarHourRate(playback,
+    calendarProgressToSeasonProgress(yearProgress.value) * Math.PI * 2, EARTH_TILT,
+    daySpeed.value, orbitSpeed.value, calendarOrbitRateScale(yearProgress.value)) < -1e-8)
+})
 const sunLightPower = ref(1.45)
 const nightMapPower = ref(1.75)
 const nightLightPower = ref(0.5)
@@ -1000,7 +1001,7 @@ const observationCardData = computed(() => {
   const speed = observation ? rotationSpeedAtLatitude(observation.lat) : null
   return {
     hasObservation: Boolean(observation),
-    orbitOnlyReference: orbitOnlyReference.value,
+    showRiseSetReferenceNote: showRiseSetReferenceNote.value,
     place: observation?.name || '未选择观测点',
     solarAltitude: observation ? formatSignedDeg(observation.solarAltitude) : '--',
     solarTime: observation?.solarTime || '--:--',
@@ -1116,6 +1117,13 @@ let markerGroup!: THREE.Group
 let directionalLight!: THREE.DirectionalLight
 let ambientLight!: THREE.AmbientLight
 let targetFocus = new THREE.Vector3(0, 0, 0)
+const EARTH_FOCUS_TRANSITION_DURATION = 0.85
+let earthFocusTransition: {
+  elapsed: number
+  startCameraOffset: THREE.Vector3
+  startTargetOffset: THREE.Vector3
+  endCameraOffset: THREE.Vector3
+} | null = null
 let solarAltitudeDemo: ReturnType<typeof createSolarAltitudeDemo> | null = null
 let subsolarTrail: ReturnType<typeof createSubsolarTrail> | null = null
 let rotationSpeedDemo: ReturnType<typeof createRotationSpeedDemo> | null = null
@@ -1134,7 +1142,7 @@ const earthUniforms = {
   dayMap: { value: createPlaceholderTexture('#1e88e5', '#45d0ff') },
   nightMap: { value: createPlaceholderTexture('#07111f', '#ffda75') },
   sunDirection: { value: new THREE.Vector3(0, 0, 1) },
-  motionAxis: { value: new THREE.Vector3(Math.sin(EARTH_TILT), Math.cos(EARTH_TILT), 0) },
+  earthAxis: { value: new THREE.Vector3(Math.sin(EARTH_TILT), Math.cos(EARTH_TILT), 0) },
   showTerminator: { value: 1 },
   showDayArc: { value: 1 },
   showNightArc: { value: 1 },
@@ -1189,6 +1197,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cancelEarthFocusTransition()
   cancelAnimationFrame(animationId)
   cancelAnimationFrame(yearProgressTweenId)
   if (solarTermFeedbackTimer !== null) window.clearTimeout(solarTermFeedbackTimer)
@@ -1212,8 +1221,11 @@ onUnmounted(() => {
   }
 
   resizeObserver?.disconnect()
+  cancelObservationPointer()
   window.removeEventListener('click', onWindowClick)
   window.removeEventListener('pointermove', onSubResizeMove)
+  window.removeEventListener('pointerup', onSubResizeEnd)
+  window.removeEventListener('pointercancel', onSubResizeEnd)
   window.removeEventListener('pointermove', onSubDragMove)
   window.removeEventListener('pointerup', onSubDragEnd)
   window.removeEventListener('pointercancel', onSubDragEnd)
@@ -1221,6 +1233,8 @@ onUnmounted(() => {
   viewportRef.value?.removeEventListener('pointerdown', onPointerDown)
   galaxySkyboxTexture?.dispose()
   galaxySkyboxTexture = null
+  controls?.removeEventListener('start', cancelEarthFocusTransition)
+  controls?.dispose()
   renderer?.dispose()
   subRenderer?.dispose()
   solarAltitudeDemo?.dispose()
@@ -1262,6 +1276,9 @@ watch(subViewMode, () => updateSubCamera())
 watch(panelsVisible, (visible) => {
   if (visible) nextTick(applySubSceneRelativePosition)
 })
+watch(clickAddEnabled, (enabled) => {
+  if (!enabled) cancelObservationPointer()
+})
 
 function initScene() {
   if (!canvasRef.value || !viewportRef.value) return
@@ -1293,6 +1310,7 @@ function initScene() {
   controls.minDistance = 5
   controls.maxDistance = 42
   controls.target.set(0, 0, 0)
+  controls.addEventListener('start', cancelEarthFocusTransition)
 
   raycaster = new THREE.Raycaster()
   mouse = new THREE.Vector2()
@@ -1446,7 +1464,7 @@ function createEarth() {
       ${rotationCutawayShader}
       uniform sampler2D nightMap;
       uniform vec3 sunDirection;
-      uniform vec3 motionAxis;
+      uniform vec3 earthAxis;
       uniform float showTerminator;
       uniform float showDayArc;
       uniform float showNightArc;
@@ -1523,8 +1541,9 @@ function createEarth() {
         color = mix(color, nightArcColor, latMask * nightArcMask * showNightArc * 0.76);
 
         float terminatorMask = (1.0 - smoothstep(0.0, 0.035, abs(lightAmount))) * showTerminator;
-        // Positive illumination derivative means night -> day, including orbit-only motion.
-        float dawnSignal = dot(cross(motionAxis, nWorld), sWorld);
+        // Teaching convention: classify by normal eastward rotation about Earth's axis.
+        // Playback switches and speeds do not redefine the two colored semicircles.
+        float dawnSignal = dot(cross(earthAxis, nWorld), sWorld);
         vec3 dawnColor = vec3(0.12, 0.38, 0.56);
         vec3 duskColor = vec3(0.56, 0.12, 0.22);
         color = mix(color, dawnSignal >= 0.0 ? dawnColor : duskColor, terminatorMask * 0.52);
@@ -2067,7 +2086,9 @@ function animate(time: number) {
   const dt = lastFrameTime ? Math.min((time - lastFrameTime) / 1000, 0.08) : 0
   lastFrameTime = time
 
-  const nextMotion = advanceMotion(motionPlayback, yearProgress.value, earthSpinAngle.value, dt, daySpeed.value, orbitSpeed.value)
+  // Render the initial scene while textures load, but keep its date and pose fixed.
+  const motionDt = pageLoading.value ? 0 : dt
+  const nextMotion = advanceMotion(motionPlayback, yearProgress.value, earthSpinAngle.value, motionDt, daySpeed.value, orbitSpeed.value)
   yearProgress.value = nextMotion.yearProgress
   earthSpinAngle.value = nextMotion.spinAngle
   if (celestialStateDirty) {
@@ -2105,7 +2126,7 @@ function animate(time: number) {
 
   smoothCameraTarget(dt)
   controls?.update()
-  updateTeachingOverlays(dt)
+  updateTeachingOverlays(motionDt)
   solarAltitudeDemo?.updateForCamera(camera, toggles.solarAltitude, renderer.domElement.clientHeight)
   obliquityHelper?.updateForCamera(camera, toggles.tiltAngle, renderer.domElement.clientHeight)
   renderer?.render(scene, camera)
@@ -2152,8 +2173,8 @@ function updateSubCamera() {
   const earthPos = earthRoot.position.clone()
   const sunDir = new THREE.Vector3().subVectors(new THREE.Vector3(0, 0, 0), earthPos).normalize()
   const axisWorld = new THREE.Vector3(0, 1, 0).applyQuaternion(earthTiltGroup.getWorldQuaternion(new THREE.Quaternion())).normalize()
-  const terminatorDir = new THREE.Vector3().crossVectors(earthUniforms.motionAxis.value, sunDir)
-  // If illumination is momentarily stationary, keep the last camera direction.
+  const terminatorDir = new THREE.Vector3().crossVectors(earthUniforms.earthAxis.value, sunDir)
+  // Keep the last camera direction if the axis and sunlight are ever parallel.
   if ((subViewMode.value === 'dawn' || subViewMode.value === 'dusk') && terminatorDir.lengthSq() < 1e-12) return
   terminatorDir.normalize()
   let viewDir
@@ -2219,9 +2240,10 @@ function updateCelestialState() {
   earthAtmosphereUniforms.sunDirection.value.copy(sunDir)
   earthSunGlowUniforms.sunDirection.value.copy(sunDir)
   updateSunGlowBeam()
-  const motionAxis = terminatorMotionAxis(motionPlayback, EARTH_TILT, daySpeed.value,
-    orbitSpeed.value, calendarOrbitRateScale(yearProgress.value), earthUniforms.motionAxis.value)
-  earthUniforms.motionAxis.value.set(motionAxis.x, motionAxis.y, motionAxis.z)
+  // Same geometric reference as the self project: the tilted geographic axis,
+  // independent of playback. The joints are its projection onto the terminator plane.
+  earthUniforms.earthAxis.value.set(0, 1, 0)
+    .applyQuaternion(earthTiltGroup.getWorldQuaternion(teachingQuaternion)).normalize()
   if (toggles.solarAltitude && solarAltitudeDemo) {
     const observerNormal = latLonToVector(observer.lat, observer.lon, 1)
       .applyQuaternion(earthSpinGroup.quaternion).applyQuaternion(earthTiltGroup.quaternion)
@@ -2323,8 +2345,24 @@ function updateVisibility() {
 
 function smoothCameraTarget(dt: number) {
   if (!controls) return
-  if (focusMode.value === 'earth') controls.target.copy(targetFocus)
-  else controls.target.lerp(targetFocus, Math.min(1, dt * 2.2))
+  if (earthFocusTransition && focusMode.value === 'earth' && camera && earthRoot) {
+    const transition = earthFocusTransition
+    transition.elapsed = Math.min(EARTH_FOCUS_TRANSITION_DURATION, transition.elapsed + Math.max(0, dt))
+    const progress = transition.elapsed / EARTH_FOCUS_TRANSITION_DURATION
+    const eased = progress * progress * (3 - 2 * progress)
+    // Offsets share the moving Earth origin, so orbit playback cannot outrun the transition.
+    camera.position.copy(transition.startCameraOffset).lerp(transition.endCameraOffset, eased).add(earthRoot.position)
+    controls.target.copy(transition.startTargetOffset).multiplyScalar(1 - eased).add(earthRoot.position)
+    if (progress === 1) cancelEarthFocusTransition()
+    return
+  }
+  // Once centered, updateCelestialState translates camera and target together.
+  // Keeping this interpolation also avoids a target snap when the user interrupts a transition.
+  controls.target.lerp(targetFocus, Math.min(1, dt * 2.2))
+}
+
+function cancelEarthFocusTransition() {
+  earthFocusTransition = null
 }
 
 function updateFocusTarget() {
@@ -2333,20 +2371,25 @@ function updateFocusTarget() {
 }
 
 function switchFocus(mode: FocusMode) {
+  cancelEarthFocusTransition()
   focusMode.value = mode
   updateFocusTarget()
   if (mode === 'earth' && camera && controls && earthRoot) {
     const direction = camera.position.clone().sub(controls.target).normalize()
     const distance = Math.max(5.4, Math.min(7.2, camera.position.distanceTo(controls.target) * 0.45))
-    camera.position.copy(earthRoot.position.clone().add(direction.multiplyScalar(distance)))
-    controls.target.copy(earthRoot.position)
+    earthFocusTransition = {
+      elapsed: 0,
+      startCameraOffset: camera.position.clone().sub(earthRoot.position),
+      startTargetOffset: controls.target.clone().sub(earthRoot.position),
+      endCameraOffset: direction.multiplyScalar(distance),
+    }
     controls.enablePan = false
-    controls.update()
   }
 }
 
 function focusObserver() {
   if (!camera || !controls || !earthRoot) return
+  cancelEarthFocusTransition()
   updateCelestialState()
   const observer = currentObserverPoint.value
   const normal = latLonToVector(observer.lat, observer.lon, 1)
@@ -2368,6 +2411,7 @@ function setAllTeachingLayers(enabled: boolean) {
 
 function focusRotationDemo() {
   if (!camera || !controls || !earthRoot || !earthTiltGroup) return
+  cancelEarthFocusTransition()
   updateCelestialState()
   earthTiltGroup.getWorldQuaternion(teachingQuaternion)
   const view = new THREE.Vector3(0, 0.42, 1).normalize().applyQuaternion(teachingQuaternion)
@@ -2382,8 +2426,10 @@ function focusRotationDemo() {
 
 function resetCamera() {
   if (!camera || !controls) return
+  cancelEarthFocusTransition()
   if (focusMode.value === 'earth' && earthRoot) {
     camera.position.copy(earthRoot.position.clone().add(new THREE.Vector3(0, 3.8, 6.4)))
+    controls.target.copy(earthRoot.position)
   } else {
     camera.position.set(0, 9.2, 22)
   }
@@ -2392,6 +2438,7 @@ function resetCamera() {
 
 function setCameraPreset(type: 'top' | 'bottom') {
   if (!camera || !controls) return
+  cancelEarthFocusTransition()
   if (type === 'top') {
     focusMode.value = 'sun'
     const center = new THREE.Vector3(0, 0, 0)
@@ -2430,6 +2477,7 @@ function onSubResizeStart(event: PointerEvent) {
   }
   window.addEventListener('pointermove', onSubResizeMove)
   window.addEventListener('pointerup', onSubResizeEnd, { once: true })
+  window.addEventListener('pointercancel', onSubResizeEnd, { once: true })
 }
 
 function onSubResizeMove(event: PointerEvent) {
@@ -2494,6 +2542,8 @@ function onSubResizeMove(event: PointerEvent) {
 function onSubResizeEnd() {
   subResizeState = null
   window.removeEventListener('pointermove', onSubResizeMove)
+  window.removeEventListener('pointerup', onSubResizeEnd)
+  window.removeEventListener('pointercancel', onSubResizeEnd)
   nextTick(() => {
     const next = clampSubScenePosition(subPosX.value, subPosY.value)
     subPosX.value = next.x
@@ -2558,14 +2608,24 @@ function showSolarTermFeedback(progress: number) {
 function animateYearProgress(targetProgress: number, onComplete?: () => void) {
   cancelYearTransition()
   yearTransitionActive = true
-  const start = yearProgress.value
+  const start = normalize01(yearProgress.value)
   const target = normalize01(targetProgress)
+  // Follow the direction of revolution, including the winter-to-spring year wrap.
+  const forwardDistance = normalize01(target - start)
+  const distance = Math.min(forwardDistance, 1 - forwardDistance) < 1e-10 ? 0 : forwardDistance
+  if (distance === 0) {
+    yearProgress.value = target
+    yearTransitionActive = false
+    subsolarTrail?.clear()
+    onComplete?.()
+    return
+  }
   const duration = 850
   const startedAt = performance.now()
   const ease = (t: number) => 1 - Math.pow(1 - t, 3)
   const step = (now: number) => {
     const t = Math.min(1, (now - startedAt) / duration)
-    yearProgress.value = start + (target - start) * ease(t)
+    yearProgress.value = normalize01(start + distance * ease(t))
     if (t < 1) yearProgressTweenId = requestAnimationFrame(step)
     else {
       yearProgress.value = target
@@ -2616,10 +2676,50 @@ function removeSelectedObservation() {
   clearObservationPoints()
 }
 
+const OBSERVATION_CLICK_TOLERANCE = 6
+let observationPointer: { id: number; x: number; y: number } | null = null
+
+function cancelObservationPointer() {
+  observationPointer = null
+  window.removeEventListener('pointermove', onObservationPointerMove)
+  window.removeEventListener('pointerup', onObservationPointerUp)
+  window.removeEventListener('pointercancel', cancelObservationPointer)
+  window.removeEventListener('blur', cancelObservationPointer)
+}
+
 function onPointerDown(event: PointerEvent) {
-  if (!clickAddEnabled.value || !viewportRef.value || !camera || !raycaster || !earthMesh) return
+  // A second pointer or a modified mouse gesture belongs to camera navigation.
+  cancelObservationPointer()
+  if (!clickAddEnabled.value || pageLoading.value || event.target !== canvasRef.value) return
+  if (event.button !== 0 || event.isPrimary === false || event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return
+  observationPointer = { id: event.pointerId, x: event.clientX, y: event.clientY }
+  window.addEventListener('pointermove', onObservationPointerMove)
+  window.addEventListener('pointerup', onObservationPointerUp)
+  window.addEventListener('pointercancel', cancelObservationPointer)
+  window.addEventListener('blur', cancelObservationPointer)
+}
+
+function onObservationPointerMove(event: PointerEvent) {
+  if (!observationPointer || event.pointerId !== observationPointer.id) return
+  if (Math.hypot(event.clientX - observationPointer.x, event.clientY - observationPointer.y) > OBSERVATION_CLICK_TOLERANCE) {
+    cancelObservationPointer()
+  }
+}
+
+function onObservationPointerUp(event: PointerEvent) {
+  const pointer = observationPointer
+  if (!pointer || event.pointerId !== pointer.id) return
+  cancelObservationPointer()
+  if (event.button !== 0 || event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return
+  if (Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) > OBSERVATION_CLICK_TOLERANCE) return
+  selectObservationAtPointer(event)
+}
+
+function selectObservationAtPointer(event: PointerEvent) {
+  if (!clickAddEnabled.value || pageLoading.value || !viewportRef.value || !camera || !raycaster || !earthMesh) return
   if (event.target !== canvasRef.value) return
   const rect = viewportRef.value.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0 || event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
   raycaster.setFromCamera(mouse, camera)
@@ -2709,29 +2809,39 @@ function computeObservation(point: ObservationPoint): ObservationResult {
   const declination = getDeclination(yearProgress.value)
   const solarTimeValue = normalizeHour(referenceSolarHour.value + point.lon / 15)
   const hourAngle = (solarTimeValue - 12) * 15 * DEG
-  const altitude = Math.asin(
-    Math.sin(lat) * Math.sin(declination) + Math.cos(lat) * Math.cos(declination) * Math.cos(hourAngle)
-  ) * RAD
+  const sinAltitude = Math.sin(lat) * Math.sin(declination)
+    + Math.cos(lat) * Math.cos(declination) * Math.cos(hourAngle)
+  // At exact zenith/nadir, roundoff can put the sine slightly outside [-1, 1].
+  const atPole = Math.abs(Math.cos(lat)) < 1e-12
+  const poleAtHorizon = atPole && Math.abs(declination) < 1e-12
+  const altitude = poleAtHorizon ? 0 : Math.asin(Math.max(-1, Math.min(1, sinAltitude))) * RAD
 
-  const cosH0 = -Math.tan(lat) * Math.tan(declination)
   let polarStatus = ''
   let dayLength = ''
   let nightLength = ''
   let daylightHours = 0
-  if (cosH0 <= -1) {
-    polarStatus = '当前为极昼'
-  } else if (cosH0 >= 1) {
-    polarStatus = '当前为极夜'
+  if (atPole) {
+    // A pole has no daily altitude cycle. Avoid tan(±90°), which amplifies
+    // the tiny sin(π) residue at the autumn equinox into fictitious rise/set times.
+    polarStatus = poleAtHorizon ? '太阳位于地平线'
+      : Math.sin(lat) * Math.sin(declination) > 0 ? '当前为极昼' : '当前为极夜'
   } else {
-    const h0 = Math.acos(cosH0)
-    const dayHours = 2 * h0 * RAD / 15
-    daylightHours = dayHours
-    dayLength = formatDuration(dayHours)
-    nightLength = formatDuration(24 - dayHours)
+    const cosH0 = -Math.tan(lat) * Math.tan(declination)
+    if (cosH0 <= -1) {
+      polarStatus = '当前为极昼'
+    } else if (cosH0 >= 1) {
+      polarStatus = '当前为极夜'
+    } else {
+      const h0 = Math.acos(cosH0)
+      const dayHours = 2 * h0 * RAD / 15
+      daylightHours = dayHours
+      dayLength = formatDuration(dayHours)
+      nightLength = formatDuration(24 - dayHours)
+    }
   }
 
-  const sunriseTime = polarStatus ? polarStatus : formatHour(12 - daylightHours / 2)
-  const sunsetTime = polarStatus ? polarStatus : formatHour(12 + daylightHours / 2)
+  const sunriseTime = poleAtHorizon ? '—' : polarStatus || formatHour(12 - daylightHours / 2)
+  const sunsetTime = poleAtHorizon ? '—' : polarStatus || formatHour(12 + daylightHours / 2)
 
   return {
     ...point,
@@ -5392,25 +5502,6 @@ function normalizeLon(value: number) {
   margin: 0;
 }
 
-.solar-time-reverse-details {
-  display: grid;
-  gap: 7px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 200, 87, 0.12);
-  color: #b1c6d3;
-}
-
-.solar-time-reverse-details p {
-  display: grid;
-  grid-template-columns: 4em minmax(0, 1fr);
-  column-gap: 16px;
-}
-
-.solar-time-reverse-details .reverse-detail-label {
-  color: #d4e1e9;
-  font-weight: 600;
-}
-
 .earth-orbit-template.theme-light .solar-time-reverse-note {
   border-color: rgba(154, 104, 20, 0.25);
   background: rgba(255, 253, 245, 0.96);
@@ -5419,15 +5510,6 @@ function normalizeLon(value: number) {
 
 .earth-orbit-template.theme-light .solar-time-reverse-head strong {
   color: #896013;
-}
-
-.earth-orbit-template.theme-light .solar-time-reverse-details {
-  border-color: rgba(154, 104, 20, 0.14);
-  color: #5d7180;
-}
-
-.earth-orbit-template.theme-light .reverse-detail-label {
-  color: #354f61;
 }
 
 @media (max-width: 600px) {
@@ -5444,9 +5526,6 @@ function normalizeLon(value: number) {
     gap: 4px;
   }
 
-  .solar-time-reverse-details p {
-    column-gap: 10px;
-  }
 }
 
 .timeline-master-control {

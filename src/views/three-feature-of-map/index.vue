@@ -1,7 +1,7 @@
 <template>
   <div ref="pageRef" class="three-feature-of-map-container geo-template-page geo-page theme-dark"
     :class="'layout-' + layoutMode">
-    <header class="top-toolbar" :inert="!!campusPreview">
+    <header class="top-toolbar">
       <div class="brand-area"><img class="brand-logo"
           src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png" alt="地理互动课堂" /></div>
       <h1 class="page-title">地图三要素</h1>
@@ -10,11 +10,13 @@
         <!--         <button type="button" class="theme-btn toolbar-btn" :aria-pressed="isFullscreen" @click="toggleFullscreen">{{ isFullscreen ? '退出全屏' : '全屏授课' }}</button> -->
       </div>
     </header>
-    <main class="workspace" v-bind="workspaceAttrs" :inert="!!campusPreview">
+    <main class="workspace" v-bind="workspaceAttrs">
       <section class="center-stage" aria-label="校园地图互动演示">
         <div class="stage-content" :class="{ 'map-picking': isPicking }">
           <!-- Leaflet owns the mount element's runtime classes. Keep Vue's dynamic classes on the wrapper. -->
-          <div ref="leafletContainerRef" class="scene-host leaflet-host" aria-label="互动地图；拖动平移，使用右下角按钮缩放"></div>
+          <div v-show="lesson !== 'practice'" ref="leafletContainerRef" class="scene-host leaflet-host" aria-label="互动地图；拖动平移，使用右下角按钮缩放"></div>
+          <CampusBuilder v-if="campusBuilderVisited" v-show="lesson === 'practice'" ref="campusBuilderRef"
+            :active="lesson === 'practice'" :center="campusBuilderCenter" />
           <div class="lesson-navigation geo-card">
             <nav class="lesson-tabs" aria-label="教学环节">
               <button v-for="(item, index) in lessons" :key="item.id" type="button"
@@ -22,13 +24,13 @@
                 :aria-pressed="lesson === item.id" @click="selectLesson(item.id)"><span class="tab-number">0{{ index + 1
                   }}</span>{{ item.label }}</button>
             </nav>
-            <span class="lesson-context">从一张影像，读懂一幅地图</span>
+            <span class="lesson-context">{{ lesson === 'practice' ? '用方位、距离与比例尺，建设校园' : '从一张影像，读懂一幅地图' }}</span>
           </div>
-          <div class="map-actions">
+          <div v-if="lesson !== 'practice'" class="map-actions">
             <button type="button" class="theme-btn option-btn" :class="{ active: locationOpen }"
               :aria-expanded="locationOpen" @click="toggleLocationPanel">定位校园</button>
           </div>
-          <aside class="lesson-card geo-card" :class="{ 'is-collapsed': !guideOpen }" aria-label="教学提示与操作">
+          <aside v-if="lesson !== 'practice'" class="lesson-card geo-card" :class="{ 'is-collapsed': !guideOpen }" aria-label="教学提示与操作">
             <div class="lesson-heading">
               <div><span class="eyebrow">{{ activeLesson.kicker }}</span>
                 <h2>{{ activeLesson.title }}</h2>
@@ -73,7 +75,7 @@
                   <summary>数字比例尺 · 纸面换算练习</summary>
                   <p class="muted">独立练习，不表示当前屏幕的比例尺。</p>
                   <div class="exercise-fields">
-                    <label>图上距离（厘米）<input v-model.number="paperCm" type="number" min="0.1" max="100"
+                    <label>图上距离 {{ paperCm }} 厘米<input v-model.number="paperCm" type="range" aria-label="图上距离（厘米）" min="0.1" max="100"
                         step="0.1" /></label>
                     <label>比例尺 1 ∶<select v-model.number="paperDenominator">
                         <option :value="2000">2,000</option>
@@ -85,22 +87,7 @@
                 </details>
               </template>
               <template v-else>
-                <template v-if="lesson === 'practice'">
-                  <div class="concept-line">画出建筑、湖泊、操场和树木，生成自己的 3D 校园。</div>
-                  <p v-if="omittedFeatureCount" class="purpose-retained">另有 {{ omittedFeatureCount }}
-                    个教材地物已保留，进入“图例”可查看。</p>
-                  <div class="campus-preview-entry">
-                    <button ref="generateCampusRef" type="button" class="theme-btn option-btn generate-campus"
-                      :disabled="!previewFeatures.length" @click="generateCampus">生成 3D 校园 <span
-                        aria-hidden="true">↗</span></button>
-                    <p>{{ previewFeatures.length ? `按当前显示的 ${previewFeatures.length} 个已完成地物生成，可自由查看或自动参观。` :
-                      '先在地图上绘制校园地物，再生成 3D 校园。' }}</p>
-                    <p class="campus-range-hint">请尽量在同一校园范围内绘制。跨城市或跨洲添加地物时，3D 沙盘会按整体范围缩放，附近的建筑可能挤在一起，难以辨认。</p>
-                  </div>
-                </template>
-                <div v-else class="concept-line">图例说明符号，注记说明名称和数值。</div>
-                <p v-if="legendSet === 'campus'" class="legend-source">校园简图的自定义符号，用于课堂练习。<span>非正式图例，可按地图用途选取地物。</span>
-                </p>
+                <div class="concept-line">图例说明符号，注记说明名称和数值。</div>
                 <div v-for="group in drawingToolGroups" :key="group.id" class="drawing-tool-group">
                   <p v-if="group.label" class="drawing-group-title">{{ group.label }}</p>
                   <div class="drawing-tools" :aria-label="group.label || '地物绘制工具'">
@@ -121,12 +108,11 @@
                     @click="exitDrawing">退出绘制</button>
                 </div>
                 <p class="undo-scope">仅撤销{{ drawingStepLabel }}中绘制的地物，其他步骤的绘制保留。</p>
-                <p class="teaching-note">{{ legendSet === 'textbook' ? '同类地物使用同一种符号；机场用洋红色，港口与河湖用蓝色。地图上的绘制与右下方图例保持一致。' :
-                  '湖泊生成水面，操场生成运动场地，绿地生成树丛，围墙沿绘制路线立起。地物名称由系统自动标注。' }}</p>
+                <p class="teaching-note">同类地物使用同一种符号；机场用洋红色，港口与河湖用蓝色。地图上的绘制与右下方图例保持一致。</p>
               </template>
             </div>
           </aside>
-          <form v-if="locationOpen" class="location-card geo-card" @submit.prevent="locateCampus">
+          <form v-if="locationOpen && lesson !== 'practice'" class="location-card geo-card" @submit.prevent="locateCampus">
             <div class="section-title-row"><strong>定位到你的校园</strong><button type="button" class="theme-btn option-btn"
                 aria-label="关闭校园定位" @click="locationOpen = false">关闭</button></div>
             <p class="muted">输入经纬度（十进制度，WGS84），定位后自动拉近到校园。</p>
@@ -138,7 +124,7 @@
                 type="button" class="theme-btn option-btn" @click="goToExample">虹桥机场视图</button></div>
             <p class="muted">已有绘制保留在原位置；复位视图回到当前校园。</p>
           </form>
-          <div class="compass geo-card" role="img" aria-label="八方位指向标：正北朝上，北、东北、东、东南、南、西南、西、西北">
+          <div v-if="lesson !== 'practice'" class="compass geo-card" role="img" aria-label="八方位指向标：正北朝上，北、东北、东、东南、南、西南、西、西北">
             <svg viewBox="0 0 160 160" aria-hidden="true">
               <circle cx="80" cy="80" r="43" class="compass-ring" />
               <line v-for="direction in mapDirections" :key="'spoke-' + direction.bearing"
@@ -153,7 +139,7 @@
                 :class="{ 'is-cardinal': direction.bearing % 90 === 0, 'is-north': direction.bearing === 0 }">{{ direction.label }}</text>
             </svg>
           </div>
-          <aside v-if="lesson === 'legend' || lesson === 'practice' || features.length" class="map-legend geo-card"
+          <aside v-if="lesson !== 'practice' && (lesson === 'legend' || features.length)" class="map-legend geo-card"
             aria-label="地图图例">
             <div class="legend-heading"><strong>图例</strong><span>{{ contextFeatures.length }} 个地物</span></div>
             <div v-for="group in legendGroups" :key="group.id" class="legend-group">
@@ -162,9 +148,9 @@
                   :class="{ 'is-hidden': !visibleKinds.includes(item.id) }"><input v-model="visibleKinds"
                     type="checkbox" :value="item.id" :aria-label="'显示' + item.label" /><span class="textbook-symbol"
                     v-html="item.symbol"></span><span>{{ item.label }}</span></label></div>
-            </div><span class="legend-caption">{{ legendSet === 'textbook' ? '常用地理符号' : '校园符号为课堂自定义' }} · 勾选显示</span>
+            </div><span class="legend-caption">常用地理符号 · 勾选显示</span>
           </aside>
-          <div class="map-status geo-card" role="status" :title="campusName"><span class="status-dot"
+          <div v-if="lesson !== 'practice'" class="map-status geo-card" role="status" :title="campusName"><span class="status-dot"
               :class="{ 'status-error': tileState === 'error' }"></span><span>{{ mapStatus }}</span><button
               v-if="tileState === 'error'" type="button" class="theme-btn option-btn" @click="retryTiles">重试</button>
           </div>
@@ -185,26 +171,24 @@
         </div>
       </section>
     </main>
-    <Campus3DModal v-if="campusPreview" :features="campusPreview.features" :center="campusPreview.center"
-      @close="closeCampusPreview" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import '@/styles/geo-page-template.css'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
-import { bearingBetween, directionName, featureTypes, textbookFeatureTypes, textbookCategories, campusFeatureTypes, campusCategories, getLegendGroups, lastFeatureInStep, formatDistance, isValidArea, paperDistance, type Coordinate, type FeatureKind, type LegendSet, type DrawingStep } from './map-lesson'
+import { bearingBetween, directionName, featureTypes, textbookFeatureTypes, textbookCategories, getLegendGroups, lastFeatureInStep, formatDistance, isValidArea, paperDistance, type Coordinate, type FeatureKind, type DrawingStep } from './map-lesson'
 import { developmentTiandituKey, suppliedTiandituKey, tiandituTemplate, tiandituMinNativeZoom, tiandituMaxNativeZoom } from './basemaps'
-import type { CampusFeature } from './campus-3d-layout'
 import { drawMapFeature } from './map-feature-renderer'
 import { directionGuideMetrics, directionGuideSvg, mapDirections } from './direction-guide'
 
-const Campus3DModal = defineAsyncComponent({ loader: () => import('./Campus3DModal.vue'), onError(_error, _retry, fail) { closeCampusPreview(); announce('3D 组件加载失败，请稍后重新生成。'); fail() } })
-const campusPreview = shallowRef<{ features: CampusFeature[]; center: Coordinate } | null>(null)
-const generateCampusRef = ref<HTMLButtonElement | null>(null)
+const CampusBuilder = defineAsyncComponent(() => import('./CampusBuilder.vue'))
+const campusBuilderVisited = ref(false)
+const campusBuilderRef = ref<{ resetView: () => void } | null>(null)
+const campusBuilderCenter = ref<Coordinate>({ lat: 31.19787, lng: 121.33632 })
 
 type LessonId = 'direction' | 'scale' | 'legend' | 'practice'
 type MapFeature = { id: number; kind: FeatureKind; name: string; points: Coordinate[]; step: DrawingStep }
@@ -212,7 +196,7 @@ const lessons: { id: LessonId; label: string; kicker: string; title: string; des
   { id: 'direction', label: '方向', kicker: '01 / 确定位置', title: '它在你的什么方向？', description: '以校园为观察对象，在地图上选两个地点，建立方向感。' },
   { id: 'scale', label: '比例尺', kicker: '02 / 认识距离', title: '图上一小段，实地有多远？', description: '沿用刚才的两个地点，测量距离，再放大、缩小地图进行比较。' },
   { id: 'legend', label: '图例', kicker: '03 / 读懂符号', title: '认识教材中的地图语言', description: '从机场、港口、交通线和河湖入手，辨认常用地理图例，再在地图上试着画一画。' },
-  { id: 'practice', label: '校园制图', kicker: '04 / 学以致用', title: '把校园画成一张地图', description: '选取校园地物，用符号表达位置，再到 3D 沙盘中观察方位与布局。' },
+  { id: 'practice', label: '校园建设', kicker: '04 / 学以致用', title: '建造你心中的校园', description: '在米制沙盘中直接放置模型，用方位安排位置，用比例尺决定间隔，再飞行漫游自己的校园。' },
 ]
 const lesson = ref<LessonId>('direction')
 const activeLesson = computed(() => lessons.find(item => item.id === lesson.value)!)
@@ -244,20 +228,14 @@ const paperCm = ref<number | string>(2)
 const paperDenominator = ref(10000)
 const paperResult = computed(() => Number(paperCm.value) > 0 && Number(paperCm.value) <= 100 ? formatDistance(paperDistance(Number(paperCm.value), paperDenominator.value)) : '请输入 0～100 之间的有效距离')
 const features = ref<MapFeature[]>([])
-const legendSet = computed<LegendSet>(() => lesson.value === 'practice' ? 'campus' : 'textbook')
-const drawingStep = computed<DrawingStep | null>(() => lesson.value === 'practice' ? 'practice' : lesson.value === 'legend' ? 'legend:textbook' : null)
-const drawingStepLabel = computed(() => lesson.value === 'practice' ? '“校园制图”' : '“图例 · 教材图例”')
+const drawingStep = computed<DrawingStep | null>(() => lesson.value === 'legend' ? 'legend:textbook' : null)
+const drawingStepLabel = '“图例 · 教材图例”'
 const undoFeature = computed(() => lastFeatureInStep(features.value, drawingStep.value))
-const activeFeatureTypes = computed(() => lesson.value === 'practice' ? campusFeatureTypes : textbookFeatureTypes)
-const drawingToolGroups = computed(() => (legendSet.value === 'textbook' ? textbookCategories : campusCategories)
-  .map(group => ({ id: group.id, label: group.label, items: group.kinds.map(kind => activeFeatureTypes.value.find(item => item.id === kind)).filter((item): item is typeof campusFeatureTypes[number] => !!item) })).filter(group => group.items.length))
-const contextFeatures = computed(() => lesson.value === 'practice' || lesson.value === 'legend'
-  ? features.value.filter(item => activeFeatureTypes.value.some(type => type.id === item.kind))
-  : features.value)
-const omittedFeatureCount = computed(() => features.value.length - contextFeatures.value.length)
-const legendGroups = computed(() => getLegendGroups(legendSet.value))
+const drawingToolGroups = computed(() => textbookCategories
+  .map(group => ({ id: group.id, label: group.label, items: group.kinds.map(kind => textbookFeatureTypes.find(item => item.id === kind)).filter((item): item is typeof textbookFeatureTypes[number] => !!item) })).filter(group => group.items.length))
+const contextFeatures = computed(() => features.value)
+const legendGroups = getLegendGroups('textbook')
 const visibleKinds = ref<FeatureKind[]>(featureTypes.map(item => item.id))
-const previewFeatures = computed(() => contextFeatures.value.filter(feature => visibleKinds.value.includes(feature.kind)))
 const drawingKind = ref<FeatureKind | null>(null)
 const draft = ref<Coordinate[]>([])
 const geometryLabels = { point: '点', line: '线', area: '面' }
@@ -310,7 +288,13 @@ function announce(message: string) {
 }
 function selectLesson(id: LessonId) {
   cancelInteraction(); lesson.value = id; guideOpen.value = true
+  locationOpen.value = false
+  if (id === 'practice' && !campusBuilderVisited.value) {
+    campusBuilderCenter.value = { lat: campusCenter[0], lng: campusCenter[1] }
+    campusBuilderVisited.value = true
+  }
   renderPair(); renderFeatures()
+  if (id !== 'practice') nextTick(scheduleSceneResize)
 }
 function startPair() { points.value = []; pickingPair.value = true; renderPair() }
 function swapPoints() { points.value = [...points.value].reverse(); renderPair() }
@@ -406,7 +390,10 @@ function onMapClick(event: L.LeafletMouseEvent) {
   }
 }
 function changeZoom(delta: number) { leafletMap?.setZoom(zoom.value + delta) }
-function resetView() { leafletMap?.setView(campusCenter, resetZoom, { animate: false }) }
+function resetView() {
+  if (lesson.value === 'practice') campusBuilderRef.value?.resetView()
+  else leafletMap?.setView(campusCenter, resetZoom, { animate: false })
+}
 function goToExample() {
   campusCenter = [...exampleCenter]; resetZoom = initialZoom; campusName.value = '默认视图 · 虹桥机场'
   longitudeInput.value = String(exampleCenter[1]); latitudeInput.value = String(exampleCenter[0])
@@ -421,20 +408,6 @@ function locateCampus() {
   locationError.value = ''; locationOpen.value = false; cancelInteraction(); resetView()
 }
 function toggleLocationPanel() { locationOpen.value = !locationOpen.value }
-function generateCampus() {
-  if (!previewFeatures.value.length) return
-  const hadDraft = draft.value.length > 0
-  cancelInteraction()
-  if (hadDraft) announce('3D 校园使用已完成地物；未完成的轮廓已取消。')
-  campusPreview.value = {
-    features: previewFeatures.value.map(feature => ({ id: feature.id, kind: feature.kind, name: feature.name, points: feature.points.map(point => ({ ...point })) })),
-    center: { lat: campusCenter[0], lng: campusCenter[1] },
-  }
-}
-function closeCampusPreview() {
-  campusPreview.value = null
-  nextTick(() => generateCampusRef.value?.focus())
-}
 function initializeTileLayer() {
   if (!leafletMap || tileLayer) return
   if (tileTimer) clearTimeout(tileTimer)
@@ -470,7 +443,7 @@ async function toggleFullscreen() {
   catch { announce('当前环境不支持全屏，可使用浏览器全屏功能。') }
 }
 function syncFullscreen() { isFullscreen.value = document.fullscreenElement === pageRef.value; scheduleSceneResize() }
-function onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape' && !campusPreview.value) { cancelInteraction(); locationOpen.value = false } }
+function onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape' && lesson.value !== 'practice') { cancelInteraction(); locationOpen.value = false } }
 watch(visibleKinds, renderFeatures, { deep: true })
 onMounted(async () => {
   await nextTick()

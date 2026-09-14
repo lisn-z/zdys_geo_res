@@ -94,7 +94,7 @@ export const routes = [
     path: '/moon-phase',
     name: 'moon-phase',
     meta: {
-      title: '月相分析',
+      title: '月相模拟',
       tags: ['第一批'],
     },
     component: () => import('@/views/moon-phase/index.vue'),

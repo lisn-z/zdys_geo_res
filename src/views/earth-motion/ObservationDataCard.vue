@@ -25,14 +25,16 @@
         </div>
         <div>
           <dt>{{ dayNightLabel }}</dt>
-          <dd>{{ dayNightValue }}</dd>
+          <dd class="day-night-value">
+            <span v-for="(value, index) in dayNightValue.split(' / ')" :key="index">{{ index ? '/ ' : '' }}{{ value }}</span>
+          </dd>
         </div>
         <div>
-          <dt>日出（估算）</dt>
+          <dt>日出（{{ showRiseSetReferenceNote ? '参考' : '估算' }}）</dt>
           <dd>{{ sunrise }}</dd>
         </div>
         <div>
-          <dt>日落（估算）</dt>
+          <dt>日落（{{ showRiseSetReferenceNote ? '参考' : '估算' }}）</dt>
           <dd>{{ sunset }}</dd>
         </div>
         <div>
@@ -44,8 +46,8 @@
           <dd>{{ linearSpeed }}</dd>
         </div>
       </dl>
-      <p class="speed-model-note">采用当地太阳时（非北京时间）。昼长、日出日落及自转速度按约 24 小时自转的理想模型估算；未计大气折射与地形，不代表演示中的实际时长或速度。</p>
-      <p v-if="orbitOnlyReference" class="speed-model-note">仅公转为假设演示：地球自转姿态不变，当地太阳时会随公转反向变化。</p>
+      <p v-if="showRiseSetReferenceNote" class="rise-set-reference-note" role="note">日出、日落为正常自转参考值，反向演示时不代表当前升落过程。</p>
+      <p class="speed-model-note">采用当地太阳时，非北京时间。昼长及日出日落按理想光照条件估算；自转速度按约 24 小时一周计算。</p>
     </div>
 
     <p v-else class="empty-tip">选择预设城市或点击地球选点，查看观测数据。</p>
@@ -57,7 +59,7 @@ import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
 defineProps<{
   hasObservation: boolean
-  orbitOnlyReference?: boolean
+  showRiseSetReferenceNote?: boolean
   place: string
   solarAltitude: string
   solarTime: string
@@ -130,7 +132,11 @@ defineProps<{
   margin: 9px 1px 10px;
   color: var(--feature-muted);
   font-size: clamp(10px, 0.46vw, 13px);
-  white-space: nowrap;
+}
+
+.data-meta-line>span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .key-data-grid {
@@ -160,9 +166,18 @@ defineProps<{
   font-size: clamp(12px, 0.58vw, 16px);
   font-weight: 650;
   line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.key-data-grid .day-night-value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 0.3em;
+}
+
+.day-night-value>span {
+  max-width: 100%;
 }
 
 .empty-tip {
@@ -170,6 +185,15 @@ defineProps<{
   padding: 16px;
   color: var(--feature-muted);
   font-size: 12px;
+}
+
+.rise-set-reference-note {
+  margin: 10px 0 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--feature-title);
+  color: var(--feature-text);
+  font-size: clamp(11px, 0.55vw, 14px);
+  line-height: 1.6;
 }
 
 .speed-model-note {
