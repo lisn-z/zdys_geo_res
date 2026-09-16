@@ -1,6 +1,7 @@
 <template>
   <section ref="cardRef" class="floating-feature-card"
-    :class="[`variant-${variant}`, { collapsed, resizing, 'theme-light': light, 'resize-from-right': resizeFromRight }]" :style="{
+    :class="[`variant-${variant}`, { collapsed, resizing, 'theme-light': light, 'resize-from-right': resizeFromRight }]"
+    :style="{
       left: `${position.x}px`,
       top: `${position.y}px`,
       width: !collapsed && size.width ? `${size.width}px` : undefined,
@@ -18,7 +19,6 @@
 
       <div class="feature-card-actions">
         <slot v-if="!collapsed" name="header-meta"></slot>
-        <span v-if="!collapsed && draggable" class="drag-hint">拖动</span>
         <button type="button" class="collapse-btn" :aria-label="collapsed ? `展开${title}` : `收起${title}`"
           :title="collapsed ? `展开${title}` : `收起${title}`" @pointerdown.stop @click.stop="toggleCollapsed">
           {{ collapsed ? '+' : '−' }}

@@ -146,7 +146,9 @@ function compassName(value: number) { return ['北', '东北', '东', '东南', 
 </script>
 
 <style scoped>
-.observation-station {
+/* Outrank the shared variant defaults regardless of CSS bundle order.
+   Keep normal priority so user-resized inline dimensions still take precedence. */
+.floating-feature-card.observation-station {
   --feature-title: var(--text-primary, #eaf8ff);
   --feature-text: var(--text-primary, #eaf8ff);
   --feature-muted: var(--text-muted, #7894a8);
@@ -163,9 +165,9 @@ function compassName(value: number) { return ['北', '东北', '东', '东南', 
   border-color: rgba(128, 165, 192, .28);
   touch-action: auto;
 }
-.observation-station.is-active { border-color: var(--station-color); box-shadow: 0 14px 44px #0005, inset 0 2px var(--station-color); }
-.observation-station.is-compact { width: 272px; }
-.observation-station.collapsed { width: 188px; height: auto; }
+.floating-feature-card.observation-station.is-active { border-color: var(--station-color); box-shadow: 0 14px 44px #0005, inset 0 2px var(--station-color); }
+.floating-feature-card.observation-station.is-compact { width: 272px; }
+.floating-feature-card.observation-station.collapsed { width: 188px; height: auto; }
 .observation-station :deep(.feature-card-head) { min-height: 46px; gap: 8px; padding: 9px 11px; touch-action: none; }
 .observation-station :deep(.feature-card-title-label) { font-size: 13px; font-weight: 600; letter-spacing: .03em; }
 .observation-station :deep(.feature-card-actions) { gap: 5px; }

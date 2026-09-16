@@ -55,13 +55,15 @@
           </template>
           <line v-for="lat in latitudeTicks" :key="`lat-${lat.value}`" x1="0" :y1="latToY(lat.value)" x2="720"
             :y2="latToY(lat.value)"
-            :class="{ major: Math.abs(lat.value) < 0.1 || Math.abs(Math.abs(lat.value) - 23.44) < 0.1 }"></line>
+            :class="{ major: lat.major }"></line>
         </g>
 
         <g class="map-latitude-labels">
-          <text v-for="lat in latitudeTicks" :key="`lat-label-${lat.value}`" x="10" :y="latToY(lat.value) - 5">
-            {{ lat.label }}
-          </text>
+          <g v-for="lat in latitudeTicks" :key="`lat-label-${lat.value}`">
+            <line v-if="lat.labelY !== latToY(lat.value) - 5" class="latitude-label-guide" x1="6" x2="6"
+              :y1="latToY(lat.value)" :y2="lat.labelY + 2"></line>
+            <text x="10" :y="lat.labelY">{{ lat.label }}</text>
+          </g>
         </g>
 
         <g v-if="activeView === 'map'" class="map-axis-labels">
@@ -102,10 +104,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, useId } from 'vue'
+import { computed, ref, useId } from 'vue'
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
-defineProps<{
+const props = defineProps<{
   earthTexture: string
   trackPath: string
   trackAreaPath: string
@@ -119,6 +121,7 @@ defineProps<{
   solarTermName: string
   dayOfYear: number
   bottomInset: number
+  obliquityDegrees: number
   initialTop?: number
   initialRight?: number
   initialCollapsed?: boolean
@@ -128,15 +131,25 @@ const activeView = ref<'map' | 'annual'>('map')
 const viewId = `solar-track-${useId()}`
 const longitudeTicks = [-180, -135, -90, -45, 0, 45, 90, 135, 180]
 const longitudeLabelTicks = [-180, -120, -60, 0, 60, 120, 180]
-const latitudeTicks = [
-  { value: 60, label: '60°N' },
-  { value: 45, label: '45°N' },
-  { value: 23.44, label: '北回归线' },
-  { value: 0, label: '赤道' },
-  { value: -23.44, label: '南回归线' },
-  { value: -45, label: '45°S' },
-  { value: -60, label: '60°S' },
-]
+const latitudeTicks = computed(() => {
+  const tilt = props.obliquityDegrees
+  const tick = (value: number, label: string, major = false, labelY = latToY(value) - 5) => (
+    { value, label, major, labelY }
+  )
+  // Keep the reference lines at their true latitude; offset only crowded labels.
+  const tropicTicks = tilt > 0 ? [
+    tick(tilt, '北回归线', true, Math.min(latToY(tilt) - 5, latToY(0) - 23)),
+    tick(0, '赤道', true),
+    tick(-tilt, '南回归线', true, Math.max(latToY(-tilt) - 5, latToY(0) + 13)),
+  ] : [tick(0, '赤道（南北回归线重合）', true)]
+  return [
+    tick(60, '60°N'),
+    tick(45, '45°N'),
+    ...tropicTicks,
+    tick(-45, '45°S'),
+    tick(-60, '60°S'),
+  ]
+})
 const monthTicks = [
   { label: '1月', progress: 0 },
   // The chart uses a 365-day teaching year; month boundaries are not equally spaced.
@@ -259,6 +272,11 @@ function latToY(latitude: number) {
   stroke-width: 2.4px;
 }
 
+.latitude-label-guide {
+  stroke: rgba(255, 209, 83, 0.72);
+  stroke-width: 1;
+}
+
 .map-axis-labels text {
   fill: rgba(188, 218, 228, 0.72);
   font-size: 12px;
@@ -284,6 +302,10 @@ function latToY(latitude: number) {
 :global(.theme-light) .annual-chart-svg .map-axis-labels text {
   fill: #496778;
   stroke: #edf5f8;
+}
+
+:global(.theme-light) .annual-chart-svg .latitude-label-guide {
+  stroke: rgba(162, 120, 17, 0.7);
 }
 
 :global(.theme-light) .annual-chart-svg .map-current-label {

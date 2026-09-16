@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { formatDegreesMinutes } from './obliquity'
 
 interface ObliquityColors {
   eclipticColor?: THREE.ColorRepresentation
@@ -20,16 +21,15 @@ export function createObliquityHelper(radius: number, tilt: number, colors: Obli
     const line = new THREE.Line(geometry, material)
     line.name = name
     group.add(line)
+    return line
   }
   makeReference('obliquity-ecliptic-reference', new THREE.Vector3(1, 0, 0), colors.eclipticColor ?? '#9b7cff')
   // Rz(-tilt) * X lies in the actual equator plane: dot(ray, Rz(-tilt) * Y) = 0.
-  makeReference('obliquity-equator-reference', new THREE.Vector3(Math.cos(tilt), -Math.sin(tilt), 0), colors.equatorColor ?? '#2dd4e8')
-  const arcPoints = Array.from({ length: 65 }, (_, index) => {
-    const angle = -tilt * index / 64
-    return new THREE.Vector3(Math.cos(angle) * arcRadius, Math.sin(angle) * arcRadius, 0)
-  })
+  const equatorReference = makeReference('obliquity-equator-reference', new THREE.Vector3(1, 0, 0), colors.equatorColor ?? '#2dd4e8')
+  const equatorPosition = equatorReference.geometry.getAttribute('position') as THREE.BufferAttribute
+  const arcPosition = new THREE.Float32BufferAttribute(new Float32Array(65 * 3), 3)
   const arc = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(arcPoints),
+    new THREE.BufferGeometry().setAttribute('position', arcPosition),
     new THREE.LineBasicMaterial({ color: arcColor, transparent: true, opacity: 0.92, depthWrite: false, toneMapped: false }),
   )
   arc.name = 'obliquity-angle-arc'
@@ -40,7 +40,8 @@ export function createObliquityHelper(radius: number, tilt: number, colors: Obli
   canvas.width = 224
   canvas.height = 112
   const context = canvas.getContext('2d')
-  if (context) {
+  function drawLabel(currentTilt: number) {
+    if (!context) return
     context.clearRect(0, 0, canvas.width, canvas.height)
     context.textAlign = 'center'
     context.textBaseline = 'middle'
@@ -48,7 +49,7 @@ export function createObliquityHelper(radius: number, tilt: number, colors: Obli
     context.strokeStyle = 'rgba(3, 13, 24, 0.94)'
     context.lineWidth = 6
     context.font = '600 46px "Microsoft YaHei", sans-serif'
-    const value = `${THREE.MathUtils.radToDeg(Math.abs(tilt)).toFixed(2)}°`
+    const value = formatDegreesMinutes(THREE.MathUtils.radToDeg(Math.abs(currentTilt)))
     context.strokeText(value, 112, 37)
     context.fillStyle = '#f4e5c2'
     context.fillText(value, 112, 37)
@@ -66,8 +67,7 @@ export function createObliquityHelper(radius: number, tilt: number, colors: Obli
   label.name = 'obliquity-label'
   label.renderOrder = 24
   label.frustumCulled = false
-  const anchor = new THREE.Vector3(Math.cos(tilt / 2) * arcRadius, -Math.sin(tilt / 2) * arcRadius, 0)
-  label.position.copy(anchor)
+  const anchor = new THREE.Vector3()
   group.add(label)
 
   const leaderPosition = new THREE.Float32BufferAttribute(new Float32Array(6), 3)
@@ -81,23 +81,58 @@ export function createObliquityHelper(radius: number, tilt: number, colors: Obli
   group.add(leader)
 
   const cameraLocal = new THREE.Vector3()
+  const inverseWorld = new THREE.Matrix4()
   const sightline = new THREE.Vector3()
   const closestPoint = new THREE.Vector3()
   const projected = new THREE.Vector3()
   const centerProjected = new THREE.Vector3()
   const labelLocal = new THREE.Vector3()
   const leaderEnd = new THREE.Vector3()
+  let currentTilt = Number.NaN
 
-  function updateForCamera(camera: THREE.PerspectiveCamera, enabled: boolean, viewportHeight = 720) {
+  function setTilt(nextTilt: number) {
+    const safeTilt = Number.isFinite(nextTilt) ? nextTilt : 0
+    if (safeTilt === currentTilt) return
+    currentTilt = safeTilt
+    equatorPosition.setXYZ(1, Math.cos(currentTilt) * referenceLength, -Math.sin(currentTilt) * referenceLength, 0)
+    equatorPosition.needsUpdate = true
+    equatorReference.geometry.computeBoundingSphere()
+    for (let index = 0; index < arcPosition.count; index++) {
+      const angle = -currentTilt * index / (arcPosition.count - 1)
+      arcPosition.setXYZ(index, Math.cos(angle) * arcRadius, Math.sin(angle) * arcRadius, 0)
+    }
+    arcPosition.needsUpdate = true
+    arc.geometry.computeBoundingSphere()
+    // At zero obliquity the two reference rays coincide; omit the collapsed arc.
+    arc.visible = Math.abs(currentTilt) > 1e-8
+    anchor.set(Math.cos(currentTilt / 2) * arcRadius, -Math.sin(currentTilt / 2) * arcRadius, 0)
+    label.position.copy(anchor)
+    leaderPosition.setXYZ(0, anchor.x, anchor.y, anchor.z)
+    leaderPosition.setXYZ(1, anchor.x, anchor.y, anchor.z)
+    leaderPosition.needsUpdate = true
+    drawLabel(currentTilt)
+    texture.needsUpdate = true
+  }
+
+  setTilt(tilt)
+
+  function updateForCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera, enabled: boolean, viewportHeight = 720) {
     group.visible = enabled && viewportHeight > 0
     if (!group.visible) return
     group.updateWorldMatrix(true, false)
     camera.updateWorldMatrix(true, false)
-    camera.getWorldPosition(cameraLocal)
-    group.worldToLocal(cameraLocal)
-    sightline.copy(anchor).sub(cameraLocal)
-    const t = THREE.MathUtils.clamp(-cameraLocal.dot(sightline) / Math.max(sightline.lengthSq(), 1e-12), 0, 1)
-    closestPoint.copy(cameraLocal).addScaledVector(sightline, t)
+    if (camera instanceof THREE.OrthographicCamera) {
+      // Orthographic sightlines are parallel, including for off-center anchors.
+      camera.getWorldDirection(sightline).negate()
+      sightline.transformDirection(inverseWorld.copy(group.matrixWorld).invert())
+      closestPoint.copy(anchor).addScaledVector(sightline, Math.max(0, -anchor.dot(sightline)))
+    } else {
+      camera.getWorldPosition(cameraLocal)
+      group.worldToLocal(cameraLocal)
+      sightline.copy(anchor).sub(cameraLocal)
+      const t = THREE.MathUtils.clamp(-cameraLocal.dot(sightline) / Math.max(sightline.lengthSq(), 1e-12), 0, 1)
+      closestPoint.copy(cameraLocal).addScaledVector(sightline, t)
+    }
     projected.copy(anchor).applyMatrix4(group.matrixWorld).project(camera)
     // Do not draw a floating label through the far hemisphere or behind the camera.
     label.visible = projected.z >= -1 && projected.z <= 1 && closestPoint.length() >= radius * 0.998
@@ -105,7 +140,7 @@ export function createObliquityHelper(radius: number, tilt: number, colors: Obli
     if (!label.visible) return
 
     const height = Math.max(1, viewportHeight)
-    const width = height * camera.aspect
+    const width = height * camera.projectionMatrix.elements[5]! / camera.projectionMatrix.elements[0]!
     const pixelHeight = height < 480 ? 32 : THREE.MathUtils.clamp(height * 0.035, 44, 56)
     const pixelWidth = pixelHeight * canvas.width / canvas.height
     // projectionMatrix includes camera.zoom; distance is deliberately not a factor.
@@ -148,5 +183,5 @@ export function createObliquityHelper(radius: number, tilt: number, colors: Obli
     group.removeFromParent()
   }
 
-  return { group, updateForCamera, dispose }
+  return { group, setTilt, updateForCamera, dispose }
 }

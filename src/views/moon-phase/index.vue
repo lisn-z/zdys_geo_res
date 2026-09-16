@@ -169,7 +169,7 @@
           <button v-for="group in comparisonGroups" :key="group.label" type="button" class="theme-btn"
             :class="{ active: isComparisonSelected(group) }" :aria-pressed="isComparisonSelected(group)"
             :aria-label="`对比${group.names.join('、')}`" @click="comparePresets(group)"><span>{{ group.names.join(' · ')
-              }}</span><small>{{ group.label }}</small></button>
+            }}</span><small>{{ group.label }}</small></button>
         </div>
         <div class="picker-subheading">单个城市</div>
         <div class="preset-regions" aria-label="城市预设地区"><button v-for="group in placeGroups" :key="group.label"
@@ -226,7 +226,7 @@
               :cy="59 - 35 * Math.cos(earthFrame.solarLongitude * Math.PI / 180)" r="6" fill="#56bdcf" />
           </svg>
           <div><strong>{{ seasonLabel }}</strong><span>太阳直射纬度 {{ signedAngle(earthFrame.declination)
-              }}</span><span>从黄道北侧看 · 逆时针公转</span></div>
+          }}</span><span>从黄道北侧看 · 逆时针公转</span></div>
         </div>
         <el-slider :model-value="annualAngle" :min="0" :max="360" :step="0.1" :show-tooltip="false" aria-label="地球公转位置"
           @update:model-value="setAnnualAngle" />
@@ -251,14 +251,13 @@
           <button type="button" class="theme-btn motion-toggle" :class="{ active: motionPanelOpen }"
             :aria-expanded="motionPanelOpen" @click="motionPanelOpen = !motionPanelOpen">地球运动</button>
           <button type="button" class="theme-btn" :class="{ active: showOrbitAngle }" :aria-pressed="showOrbitAngle"
-            title="以地球为顶点，显示太阳与月球方向之间的较小夹角（0°～180°）"
-            @click="showOrbitAngle = !showOrbitAngle">日地月夹角</button>
+            title="以地球为顶点，显示太阳与月球方向之间的较小夹角（0°～180°）" @click="showOrbitAngle = !showOrbitAngle">日地月夹角</button>
           <button type="button" class="theme-btn" :class="{ active: showGuides }" :aria-pressed="showGuides"
             @click="showGuides = !showGuides"><span class="guide-symbol">◎</span>观测辅助线</button>
         </div>
         <div class="playback-tools">
           <button type="button" class="theme-btn speed-button" aria-label="切换播放速度" @click="cycleSpeed">{{ speed
-            }}×</button>
+          }}×</button>
           <button class="theme-btn play-button" :class="{ active: playing }" type="button"
             :aria-label="playing ? '暂停月相动画' : '播放月相动画'" @click="playing = !playing">
             <svg v-if="!playing" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -285,7 +284,7 @@
     <Transition name="page-loading">
       <div v-if="pageLoading" class="page-loading-overlay" role="status" aria-live="polite" aria-label="页面加载中">
         <div class="loading-orbit" aria-hidden="true"><span></span><i></i></div>
-        <strong>正在准备月相观察</strong><span>加载地月纹理与观测场景</span>
+        <strong>正在准备月相模拟</strong><span>加载地月纹理与观测场景</span>
         <div class="loading-progress" role="progressbar" :aria-valuenow="pageProgress" aria-valuemin="0"
           aria-valuemax="100"><i :style="{ width: `${pageProgress}%` }"></i></div>
         <small>{{ pageProgress }}%</small>

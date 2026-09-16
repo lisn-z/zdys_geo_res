@@ -278,6 +278,7 @@ export function createRotationSpeedDemo(radius: number) {
     screenUpLocal?: THREE.Vector3,
     viewportHeight?: number,
     verticalFovDeg = 45,
+    orthographicHeight?: number,
   ) {
     if (disposed || !Number.isFinite(viewDirectionLocal.lengthSq()) || viewDirectionLocal.lengthSq() < 1e-12) return
     view.copy(viewDirectionLocal).normalize()
@@ -300,12 +301,13 @@ export function createRotationSpeedDemo(radius: number) {
     let labelWorldWidth = labelWidth
     let rowStep = radius * 0.34
     if (fixedPixels) {
-      // 不启用透视缩放的 Sprite，其尺寸仍需按相机 FOV 换算为像素。
+      // 固定像素标签分别使用正交视野高度或透视 FOV 换算。
       const fov = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(verticalFovDeg, 1, 179))
-      const projectionScale = 2 * Math.tan(fov / 2) / viewportHeight
+      const orthographic = typeof orthographicHeight === 'number' && Number.isFinite(orthographicHeight) && orthographicHeight > 0
+      const projectionScale = (orthographic ? orthographicHeight : 2 * Math.tan(fov / 2)) / viewportHeight
       const pixelHeight = THREE.MathUtils.clamp(viewportHeight * 0.06, 24, 52)
       const pixelWidth = pixelHeight * labelWidth / labelHeight
-      const worldPerPixel = projectionScale * viewDirectionLocal.length()
+      const worldPerPixel = projectionScale * (orthographic ? 1 : viewDirectionLocal.length())
       spriteWidth = pixelWidth * projectionScale
       spriteHeight = pixelHeight * projectionScale
       labelWorldWidth = pixelWidth * worldPerPixel
@@ -335,6 +337,7 @@ export function createRotationSpeedDemo(radius: number) {
     screenUpLocal?: THREE.Vector3,
     viewportHeight?: number,
     verticalFovDeg = 45,
+    orthographicHeight?: number,
   ) {
     if (disposed || !Number.isFinite(viewDirectionLocal.lengthSq()) || viewDirectionLocal.lengthSq() < 1e-12) return
     const horizontalLength = Math.hypot(viewDirectionLocal.x, viewDirectionLocal.z)
@@ -342,7 +345,7 @@ export function createRotationSpeedDemo(radius: number) {
       slices.rotation.y = Math.atan2(viewDirectionLocal.x, viewDirectionLocal.z)
       cutawayDirection.set(viewDirectionLocal.x / horizontalLength, 0, viewDirectionLocal.z / horizontalLength)
     }
-    updateLabels(viewDirectionLocal, screenRightLocal, screenUpLocal, viewportHeight, verticalFovDeg)
+    updateLabels(viewDirectionLocal, screenRightLocal, screenUpLocal, viewportHeight, verticalFovDeg, orthographicHeight)
   }
 
   function dispose() {
