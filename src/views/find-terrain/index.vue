@@ -320,9 +320,10 @@ function getTerrainEmoji(type: TerrainFeature['type']) {
 // coastline or regional boundary. Separate parts remain separate geometries.
 // ==================== Leaflet ====================
 const ARCGIS_TILE_URL = '/geo-resources-folder/tiles/arcgis-tiles/{z}/{x}/{y}.png'
+const CHINA_OUTLINE_TILE_URL = 'https://gis.szjx.ai-study.net/geoserver/gwc/service/tms/1.0.0/geography_prod:styled_fd8e517f@EPSG:900913@png/{z}/{x}/{y}.png'
 let leafletMap: L.Map | null = null
 let tileLayer: L.TileLayer | null = null
-let chinaOutlineLayer: L.GeoJSON | null = null
+let chinaOutlineLayer: L.TileLayer | null = null
 let resizeObserver: ResizeObserver | null = null
 let resizeTimer: ReturnType<typeof setTimeout> | null = null
 let wrongFlashTimer: ReturnType<typeof setTimeout> | null = null
@@ -348,7 +349,10 @@ function mountainSymbols(feature: TerrainFeature): L.LatLng[][] {
     const lengths = points.slice(1).map((point, index) => point.distanceTo(points[index]!))
     const total = lengths.reduce((sum, length) => sum + length, 0)
     if (!total) continue
-    const count = Math.max(1, Math.floor(total / 20))
+    // 全国最小缩放下，大兴安岭符号加大间距，避开靠近中蒙边界的放置点。
+    // 保留原始山形尺寸和地理轴线；缩放 4–8 级仍使用正常间距。
+    const symbolSpacing = feature.name === '大兴安岭' && map.getZoom() === 3 ? 28 : 20
+    const count = Math.max(1, Math.floor(total / symbolSpacing))
     const spacing = total / count
     let segment = 0
     let walked = 0
@@ -419,30 +423,6 @@ function getTerrainDetailColor(feature: TerrainFeature) {
   if (feature.type === 'river') return '#67e8f9'
   if (feature.type === 'hill') return '#a855f7'
   return '#bbf7d0'
-}
-
-async function loadChinaOutline() {
-  if (!leafletMap) return
-  try {
-    const res = await fetch('/geo-resources-folder/geojson/中国矢量数据/中国轮廓线.geojson')
-    if (!res.ok) return
-    const data = await res.json()
-    if (!leafletMap) return
-    chinaOutlineLayer = L.geoJSON(data, {
-      pane: 'outline-pane',
-      style: {
-        color: '#ef4444',
-        weight: 2.4,
-        opacity: 0.88,
-        fillColor: '#ef4444',
-        fillOpacity: 0.025,
-      },
-      interactive: false,
-    })
-    chinaOutlineLayer.addTo(leafletMap)
-  } catch {
-    // 轮廓文件不可用时不阻塞游戏主体。
-  }
 }
 
 async function loadTerrainData() {
@@ -535,7 +515,18 @@ async function initScene() {
     noWrap: true,
   }).addTo(leafletMap)
 
-  void loadChinaOutline()
+  // EPSG:900913 与地图 EPSG:3857 同为 Web Mercator，z 与 Leaflet 一致。
+  // TMS 行号从南向北：Leaflet 的 (z, x, y) 对应服务端 (z, x, 2^z - 1 - y)。
+  chinaOutlineLayer = L.tileLayer(CHINA_OUTLINE_TILE_URL, {
+    pane: 'outline-pane',
+    tileSize: 256,
+    minZoom: 0,
+    maxZoom: 8,
+    zoomOffset: 0,
+    tms: true,
+    noWrap: true,
+    opacity: 1,
+  }).addTo(leafletMap)
 
   const ApprovalControl = L.Control.extend({
     onAdd() {
