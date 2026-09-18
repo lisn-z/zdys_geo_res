@@ -1,5 +1,5 @@
 <template>
-  <div class="solar-terms-container geo-template-page geo-page theme-dark layout-floating"
+  <div class="solar-terms-container geo-template-page geo-page theme-dark"
     :class="'season-theme-' + currentTerm.season">
     <header class="top-toolbar">
       <div class="brand-area">
@@ -19,8 +19,7 @@
 
     <Teleport to="body">
       <Transition name="page-loading-fade">
-        <div v-if="pageLoading" class="solar-page-loading" role="status" aria-live="polite"
-          aria-label="正在加载二十四节气场景">
+        <div v-if="pageLoading" class="solar-page-loading" role="status" aria-live="polite" aria-label="正在加载二十四节气场景">
           <div class="solar-page-loading-card">
             <el-icon class="solar-page-loading-icon" :size="36">
               <Loading />
@@ -4894,14 +4893,6 @@ onBeforeUnmount(() => {
   width: 26px;
   height: 26px;
   font-size: 15px;
-}
-
-.solar-terms-container.layout-floating .term-chapter-title {
-  top: clamp(76px, 9vh, 92px);
-}
-
-.solar-terms-container.layout-floating .scene-legend {
-  bottom: clamp(92px, 12vh, 124px);
 }
 
 @media (max-width: 1100px) {

@@ -366,8 +366,8 @@ function createFlows() {
   addLabel('温室气体吸收', '#ff8c73', new THREE.Vector3(6.2, 7.5, 0), 45, .56, '水汽、CO₂与云')
   addLabel('感热', '#ff6c62', new THREE.Vector3(3.8, 4.1, 4.7), 56, .53, '湍流输送')
   addLabel('潜热', '#64e6df', new THREE.Vector3(-8.4, 3.8, 5.6), 62, .53, '蒸发—凝结')
-  addLabel('大气向外辐射', '#ff91ad', new THREE.Vector3(7.4, 11.6, -1), 68, .53, '释放到太空')
-  addLabel('大气向下辐射', '#ff70be', new THREE.Vector3(5, 4.2, .8), 73, .53, '长波返回地面')
+  addLabel('大气向外辐射', '#ff91ad', new THREE.Vector3(7.4, 11.6, -1), 68, .76, '释放到太空')
+  addLabel('大气向下辐射', '#ff70be', new THREE.Vector3(5, 4.2, .8), 73, .76, '长波返回地面')
   addLabel('海洋逆辐射', '#ce72ff', new THREE.Vector3(-6.2, 4.1, 3), 79, .53, '补偿海面热量')
   addLabel('陆地逆辐射', '#ff70be', new THREE.Vector3(10.5, 4.3, 4.3), 85, .53, '补偿陆地热量')
 }
@@ -378,6 +378,7 @@ function getActiveFlowStarts() {
   const stage = currentStage.value
   const reached = flows.filter(flow => flow.start >= stage.start && flow.start < stage.end && progress.value >= flow.start).map(flow => flow.start)
   if (currentStageIndex.value === 5 && progress.value >= 65) return [56, 62]
+  if (currentStageIndex.value === 6) return [68, 73]
   return reached.length ? [reached[reached.length - 1]!] : []
 }
 
@@ -413,7 +414,7 @@ function updateScene(delta: number) {
         : .7 + Math.sin(ambientTime * 1.65 + f.phase * Math.PI * 2) * .07
       : introducing ? THREE.MathUtils.smoothstep(age, 0, 5.2) : (ambientTime * .1 + f.phase) % 1
     const edgeFade = f.style === 'scatter' ? 1 : THREE.MathUtils.smoothstep(travel, 0, .1) * (1 - THREE.MathUtils.smoothstep(travel, .88, 1))
-    const reveal = !isPlaying.value || currentStageIndex.value === 8 ? 1 : smooth(f.start, f.start + .8)
+    const reveal = !isPlaying.value || currentStageIndex.value === 6 || currentStageIndex.value === 8 ? 1 : smooth(f.start, f.start + .8)
     const alpha = active ? reveal * f.opacity * edgeFade : 0
     sampleArrowPath(f.points, f.segmentLengths, f.totalLength, travel, flowPosition, flowDirection)
     f.mesh.position.copy(flowPosition)
@@ -434,8 +435,8 @@ function updateScene(delta: number) {
     label.material.opacity = THREE.MathUtils.lerp(label.material.opacity, target, easing); label.sprite.visible = label.material.opacity > .02
   })
 }
-const views = [[[38, 22, 43], [1, 8, 0]], [[31, 18, 36], [0, 9, 1]], [[27, 14, 32], [5, 2.8, 0]], [[31, 16, 36], [6, 5.5, 0]], [[27, 15, 32], [5, 6, 0]], [[29, 14, 34], [-2, 4.5, 3]], [[30, 18, 36], [5, 9, 0]], [[27, 14, 32], [5, 4.5, 1]], [[38, 22, 43], [1, 8, 0]]]
-function updateCamera(delta: number) { if (!camera || !controls || !cameraFollow.value) return; const v = views[currentStageIndex.value]!, p = new THREE.Vector3(...v[0] as [number, number, number]), t = new THREE.Vector3(...v[1] as [number, number, number]), activeStarts = getActiveFlowStarts(), featuredFlow = flows.find(flow => flow.start === activeStarts[activeStarts.length - 1]); if (featuredFlow && currentStageIndex.value < 8) { const age = progress.value - featuredFlow.start, push = isPlaying.value ? THREE.MathUtils.smoothstep(age, 0, 1.8) * (1 - THREE.MathUtils.smoothstep(age, 4.4, 5.8)) : .84, focus = featuredFlow.style === 'scatter' && scatterCore ? scatterCore.position : featuredFlow.focus, direction = p.clone().sub(t).normalize(), closePosition = focus.clone().addScaledVector(direction, Math.max(featuredFlow.style === 'scatter' ? 14.5 : 10.5, p.distanceTo(t) * .34)); p.lerp(closePosition, push); t.lerp(focus, push) } const e = 1 - Math.exp(-delta * .5); camera.position.lerp(p, e); controls.target.lerp(t, e) }
+const views = [[[38, 22, 43], [1, 8, 0]], [[31, 18, 36], [0, 9, 1]], [[27, 14, 32], [5, 2.8, 0]], [[31, 16, 36], [6, 5.5, 0]], [[27, 15, 32], [5, 6, 0]], [[29, 14, 34], [-2, 4.5, 3]], [[15, 11, 18], [5.8, 8.2, .2]], [[27, 14, 32], [5, 4.5, 1]], [[38, 22, 43], [1, 8, 0]]]
+function updateCamera(delta: number) { if (!camera || !controls || !cameraFollow.value) return; const v = views[currentStageIndex.value]!, p = new THREE.Vector3(...v[0] as [number, number, number]), t = new THREE.Vector3(...v[1] as [number, number, number]), activeStarts = getActiveFlowStarts(), featuredFlow = flows.find(flow => flow.start === activeStarts[activeStarts.length - 1]); if (featuredFlow && currentStageIndex.value < 8 && currentStageIndex.value !== 6) { const age = progress.value - featuredFlow.start, push = isPlaying.value ? THREE.MathUtils.smoothstep(age, 0, 1.8) * (1 - THREE.MathUtils.smoothstep(age, 4.4, 5.8)) : .84, focus = featuredFlow.style === 'scatter' && scatterCore ? scatterCore.position : featuredFlow.focus, direction = p.clone().sub(t).normalize(), closePosition = focus.clone().addScaledVector(direction, Math.max(featuredFlow.style === 'scatter' ? 14.5 : 10.5, p.distanceTo(t) * .34)); p.lerp(closePosition, push); t.lerp(focus, push) } const e = 1 - Math.exp(-delta * .5); camera.position.lerp(p, e); controls.target.lerp(t, e) }
 function resize() { const e = threeContainerRef.value; if (!e || !camera || !renderer) return; const w = Math.max(1, e.clientWidth), h = Math.max(1, e.clientHeight); if (w === lastW && h === lastH) return; lastW = w; lastH = h; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false) }
 function animate() { raf = requestAnimationFrame(animate); const d = Math.min(clock.getDelta(), .05); updatePlayback(d); updateScene(d); updateCamera(d); controls?.update(); if (renderer && scene && camera) renderer.render(scene, camera) }
 function init() { const e = threeContainerRef.value; if (!e) return; try { scene = new THREE.Scene(); scene.background = skyTexture(); scene.fog = new THREE.FogExp2(0x173449, .0038); camera = new THREE.PerspectiveCamera(45, 1, .1, 400); camera.position.set(38, 22, 43); renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.04; renderer.shadowMap.enabled = true; renderer.domElement.className = 'three-canvas'; e.appendChild(renderer.domElement); controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.minDistance = 10; controls.maxDistance = 86; controls.maxPolarAngle = Math.PI * .48; controls.target.set(1, 8, 0); controls.addEventListener('start', () => cameraFollow.value = false); root = new THREE.Group(); scene.add(root); createSkySun(); createGround(); createAtmosphere(); createClouds(); createFlows(); resize(); observer = new ResizeObserver(() => scheduleResize()); observer.observe(e); clock.start(); animate() } catch (err) { console.error(err); sceneError.value = err instanceof Error ? err.message : '未知错误' } }

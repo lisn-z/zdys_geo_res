@@ -1,5 +1,5 @@
 <template>
-  <div ref="pageRef" class="terrain-projection-template geo-template-page geo-page theme-dark layout-floating"
+  <div ref="pageRef" class="terrain-projection-template geo-template-page geo-page theme-dark"
     :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
@@ -25,9 +25,8 @@
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <FloatingFeatureCard v-show="panelsVisible && !learningMode"
-        class="terrain-control-floating-card" title="地形控制" subtitle="调整等高线、投影、标签和随机地形"
-        variant="data" :initial-top="84" :initial-right="18" :bottom-inset="14"
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-control-floating-card" title="地形控制"
+        subtitle="调整等高线、投影、标签和随机地形" variant="data" :initial-top="84" :initial-right="18" :bottom-inset="14"
         v-model:collapsed="controlCardCollapsed" :resizable="true" :min-width="320" :min-height="420">
         <div class="terrain-control-card-content">
           <section class="geo-card control-section">
@@ -186,9 +185,10 @@
         </div>
       </section>
 
-      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-stack-floating-card terrain-status-floating-card"
-        title="地形状态" subtitle="当前参数与工具状态" variant="data" :initial-top="152" :initial-right="18" :bottom-inset="12"
-        v-model:collapsed="statusCardCollapsed" :resizable="true" :min-width="330" :min-height="190">
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode"
+        class="terrain-stack-floating-card terrain-status-floating-card" title="地形状态" subtitle="当前参数与工具状态"
+        variant="data" :initial-top="152" :initial-right="18" :bottom-inset="12" v-model:collapsed="statusCardCollapsed"
+        :resizable="true" :min-width="330" :min-height="190">
         <div class="terrain-status-grid">
           <div class="terrain-status-metric cyan-card">
             <span>等高距</span>
@@ -209,8 +209,9 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
-        title="基本地形部位" subtitle="根据等高线弯曲方向判读" variant="data" :initial-top="220" :initial-right="18" :bottom-inset="12"
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode"
+        class="terrain-stack-floating-card terrain-default-collapsed-card" title="基本地形部位" subtitle="根据等高线弯曲方向判读"
+        variant="data" :initial-top="220" :initial-right="18" :bottom-inset="12"
         :collapsed="knowledgeCardCollapsed.terrain" :resizable="true" :min-width="280" :min-height="100"
         @update:collapsed="onKnowledgeCardCollapsedChange('terrain', $event)">
         <div class="terrain-floating-copy terrain-knowledge">
@@ -221,8 +222,9 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
-        title="坡度与设色" subtitle="利用疏密与颜色判断地势" variant="data" :initial-top="288" :initial-right="18" :bottom-inset="12"
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode"
+        class="terrain-stack-floating-card terrain-default-collapsed-card" title="坡度与设色" subtitle="利用疏密与颜色判断地势"
+        variant="data" :initial-top="288" :initial-right="18" :bottom-inset="12"
         :collapsed="knowledgeCardCollapsed.slope" :resizable="true" :min-width="280" :min-height="100"
         @update:collapsed="onKnowledgeCardCollapsedChange('slope', $event)">
         <div class="terrain-floating-copy terrain-knowledge">
@@ -233,8 +235,9 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-stack-floating-card terrain-default-collapsed-card"
-        title="剖面图使用" subtitle="观察沿线海拔变化" variant="data" :initial-top="356" :initial-right="18" :bottom-inset="12"
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode"
+        class="terrain-stack-floating-card terrain-default-collapsed-card" title="剖面图使用" subtitle="观察沿线海拔变化"
+        variant="data" :initial-top="356" :initial-right="18" :bottom-inset="12"
         :collapsed="knowledgeCardCollapsed.profile" :resizable="true" :min-width="280" :min-height="100"
         @update:collapsed="onKnowledgeCardCollapsedChange('profile', $event)">
         <div class="terrain-floating-copy terrain-knowledge">
@@ -243,9 +246,8 @@
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="panelsVisible && !learningMode"
-        class="terrain-legend-floating-card" title="地形判读图例" subtitle="颜色对应基本地形部位"
-        variant="data" :initial-top="424" :initial-right="18" :bottom-inset="14"
+      <FloatingFeatureCard v-show="panelsVisible && !learningMode" class="terrain-legend-floating-card" title="地形判读图例"
+        subtitle="颜色对应基本地形部位" variant="data" :initial-top="424" :initial-right="18" :bottom-inset="14"
         v-model:collapsed="legendCardCollapsed" :resizable="true" :min-width="280" :min-height="220">
         <div class="panel-legend-grid terrain-floating-legend-grid">
           <div class="panel-legend-item panel-legend-color-scale-item">
@@ -2877,7 +2879,6 @@ onUnmounted(() => {
   pointer-events: none;
 
   /*
-   * 5号模板 layout-floating 下左右面板会覆盖主场景。
    * cube / 图例必须主动避让当前展开的面板宽度。
    * 这些变量来自 workspace 行内 style：
    * --left-panel-width / --right-panel-width

@@ -1,7 +1,0 @@
-{
-  "extends": "../../../tsconfig.app.json",
-  "include": ["../../../env.d.ts", "./index.vue", "./AtmosphericHeating2D.vue"],
-  "compilerOptions": {
-    "tsBuildInfoFile": "../../../node_modules/.tmp/atmospheric-heating-check.tsbuildinfo"
-  }
-}

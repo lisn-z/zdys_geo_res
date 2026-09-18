@@ -1,5 +1,6 @@
 <template>
-  <div ref="pageRef" class="find-terrain-container geo-template-page geo-page theme-dark">
+  <div ref="pageRef" class="find-terrain-container geo-template-page geo-page theme-dark"
+    :inert="showRoundResult || terrainLoadState !== 'ready'" :aria-busy="terrainLoadState === 'loading'">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -10,6 +11,18 @@
         <span class="page-subtitle">中国主要地形区判读</span>
       </h1>
       <div class="toolbar-actions">
+        <div class="round-clock" :class="{ urgent: timeIsUrgent }">
+          <label v-if="roundStatus === 'ready'">限时
+            <select v-model.number="roundMinutes" aria-label="答题时限">
+              <option :value="3">3 分钟</option>
+              <option :value="5">5 分钟</option>
+              <option :value="10">10 分钟</option>
+            </select>
+          </label>
+          <span v-else>{{ roundEnded ? '本轮用时' : '剩余时间' }}</span>
+          <strong>{{ clockText }}</strong>
+        </div>
+        <button v-if="roundEnded" type="button" class="theme-btn toolbar-btn" @click="openRoundResult">查看结果</button>
         <button type="button" class="theme-btn toolbar-btn" @click="resetGame">重新开始</button>
       </div>
     </header>
@@ -25,25 +38,32 @@
               <span class="mission-dot"></span>
               <div class="mission-copy">
                 <span class="mission-kicker">当前任务</span>
-                <strong>{{ findingHint || '从下方选择一个地形名称，再点击地图中对应的地形走向或范围' }}</strong>
+                <strong role="status">{{ terrainLoadState === 'loading' ? '正在加载地形数据…' : terrainLoadState === 'error' ?
+                  terrainLoadError : findingHint || '从下方选择一个地形名称，再点击地图中对应的地形走向或范围' }}</strong>
+                <span v-if="terrainLoadState === 'ready' && roundStatus === 'ready'"
+                  class="round-note">首次选择地形后开始计时</span>
+                <span v-if="timeIsUrgent" class="round-warning" role="status">仅剩 30 秒，请抓紧时间！</span>
               </div>
             </div>
 
-            <div class="progress-box">
-              <div class="progress-head">
-                <span>查找进度</span>
-                <strong>{{ foundTotal }}/{{ totalTerrainCount }}</strong>
+            <div class="progress-panel">
+              <div class="progress-box">
+                <div class="progress-head">
+                  <span>查找进度</span>
+                  <strong>{{ foundTotal }}/{{ totalTerrainCount }}</strong>
+                </div>
+                <div class="progress-track">
+                  <span :style="{ width: `${progressPercent}%` }"></span>
+                </div>
+                <div class="progress-groups">
+                  <span><i class="legend-dot mountain"></i>山脉 {{ foundCount.mountains }}/{{ totalCount.mountains }}</span>
+                  <span><i class="legend-dot basin"></i>盆地 {{ foundCount.basins }}/{{ totalCount.basins }}</span>
+                  <span><i class="legend-dot river"></i>河流 {{ foundCount.rivers }}/{{ totalCount.rivers }}</span>
+                  <span><i class="legend-dot hill"></i>丘陵 {{ foundCount.hills }}/{{ totalCount.hills }}</span>
+                  <span><i class="legend-dot plain"></i>平原 {{ foundCount.plains }}/{{ totalCount.plains }}</span>
+                </div>
               </div>
-              <div class="progress-track">
-                <span :style="{ width: `${progressPercent}%` }"></span>
-              </div>
-              <div class="progress-groups">
-                <span><i class="legend-dot mountain"></i>山脉 {{ foundCount.mountains }}/{{ totalCount.mountains }}</span>
-                <span><i class="legend-dot basin"></i>盆地 {{ foundCount.basins }}/{{ totalCount.basins }}</span>
-                <span><i class="legend-dot river"></i>河流 {{ foundCount.rivers }}/{{ totalCount.rivers }}</span>
-                <span><i class="legend-dot hill"></i>丘陵 {{ foundCount.hills }}/{{ totalCount.hills }}</span>
-                <span><i class="legend-dot plain"></i>平原 {{ foundCount.plains }}/{{ totalCount.plains }}</span>
-              </div>
+              <p class="terrain-scope-note">注：地形范围为教学示意，非测绘边界。</p>
             </div>
           </div>
 
@@ -65,10 +85,10 @@
 
               <div class="dock-tools">
                 <div class="dock-legend">
-                  <span><i class="legend-line mountain"></i>山脉</span>
+                  <span><svg class="legend-mountain" viewBox="0 0 28 16" aria-hidden="true"><path d="M1 13H27M3 13L10 3L15 10L20 5L25 13Z" /></svg>山脉</span>
                   <span><i class="legend-area basin"></i>盆地</span>
                   <span><i class="legend-line river"></i>河流</span>
-                  <span><i class="legend-area hill"></i>丘陵</span>
+                  <span><svg class="legend-hill" viewBox="0 0 28 16" aria-hidden="true"><path d="M2 13Q8 1 14 13M15 13Q20 4 26 13" /></svg>丘陵</span>
                   <span><i class="legend-area plain"></i>平原</span>
                 </div>
                 <button type="button" class="zone-toggle" :class="{ active: showAllMode }"
@@ -86,7 +106,8 @@
                   found: item.found,
                   selected: selectedFeature?.name === item.name,
                 },
-              ]" :title="item.desc" @click="selectFeature(item)">
+              ]" :title="item.desc" :disabled="roundEnded || terrainLoadState !== 'ready'"
+                @click="selectFeature(item)">
                 <span class="chip-icon">{{ getTerrainEmoji(item.type) }}</span>
                 <span class="chip-copy">
                   <strong>{{ item.name }}</strong>
@@ -100,6 +121,34 @@
         </div>
       </section>
     </main>
+    <Teleport to="body">
+      <div v-if="terrainLoadState !== 'ready'" class="page-loading-overlay">
+        <div class="page-loading-card" :role="terrainLoadState === 'error' ? 'alert' : 'status'" aria-live="polite">
+          <span v-if="terrainLoadState === 'loading'" class="page-loading-spinner" aria-hidden="true"></span>
+          <span v-else class="page-loading-error" aria-hidden="true">!</span>
+          <h2>{{ terrainLoadState === 'loading' ? '正在加载地形地图' : '地图加载未完成' }}</h2>
+          <p>{{ terrainLoadState === 'loading' ? '正在准备河流、平原与答题地图，请稍候…' : terrainLoadError }}</p>
+          <button v-if="terrainLoadState === 'error'" type="button" class="result-primary" @click="loadTerrainData">重新加载</button>
+        </div>
+      </div>
+      <div v-if="showRoundResult" class="round-result-overlay" @keydown="onResultKeydown">
+        <div ref="roundResultRef" class="round-result" role="dialog" aria-modal="true"
+          aria-labelledby="round-result-title" aria-describedby="round-result-description" tabindex="-1">
+          <div class="result-icon" :class="roundStatus" aria-hidden="true">{{ roundStatus === 'won' ? '✓' : '⌛' }}</div>
+          <h2 id="round-result-title">{{ roundStatus === 'won' ? '全部答对，挑战成功！' : '时间到，本轮挑战结束' }}</h2>
+          <p id="round-result-description">{{ roundStatus === 'won' ? '你已找齐全部地形，做得不错！' : `已找到 ${foundTotal} 个地形，还有
+            ${totalTerrainCount - foundTotal} 个未找到。再挑战一次吧！` }}</p>
+          <div class="result-stats">
+            <div><span>答对地形</span><strong>{{ foundTotal }} / {{ totalTerrainCount }}</strong></div>
+            <div><span>本轮用时</span><strong>{{ formatRoundTime(elapsedMs) }}</strong></div>
+          </div>
+          <div class="result-actions">
+            <button type="button" class="result-secondary" @click="closeRoundResult">查看地图</button>
+            <button type="button" class="result-primary" @click="resetGame">再来一次</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -108,71 +157,21 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'v
 import '@/styles/geo-page-template.css'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { applyRiverGeometry, applyNamedRiverGeometry, applyPlainGeometry, NAMED_RIVER_DATA, PLAINS_DATA_URL, RIVER_DATA_URL, terrainDefinitions, type TerrainDefinition } from './terrain-data'
+import { hitsTerrain } from './terrain-geometry'
+import { formatRoundTime, useTerrainRound, type RoundResult } from './use-terrain-round'
 
-interface TerrainFeature {
-  name: string
-  lat: number
-  lon: number
-  desc: string
-  type: 'mountain' | 'basin' | 'river' | 'hill' | 'plain'
-  found: boolean
-  path?: [number, number][]
-  area?: [number, number][]
-  extent?: [number, number][]
-}
+interface TerrainFeature extends TerrainDefinition { found: boolean }
 
-type TerrainAnswerLayer = L.Polyline | L.Polygon
-
+type TerrainAnswerLayer = L.Path
 const pageRef = ref<HTMLElement | null>(null)
 const leafletContainerRef = ref<HTMLElement | null>(null)
-
-// ==================== 地形数据 ====================
-// 控制点负责地理走向；实际渲染时再通过样条/平滑算法加密到几十～上百个点，
-// 避免原来“几段直线拼起来”的粗糙效果。
-const mountains = reactive<TerrainFeature[]>([
-  { name: '天山山脉', lat: 42.75, lon: 84.7, desc: '新疆中部，南北疆重要分界', type: 'mountain', found: false, extent: [[42.0, 75.4], [42.15, 76.4], [42.28, 77.4], [42.45, 78.45], [42.58, 79.45], [42.72, 80.5], [42.83, 81.55], [42.96, 82.55], [43.05, 83.6], [43.12, 84.65], [43.16, 85.7], [43.12, 86.75], [43.0, 87.8], [42.86, 88.85], [42.67, 89.9], [42.45, 90.95], [42.2, 92.0]] },
-  { name: '阴山山脉', lat: 41.0, lon: 108.6, desc: '内蒙古中部，近东西走向', type: 'mountain', found: false, extent: [[41.28, 103.8], [41.25, 104.55], [41.22, 105.3], [41.15, 106.05], [41.08, 106.8], [41.02, 107.55], [40.98, 108.3], [40.98, 109.05], [40.95, 109.8], [40.88, 110.55], [40.8, 111.3], [40.72, 112.05], [40.65, 112.85], [40.6, 113.45]] },
-  { name: '昆仑山脉', lat: 36.1, lon: 84.4, desc: '塔里木盆地南缘、青藏高原北缘', type: 'mountain', found: false, extent: [[36.05, 74.7], [36.18, 75.7], [36.35, 76.8], [36.48, 77.9], [36.6, 79.0], [36.7, 80.1], [36.73, 81.2], [36.7, 82.3], [36.62, 83.4], [36.5, 84.5], [36.38, 85.6], [36.24, 86.7], [36.08, 87.8], [35.92, 88.9], [35.76, 90.0], [35.58, 91.1], [35.42, 92.2], [35.28, 93.3], [35.17, 94.4], [35.08, 95.2]] },
-  { name: '秦岭', lat: 33.9, lon: 108.2, desc: '我国重要南北地理分界线', type: 'mountain', found: false, extent: [[34.25, 103.35], [34.2, 104.05], [34.13, 104.75], [34.08, 105.45], [34.03, 106.15], [34.0, 106.85], [34.0, 107.55], [33.98, 108.25], [33.93, 108.95], [33.87, 109.65], [33.8, 110.35], [33.72, 111.05], [33.64, 111.75], [33.58, 112.45], [33.52, 113.1]] },
-  { name: '南岭', lat: 25.15, lon: 113.0, desc: '湘赣与两广之间的重要山地', type: 'mountain', found: false, extent: [[25.28, 108.05], [25.33, 108.8], [25.35, 109.55], [25.33, 110.3], [25.25, 111.05], [25.18, 111.8], [25.2, 112.55], [25.25, 113.3], [25.22, 114.05], [25.12, 114.8], [25.02, 115.55], [24.97, 116.3], [24.96, 117.05], [25.0, 117.85]] },
-  { name: '大兴安岭', lat: 49.8, lon: 122.6, desc: '东北—西南走向，内蒙古高原东缘', type: 'mountain', found: false, extent: [[53.25, 120.6], [52.85, 120.82], [52.45, 121.05], [52.05, 121.3], [51.65, 121.55], [51.25, 121.8], [50.85, 122.0], [50.45, 122.18], [50.05, 122.35], [49.65, 122.55], [49.25, 122.75], [48.85, 122.95], [48.45, 123.18], [48.05, 123.42], [47.65, 123.68], [47.25, 123.92], [46.85, 124.15], [46.5, 124.35]] },
-  { name: '太行山脉', lat: 37.7, lon: 113.5, desc: '黄土高原与华北平原重要分界', type: 'mountain', found: false, extent: [[40.2, 112.95], [39.85, 113.1], [39.5, 113.25], [39.15, 113.4], [38.8, 113.55], [38.45, 113.67], [38.1, 113.73], [37.75, 113.73], [37.4, 113.65], [37.05, 113.55], [36.7, 113.42], [36.35, 113.28], [36.0, 113.12], [35.65, 112.95]] },
-  { name: '巫山', lat: 31.25, lon: 110.3, desc: '重庆东部与湖北西部交界附近', type: 'mountain', found: false, extent: [[32.7, 109.7], [32.42, 109.82], [32.14, 109.93], [31.86, 110.04], [31.58, 110.16], [31.3, 110.28], [31.02, 110.38], [30.74, 110.48], [30.46, 110.56], [30.18, 110.62], [29.95, 110.66]] },
-  { name: '雪峰山', lat: 27.7, lon: 109.9, desc: '湖南西部，东北—西南走向', type: 'mountain', found: false, extent: [[29.45, 109.18], [29.15, 109.3], [28.85, 109.42], [28.55, 109.55], [28.25, 109.68], [27.95, 109.82], [27.65, 109.95], [27.35, 110.07], [27.05, 110.18], [26.75, 110.27], [26.45, 110.33], [26.15, 110.37]] },
-  { name: '长白山脉', lat: 42.0, lon: 128.3, desc: '吉林东部中朝边境附近', type: 'mountain', found: false, extent: [[43.55, 126.55], [43.3, 126.75], [43.05, 126.98], [42.8, 127.22], [42.55, 127.48], [42.3, 127.75], [42.05, 128.02], [41.8, 128.3], [41.55, 128.58], [41.3, 128.86], [41.05, 129.14], [40.82, 129.42]] },
-  { name: '武夷山脉', lat: 27.7, lon: 117.8, desc: '福建与江西交界，东北—西南走向', type: 'mountain', found: false, extent: [[29.8, 116.9], [29.5, 117.03], [29.2, 117.16], [28.9, 117.3], [28.6, 117.44], [28.3, 117.58], [28.0, 117.72], [27.7, 117.86], [27.4, 118.0], [27.1, 118.14], [26.8, 118.28], [26.5, 118.4], [26.2, 118.52], [25.9, 118.62], [25.65, 118.68]] },
-  { name: '台湾山脉', lat: 23.8, lon: 121.15, desc: '台湾岛中东部，纵贯南北', type: 'mountain', found: false, extent: [[24.86, 121.08], [24.59, 121.13], [24.32, 121.18], [24.05, 121.22], [23.78, 121.25], [23.51, 121.25], [23.24, 121.22], [22.97, 121.16], [22.7, 121.06], [22.48, 120.96]] },
-  { name: '横断山脉', lat: 29.8, lon: 100.0, desc: '川滇藏交界，多列南北向高山深谷', type: 'mountain', found: false, extent: [[33.3, 97.9], [32.95, 98.15], [32.6, 98.4], [32.25, 98.65], [31.9, 98.9], [31.55, 99.15], [31.2, 99.4], [30.85, 99.63], [30.5, 99.84], [30.15, 100.03], [29.8, 100.2], [29.45, 100.36], [29.1, 100.5], [28.75, 100.63], [28.4, 100.75], [28.05, 100.85], [27.7, 100.92], [27.35, 100.98], [27.0, 101.0], [26.7, 100.98]] },
-  { name: '阿尔泰山脉', lat: 48.2, lon: 88.5, desc: '新疆北部，西北—东南走向', type: 'mountain', found: false, extent: [[49.55, 84.5], [49.35, 85.15], [49.15, 85.8], [48.95, 86.45], [48.75, 87.1], [48.53, 87.75], [48.3, 88.4], [48.05, 89.05], [47.8, 89.7], [47.55, 90.35], [47.3, 91.0], [47.05, 91.65], [46.8, 92.25]] },
-  { name: '祁连山脉', lat: 38.2, lon: 99.0, desc: '甘肃与青海交界，西北—东南走向', type: 'mountain', found: false, extent: [[39.6, 94.1], [39.43, 94.75], [39.25, 95.4], [39.05, 96.05], [38.85, 96.7], [38.63, 97.35], [38.4, 98.0], [38.18, 98.65], [37.95, 99.3], [37.72, 99.95], [37.5, 100.6], [37.27, 101.25], [37.05, 101.9], [36.82, 102.55], [36.6, 103.2]] },
-  { name: '贺兰山', lat: 38.8, lon: 106.0, desc: '宁夏平原西侧，近南北走向', type: 'mountain', found: false, extent: [[40.25, 105.72], [39.98, 105.77], [39.71, 105.82], [39.44, 105.87], [39.17, 105.93], [38.9, 105.99], [38.63, 106.04], [38.36, 106.08], [38.09, 106.09], [37.82, 106.07], [37.55, 106.02]] },
-])
-
-const basins = reactive<TerrainFeature[]>([
-  { name: '塔里木盆地', lat: 39.7, lon: 84.5, desc: '中国最大盆地，位于新疆南部', type: 'basin', found: false, area: [[41.65, 75.45], [42.05, 76.25], [42.3, 77.2], [42.48, 78.3], [42.56, 79.45], [42.55, 80.65], [42.5, 81.9], [42.45, 83.15], [42.35, 84.4], [42.25, 85.65], [42.1, 86.9], [41.9, 88.1], [41.58, 89.2], [41.15, 90.15], [40.62, 90.85], [40.02, 91.2], [39.38, 91.13], [38.78, 90.7], [38.25, 89.95], [37.82, 89.0], [37.5, 87.9], [37.28, 86.72], [37.18, 85.5], [37.2, 84.25], [37.3, 83.0], [37.5, 81.78], [37.78, 80.62], [38.15, 79.52], [38.62, 78.5], [39.15, 77.58], [39.75, 76.8], [40.38, 76.13], [41.0, 75.65]] },
-  { name: '准噶尔盆地', lat: 46.2, lon: 87.0, desc: '新疆北部，中国第二大盆地', type: 'basin', found: false, area: [[47.72, 81.55], [48.08, 82.15], [48.35, 82.9], [48.52, 83.78], [48.58, 84.75], [48.55, 85.78], [48.43, 86.85], [48.25, 87.93], [48.0, 88.98], [47.68, 89.92], [47.28, 90.73], [46.8, 91.35], [46.25, 91.72], [45.7, 91.77], [45.2, 91.5], [44.78, 90.95], [44.46, 90.18], [44.23, 89.25], [44.1, 88.2], [44.08, 87.08], [44.18, 85.98], [44.38, 84.92], [44.7, 83.98], [45.12, 83.15], [45.62, 82.48], [46.18, 82.0], [46.78, 81.68], [47.3, 81.52]] },
-  { name: '柴达木盆地', lat: 37.5, lon: 95.0, desc: '青海省西北部，地势封闭的高原盆地', type: 'basin', found: false, area: [[38.88, 89.45], [39.1, 90.15], [39.24, 90.95], [39.3, 91.85], [39.28, 92.82], [39.2, 93.82], [39.05, 94.84], [38.84, 95.85], [38.55, 96.8], [38.18, 97.62], [37.72, 98.28], [37.22, 98.65], [36.72, 98.62], [36.3, 98.2], [35.98, 97.52], [35.78, 96.65], [35.7, 95.7], [35.75, 94.72], [35.9, 93.75], [36.15, 92.82], [36.48, 91.95], [36.88, 91.15], [37.35, 90.48], [37.86, 89.95], [38.38, 89.58]] },
-  { name: '四川盆地', lat: 30.4, lon: 105.5, desc: '四川东部和重庆西部，四周山地环绕', type: 'basin', found: false, area: [[32.08, 102.58], [32.34, 103.18], [32.48, 103.9], [32.48, 104.68], [32.38, 105.48], [32.18, 106.24], [31.9, 106.94], [31.54, 107.57], [31.12, 108.1], [30.62, 108.55], [30.08, 108.8], [29.52, 108.78], [29.02, 108.55], [28.62, 108.1], [28.35, 107.48], [28.22, 106.75], [28.23, 105.98], [28.35, 105.2], [28.6, 104.47], [28.94, 103.82], [29.38, 103.28], [29.9, 102.86], [30.45, 102.58], [31.02, 102.44], [31.57, 102.45]] },
-])
-
-const rivers = reactive<TerrainFeature[]>([
-  { name: '珠江', lat: 23.2, lon: 112.2, desc: '华南主要河流，注入南海', type: 'river', found: false, path: [[25.05, 102.9], [24.92, 103.45], [24.78, 104.0], [24.62, 104.55], [24.48, 105.1], [24.35, 105.65], [24.25, 106.2], [24.15, 106.75], [24.05, 107.3], [23.92, 107.85], [23.78, 108.4], [23.65, 108.95], [23.55, 109.5], [23.48, 110.05], [23.42, 110.6], [23.34, 111.15], [23.25, 111.68], [23.15, 112.15], [23.08, 112.55], [22.98, 112.9], [22.88, 113.18], [22.75, 113.42], [22.62, 113.58], [22.52, 113.72]] },
-  { name: '黑龙江', lat: 50.2, lon: 128.5, desc: '我国东北北部重要界河', type: 'river', found: false, path: [[53.45, 121.2], [53.38, 121.8], [53.25, 122.4], [53.08, 123.0], [52.88, 123.6], [52.65, 124.2], [52.42, 124.8], [52.18, 125.4], [51.92, 126.0], [51.65, 126.6], [51.38, 127.2], [51.12, 127.8], [50.85, 128.4], [50.58, 129.0], [50.28, 129.6], [49.98, 130.2], [49.68, 130.8], [49.38, 131.4], [49.08, 132.0], [48.8, 132.6], [48.55, 133.2], [48.32, 133.8], [48.15, 134.35]] },
-  { name: '雅鲁藏布江', lat: 29.4, lon: 91.0, desc: '青藏高原南部重要河流，东流后形成大拐弯', type: 'river', found: false, path: [[30.2, 82.0], [30.18, 82.7], [30.16, 83.4], [30.12, 84.1], [30.08, 84.8], [30.02, 85.5], [29.96, 86.2], [29.9, 86.9], [29.84, 87.6], [29.76, 88.3], [29.68, 89.0], [29.6, 89.7], [29.52, 90.4], [29.44, 91.1], [29.36, 91.8], [29.3, 92.5], [29.24, 93.2], [29.18, 93.9], [29.12, 94.55], [29.05, 95.05], [28.95, 95.45], [28.8, 95.75], [28.58, 95.92], [28.32, 95.98], [28.05, 95.9], [27.82, 95.72], [27.65, 95.48], [27.55, 95.2], [27.52, 94.9]] },
-  { name: '塔里木河', lat: 40.4, lon: 84.0, desc: '中国最长的内流河，位于塔里木盆地北部', type: 'river', found: false, path: [[39.25, 76.0], [39.38, 76.55], [39.52, 77.1], [39.68, 77.65], [39.82, 78.2], [39.94, 78.75], [40.04, 79.3], [40.13, 79.85], [40.22, 80.4], [40.3, 80.95], [40.38, 81.5], [40.46, 82.05], [40.52, 82.6], [40.57, 83.15], [40.6, 83.7], [40.62, 84.25], [40.62, 84.8], [40.58, 85.35], [40.54, 85.9], [40.48, 86.45], [40.4, 87.0], [40.33, 87.55], [40.25, 88.1], [40.18, 88.65], [40.12, 89.2], [40.08, 89.75], [40.06, 90.3]] },
-])
-
-const hills = reactive<TerrainFeature[]>([
-  { name: '东南丘陵', lat: 26.6, lon: 116.2, desc: '长江以南、云贵高原以东的广阔低山丘陵区', type: 'hill', found: false, area: [[31.0, 112.3], [30.6, 113.5], [30.4, 114.8], [30.1, 116.0], [29.7, 117.3], [29.2, 118.5], [28.8, 119.5], [28.2, 120.1], [27.4, 120.3], [26.6, 120.1], [25.8, 119.6], [24.9, 118.9], [24.1, 117.8], [23.4, 116.8], [22.9, 115.6], [22.6, 114.4], [22.8, 113.2], [23.4, 112.1], [24.1, 111.1], [25.0, 110.3], [26.0, 109.8], [27.0, 109.7], [28.0, 110.0], [29.0, 110.6], [30.0, 111.3]] },
-  { name: '山东丘陵', lat: 36.4, lon: 120.1, desc: '山东半岛中东部，以低山丘陵为主', type: 'hill', found: false, area: [[37.35, 118.7], [37.55, 119.4], [37.55, 120.1], [37.35, 120.8], [37.05, 121.5], [36.65, 122.1], [36.15, 122.45], [35.7, 122.25], [35.35, 121.75], [35.15, 121.05], [35.15, 120.3], [35.35, 119.6], [35.7, 119.0], [36.15, 118.6], [36.75, 118.45]] },
-  { name: '辽东丘陵', lat: 40.3, lon: 123.2, desc: '辽东半岛及其北部丘陵地带', type: 'hill', found: false, area: [[41.55, 122.2], [41.55, 123.0], [41.35, 123.8], [41.0, 124.45], [40.55, 124.8], [40.05, 124.75], [39.55, 124.45], [39.05, 123.9], [38.65, 123.25], [38.55, 122.55], [38.85, 121.95], [39.3, 121.55], [39.85, 121.45], [40.45, 121.65], [41.0, 121.9]] },
-])
-
-const plains = reactive<TerrainFeature[]>([
-  { name: '东北平原', lat: 45.2, lon: 125.0, desc: '我国面积最大的平原，主要由松嫩、辽河、三江平原组成', type: 'plain', found: false, area: [[49.7, 122.2], [49.8, 123.7], [49.5, 125.0], [49.0, 126.2], [48.2, 127.0], [47.3, 127.5], [46.3, 127.6], [45.4, 127.4], [44.5, 127.0], [43.6, 126.5], [42.8, 125.8], [42.0, 124.9], [41.5, 123.9], [41.3, 122.9], [41.55, 121.9], [42.2, 121.2], [43.1, 120.9], [44.1, 121.0], [45.1, 121.2], [46.1, 121.45], [47.1, 121.65], [48.1, 121.8], [49.0, 121.9]] },
-  { name: '华北平原', lat: 36.0, lon: 116.5, desc: '太行山以东、燕山以南，黄淮海冲积平原主体', type: 'plain', found: false, area: [[40.2, 116.2], [39.8, 117.1], [39.1, 118.0], [38.3, 118.5], [37.5, 119.0], [36.7, 119.5], [35.9, 119.6], [35.1, 119.2], [34.4, 118.7], [33.8, 118.0], [33.4, 117.1], [33.35, 116.1], [33.6, 115.2], [34.1, 114.4], [34.8, 113.9], [35.6, 113.6], [36.5, 113.6], [37.4, 113.8], [38.3, 114.3], [39.1, 115.0], [39.8, 115.5]] },
-  { name: '长江中下游平原', lat: 30.4, lon: 116.6, desc: '巫山以东、长江中下游沿江及湖区平原', type: 'plain', found: false, area: [[32.1, 110.6], [32.25, 111.8], [32.2, 113.0], [32.0, 114.3], [31.75, 115.6], [31.55, 116.8], [31.45, 118.0], [31.4, 119.2], [31.25, 120.3], [30.9, 121.2], [30.45, 121.6], [30.0, 121.45], [29.6, 120.8], [29.35, 119.8], [29.25, 118.6], [29.3, 117.4], [29.45, 116.2], [29.55, 115.0], [29.55, 113.8], [29.45, 112.7], [29.55, 111.7], [29.85, 110.9], [30.35, 110.4], [31.0, 110.3], [31.6, 110.4]] },
-])
+const features = reactive<TerrainFeature[]>(terrainDefinitions.map(feature => ({ ...feature, found: false })))
+const mountains = features.filter(feature => feature.type === 'mountain')
+const basins = features.filter(feature => feature.type === 'basin')
+const rivers = features.filter(feature => feature.type === 'river')
+const hills = features.filter(feature => feature.type === 'hill')
+const plains = features.filter(feature => feature.type === 'plain')
 
 const filterTypes = [
   { key: 'all', label: '全部' },
@@ -181,12 +180,86 @@ const filterTypes = [
   { key: 'rivers', label: '河流' },
   { key: 'hills', label: '丘陵' },
   { key: 'plains', label: '平原' },
-]
+] as const
 
 const activeFilter = ref<'all' | 'mountains' | 'basins' | 'rivers' | 'hills' | 'plains'>('all')
 const selectedFeature = ref<TerrainFeature | null>(null)
 const findingHint = ref('')
 const showAllMode = ref(true)
+const terrainLoadState = ref<'loading' | 'ready' | 'error'>('loading')
+const terrainLoadError = ref('')
+let terrainLoadController: AbortController | null = null
+const roundMinutes = ref(5)
+const roundResultRef = ref<HTMLDivElement | null>(null)
+const showRoundResult = ref(false)
+let resultReturnFocus: HTMLElement | null = null
+const round = useTerrainRound(finishRound)
+const { status: roundStatus, remainingMs, elapsedMs, ended: roundEnded } = round
+const clockText = computed(() => formatRoundTime(roundStatus.value === 'ready' ? roundMinutes.value * 60_000 : roundEnded.value ? elapsedMs.value : remainingMs.value))
+const timeIsUrgent = computed(() => roundStatus.value === 'running' && remainingMs.value <= 30_000)
+let roundTimer: ReturnType<typeof setInterval> | null = null
+let disposed = false
+
+function stopRoundTimer() {
+  if (roundTimer !== null) clearInterval(roundTimer)
+  roundTimer = null
+}
+
+function openRoundResult() {
+  if (!roundEnded.value || showRoundResult.value) return
+  resultReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  showRoundResult.value = true
+  void nextTick(() => roundResultRef.value?.querySelector<HTMLButtonElement>('.result-primary')?.focus())
+}
+
+function closeRoundResult() {
+  showRoundResult.value = false
+  void nextTick(() => {
+    if (!disposed && resultReturnFocus?.isConnected) resultReturnFocus.focus()
+  })
+}
+
+function onResultKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeRoundResult()
+  } else if (event.key === 'Tab') {
+    const buttons = roundResultRef.value?.querySelectorAll<HTMLButtonElement>('button')
+    if (!buttons?.length) return
+    const first = buttons[0]!
+    const last = buttons[buttons.length - 1]!
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+}
+
+function clearTransientFeedback() {
+  if (feedbackTimer) clearTimeout(feedbackTimer)
+  if (wrongFlashTimer) clearTimeout(wrongFlashTimer)
+  feedbackTimer = null
+  wrongFlashTimer = null
+}
+
+function finishRound(result: RoundResult) {
+  stopRoundTimer()
+  clearTransientFeedback()
+  selectedFeature.value = null
+  allFeatures.value.forEach(feature => setAnswerZoneState(feature, feature.found ? 'found' : 'idle'))
+  findingHint.value = result === 'won'
+    ? `✅ 全部答对！已找到 ${totalTerrainCount} 个地形，用时 ${formatRoundTime(elapsedMs.value)}`
+    : `❌ 时间到！本轮已找到 ${foundTotal.value}/${totalTerrainCount} 个地形，点击“重新开始”再挑战`
+  void nextTick(() => { if (!disposed) openRoundResult() })
+}
+
+function checkRoundDeadline() {
+  round.tick()
+  return !roundEnded.value
+}
 
 const allFeatures = computed(() => [...mountains, ...basins, ...rivers, ...hills, ...plains])
 const filteredFeatures = computed(() => {
@@ -228,6 +301,7 @@ const foundTotal = computed(() => foundCount.value.mountains + foundCount.value.
 const progressPercent = computed(() => totalTerrainCount ? (foundTotal.value / totalTerrainCount) * 100 : 0)
 
 const mapHintState = computed(() => {
+  if (terrainLoadState.value === 'error') return 'error'
   if (findingHint.value.startsWith('✅')) return 'success'
   if (findingHint.value.startsWith('❌')) return 'error'
   if (selectedFeature.value) return 'active'
@@ -242,77 +316,8 @@ function getTerrainEmoji(type: TerrainFeature['type']) {
   return '▰'
 }
 
-// ==================== 路径精细化 ====================
-function catmullRomPath(points: [number, number][], subdivisions = 6): [number, number][] {
-  if (points.length < 3) return points.map(p => [...p] as [number, number])
-  const result: [number, number][] = []
-
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[Math.max(0, i - 1)]!
-    const p1 = points[i]!
-    const p2 = points[i + 1]!
-    const p3 = points[Math.min(points.length - 1, i + 2)]!
-
-    for (let step = 0; step < subdivisions; step++) {
-      const t = step / subdivisions
-      const t2 = t * t
-      const t3 = t2 * t
-      const lat = 0.5 * (
-        2 * p1[0] +
-        (-p0[0] + p2[0]) * t +
-        (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 +
-        (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3
-      )
-      const lon = 0.5 * (
-        2 * p1[1] +
-        (-p0[1] + p2[1]) * t +
-        (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 +
-        (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3
-      )
-      result.push([lat, lon])
-    }
-  }
-
-  result.push([...points[points.length - 1]!] as [number, number])
-  return result
-}
-
-function chaikinClosed(points: [number, number][], iterations = 2): [number, number][] {
-  if (points.length < 3) return points.map(p => [...p] as [number, number])
-  let current = points.map(p => [...p] as [number, number])
-
-  for (let round = 0; round < iterations; round++) {
-    const next: [number, number][] = []
-    for (let i = 0; i < current.length; i++) {
-      const p = current[i]!
-      const q = current[(i + 1) % current.length]!
-      next.push([
-        p[0] * 0.75 + q[0] * 0.25,
-        p[1] * 0.75 + q[1] * 0.25,
-      ])
-      next.push([
-        p[0] * 0.25 + q[0] * 0.75,
-        p[1] * 0.25 + q[1] * 0.75,
-      ])
-    }
-    current = next
-  }
-
-  return current
-}
-
-function getMountainPath(feature: TerrainFeature) {
-  return catmullRomPath(feature.extent || [], 7)
-}
-
-function getRiverPath(feature: TerrainFeature) {
-  return catmullRomPath(feature.path || [], 8)
-}
-
-function getBasinArea(feature: TerrainFeature) {
-  return chaikinClosed(feature.area || [], 2)
-}
-
+// Preserve source vertices. Interpolation must not move a ridge, river bend,
+// coastline or regional boundary. Separate parts remain separate geometries.
 // ==================== Leaflet ====================
 const ARCGIS_TILE_URL = '/geo-resources-folder/tiles/arcgis-tiles/{z}/{x}/{y}.png'
 let leafletMap: L.Map | null = null
@@ -325,10 +330,83 @@ let feedbackTimer: ReturnType<typeof setTimeout> | null = null
 
 const answerZoneLayers: Record<string, TerrainAnswerLayer> = {}
 const detailLayers: Record<string, L.Layer[]> = {}
+const mountainSymbolLayers: Record<string, L.Polygon> = {}
+const hillSymbolLayers: Record<string, L.Polygon> = {}
+const hillPatternPaths: Record<string, SVGPathElement> = {}
 const foundLabelLayers: Record<string, L.Marker> = {}
+let hillPatternId = ''
+
+/** Space peak symbols in screen pixels while retaining the geographic ridge axis. */
+function mountainSymbols(feature: TerrainFeature): L.LatLng[][] {
+  if (!leafletMap) return []
+  const map = leafletMap
+  const viewport = map.getPixelBounds()
+  const visible = L.bounds(viewport.min!.subtract([24, 24]), viewport.max!.add([24, 24]))
+  const symbols: L.LatLng[][] = []
+  for (const line of feature.lines || []) {
+    const points = line.map(point => map.project(point))
+    const lengths = points.slice(1).map((point, index) => point.distanceTo(points[index]!))
+    const total = lengths.reduce((sum, length) => sum + length, 0)
+    if (!total) continue
+    const count = Math.max(1, Math.floor(total / 20))
+    const spacing = total / count
+    let segment = 0
+    let walked = 0
+    for (let index = 0; index < count; index++) {
+      const distance = (index + 0.5) * spacing
+      while (segment < lengths.length - 1 && walked + lengths[segment]! < distance) {
+        walked += lengths[segment++]!
+      }
+      const a = points[segment]!, b = points[segment + 1]!
+      const length = lengths[segment]!
+      if (!length) continue
+      const center = a.add(b.subtract(a).multiplyBy((distance - walked) / length))
+      if (!visible.contains(center)) continue
+      // Keep peaks on the upper side of the axis, independent of coordinate order.
+      let tangent = b.subtract(a).divideBy(length)
+      if (tangent.x < 0 || (tangent.x === 0 && tangent.y < 0)) tangent = tangent.multiplyBy(-1)
+      const normal = L.point(tangent.y, -tangent.x)
+      // Small peaks such as Wuzhishan need a readable icon at national scale.
+      // Enlarge the symbol only; the ridge coordinates and answer zone stay unchanged.
+      const scale = total < 20 ? 1.3 : 1
+      const outline = [[-7, -1.5], [-2, 6], [1, 1.5], [3.5, 4.5], [7, -1.5]]
+      symbols.push(outline.map(([x, y]) => map.unproject(center.add(tangent.multiplyBy(x! * scale)).add(normal.multiplyBy(y! * scale)))))
+    }
+  }
+  return symbols
+}
+
+function refreshMountainSymbols() {
+  mountains.forEach(feature => mountainSymbolLayers[feature.name]?.setLatLngs(mountainSymbols(feature)))
+}
+
+/** Only mound strokes are visible; the geographic polygons clip symbols and retain holes. */
+function installHillPattern(layer: L.Path, feature: TerrainFeature) {
+  const svg = layer.getElement()?.closest('svg')
+  const patternId = `${hillPatternId}-${L.Util.stamp(layer)}`
+  if (!svg || svg.querySelector(`#${patternId}`)) return
+  const ns = 'http://www.w3.org/2000/svg'
+  const defs = document.createElementNS(ns, 'defs')
+  const pattern = document.createElementNS(ns, 'pattern')
+  pattern.setAttribute('id', patternId)
+  pattern.setAttribute('patternUnits', 'userSpaceOnUse')
+  pattern.setAttribute('width', '28')
+  pattern.setAttribute('height', '24')
+  const mounds = document.createElementNS(ns, 'path')
+  mounds.setAttribute('d', 'M2 9 Q7 0 12 9 M16 21 Q21 12 26 21')
+  mounds.setAttribute('fill', 'none')
+  mounds.setAttribute('stroke', '#a855f7')
+  mounds.setAttribute('stroke-width', '1.6')
+  mounds.setAttribute('stroke-linecap', 'round')
+  pattern.append(mounds)
+  defs.append(pattern)
+  svg.prepend(defs)
+  hillPatternPaths[feature.name] = mounds
+  layer.setStyle({ fillColor: `url(#${patternId})` })
+}
 
 function getTerrainZoneColor(feature: TerrainFeature) {
-  if (feature.type === 'mountain') return '#c2410c'
+  if (feature.type === 'mountain') return '#facc15'
   if (feature.type === 'basin') return '#d97706'
   if (feature.type === 'river') return '#0e7490'
   if (feature.type === 'hill') return '#7c3aed'
@@ -336,10 +414,10 @@ function getTerrainZoneColor(feature: TerrainFeature) {
 }
 
 function getTerrainDetailColor(feature: TerrainFeature) {
-  if (feature.type === 'mountain') return '#fed7aa'
+  if (feature.type === 'mountain') return '#fef9c3'
   if (feature.type === 'basin') return '#fde68a'
   if (feature.type === 'river') return '#67e8f9'
-  if (feature.type === 'hill') return '#c4b5fd'
+  if (feature.type === 'hill') return '#a855f7'
   return '#bbf7d0'
 }
 
@@ -349,13 +427,14 @@ async function loadChinaOutline() {
     const res = await fetch('/geo-resources-folder/geojson/中国矢量数据/中国轮廓线.geojson')
     if (!res.ok) return
     const data = await res.json()
+    if (!leafletMap) return
     chinaOutlineLayer = L.geoJSON(data, {
       pane: 'outline-pane',
       style: {
-        color: '#2ec4b6',
+        color: '#ef4444',
         weight: 2.4,
         opacity: 0.88,
-        fillColor: '#2ec4b6',
+        fillColor: '#ef4444',
         fillOpacity: 0.025,
       },
       interactive: false,
@@ -366,11 +445,53 @@ async function loadChinaOutline() {
   }
 }
 
+async function loadTerrainData() {
+  if (!leafletMap || disposed || terrainLoadController || terrainLoadState.value === 'ready') return
+  terrainLoadState.value = 'loading'
+  terrainLoadError.value = ''
+  const controller = new AbortController()
+  terrainLoadController = controller
+  const timeout = setTimeout(() => controller.abort(), 15000)
+  try {
+    const [riverData, plainData, ...namedRiverData] = await Promise.all([
+      { url: RIVER_DATA_URL, name: '河流' }, { url: PLAINS_DATA_URL, name: '平原' }, ...NAMED_RIVER_DATA,
+    ].map(async ({ url, name }) => {
+      const response = await fetch(url, { signal: controller.signal })
+      if (!response.ok) throw new Error(`${name} HTTP ${response.status}`)
+      return response.json() as Promise<unknown>
+    }))
+    if (disposed || !leafletMap) return
+    const nextRivers = rivers.map(river => ({ ...river }))
+    const nextPlains = plains.map(plain => ({ ...plain }))
+    applyRiverGeometry(nextRivers.filter(river => !NAMED_RIVER_DATA.some(source => source.name === river.name)), riverData)
+    NAMED_RIVER_DATA.forEach((source, index) => {
+      applyNamedRiverGeometry(nextRivers.find(river => river.name === source.name)!, namedRiverData[index])
+    })
+    applyPlainGeometry(nextPlains, plainData)
+    rivers.forEach((river, index) => Object.assign(river, nextRivers[index]))
+    plains.forEach((plain, index) => Object.assign(plain, nextPlains[index]))
+    addTerrainAnswerZones()
+    toggleShowAll(showAllMode.value)
+    terrainLoadState.value = 'ready'
+  } catch (error) {
+    if (disposed) return
+    terrainLoadState.value = 'error'
+    terrainLoadError.value = controller.signal.aborted
+      ? '地形数据加载超时，请重新加载'
+      : `地形数据加载失败，请重新加载（${error instanceof Error ? error.message : '网络异常'}）`
+  } finally {
+    clearTimeout(timeout)
+    controller.abort()
+    terrainLoadController = null
+  }
+}
+
 async function initScene() {
   const container = leafletContainerRef.value
   if (!container) return
 
   leafletMap = L.map(container, {
+    crs: L.CRS.EPSG3857,
     center: [35, 105],
     zoom: 4,
     minZoom: 3,
@@ -382,9 +503,10 @@ async function initScene() {
     markerZoomAnimation: false,
     preferCanvas: false,
   })
+  hillPatternId = `terrain-hills-${L.Util.stamp(leafletMap)}`
 
   const outlinePane = leafletMap.createPane('outline-pane')
-  outlinePane.style.zIndex = '430'
+  outlinePane.style.zIndex = '540'
   outlinePane.style.pointerEvents = 'none'
 
   const areaPane = leafletMap.createPane('terrain-area-pane')
@@ -396,6 +518,10 @@ async function initScene() {
   const detailPane = leafletMap.createPane('terrain-detail-pane')
   detailPane.style.zIndex = '530'
   detailPane.style.pointerEvents = 'none'
+
+  // 山脉连线和山形符号置于丘陵纹样上方，缩小地图时仍能清楚识别山脉。
+  const mountainPane = leafletMap.createPane('terrain-mountain-pane')
+  mountainPane.style.zIndex = '535'
 
   const labelPane = leafletMap.createPane('terrain-label-pane')
   labelPane.style.zIndex = '650'
@@ -409,8 +535,7 @@ async function initScene() {
     noWrap: true,
   }).addTo(leafletMap)
 
-  await loadChinaOutline()
-  addTerrainAnswerZones()
+  void loadChinaOutline()
 
   const ApprovalControl = L.Control.extend({
     onAdd() {
@@ -424,31 +549,46 @@ async function initScene() {
   L.control.scale({ imperial: false, position: 'bottomright' }).addTo(leafletMap)
 
   leafletMap.on('click', onMapBlankClick)
+  leafletMap.on('zoomend moveend', refreshMountainSymbols)
 
   resizeObserver = new ResizeObserver(() => scheduleSceneResize())
   resizeObserver.observe(container)
   scheduleSceneResize(0)
+  await loadTerrainData()
 }
 
 function setAnswerZoneState(feature: TerrainFeature, state: 'idle' | 'hover' | 'found' | 'wrong') {
   const layer = answerZoneLayers[feature.name]
   if (!layer) return
 
-  if (feature.type === 'basin' || feature.type === 'hill' || feature.type === 'plain') {
+  if (feature.type === 'hill') {
+    layer.setStyle({ weight: 0, opacity: 0, fillOpacity: 0 })
+    hillSymbolLayers[feature.name]?.setStyle({ fillOpacity: state === 'idle' ? 0.95 : 1 })
+    hillPatternPaths[feature.name]?.setAttribute('stroke', state === 'wrong' ? '#f87171' : state === 'idle' ? '#a855f7' : '#c084fc')
+    return
+  }
+
+  if (feature.type === 'basin' || feature.type === 'plain') {
     const color = state === 'wrong' ? '#ef4444' : getTerrainZoneColor(feature)
     layer.setStyle({
       color,
       weight: state === 'found' ? 3.2 : state === 'hover' ? 3 : 2.4,
       opacity: state === 'wrong' ? 1 : state === 'found' ? 1 : state === 'hover' ? 0.98 : 0.92,
       fillColor: color,
-      fillOpacity: state === 'wrong' ? 0.72 : state === 'found' ? 0.72 : state === 'hover' ? 0.64 : 0.52,
+      fillOpacity: state === 'wrong' ? 0.38 : state === 'found' ? 0.36 : state === 'hover' ? 0.3 : 0.16,
       dashArray: '',
     })
     return
   }
 
   const color = state === 'wrong' ? '#ef4444' : getTerrainZoneColor(feature)
-  const baseWeight = feature.type === 'mountain' ? 11 : 10
+  const baseWeight = feature.type === 'mountain' ? 1.8 : 3
+  mountainSymbolLayers[feature.name]?.setStyle({
+    fillColor: color,
+    color: state === 'wrong' ? '#fecaca' : '#fef9c3',
+    fillOpacity: state === 'hover' || state === 'found' ? 1 : 0.94,
+    weight: state === 'hover' || state === 'found' ? 1.2 : 0.8,
+  })
   layer.setStyle({
     color,
     weight: state === 'found' ? baseWeight + 2 : state === 'hover' ? baseWeight + 1 : baseWeight,
@@ -465,12 +605,12 @@ function addTerrainAnswerZones() {
     let answerLayer: TerrainAnswerLayer | null = null
     const detail: L.Layer[] = []
 
-    if (feature.type === 'mountain' && (feature.extent?.length || 0) >= 2) {
-      const coords = getMountainPath(feature)
+    if (feature.type === 'mountain' && feature.lines?.length) {
+      const coords = feature.lines
       answerLayer = L.polyline(coords, {
-        pane: 'terrain-zone-pane',
+        pane: 'terrain-mountain-pane',
         color: getTerrainZoneColor(feature),
-        weight: 11,
+        weight: 1.8,
         opacity: 0.88,
         smoothFactor: 0,
         lineCap: 'round',
@@ -478,49 +618,58 @@ function addTerrainAnswerZones() {
         interactive: true,
         bubblingMouseEvents: false,
       })
-      detail.push(L.polyline(coords, {
-        pane: 'terrain-detail-pane',
+      const symbols = L.polygon(mountainSymbols(feature), {
+        pane: 'terrain-mountain-pane',
         color: getTerrainDetailColor(feature),
-        weight: 2.2,
-        opacity: 0.72,
+        weight: 0.8,
+        opacity: 1,
+        fillColor: getTerrainZoneColor(feature),
+        fillOpacity: 0.94,
         smoothFactor: 0,
-        dashArray: '6 5',
         lineCap: 'round',
         lineJoin: 'round',
         interactive: false,
-      }))
+      })
+      mountainSymbolLayers[feature.name] = symbols
+      detail.push(symbols)
     }
 
-    if ((feature.type === 'basin' || feature.type === 'hill' || feature.type === 'plain') && (feature.area?.length || 0) >= 3) {
-      const area = getBasinArea(feature)
+    if (feature.polygons?.length) {
+      const area = feature.polygons
       answerLayer = L.polygon(area, {
         pane: 'terrain-area-pane',
         color: getTerrainZoneColor(feature),
-        weight: 2.4,
-        opacity: 0.92,
+        weight: feature.type === 'hill' ? 0 : 2.4,
+        opacity: feature.type === 'hill' ? 0 : 0.92,
         fillColor: getTerrainZoneColor(feature),
-        fillOpacity: 0.52,
+        fillOpacity: feature.type === 'hill' ? 0 : 0.16,
         smoothFactor: 0,
         interactive: true,
         bubblingMouseEvents: false,
       })
-      detail.push(L.polygon(area, {
+      const areaDetail = L.polygon(area, {
         pane: 'terrain-detail-pane',
         color: getTerrainDetailColor(feature),
-        weight: 1.2,
-        opacity: 0.68,
-        fillOpacity: 0,
+        weight: feature.type === 'hill' ? 0 : 1.2,
+        opacity: feature.type === 'hill' ? 0 : 0.68,
+        fillColor: getTerrainDetailColor(feature),
+        fillOpacity: feature.type === 'hill' ? 0.8 : 0,
         smoothFactor: 0,
         interactive: false,
-      }))
+      })
+      if (feature.type === 'hill') {
+        hillSymbolLayers[feature.name] = areaDetail
+        areaDetail.on('add', () => installHillPattern(areaDetail, feature))
+      }
+      detail.push(areaDetail)
     }
 
-    if (feature.type === 'river' && (feature.path?.length || 0) >= 2) {
-      const coords = getRiverPath(feature)
+    if (feature.type === 'river' && feature.lines?.length) {
+      const coords = feature.lines
       answerLayer = L.polyline(coords, {
         pane: 'terrain-zone-pane',
         color: '#0e7490',
-        weight: 10,
+        weight: 3,
         opacity: 0.9,
         smoothFactor: 0,
         lineCap: 'round',
@@ -531,7 +680,7 @@ function addTerrainAnswerZones() {
       detail.push(L.polyline(coords, {
         pane: 'terrain-detail-pane',
         color: '#67e8f9',
-        weight: 3.4,
+        weight: 1.2,
         opacity: 0.95,
         smoothFactor: 0,
         lineCap: 'round',
@@ -545,7 +694,7 @@ function addTerrainAnswerZones() {
     answerZoneLayers[feature.name] = answerLayer
     detailLayers[feature.name] = detail
 
-    answerLayer.on('click', () => handleTerrainZoneClick(feature))
+    answerLayer.on('click', (event: L.LeafletMouseEvent) => handleTerrainZoneClick(feature, event.latlng))
     answerLayer.on('mouseover', () => {
       if (!feature.found) setAnswerZoneState(feature, 'hover')
     })
@@ -561,6 +710,11 @@ function addTerrainAnswerZones() {
 }
 
 function selectFeature(feature: TerrainFeature) {
+  if (terrainLoadState.value !== 'ready' || !leafletMap || !checkRoundDeadline()) return
+  if (roundStatus.value === 'ready') {
+    round.start(roundMinutes.value * 60)
+    roundTimer = setInterval(round.tick, 250)
+  }
   if (feature.found) {
     findingHint.value = `✅ 「${feature.name}」已经找到，可继续选择其他地形`
     clearFeedbackLater(1600)
@@ -571,16 +725,27 @@ function selectFeature(feature: TerrainFeature) {
   findingHint.value = `请在地图中点击「${feature.name}」对应的${feature.type === 'basin' || feature.type === 'hill' || feature.type === 'plain' ? '地形范围' : '地形走向'}`
 }
 
-function onMapBlankClick() {
+function hitsSelected(latlng: L.LatLng) {
+  const feature = selectedFeature.value
+  return !!feature && !!leafletMap && hitsTerrain(feature, [latlng.lat, latlng.lng], point => leafletMap!.latLngToLayerPoint(point))
+}
+
+function onMapBlankClick(event: L.LeafletMouseEvent) {
+  if (terrainLoadState.value !== 'ready' || !checkRoundDeadline()) return
+  if (hitsSelected(event.latlng)) {
+    handleTerrainZoneClick(selectedFeature.value!, event.latlng)
+    return
+  }
   if (!selectedFeature.value) {
     findingHint.value = '请先从下方题库选择一个地形名称'
     clearFeedbackLater(1500)
     return
   }
-  findingHint.value = `❌ 请直接点击地图中的地形色带或填充区域来寻找「${selectedFeature.value.name}」`
+  findingHint.value = `❌ 这里不在「${selectedFeature.value.name}」的判读范围内，请再观察位置和走向`
 }
 
-function handleTerrainZoneClick(clicked: TerrainFeature) {
+function handleTerrainZoneClick(clicked: TerrainFeature, latlng: L.LatLng) {
+  if (!checkRoundDeadline()) return
   const target = selectedFeature.value
 
   if (!target) {
@@ -589,7 +754,8 @@ function handleTerrainZoneClick(clicked: TerrainFeature) {
     return
   }
 
-  if (clicked.name !== target.name) {
+  // Prefer the selected answer where landform regions naturally overlap.
+  if (clicked.name !== target.name && !hitsSelected(latlng)) {
     findingHint.value = `❌ 这里不是「${target.name}」，再观察一下走向和位置`
     if (wrongFlashTimer) clearTimeout(wrongFlashTimer)
     setAnswerZoneState(clicked, 'wrong')
@@ -600,9 +766,13 @@ function handleTerrainZoneClick(clicked: TerrainFeature) {
     return
   }
 
-  target.found = true
-  setAnswerZoneState(target, 'found')
-  addFoundLabel(target)
+  const accepted = round.recordCorrect(() => {
+    target.found = true
+    setAnswerZoneState(target, 'found')
+    addFoundLabel(target)
+    return foundTotal.value === totalTerrainCount
+  })
+  if (!accepted || roundEnded.value) return
   findingHint.value = `✅ 正确！「${target.name}」已找到`
   selectedFeature.value = null
   clearFeedbackLater(2100)
@@ -621,7 +791,7 @@ function addFoundLabel(feature: TerrainFeature) {
     iconAnchor: [70, 17],
   })
 
-  const marker = L.marker([feature.lat, feature.lon], {
+  const marker = L.marker(feature.label, {
     pane: 'terrain-label-pane',
     icon,
     interactive: false,
@@ -655,6 +825,10 @@ function toggleShowAll(on: boolean) {
 }
 
 function resetGame() {
+  stopRoundTimer()
+  clearTransientFeedback()
+  closeRoundResult()
+  round.reset()
   mountains.forEach(item => { item.found = false })
   basins.forEach(item => { item.found = false })
   rivers.forEach(item => { item.found = false })
@@ -672,7 +846,7 @@ function resetGame() {
 function clearFeedbackLater(delay: number) {
   if (feedbackTimer) clearTimeout(feedbackTimer)
   feedbackTimer = setTimeout(() => {
-    if (!selectedFeature.value) findingHint.value = ''
+    if (!selectedFeature.value && !roundEnded.value) findingHint.value = ''
     feedbackTimer = null
   }, delay)
 }
@@ -686,11 +860,18 @@ function scheduleSceneResize(delay = 80) {
 }
 
 onMounted(async () => {
+  document.addEventListener('visibilitychange', round.tick)
+  window.addEventListener('focus', round.tick)
   await nextTick()
   await initScene()
 })
 
 onBeforeUnmount(() => {
+  disposed = true
+  terrainLoadController?.abort()
+  stopRoundTimer()
+  document.removeEventListener('visibilitychange', round.tick)
+  window.removeEventListener('focus', round.tick)
   if (resizeTimer) clearTimeout(resizeTimer)
   if (wrongFlashTimer) clearTimeout(wrongFlashTimer)
   if (feedbackTimer) clearTimeout(feedbackTimer)
@@ -702,6 +883,7 @@ onBeforeUnmount(() => {
   Object.values(foundLabelLayers).forEach(layer => layer.remove())
 
   leafletMap?.off('click', onMapBlankClick)
+  leafletMap?.off('zoomend moveend', refreshMountainSymbols)
   chinaOutlineLayer?.remove()
   tileLayer?.remove()
   leafletMap?.remove()
@@ -712,6 +894,226 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.page-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 6000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 14, 28, .88);
+  backdrop-filter: blur(8px);
+}
+
+.page-loading-card {
+  width: min(420px, 100%);
+  padding: 36px 28px;
+  border: 1px solid #334155;
+  border-radius: 18px;
+  background: #0f172a;
+  color: #e2e8f0;
+  text-align: center;
+  box-shadow: 0 24px 80px #0006;
+}
+
+.page-loading-card h2 { margin: 20px 0 10px; font-size: 20px; }
+.page-loading-card p { margin: 0; color: #94a3b8; font-size: 14px; line-height: 1.7; }
+.page-loading-card button { margin-top: 24px; padding: 10px 24px; cursor: pointer; }
+.page-loading-spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 3px solid #23374b;
+  border-top-color: #2dd4bf;
+  border-radius: 50%;
+  animation: terrain-loading-spin .85s linear infinite;
+}
+.page-loading-error { font-size: 36px; font-weight: 700; color: #fb923c; }
+@keyframes terrain-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .page-loading-spinner { animation: none; } }
+
+.round-clock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.round-clock label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.round-clock select {
+  border: 1px solid #475569;
+  border-radius: 6px;
+  padding: 4px;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.round-clock strong {
+  color: #5eead4;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.round-clock.urgent strong,
+.round-warning {
+  color: #fca5a5;
+}
+
+.round-note,
+.round-warning {
+  font-size: 11px;
+}
+
+.round-note {
+  color: #94a3b8;
+}
+
+.round-result {
+  width: min(440px, calc(100vw - 32px));
+  box-sizing: border-box;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 30px;
+  border: 1px solid #475569;
+  border-radius: 20px;
+  color: #e2e8f0;
+  background: #0f172a;
+  text-align: center;
+  box-shadow: 0 24px 80px #0009;
+}
+
+.round-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  background: #020617b8;
+  backdrop-filter: blur(5px);
+}
+
+.result-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  font-size: 34px;
+  background: #78350f66;
+}
+
+.result-icon.won {
+  color: #5eead4;
+  background: #0f766e55;
+}
+
+.round-result h2 {
+  margin: 0 0 12px;
+  font-size: 23px;
+  color: #f8fafc;
+}
+
+.round-result p {
+  margin: 0;
+  color: #94a3b8;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.result-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.result-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 8px;
+  border-radius: 10px;
+  background: #1e293b;
+}
+
+.result-stats span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.result-stats strong {
+  color: #5eead4;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.result-actions button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 9px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.result-primary {
+  border: 1px solid #2dd4bf;
+  background: #2dd4bf;
+  color: #042f2e;
+}
+
+.result-secondary {
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+.terrain-chip:disabled {
+  cursor: default;
+}
+
+.terrain-chip:disabled:hover {
+  transform: none;
+}
+
+@media (max-width: 680px) {
+  .round-clock {
+    gap: 4px;
+  }
+
+  .round-clock>span {
+    display: none;
+  }
+
+  .round-clock strong {
+    font-size: 16px;
+  }
+
+  .round-result {
+    padding: 22px;
+  }
+
+  .find-terrain-container .page-subtitle {
+    display: none;
+  }
+}
+
 .find-terrain-container {
   position: relative;
   width: 100%;
@@ -799,6 +1201,10 @@ onBeforeUnmount(() => {
 
 .mission-box {
   display: flex;
+  width: fit-content;
+  max-width: min(640px, 100%);
+  justify-self: start;
+  align-self: start;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -864,13 +1270,12 @@ onBeforeUnmount(() => {
 }
 
 .mission-copy strong {
-  overflow: hidden;
   color: #f8fafc;
   font-size: 15px;
   line-height: 1.35;
   font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 
@@ -935,6 +1340,14 @@ onBeforeUnmount(() => {
 .zone-toggle.active .toggle-light {
   background: #2ec4b6;
   box-shadow: 0 0 8px rgba(46, 196, 182, .8);
+}
+
+.progress-panel {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  gap: 8px;
+  min-width: 0;
 }
 
 .progress-box {
@@ -1002,7 +1415,7 @@ onBeforeUnmount(() => {
 }
 
 .legend-dot.mountain {
-  background: #c2410c;
+  background: #facc15;
 }
 
 .legend-dot.basin {
@@ -1032,6 +1445,20 @@ onBeforeUnmount(() => {
   gap: 9px;
   padding: 10px 12px 11px;
   border-radius: 16px;
+}
+
+.terrain-scope-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(251, 191, 36, .5);
+  border-left: 3px solid #fbbf24;
+  border-radius: 10px;
+  background: rgba(40, 30, 12, .94);
+  color: #fef3c7;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .24);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.6;
 }
 
 .dock-head {
@@ -1123,9 +1550,13 @@ onBeforeUnmount(() => {
   border-radius: 999px;
 }
 
-.legend-line.mountain {
-  background: #c2410c;
-  box-shadow: inset 0 0 0 1px rgba(254, 215, 170, .35);
+.legend-mountain {
+  width: 26px;
+  height: 16px;
+  fill: #facc15;
+  stroke: #fef9c3;
+  stroke-width: 1;
+  stroke-linejoin: round;
 }
 
 .legend-line.river {
@@ -1144,9 +1575,13 @@ onBeforeUnmount(() => {
   border: 1px solid #fde68a;
 }
 
-.legend-area.hill {
-  background: rgba(124, 58, 237, .78);
-  border: 1px solid #c4b5fd;
+.legend-hill {
+  width: 26px;
+  height: 16px;
+  fill: none;
+  stroke: #a855f7;
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 .legend-area.plain {
@@ -1197,7 +1632,7 @@ onBeforeUnmount(() => {
 }
 
 .terrain-chip.mountain {
-  --chip-color: #fb923c;
+  --chip-color: #facc15;
 }
 
 .terrain-chip.basin {

@@ -1,5 +1,6 @@
 <template>
-  <div class="frontal-section-page geo-template-page geo-page theme-dark layout-floating">
+  <div class="frontal-section-page geo-template-page geo-page theme-dark"
+    :class="{ 'panels-visible': panelsVisible, 'panels-expanded': panelsVisible && (!leftCardCollapsed || !rightCardCollapsed), 'is-anticyclone': currentModel === 'anticyclone', 'is-map-view': displayMode === 'weatherMap' }">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -15,230 +16,280 @@
           重置模型
         </button>
 
-        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn"
-          :aria-pressed="panelsVisible" @click="togglePanelsVisibility">
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :aria-pressed="panelsVisible"
+          @click="togglePanelsVisibility">
           {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
       </div>
     </header>
 
     <main class="workspace">
-      <div v-show="panelsVisible" id="frontal-right-panel-stack" class="right-panel-stack"></div>
-
       <Teleport defer to="#frontal-right-panel-stack">
-      <FloatingFeatureCard v-model:collapsed="leftCardCollapsed" title="控制面板" subtitle="切换系统与图层"
-        variant="data" :initial-right="400" :initial-top="82" :bottom-inset="132" :min-width="310"
-        :min-height="360" :resizable="false" class="frontal-floating-card control-floating-card">
-        <div class="floating-control-content">
+        <FloatingFeatureCard v-model:collapsed="leftCardCollapsed" title="控制面板" subtitle="切换系统与图层" variant="data"
+          :initial-right="18" :initial-top="142" :bottom-inset="12" :min-width="260" :min-height="220" :resizable="true"
+          :draggable="true" class="frontal-floating-card control-floating-card">
+          <div class="floating-control-content">
 
-          <section class="geo-card control-section">
-            <h3 class="section-title">
-              系统类型
-            </h3>
+            <section class="geo-card control-section">
+              <h3 class="section-title">
+                系统类型
+              </h3>
 
-            <div class="model-option-grid">
-              <button v-for="item in modelOptions" :key="item.value" type="button"
-                class="theme-btn option-btn model-option-btn" :class="{ active: currentModel === item.value }"
-                @click="selectModel(item.value)">
-                <span class="model-option-symbol" :class="item.value">
-                  {{ item.symbol }}
-                </span>
-
-                <span>
-                  {{ item.label }}
-                </span>
-              </button>
-            </div>
-          </section>
-
-          <section v-if="isVortexModel" class="geo-card control-section hemisphere-card">
-            <h3 class="section-title">
-              所在半球
-            </h3>
-
-            <div class="hemisphere-option-grid">
-              <button v-for="item in hemisphereOptions" :key="item.value" type="button" class="theme-btn option-btn"
-                :class="{ active: hemisphere === item.value }" @click="hemisphere = item.value">
-                {{ item.label }}
-              </button>
-            </div>
-
-            <p class="hemisphere-tip">
-              {{
-                currentModel === 'cyclone'
-                  ? '气旋：北半球逆时针辐合，南半球顺时针辐合。'
-                  : '反气旋：北半球顺时针辐散，南半球逆时针辐散。'
-              }}
-            </p>
-          </section>
-
-          <section class="geo-card control-section">
-            <h3 class="section-title">
-              图层显示
-            </h3>
-
-            <div class="layer-control-list">
-              <div v-for="item in layerOptions" :key="item.key" class="switch-row">
-                <div class="control-copy">
-                  <strong>
-                    {{ item.label }}
-                  </strong>
+              <div class="model-option-grid" role="group" aria-label="系统类型">
+                <button v-for="item in modelOptions" :key="item.value" type="button"
+                  class="theme-btn option-btn model-option-btn" :class="{ active: currentModel === item.value }"
+                  :aria-pressed="currentModel === item.value" @click="selectModel(item.value)">
+                  <span class="model-option-symbol" :class="item.value">
+                    {{ item.symbol }}
+                  </span>
 
                   <span>
-                    {{ item.description }}
+                    {{ item.label }}
                   </span>
-                </div>
-
-                <el-switch v-model="layers[item.key]" />
+                </button>
               </div>
-            </div>
-          </section>
-        </div>
-      </FloatingFeatureCard>
+            </section>
+
+            <section v-if="isVortexModel" class="geo-card control-section hemisphere-card">
+              <h3 class="section-title">
+                所在半球
+              </h3>
+
+              <div class="hemisphere-option-grid" role="group" aria-label="所在半球">
+                <button v-for="item in hemisphereOptions" :key="item.value" type="button" class="theme-btn option-btn"
+                  :class="{ active: vortexHemisphere === item.value }" :aria-pressed="vortexHemisphere === item.value"
+                  @click="vortexHemisphere = item.value">
+                  {{ item.label }}
+                </button>
+              </div>
+
+              <p class="hemisphere-tip">
+                {{
+                  currentModel === 'anticyclone'
+                    ? '反气旋：北半球顺时针辐散，南半球逆时针辐散。'
+                    : '气旋：北半球逆时针辐合，南半球顺时针辐合。'
+                }}
+              </p>
+            </section>
+
+            <section class="geo-card control-section">
+              <h3 class="section-title">
+                图层显示
+              </h3>
+
+              <div class="layer-control-list">
+                <div v-for="item in layerOptions" :key="item.key" class="switch-row">
+                  <div class="control-copy">
+                    <strong>
+                      {{ displayMode === 'weatherMap' && item.key === 'ground' ? '地图底图' : item.label }}
+                    </strong>
+
+                    <span :id="`frontal-layer-description-${item.key}`">
+                      {{ displayMode === 'weatherMap'
+                        ? item.key === 'ground' ? '显示或隐藏地图底图'
+                          : item.key === 'front' ? '锋线、等压线与高低压中心'
+                            : item.key === 'labels' ? '气团、城市与教学注释'
+                              : item.key === 'uplift' ? '仅三维剖面显示垂直运动'
+                                : item.description
+                        : item.description }}
+                    </span>
+                  </div>
+
+                  <el-switch v-model="layers[item.key]"
+                    :aria-label="displayMode === 'weatherMap' && item.key === 'ground' ? '地图底图' : item.label"
+                    :disabled="displayMode === 'weatherMap' && item.key === 'uplift'"
+                    :aria-describedby="`frontal-layer-description-${item.key}`" />
+                </div>
+              </div>
+            </section>
+          </div>
+        </FloatingFeatureCard>
       </Teleport>
 
       <section class="center-stage">
-        <div class="view-mode-switch" aria-label="场景视角切换">
-          <button type="button" :class="{ active: displayMode === 'section3d' }"
-            @click="displayMode = 'section3d'">
-            三维剖面
-          </button>
+        <div class="stage-toolbar">
+          <div class="view-mode-switch" role="group" aria-label="场景视角切换">
+            <button type="button" :class="{ active: displayMode === 'section3d' }"
+              :aria-pressed="displayMode === 'section3d'" @click="displayMode = 'section3d'">
+              三维剖面
+            </button>
 
-          <button type="button" :class="{ active: displayMode === 'weatherMap' }"
-            @click="displayMode = 'weatherMap'">
-            地面天气图
-          </button>
-        </div>
-
-        <div ref="threeContainerRef" v-show="displayMode === 'section3d'" class="scene-host three-host"></div>
-
-        <div v-show="displayMode === 'weatherMap'" class="weather-map-view">
-          <canvas ref="weatherMapCanvasRef" class="weather-map-canvas"></canvas>
-
-          <div v-if="weatherMapStatus !== 'ready'" class="weather-map-loading">
-            <span class="scene-loading-ring"></span>
-            <strong>{{ weatherMapStatus === 'loading' ? '正在载入北大西洋影像瓦片' : '天气图底图加载失败' }}</strong>
-            <small>锋线、等压线和天气系统仍可继续演示</small>
-          </div>
-
-          <div class="weather-map-caption">
-            <small>{{ currentWeatherMapRegion.label }} · 联动天气图</small>
-            <strong>{{ currentDefinition.title }}</strong>
-          </div>
-
-          <div v-if="layers.labels" class="weather-map-cities" aria-label="城市天气观测点">
-            <button v-for="city in projectedMapCities" :key="city.id" type="button" class="weather-city-marker"
-              :class="{ active: selectedMapCityId === city.id }" :style="city.style"
-              :aria-label="`查看${city.name}天气变化`" @click="selectedMapCityId = city.id">
-              <i></i>
-              <span>{{ city.name }}</span>
+            <button type="button" :class="{ active: displayMode === 'weatherMap' }"
+              :aria-pressed="displayMode === 'weatherMap'" @click="displayMode = 'weatherMap'">
+              地面天气图
             </button>
           </div>
 
-          <div class="weather-map-legend">
-            <span><i class="map-legend-isobar"></i>等压线</span>
-            <span><i class="map-legend-cloud"></i>卫星云带</span>
-            <span v-if="isFrontModel"><i class="map-legend-cold-front"></i>冷锋</span>
-            <span v-if="isFrontModel"><i class="map-legend-warm-front"></i>暖锋</span>
-            <span><i class="map-legend-rain"></i>降水区</span>
+          <div v-if="displayMode === 'weatherMap'" class="weather-map-caption">
+            <small>{{ currentWeatherMapRegion.label }} · 教学天气图</small>
+            <strong>{{ isMovingFrontMap ? (currentModel === 'coldFront' ? '冷暖锋演变 · 观察冷锋' : '冷暖锋演变 · 观察暖锋') :
+              currentDefinition.title }}</strong>
+          </div>
+          <label v-if="displayMode === 'weatherMap' && layers.labels" class="map-city-select">
+            <span>观测城市</span>
+            <select v-model="selectedMapCityId" aria-label="观测城市">
+              <option v-for="city in currentWeatherMapRegion.cities" :key="city.id" :value="city.id">{{ city.name }}
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <div v-show="panelsVisible" id="frontal-right-panel-stack" class="right-panel-stack" role="region"
+          aria-label="系统控制与当前演示"></div>
+
+        <div class="stage-viewport">
+          <div ref="threeContainerRef" v-show="displayMode === 'section3d'" class="scene-host three-host"></div>
+
+          <div v-show="displayMode === 'weatherMap'" class="weather-map-view">
+            <canvas ref="weatherMapCanvasRef" class="weather-map-canvas"></canvas>
+
+            <div v-if="weatherMapStatus !== 'ready'" class="weather-map-loading">
+              <span class="scene-loading-ring"></span>
+              <strong>{{ weatherMapStatus === 'loading' ? '正在载入' + currentWeatherMapRegion.label + '影像瓦片' : '天气图底图加载失败'
+              }}</strong>
+              <small>锋线、等压线和天气系统仍可继续演示</small>
+            </div>
+
+            <div v-if="isMovingFrontMap && layers.labels" class="weather-air-labels" aria-label="冷暖气团分布">
+              <div v-for="air in mapAirLabels" :key="air.key" class="weather-air-label" :class="air.key"
+                :style="air.style">
+                <strong>{{ air.text }}</strong>
+                <span>{{ air.detail }}</span>
+              </div>
+            </div>
+
+            <div v-if="layers.labels" class="weather-map-cities" aria-label="城市天气观测点">
+              <button v-for="city in projectedMapCities" :key="city.id" type="button" class="weather-city-marker"
+                :class="{ active: selectedMapCityId === city.id }" :style="city.style"
+                :aria-label="`查看${city.name}天气变化`" :aria-pressed="selectedMapCityId === city.id"
+                @click="selectedMapCityId = city.id">
+                <i></i>
+                <span>{{ city.name }}</span>
+              </button>
+            </div>
+
+            <Teleport defer to="#frontal-scene-legend">
+              <div v-if="displayMode === 'weatherMap'" class="weather-map-legend">
+                <span><i class="map-legend-isobar"></i>等压线 (hPa)</span>
+                <span><i class="map-legend-cloud"></i>模拟云带</span>
+                <span v-if="isFrontModel"><i class="map-legend-cold-front"></i>冷锋</span>
+                <span v-if="isFrontModel"><i class="map-legend-warm-front"></i>暖锋</span>
+                <span><i class="map-legend-rain"></i>降水区</span>
+              </div>
+            </Teleport>
+          </div>
+
+          <div class="scene-ui-layer">
+            <div v-if="displayMode === 'section3d' && sceneStatus !== 'ready'" class="scene-status-overlay">
+              <div class="scene-status-content">
+                <span v-if="sceneStatus === 'loading'" class="scene-loading-ring"></span>
+
+                <strong>
+                  {{
+                    sceneStatus === 'loading'
+                      ? '正在构建天气系统'
+                      : '场景初始化失败'
+                  }}
+                </strong>
+
+                <p>
+                  {{
+                    sceneStatus === 'loading'
+                      ? '正在生成锋面、气旋烟流、垂直运动、云层和降水…'
+                      : sceneErrorMessage
+                  }}
+                </p>
+              </div>
+            </div>
+
+            <Teleport defer to="#frontal-scene-legend">
+              <div v-if="displayMode === 'section3d' && isFrontModel" class="scene-legend">
+                <div>
+                  <span class="legend-airflow cold-airflow"></span>
+                  冷气雾
+                </div>
+
+                <div>
+                  <span class="legend-airflow warm-airflow"></span>
+                  暖气雾
+                </div>
+
+                <div>
+                  <span class="legend-front"></span>
+                  锋面
+                </div>
+
+                <div>
+                  <span class="legend-cloud"></span>
+                  云层
+                </div>
+
+                <div>
+                  <span class="legend-rain"></span>
+                  降水
+                </div>
+
+                <div>
+                  <el-icon class="legend-lightning">
+                    <Lightning />
+                  </el-icon>
+                  雷电
+                </div>
+              </div>
+
+              <div v-else-if="displayMode === 'section3d'" class="scene-legend vortex-legend">
+                <div>
+                  <span class="legend-smoke-stream"></span>
+                  螺旋风带
+                </div>
+
+                <div v-if="currentModel === 'anticyclone'">
+                  <span class="legend-vertical-flow"></span>
+                  中心下沉
+                </div>
+
+                <template v-else>
+                  <div>
+                    <span class="legend-vertical-flow legend-eyewall-flow"></span>
+                    眼墙上升
+                  </div>
+                  <div>
+                    <span class="legend-vertical-flow legend-eye-flow"></span>
+                    眼内下沉
+                  </div>
+                </template>
+
+                <div>
+                  <span class="legend-pressure-ring"></span>
+                  等压环 (hPa)
+                </div>
+
+                <div>
+                  <span class="legend-cloud"></span>
+                  云层
+                </div>
+
+                <div>
+                  <span class="legend-rain"></span>
+                  降水
+                </div>
+              </div>
+            </Teleport>
+
+            <div v-if="displayMode === 'section3d'" class="labels-overlay">
+              <div v-for="item in screenLabels" :key="item.key"
+                v-show="item.visible && layers.labels && shouldShowSceneLabel(item)" class="scene-label"
+                :class="item.className" :style="{
+                  left: item.x + 'px',
+                  top: item.y + 'px',
+                }">
+                {{ item.text }}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="scene-ui-layer">
-          <div v-if="displayMode === 'section3d' && sceneStatus !== 'ready'" class="scene-status-overlay">
-            <div class="scene-status-content">
-              <span v-if="sceneStatus === 'loading'" class="scene-loading-ring"></span>
-
-              <strong>
-                {{
-                  sceneStatus === 'loading'
-                    ? '正在构建天气系统'
-                    : '场景初始化失败'
-                }}
-              </strong>
-
-              <p>
-                {{
-                  sceneStatus === 'loading'
-                    ? '正在生成锋面、气旋烟流、垂直运动、云层和降水…'
-                    : sceneErrorMessage
-                }}
-              </p>
-            </div>
-          </div>
-
-          <div v-if="displayMode === 'section3d' && isFrontModel" class="scene-legend">
-            <div>
-              <span class="legend-airflow cold-airflow"></span>
-              冷气雾
-            </div>
-
-            <div>
-              <span class="legend-airflow warm-airflow"></span>
-              暖气雾
-            </div>
-
-            <div>
-              <span class="legend-front"></span>
-              锋面
-            </div>
-
-            <div>
-              <span class="legend-cloud"></span>
-              云层
-            </div>
-
-            <div>
-              <span class="legend-rain"></span>
-              降水
-            </div>
-
-            <div>
-              <el-icon class="legend-lightning">
-                <Lightning />
-              </el-icon>
-              雷电
-            </div>
-          </div>
-
-          <div v-else-if="displayMode === 'section3d'" class="scene-legend vortex-legend">
-            <div>
-              <span class="legend-smoke-stream"></span>
-              螺旋风带
-            </div>
-
-            <div>
-              <span class="legend-vertical-flow"></span>
-              上升 / 下沉
-            </div>
-
-            <div>
-              <span class="legend-pressure-ring"></span>
-              等压环 / 风眼
-            </div>
-
-            <div>
-              <span class="legend-cloud"></span>
-              云层
-            </div>
-
-            <div>
-              <span class="legend-rain"></span>
-              降水
-            </div>
-          </div>
-
-          <div v-if="displayMode === 'section3d'" class="labels-overlay">
-            <div v-for="item in screenLabels" :key="item.key"
-              v-show="item.visible && layers.labels && shouldShowSceneLabel(item)" class="scene-label"
-              :class="item.className" :style="{
-                left: item.x + 'px',
-                top: item.y + 'px',
-              }">
-              {{ item.text }}
-            </div>
-          </div>
-        </div>
+        <div id="frontal-scene-legend" class="stage-legend-row" role="group" aria-label="场景图例"></div>
 
         <div class="timeline-dock frontal-timeline-dock">
           <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
@@ -252,7 +303,7 @@
           <div class="timeline-main">
             <div class="timeline-copy">
               <span>
-                {{ currentStage.label }}
+                阶段 {{ currentStageIndex + 1 }} / {{ presentationStages.length }} · {{ currentStage.label }}
               </span>
 
               <strong>
@@ -261,18 +312,20 @@
             </div>
 
             <div class="timeline-track-wrap">
-              <el-slider v-model="progress" :min="0" :max="100" :step="0.05" :show-tooltip="false"
-                aria-label="演示进度" />
+              <el-slider v-model="progress" :min="0" :max="100" :step="0.05" :show-tooltip="false" aria-label="演示进度"
+                @pointerdown.capture="pauseForScrub" @keydown.capture="pauseForScrub" />
 
-              <div class="timeline-milestones" aria-label="演示内容进度刻度">
+              <div class="timeline-milestones" role="group" aria-label="选择演示阶段，每个阶段占一个进度区间">
                 <button v-for="(item, index) in timelineStages" :key="item.label" type="button"
                   class="timeline-milestone" :class="{
                     active: currentStageIndex === index,
                     reached: progress >= item.progress,
-                  }" :style="{ left: item.progress + '%' }" :title="`${item.label}：${item.short}`"
-                  @click="selectStage(index)">
-                  <i></i>
-
+                  }" :title="`${item.label}：${item.short}`"
+                  :aria-current="currentStageIndex === index ? 'step' : undefined"
+                  :aria-label="`跳转到第${index + 1}阶段：${item.label}`" @click="selectStage(index)">
+                  <small class="stage-progress-range">{{ Math.round(item.progress) }}–{{ Math.round(timelineStages[index
+                    +
+                    1]?.progress ?? 100) }}%</small>
                   <span>
                     {{ index + 1 }}. {{ item.label }}
                   </span>
@@ -281,9 +334,10 @@
             </div>
           </div>
 
-          <div class="speed-options">
+          <div class="speed-options" role="group" aria-label="播放速度">
             <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
+              :class="{ active: playbackSpeed === item }" :aria-pressed="playbackSpeed === item"
+              :aria-label="`${item}倍速`" @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
@@ -291,87 +345,88 @@
       </section>
 
       <Teleport defer to="#frontal-right-panel-stack">
-      <FloatingFeatureCard v-model:collapsed="rightCardCollapsed" title="当前演示" :subtitle="currentStage.label"
-        variant="data" :initial-right="18" :initial-top="82" :bottom-inset="132" :min-width="300"
-        :min-height="250" :resizable="false" class="frontal-floating-card stage-floating-card">
-        <div class="floating-stage-content">
-          <div class="current-stage-heading">
-            <span>
-              阶段 {{ currentStageIndex + 1 }} / {{ currentDefinition.stages.length }}
-            </span>
+        <FloatingFeatureCard v-model:collapsed="rightCardCollapsed" title="当前演示" :subtitle="currentStage.label"
+          variant="data" :initial-right="18" :initial-top="206" :bottom-inset="12" :min-width="260" :min-height="220"
+          :resizable="true" :draggable="true" class="frontal-floating-card stage-floating-card">
+          <div class="floating-stage-content">
+            <div class="current-stage-heading">
+              <span>
+                阶段 {{ currentStageIndex + 1 }} / {{ presentationStages.length }}
+              </span>
 
-            <strong>
-              {{ Math.round(progress) }}%
-            </strong>
+              <strong>
+                {{ Math.round(progress) }}%
+              </strong>
+            </div>
+
+            <article class="geo-card current-stage-card">
+              <small>
+                {{ currentStage.short }}
+              </small>
+
+              <h3>
+                {{ currentStage.label }}
+              </h3>
+
+              <p>
+                {{ currentStage.summary }}
+              </p>
+
+              <div class="stage-detail-divider"></div>
+
+              <p class="stage-description">
+                {{ currentStage.description }}
+              </p>
+
+              <div class="stage-detail-divider"></div>
+
+              <section class="life-weather-section">
+                <div class="life-weather-heading">
+                  <div>
+                    <small>现实天气联系 · 教学情景</small>
+                    <strong>{{ displayMode === 'weatherMap' ? currentMapCity.name : '当前可见天气结构' }}</strong>
+                  </div>
+
+                  <button v-if="displayMode !== 'weatherMap'" type="button" class="map-jump-button"
+                    @click="displayMode = 'weatherMap'">
+                    在地图中查看
+                  </button>
+                </div>
+
+                <p class="life-weather-signal">
+                  {{ currentLifeWeather.signal }}
+                </p>
+
+                <div class="life-weather-grid">
+                  <div>
+                    <span>气温</span>
+                    <strong>{{ currentLifeWeather.temperature }}</strong>
+                  </div>
+
+                  <div>
+                    <span>气压</span>
+                    <strong>{{ currentLifeWeather.pressure }}</strong>
+                  </div>
+
+                  <div>
+                    <span>风</span>
+                    <strong>{{ currentLifeWeather.wind }}</strong>
+                  </div>
+
+                  <div>
+                    <span>云雨</span>
+                    <strong>{{ currentLifeWeather.sky }}</strong>
+                  </div>
+                </div>
+
+                <p class="life-weather-impact">
+                  <b>生活提示</b>
+                  {{ currentLifeWeather.impact }}
+                </p>
+              </section>
+            </article>
           </div>
-
-          <article class="geo-card current-stage-card">
-            <small>
-              {{ currentStage.short }}
-            </small>
-
-            <h3>
-              {{ currentStage.label }}
-            </h3>
-
-            <p>
-              {{ currentStage.summary }}
-            </p>
-
-            <div class="stage-detail-divider"></div>
-
-            <p class="stage-description">
-              {{ currentStage.description }}
-            </p>
-
-            <div class="stage-detail-divider"></div>
-
-            <section class="life-weather-section">
-              <div class="life-weather-heading">
-                <div>
-                  <small>现实天气联系</small>
-                  <strong>{{ currentMapCity.name }}</strong>
-                </div>
-
-                <button type="button" class="map-jump-button" @click="displayMode = 'weatherMap'">
-                  在地图中查看
-                </button>
-              </div>
-
-              <p class="life-weather-signal">
-                {{ currentLifeWeather.signal }}
-              </p>
-
-              <div class="life-weather-grid">
-                <div>
-                  <span>气温</span>
-                  <strong>{{ currentLifeWeather.temperature }}</strong>
-                </div>
-
-                <div>
-                  <span>气压</span>
-                  <strong>{{ currentLifeWeather.pressure }}</strong>
-                </div>
-
-                <div>
-                  <span>风</span>
-                  <strong>{{ currentLifeWeather.wind }}</strong>
-                </div>
-
-                <div>
-                  <span>云雨</span>
-                  <strong>{{ currentLifeWeather.sky }}</strong>
-                </div>
-              </div>
-
-              <p class="life-weather-impact">
-                <b>生活提示</b>
-                {{ currentLifeWeather.impact }}
-              </p>
-            </section>
-          </article>
-        </div>
-      </FloatingFeatureCard>
+        </FloatingFeatureCard>
       </Teleport>
     </main>
   </div>
@@ -395,6 +450,17 @@ import {
 } from '@element-plus/icons-vue'
 
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+import { fitMapRectangle, mapToScreen, VORTEX_MAP_PROFILE, vortexRadius } from './map-layout'
+import {
+  FRONT_BANDS,
+  describeFrontalCity,
+  frontAdvanceDirection,
+  getFrontalMapGeometry,
+  getFrontalMapState,
+  getFrontalAirLabels,
+  type FrontPath,
+  type MovingFront,
+} from './synoptic-fronts'
 
 import '@/styles/geo-page-template.css'
 
@@ -418,6 +484,8 @@ type FrontModel =
 type Hemisphere =
   | 'north'
   | 'south'
+
+type FrontalCloudModel = Exclude<FrontModel, 'cyclone' | 'anticyclone'>
 
 type ViewMode =
   | 'section'
@@ -576,7 +644,7 @@ interface CloudSpriteHandle {
   sprite: THREE.Sprite
   localPosition: THREE.Vector3
   baseScale: THREE.Vector2
-  model: FrontModel
+  model: FrontalCloudModel
   phase: number
   delay: number
 }
@@ -772,11 +840,11 @@ const definitions:
     uplift:
       '橙色气流标记沿青色锋面向左上方移动，表示暖空气被冷空气楔形前缘强迫抬升。',
     cloud:
-      '暖湿空气快速冷却凝结，在锋面上方形成垂直发展明显的积雨云带。',
+      '本例暖湿空气抬升冷却，在水汽和不稳定条件充足时形成积雨云带；冷锋也可能只有层状云或没有明显降水。',
     rain:
-      '降水紧贴地面锋线，并略偏冷空气一侧，不会远离锋面单独出现。',
+      '本例降水位于锋线附近、偏冷空气一侧；真实冷锋的雨区也可能位于锋前，或没有降水。',
     passing:
-      '冷锋过境时常出现大风、降温和短时较强降水；过境后气压回升，天气逐渐转晴。',
+      '冷锋过境常伴随降温和风向变化；降水和强对流取决于水汽与不稳定条件，锋后也可能仍有局地阵雨。',
     stages: [
       {
         label:
@@ -812,7 +880,7 @@ const definitions:
         label:
           '成云与降水',
         short:
-          '冷锋过境',
+          '锋区云雨发展',
         summary:
           '锋面上方形成云带，锋线附近出现窄带降水。',
         description:
@@ -834,7 +902,7 @@ const definitions:
       '锋前宽范围降水',
     structure: [
       '暖空气位于锋面左侧，冷空气位于锋面右下方。',
-      '冷空气仍然占据近地面，暖空气不能直接将其推开。',
+      '冷空气逐渐退却，暖空气沿冷空气上方爬升，并在锋后占据近地面。',
       '暖空气沿平缓锋面向右上方缓慢爬升。',
     ],
     uplift:
@@ -864,7 +932,7 @@ const definitions:
         summary:
           '暖空气向右接近冷空气。',
         description:
-          '暖空气不能直接取代低层冷空气，地面锋线逐渐形成。',
+          '冷空气逐渐退却，暖空气沿其上方爬升，并逐渐占据锋后近地面。',
       },
       {
         label:
@@ -880,7 +948,7 @@ const definitions:
         label:
           '层云与连续降水',
         short:
-          '暖锋过境',
+          '锋前云雨发展',
         summary:
           '锋前形成层状云和宽范围连续降水。',
         description:
@@ -906,7 +974,7 @@ const definitions:
       '暖湿空气持续沿锋面缓慢抬升。',
     ],
     uplift:
-      '暖气流沿锋面缓慢上升，抬升速度低于冷锋，但持续时间更长。',
+      '本例暖湿气流沿锋面缓慢上升；持续水汽供应有利于云雨长时间维持。',
     cloud:
       '锋区上空形成范围较广、维持时间较长的层状云系。',
     rain:
@@ -928,11 +996,11 @@ const definitions:
         label:
           '锋面小幅摆动',
         short:
-          '位置不稳定',
+          '位置移动缓慢',
         summary:
           '锋线在较小范围内往复移动。',
         description:
-          '锋面不会像冷锋或暖锋一样持续向一侧推进，而是在原地附近来回摆动。',
+          '准静止锋移动很慢或近乎静止；本例用小范围摆动展示冷暖空气势力的变化。',
       },
       {
         label:
@@ -952,45 +1020,45 @@ const definitions:
         summary:
           '锋区形成较宽的云带和持续性降水。',
         description:
-          '云层和雨区围绕锋线分布，降水持续时间明显长于移动较快的冷锋。',
+          '本例水汽持续供应，云雨带在锋区附近维持；降水强度和持续时间仍受水汽、抬升与地形影响。',
       },
     ],
   },
 
   cyclone: {
     title:
-      '热带气旋风眼与螺旋云雨带',
+      '成熟热带气旋 · 风眼、眼墙与雨带',
     category:
-      '气压系统 · 气旋（台风式）',
+      '气压系统 · 成熟热带气旋示例',
     activeAir:
-      '近地面向风眼螺旋辐合',
+      '近地面向眼墙螺旋辐合',
     slope:
       '中心低压',
     precipitation:
-      '中心附近易成云降水',
+      '眼墙与螺旋雨带强降水，眼内少雨',
     structure: [
       '近地面空气从外围螺旋流向低压中心。',
       '受地转偏向力影响，南北半球旋转方向相反。',
-      '空气到达中心后转为上升运动。',
+      '眼墙和雨带内空气上升，风眼内以下沉运动为主。',
     ],
     uplift:
-      '多层半透明烟流沿螺旋路径向中心辐合，中心的一条烟流再连续螺旋上升。',
+      '近地面气流向眼墙辐合，眼墙内橙白色箭头向上运动，风眼内蓝色箭头向下运动。',
     cloud:
       '风眼保持少云，眼墙形成高耸云塔，外围发展多条螺旋云带。',
     rain:
-      '湿度较高时，气旋中心附近可出现范围较广的云雨天气。',
+      '本例强降水集中在眼墙和螺旋雨带；风眼内风雨较弱，短暂平静不表示危险结束。',
     passing:
       '气旋控制区通常气流上升、云量增多，并可能出现阴雨和较强风。',
     stages: [
       {
         label:
-          '低压风眼建立',
+          '成熟气旋结构概览',
         short:
-          '气压降低',
+          '成熟热带气旋示例',
         summary:
-          '中心气压较低，外围空气开始响应。',
+          '本例展示有清晰风眼的成熟热带气旋，中心气压低于外围。',
         description:
-          '中心出现清晰风眼和多圈等压环，外围可见初生螺旋云带。',
+          '先辨认风眼、眼墙和外围云带。气旋还包括温带气旋等类型，风眼不是所有气旋都具备的结构。',
       },
       {
         label:
@@ -998,19 +1066,19 @@ const definitions:
         short:
           '向中心流动',
         summary:
-          '烟流从外围沿弯曲路径流向低压中心。',
+          '近地面气流从外围螺旋流向眼墙附近。',
         description:
           '北半球气旋逆时针辐合，南半球气旋顺时针辐合。',
       },
       {
         label:
-          '中心气流螺旋上升',
+          '眼墙上升与眼内下沉',
         short:
-          '垂直抬升',
+          '区分两种垂直运动',
         summary:
-          '汇聚到中心的空气沿连续螺旋路径上升，并在高空逐渐展开。',
+          '暖湿空气沿眼墙上升，风眼内空气下沉，形成不同的云雨条件。',
         description:
-          '中心只出现一条连续螺旋烟流和多枚随流移动的箭头，清楚表现气旋的上升运动。',
+          '眼墙处橙白色箭头向上，眼内蓝色箭头向下。风眼通常风雨较弱，最强风和暴雨主要位于眼墙。',
       },
       {
         label:
@@ -1020,7 +1088,7 @@ const definitions:
         summary:
           '眼墙和外围雨带迅速增厚并产生强降水。',
         description:
-          '上升空气冷却凝结，中心附近云层增厚，并出现动态降水。',
+          '眼墙和雨带中的上升空气冷却凝结，降水增强；中心风眼仍较少云雨。',
       },
     ],
   },
@@ -1088,7 +1156,7 @@ const definitions:
         summary:
           '下沉增温抑制云层和降水。',
         description:
-          '中心保持少云或无云，外围只保留少量分散云团。',
+          '本例较干燥，中心少云、外围有分散云团；湿冷季节的高压区也可能出现持久低云、雾或毛毛雨。',
       },
     ],
   },
@@ -1187,159 +1255,159 @@ const lifeWeatherDefinitions:
   Record<FrontModel, LifeWeatherDefinition[]> = {
   coldFront: [
     {
-      signal: '锋前受暖空气控制，体感偏暖，气压正在缓慢下降。',
-      temperature: '偏高，变化小',
-      pressure: '缓慢下降',
-      wind: '偏南风增强',
-      sky: '云量逐渐增加',
-      impact: '天气仍可出行，但远处积云增多通常意味着冷锋正在接近。',
+      signal: '先比较剖面两侧的气团：左侧较冷，右侧较暖。本阶段尚未展示云雨发展。',
+      temperature: '冷侧低，暖侧高',
+      pressure: '不能由剖面单独判断',
+      wind: '冷空气沿地面推进',
+      sky: '云雨尚未发展',
+      impact: '气团颜色表示相对冷暖；实际体感还受风速和湿度影响。',
     },
     {
-      signal: '冷锋正在接近城市，风向开始转变，阵风明显增强。',
-      temperature: '开始下降',
-      pressure: '先降后升',
-      wind: '阵风增强',
-      sky: '积雨云发展',
-      impact: '户外活动应留意雷暴大风，航空和海上交通可能受到影响。',
+      signal: '冷空气向暖空气推进，暖空气在锋区被抬升。这里观察锋区结构，不代表某座城市已经过锋。',
+      temperature: '冷暖差异仍存在',
+      pressure: '不能由剖面单独判断',
+      wind: '锋区有辐合抬升',
+      sky: '云雨尚未发展',
+      impact: '冷锋附近可能有阵风；是否出现雷暴还取决于水汽和不稳定条件。',
     },
     {
-      signal: '锋线经过，暖空气被迅速抬升，短时天气变化最剧烈。',
-      temperature: '快速下降',
-      pressure: '快速回升',
-      wind: '转偏北风',
-      sky: '短时强降水',
-      impact: '需要防范雷电、短时积水和强阵风，出行应避开强对流时段。',
+      signal: '本例暖湿空气沿锋面抬升，云层和窄雨带随演示逐渐发展。',
+      temperature: '冷侧相对偏凉',
+      pressure: '不能由剖面单独判断',
+      wind: '锋区上升运动增强',
+      sky: '锋区云雨逐渐发展',
+      impact: '水汽和不稳定条件充足时可出现雷暴、强阵风和短时强降水。',
     },
     {
-      signal: '锋线正在经过并移向城市东侧，城市逐渐转受较冷、较干空气控制。',
-      temperature: '明显降低',
-      pressure: '持续回升',
-      wind: '偏北风减弱',
-      sky: '降水停止转晴',
-      impact: '体感骤凉，应及时增添衣物；能见度通常会逐渐改善。',
+      signal: '本例锋区云雨继续维持，窄雨带随锋线移动，并偏向冷空气一侧。',
+      temperature: '冷侧低，暖侧高',
+      pressure: '不能由剖面单独判断',
+      wind: '锋区仍有抬升',
+      sky: '锋线附近窄带降水',
+      impact: '雨带内注意湿滑路面和低能见度；离开主雨带也不保证立即转晴。',
     },
   ],
   warmFront: [
     {
-      signal: '暖锋尚在远处，城市上空先出现高而薄的卷云。',
-      temperature: '偏低',
-      pressure: '缓慢下降',
-      wind: '偏东风',
-      sky: '高云增多',
-      impact: '云层从薄到厚是暖锋接近的重要信号，可提前安排雨具。',
+      signal: '左侧暖空气与右侧近地面的冷空气相邻，先辨认两侧气团位置。',
+      temperature: '暖侧高，冷侧低',
+      pressure: '不能由剖面单独判断',
+      wind: '暖空气向冷区推进',
+      sky: '云雨尚未发展',
+      impact: '这是一段结构演示；某地是否受暖锋影响需结合锋线位置判断。',
     },
     {
-      signal: '暖湿空气沿冷空气缓慢爬升，云底逐渐降低。',
-      temperature: '缓慢回升',
-      pressure: '继续下降',
-      wind: '东南风增强',
-      sky: '阴云加厚',
-      impact: '长时间阴天会降低能见度，公路和航班可能出现延误。',
+      signal: '暖空气沿冷空气上方的缓坡爬升，地面冷空气逐渐退却。',
+      temperature: '锋前仍相对偏凉',
+      pressure: '不能由剖面单独判断',
+      wind: '暖空气沿缓坡上升',
+      sky: '云层开始发展',
+      impact: '水汽充足时，暖锋前方的云层可逐渐增厚；此时尚不代表已经降雨。',
     },
     {
-      signal: '城市进入暖锋锋前雨区，降水范围广但强度通常较稳定。',
-      temperature: '缓慢升高',
-      pressure: '接近最低值',
-      wind: '转偏南风',
-      sky: '连续性降水',
-      impact: '适合准备防水外套，低云、雾和湿滑路面会影响通勤。',
+      signal: '锋前冷空气上方的层状云逐渐发展，随后在本例锋前形成较宽雨区。',
+      temperature: '锋前冷，锋后暖',
+      pressure: '不能由剖面单独判断',
+      wind: '缓慢抬升持续',
+      sky: '锋前云雨逐渐发展',
+      impact: '雨区内可能有低云、雾和湿滑路面，应留意能见度。',
     },
     {
-      signal: '暖锋正在经过并移向城市另一侧，暖空气逐渐占据近地面。',
-      temperature: '明显升高',
-      pressure: '趋于稳定',
-      wind: '温和南风',
-      sky: '降水减弱',
-      impact: '气温回升但湿度仍高，晨间仍可能出现低云或轻雾。',
+      signal: '本例宽广云雨带继续位于锋前冷空气一侧，暖区位于地面锋线后方。',
+      temperature: '锋前冷，锋后暖',
+      pressure: '不能由剖面单独判断',
+      wind: '缓慢抬升持续',
+      sky: '锋前连续性降水',
+      impact: '锋前持续降水可能影响交通；锋后暖区也可能保留低云或雾。',
     },
   ],
   stationaryFront: [
     {
-      signal: '冷暖空气势力接近，城市位于长期维持的锋区附近。',
-      temperature: '日变化较小',
-      pressure: '变化不明显',
-      wind: '风向不稳定',
-      sky: '大范围阴云',
-      impact: '需要关注连续阴雨预报，而不是只看某一小时的天气。',
+      signal: '冷暖空气势力接近，先观察近乎停滞的气团边界。',
+      temperature: '两侧相对冷暖不同',
+      pressure: '不能由剖面单独判断',
+      wind: '气团推进较弱',
+      sky: '云雨尚未发展',
+      impact: '准静止锋移动很慢，但不意味着各地一定有雨。',
     },
     {
-      signal: '锋线在城市附近来回摆动，同一区域天气反复变化。',
-      temperature: '小幅波动',
-      pressure: '小幅波动',
-      wind: '忽东忽西',
-      sky: '间歇性降水',
-      impact: '通勤时段可能反复降雨，山地和河谷地区需关注累积雨量。',
+      signal: '本例锋线在小范围内摆动，暖湿空气逐渐沿锋面抬升。',
+      temperature: '取决于所在气团',
+      pressure: '不能由剖面单独判断',
+      wind: '取决于气团与锋线位置',
+      sky: '云层逐渐发展',
+      impact: '只有锋线或云雨带实际扫过某地，才能据此讨论当地天气变化。',
     },
     {
-      signal: '暖湿空气持续抬升，云雨带不断获得水汽补充。',
-      temperature: '偏凉湿',
-      pressure: '维持稳定',
+      signal: '本例暖湿空气持续抬升，水汽补充有利于锋区云雨发展。',
+      temperature: '冷侧凉，暖侧暖',
+      pressure: '不能由剖面单独判断',
       wind: '湿润气流持续',
       sky: '阴雨延续',
       impact: '长时间降水可能引发道路湿滑、低能见度和地质灾害风险。',
     },
     {
-      signal: '锋区持续维持，城市出现典型的连阴雨天气。',
-      temperature: '持续偏低',
-      pressure: '变化缓慢',
-      wind: '风力较弱',
+      signal: '本例水汽供应持续，云雨带在锋区附近维持较长时间。',
+      temperature: '两侧相对冷暖不同',
+      pressure: '不能由剖面单独判断',
+      wind: '湿润气流持续',
       sky: '持续性降水',
       impact: '晾晒、农业作业和户外施工都会受影响，应关注累计降水。',
     },
   ],
   cyclone: [
     {
-      signal: '低压中心形成，城市气压下降，外围风开始增强。',
-      temperature: '闷热潮湿',
-      pressure: '持续下降',
-      wind: '逐渐增强',
-      sky: '外围云带增多',
-      impact: '应开始关注预警和路径变化，海上活动需要提前回港。',
+      signal: '观察有清晰风眼的成熟热带气旋结构：风眼位于中心，眼墙围绕风眼。',
+      temperature: '暖心结构示意',
+      pressure: '中心低，外围较高',
+      wind: '眼内弱，眼墙强',
+      sky: '先展示云带结构',
+      impact: '成熟热带气旋只是气旋的一类；本图不是实时天气预报。',
     },
     {
-      signal: '螺旋雨带靠近，城市出现阵性大风和间歇性强降水。',
-      temperature: '小幅下降',
-      pressure: '快速下降',
-      wind: '强风并转向',
-      sky: '阵雨反复',
-      impact: '航班、轮渡和沿海交通容易受影响，应减少非必要户外活动。',
+      signal: '近地面气流向眼墙辐合，旋转方向随南北半球改变。',
+      temperature: '不能由本图单独判断',
+      pressure: '中心低，外围较高',
+      wind: '向眼墙螺旋辐合',
+      sky: '云带结构已显示',
+      impact: '实际强风影响取决于风圈、路径和强度，应以当地官方预警为准。',
     },
     {
-      signal: '城市靠近眼墙区域，辐合上升和降水达到最强。',
-      temperature: '变化不大',
-      pressure: '接近最低值',
-      wind: '强风或暴风',
-      sky: '强降水',
-      impact: '应远离窗户、海岸和低洼地带，并持续接收官方预警。',
+      signal: '眼墙的橙白色箭头上升，风眼的蓝色箭头下沉；云雨发展的位置也不同。',
+      temperature: '下沉增温、上升冷却',
+      pressure: '风眼内最低',
+      wind: '眼墙强，眼内较弱',
+      sky: '眼墙与雨带降水发展',
+      impact: '最强风和暴雨主要位于眼墙，不能仅按离中心越近就判断风雨越强。',
     },
     {
-      signal: '系统主体经过，风向发生明显转变，雨带仍可能反复扫过。',
-      temperature: '逐渐恢复',
-      pressure: '开始回升',
-      wind: '转向后减弱',
-      sky: '降水渐弱',
-      impact: '短暂风雨减弱不一定代表系统结束，仍需防范后侧强风。',
+      signal: '本例眼墙和螺旋雨带的云雨增强并维持，风眼内仍相对少云、风雨较弱。',
+      temperature: '不能由本图单独判断',
+      pressure: '风眼内最低',
+      wind: '眼墙强风持续',
+      sky: '眼墙和雨带强降水',
+      impact: '进入风眼后的平静可能只是暂时的，另一侧眼墙仍可带来强风暴雨。',
     },
   ],
   anticyclone: [
     {
-      signal: '高压中心建立，空气下沉，云量开始减少。',
+      signal: '先辨认高压中心与外围，本例采用较干燥的反气旋情景。',
       temperature: '日较差增大',
-      pressure: '持续升高',
+      pressure: '中心高，外围较低',
       wind: '风力较弱',
       sky: '少云转晴',
-      impact: '天气适合出行，但昼夜温差会增大，应注意分层穿衣。',
+      impact: '高压下常有稳定天气，但湿冷季节仍可能出现低云和雾。',
     },
     {
-      signal: '下沉空气增温变干，城市上空云层受到抑制。',
-      temperature: '白天升高',
+      signal: '本例下沉空气增温、相对湿度降低，深厚云层的发展受到抑制。',
+      temperature: '下沉空气增温',
       pressure: '维持高值',
       wind: '微风',
       sky: '晴朗少云',
-      impact: '晴空有利于户外活动，同时需要注意防晒和补水。',
+      impact: '地面实际气温还受季节和辐射影响，不能仅由高压判断一定温暖。',
     },
     {
-      signal: '近地面空气由高压中心向外辐散，天气保持稳定。',
+      signal: '近地面空气由高压中心向外辐散，本例天气较稳定。',
       temperature: '较稳定',
       pressure: '高位稳定',
       wind: '向外围辐散',
@@ -1347,8 +1415,8 @@ const lifeWeatherDefinitions:
       impact: '持续弱风时污染物可能不易扩散，城市需关注空气质量。',
     },
     {
-      signal: '高压长期控制，中心晴空明显，外围仅有少量云带。',
-      temperature: '昼暖夜凉',
+      signal: '本例中心少云、外围有少量云团；实际高压区也可能有持续低云、雾或毛毛雨。',
+      temperature: '晴空时日较差可增大',
       pressure: '缓慢变化',
       wind: '弱风',
       sky: '晴或少云',
@@ -1424,7 +1492,7 @@ const layerOptions: Array<{
 const currentModel =
   ref<FrontModel>('coldFront')
 
-const hemisphere =
+const vortexHemisphere =
   ref<Hemisphere>('north')
 
 const viewMode =
@@ -1438,6 +1506,8 @@ const cloudAmount = ref(0.78)
 const progress = ref(0)
 const isPlaying = ref(false)
 const playbackSpeed = ref(1)
+// Every animated layer shares the lesson clock, including paused and scrubbed frames.
+const simulationElapsed = computed(() => progress.value / 8)
 
 const speedOptions = [
   0.5,
@@ -1487,6 +1557,12 @@ const isFrontModel =
     return !isVortexModel.value
   })
 
+// Front lessons always use the Northern Hemisphere. Keep the vortex choice
+// separately so visiting or resetting a front does not overwrite that choice.
+const hemisphere = computed<Hemisphere>(() =>
+  isVortexModel.value ? vortexHemisphere.value : 'north'
+)
+
 const currentStageIndex =
   computed(() => {
     return Math.min(
@@ -1501,13 +1577,69 @@ const currentStageIndex =
     )
   })
 
-const currentStage =
-  computed(() => {
-    return currentDefinition.value
-      .stages[
-      currentStageIndex.value
-    ]!
-  })
+const isMovingFrontMap = computed(() =>
+  displayMode.value === 'weatherMap' &&
+  (currentModel.value === 'coldFront' || currentModel.value === 'warmFront')
+)
+
+const presentationStages = computed<StageDefinition[]>(() => {
+  if (!isMovingFrontMap.value) return currentDefinition.value.stages
+  const cold = currentModel.value === 'coldFront'
+  const front = cold ? '冷锋' : '暖锋'
+  return [
+    {
+      label: '冷暖气团分布',
+      short: '认识暖区与冷区',
+      summary: '橙色暖区位于两锋之间，蓝色区域表示两侧较冷空气。',
+      description: '先辨认气团的位置，锋区逐步建立。此阶段没有降水；符号逐渐出现后，三角尖朝暖区，半圆凸向冷区。',
+    },
+    {
+      label: '锋区建立与云雨发展',
+      short: '先成云，再发展降水',
+      summary: '锋区云带逐渐增厚，随后发展出与锋线相连的降水带。',
+      description: cold
+        ? '冷气团推进时迫使暖空气抬升。冷锋雨带较窄；同一系统中暖锋前方仍可有较宽云雨带。'
+        : '暖气团向冷空气一侧推进并爬升。暖锋云雨带主要在锋线前方的冷区，暖区位于红色锋线后方。',
+    },
+    {
+      label: front + '旋转推进',
+      short: cold ? '冷推暖，观察冷锋过境' : '暖推冷，观察暖锋过境',
+      summary: '两条锋线随低压环流弯曲推进，气团边界、符号与云雨带同步变化。',
+      description: '北半球逆时针、南半球顺时针。高亮当前观察的' + front + '；城市是否过境，取决于锋线是否真正扫过该点。',
+    },
+    {
+      label: cold ? '锋后天气对照' : '暖锋后暖区对照',
+      short: '对照城市位置与天气变化',
+      summary: cold ? '对比冷锋后冷区、尚在暖区以及没有被锋线扫过的城市。' : '观察暖锋扫过后的暖区；冷锋仍在后方，本段不演示冷锋随后追过主要观测城市。',
+      description: '演示末段保留天气对照时间。进入最后阶段不等于所有城市均已过境；点击城市查看该点实际经历。',
+    },
+  ]
+})
+
+const currentStage = computed(() => presentationStages.value[currentStageIndex.value]!)
+
+const mapViewport = reactive({ width: 1200, height: 600, topInset: 0, bottomInset: 0 })
+const mapRectangle = computed(() => fitMapRectangle(mapViewport.width, mapViewport.height,
+  mapViewport.topInset, mapViewport.bottomInset))
+
+const mapAirLabels = computed(() => getFrontalAirLabels(
+  progress.value / 100,
+  hemisphere.value,
+  currentModel.value === 'warmFront' ? 'warm' : 'cold',
+).map((air) => {
+  const point = mapToScreen(air.point, mapRectangle.value)
+  // Labels are annotations, not obstacles: keep them inside the scene and away
+  // from city selection targets. Small-screen city selection also has a select.
+  const minY = mapRectangle.value.y + 24
+  const maxY = mapRectangle.value.y + mapRectangle.value.height - 24
+  let x = clamp(point.x, mapRectangle.value.x + 55, mapRectangle.value.x + mapRectangle.value.width - 55)
+  let y = clamp(point.y, minY, maxY)
+  for (const city of currentWeatherMapRegion.value.cities) {
+    const location = mapToScreen(getNormalizedCityPoint(city), mapRectangle.value)
+    if (Math.abs(x - location.x) < 100 && Math.abs(y - location.y) < 48) y = clamp(y - 64, minY, maxY)
+  }
+  return { ...air, style: { left: `${x}px`, top: `${y}px` } }
+}))
 
 const currentMapCity =
   computed(() => {
@@ -1527,92 +1659,17 @@ function getNormalizedCityPoint(
 
 function getCurrentSynopticGeometry() {
   const phase = progress.value / 100
-  const driftX = THREE.MathUtils.lerp(
-    -0.18,
-    0.27,
-    phase
-  )
-
-  const lowCenter: SynopticPoint = {
-    x: 0.49 + driftX,
-    y: 0.34,
-  }
-
-  const coldPath: [
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-  ] = [
-      lowCenter,
-      {
-        x: 0.44 + driftX,
-        y: 0.49,
-      },
-      {
-        x: 0.34 + driftX,
-        y: 0.66,
-      },
-      {
-        x: 0.20 + driftX,
-        y: 0.92,
-      },
-    ]
-
-  const warmPath: [
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-  ] = [
-      lowCenter,
-      {
-        x: 0.60 + driftX,
-        y: 0.33,
-      },
-      {
-        x: 0.73 + driftX,
-        y: 0.35,
-      },
-      {
-        x: 0.89 + driftX,
-        y: 0.41,
-      },
-    ]
-
-  const stationaryPath: [
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-  ] = [
-      {
-        x: 0.10,
-        y: 0.56,
-      },
-      {
-        x: 0.34,
-        y: 0.48,
-      },
-      {
-        x: 0.66,
-        y: 0.63,
-      },
-      {
-        x: 0.92,
-        y: 0.53,
-      },
-    ]
-
+  const driftX = THREE.MathUtils.lerp(-0.18, 0.27, phase)
+  const stationaryDrift = Math.sin(simulationElapsed.value * 0.72) * 0.012 * smoothStep(0.18, 0.6, phase)
   return {
-    lowCenter,
-    coldPath,
-    warmPath,
-    stationaryPath,
-    vortexCenter: {
-      x: 0.55 + driftX * 0.42,
-      y: 0.48,
-    } satisfies SynopticPoint,
+    ...getFrontalMapGeometry(phase, hemisphere.value, currentModel.value === 'warmFront' ? 'warm' : 'cold'),
+    stationaryPath: [
+      { x: 0.10, y: 0.56 },
+      { x: 0.34, y: 0.48 },
+      { x: 0.66, y: 0.63 },
+      { x: 0.92, y: 0.53 },
+    ].map(point => ({ x: point.x + stationaryDrift, y: point.y })) as FrontPath,
+    vortexCenter: { x: 0.55 + driftX * 0.42, y: 0.48 },
   }
 }
 
@@ -1633,7 +1690,7 @@ function getPathRelation(
     const u = index / 80
     const point = getBezierPoint(points, u)
     const distance = Math.hypot(
-      cityPoint.x - point.x,
+      (cityPoint.x - point.x) * 2,
       cityPoint.y - point.y
     )
 
@@ -1650,14 +1707,15 @@ function getPathRelation(
   )
   const rightNormal = {
     x: tangent.y,
-    y: -tangent.x,
+    y: -tangent.x * 2,
   }
+  const normalLength = Math.hypot(rightNormal.x, rightNormal.y)
 
   return {
     distance: closestDistance,
     signedDistance:
-      (cityPoint.x - closestPoint.x) * rightNormal.x +
-      (cityPoint.y - closestPoint.y) * rightNormal.y,
+      ((cityPoint.x - closestPoint.x) * 2 * rightNormal.x +
+        (cityPoint.y - closestPoint.y) * rightNormal.y) / normalLength,
     u: closestU,
   }
 }
@@ -1691,7 +1749,7 @@ function getCityImpact(
     return `${islandPrefix}仍可能出现低云或轻雾，驾车和航班需留意能见度。`
   }
 
-  return `${islandPrefix}天气相对稳定，适合出行，但仍应关注昼夜温差。`
+  return `本图仅表示这一教学系统；${islandPrefix}实际天气还受其他系统影响，请结合当地预报。`
 }
 
 function getFrontCityWeather(
@@ -1699,242 +1757,59 @@ function getFrontCityWeather(
   city: MapCity,
   cityPoint: SynopticPoint
 ): LifeWeatherDefinition {
+  if (model !== 'stationaryFront') {
+    return describeFrontalCity(
+      { ...cityPoint, name: city.name },
+      progress.value / 100,
+      hemisphere.value,
+      model === 'coldFront' ? 'cold' : 'warm',
+    )
+  }
   const geometry = getCurrentSynopticGeometry()
-  const isNorth = hemisphere.value === 'north'
-
-  if (
-    currentStageIndex.value === 0 &&
-    model !== 'stationaryFront'
-  ) {
-    const relation = getPathRelation(
-      cityPoint,
-      model === 'coldFront'
-        ? geometry.coldPath
-        : geometry.warmPath
-    )
-    const onCoolSide = model === 'coldFront'
-      ? relation.signedDistance < 0
-      : relation.signedDistance > 0
-    const frontName = model === 'coldFront'
-      ? '冷锋'
-      : '暖锋'
-
-    return {
-      signal: `${city.name}目前位于${onCoolSide ? '较冷空气' : '较暖空气'}一侧，冷暖气团边界仍在组织，尚未形成完整${frontName}。`,
-      temperature: onCoolSide
-        ? '相对偏低'
-        : '相对偏高',
-      pressure: '变化较缓',
-      wind: onCoolSide
-        ? '风力较弱'
-        : isNorth
-          ? '偏南风为主'
-          : '偏北风为主',
-      sky: '少云，远处云量增加',
-      impact: getCityImpact(city, 'fair'),
-    }
-  }
-
-  if (model === 'coldFront') {
-    const relation = getPathRelation(
-      cityPoint,
-      geometry.coldPath
-    )
-
-    if (relation.distance <= 0.065) {
-      return {
-        signal: `${city.name}正位于冷锋附近，冷空气楔入并迫使暖湿空气迅速抬升。`,
-        temperature: '快速下降',
-        pressure: '由降转升',
-        wind: isNorth
-          ? '转偏西至西北风'
-          : '转偏西至西南风',
-        sky: '窄带强降水',
-        impact: getCityImpact(city, 'storm'),
-      }
-    }
-
-    if (relation.distance > 0.34) {
-      const systemIsEast = cityPoint.x < geometry.lowCenter.x
-      return systemIsEast
-        ? {
-          signal: `冷锋及低压主体已经远离${city.name}并移向东侧，当地受系统后部较冷空气影响。`,
-          temperature: '偏低',
-          pressure: '逐渐回升',
-          wind: isNorth
-            ? '偏西至西北风'
-            : '偏西至西南风',
-          sky: '云雨逐渐减少',
-          impact: getCityImpact(city, 'cold'),
-        }
-        : {
-          signal: `${city.name}距离冷锋主雨带仍较远，暂时位于锋前暖空气一侧。`,
-          temperature: '偏暖',
-          pressure: '缓慢下降',
-          wind: isNorth
-            ? '偏南至西南风'
-            : '偏北至西北风',
-          sky: '云量逐渐增加',
-          impact: getCityImpact(city, 'fair'),
-        }
-    }
-
-    if (relation.signedDistance > 0) {
-      return {
-        signal: `冷锋正向${city.name}接近，当地仍在锋前暖区，云层和阵风开始增强。`,
-        temperature: '偏暖，随后下降',
-        pressure: '先降后升',
-        wind: isNorth
-          ? '偏南至西南风'
-          : '偏北至西北风',
-        sky: '对流云发展',
-        impact: getCityImpact(city, 'storm'),
-      }
-    }
-
-    return {
-      signal: `冷锋已经越过${city.name}，当地转受锋后较冷、较干空气控制。`,
-      temperature: '明显降低',
-      pressure: '持续回升',
-      wind: isNorth
-        ? '偏西至西北风'
-        : '偏西至西南风',
-      sky: '降水减弱转晴',
-      impact: getCityImpact(city, 'cold'),
-    }
-  }
-
-  if (model === 'warmFront') {
-    const relation = getPathRelation(
-      cityPoint,
-      geometry.warmPath
-    )
-    const isSystemRear =
-      relation.u <= 0.08 &&
-      cityPoint.x < geometry.lowCenter.x - 0.05 &&
-      relation.distance > 0.20
-
-    if (isSystemRear) {
-      return {
-        signal: `低压和暖锋主体已经移到${city.name}以东，当地并未经历这条暖锋的直接过境。`,
-        temperature: '偏低或小幅下降',
-        pressure: '逐渐回升',
-        wind: isNorth
-          ? '偏西至西北风'
-          : '偏西至西南风',
-        sky: '云雨逐渐减弱',
-        impact: getCityImpact(city, 'cold'),
-      }
-    }
-
-    if (relation.distance <= 0.06) {
-      return {
-        signal: `暖锋正在经过${city.name}，暖湿空气开始取代近地面冷空气。`,
-        temperature: '明显回升',
-        pressure: '停止下降',
-        wind: isNorth
-          ? '东南风转偏南风'
-          : '东北风转偏北风',
-        sky: '持续降水转弱',
-        impact: getCityImpact(city, 'fog'),
-      }
-    }
-
-    if (
-      relation.distance <= 0.22 &&
-      relation.signedDistance > 0
-    ) {
-      return {
-        signal: `${city.name}位于暖锋前方冷空气一侧，层状云和连续降水正逐渐覆盖当地。`,
-        temperature: '缓慢回升',
-        pressure: '持续下降',
-        wind: isNorth
-          ? '偏东至东南风'
-          : '偏东至东北风',
-        sky: '大范围层云降水',
-        impact: getCityImpact(city, 'rain'),
-      }
-    }
-
-    if (
-      relation.distance <= 0.20 &&
-      relation.signedDistance < 0
-    ) {
-      return {
-        signal: `暖锋已经越过${city.name}，当地进入暖区，持续性降水正在减弱。`,
-        temperature: '明显升高',
-        pressure: '趋于稳定',
-        wind: isNorth
-          ? '偏南至西南风'
-          : '偏北至西北风',
-        sky: '低云，降水减弱',
-        impact: getCityImpact(city, 'fog'),
-      }
-    }
-
-    if (relation.signedDistance > 0) {
-      return {
-        signal: `${city.name}位于暖锋较远的冷空气一侧，主云雨带尚未直接影响当地。`,
-        temperature: '偏低',
-        pressure: '变化较缓',
-        wind: isNorth
-          ? '偏东风'
-          : '偏东北风',
-        sky: '外围高云或少云',
-        impact: getCityImpact(city, 'fair'),
-      }
-    }
-
-    return {
-      signal: `${city.name}位于暖锋南侧的暖空气区域，但距离地面锋线和主雨带较远。`,
-      temperature: '相对偏暖',
-      pressure: '变化平缓',
-      wind: isNorth
-        ? '偏南至西南风'
-        : '偏北至西北风',
-      sky: '低云或间歇小雨',
-      impact: getCityImpact(city, 'fog'),
-    }
-  }
 
   const relation = getPathRelation(
     cityPoint,
     geometry.stationaryPath
   )
 
-  if (relation.distance <= 0.08) {
+  const phase = progress.value / 100
+  const cloudDeveloped = phase > 0.42
+  const rainDeveloped = phase > 0.52
+  const onCoolSide = relation.signedDistance > 0
+  const inRainBand = relation.distance <= 0.12
+  const inCloudBand = relation.distance <= 0.14
+
+  if (!cloudDeveloped) {
     return {
-      signal: `${city.name}位于准静止锋附近，锋线来回摆动使阴雨天气反复出现。`,
-      temperature: '小幅反复波动',
-      pressure: '变化不明显',
-      wind: '风向反复变化',
-      sky: '持续或间歇降水',
-      impact: getCityImpact(city, 'rain'),
+      signal: `${city.name}位于本例锋线${onCoolSide ? '冷空气' : '暖空气'}一侧。当前先展示气团与锋线位置，云雨尚未发展。`,
+      temperature: onCoolSide ? '相对偏凉' : '相对偏暖',
+      pressure: '不能仅由锋线判断',
+      wind: '不能仅由锋线判断',
+      sky: '云雨尚未发展',
+      impact: '继续播放可观察云雨带是否覆盖该点；初始阶段不提前判为降水。',
     }
   }
 
-  if (relation.distance <= 0.20) {
-    const onCoolSide = relation.signedDistance > 0
+  if (inCloudBand) {
+    const raining = rainDeveloped && inRainBand
     return {
-      signal: `${city.name}位于准静止锋${onCoolSide ? '冷空气一侧' : '暖湿空气一侧'}，仍会受到附近云雨带影响。`,
+      signal: `${city.name}位于准静止锋${onCoolSide ? '冷空气一侧' : '暖空气一侧'}，当前${raining ? '被本例雨带覆盖，水汽持续供应可使降水维持' : '在云带范围内，当前雨带尚未覆盖此点'}。`,
       temperature: onCoolSide
         ? '偏凉湿'
         : '偏暖湿',
-      pressure: '小幅波动',
-      wind: onCoolSide
-        ? '偏东风为主'
-        : '湿润偏南风',
-      sky: '阴天伴间歇降水',
-      impact: getCityImpact(city, 'rain'),
+      pressure: '不能仅由锋线判断',
+      wind: '取决于气团与锋线位置',
+      sky: raining ? '锋区持续或间歇降水' : '锋区云层覆盖',
+      impact: raining ? getCityImpact(city, 'rain') : '云层覆盖不一定意味着正在降雨，可继续观察云雨带与城市的相对位置。',
     }
   }
 
   return {
     signal: `${city.name}距离准静止锋主云雨带较远，当前受锋区直接影响较小。`,
-    temperature: '变化较平缓',
-    pressure: '较稳定',
-    wind: '风力较弱',
-    sky: '少云或局部多云',
+    temperature: onCoolSide ? '冷侧相对偏凉' : '暖侧相对偏暖',
+    pressure: '不能由此系统单独判断',
+    wind: '不能由此系统单独判断',
+    sky: '主云雨带未覆盖',
     impact: getCityImpact(city, 'fair'),
   }
 }
@@ -1945,113 +1820,67 @@ function getVortexCityWeather(
   cityPoint: SynopticPoint
 ): LifeWeatherDefinition {
   const center = getCurrentSynopticGeometry().vortexCenter
-  const distance = Math.hypot(
-    (cityPoint.x - center.x) * 0.82,
-    cityPoint.y - center.y
-  )
+  const distance = vortexRadius(cityPoint, center)
+  const rainDeveloped = progress.value > 58
 
   if (model === 'cyclone') {
-    if (currentStageIndex.value === 0) {
-      if (distance <= 0.28) {
-        return {
-          signal: `${city.name}靠近正在发展的低压区，气压开始下降，外围风和云量逐渐增加。`,
-          temperature: '变化不明显',
-          pressure: '开始下降',
-          wind: '风力逐渐增强',
-          sky: '云带开始组织',
-          impact: getCityImpact(city, 'rain'),
-        }
-      }
-
+    if (distance < VORTEX_MAP_PROFILE.eyeRadius) {
       return {
-        signal: `${city.name}距离新生低压较远，目前只受到外围气压场的轻微影响。`,
-        temperature: '变化不明显',
-        pressure: '缓慢变化',
-        wind: '微风至和风',
-        sky: '局部多云',
-        impact: getCityImpact(city, 'fair'),
+        signal: `${city.name}位于本例风眼内。眼内以下沉运动为主，风雨较弱；这不表示整个热带气旋已经结束。`,
+        temperature: '下沉空气增温',
+        pressure: '接近中心最低值',
+        wind: '较弱，可能短暂平静',
+        sky: '少云或局部低云，少雨',
+        impact: '风眼中的平静可能只是暂时的，随后另一侧眼墙仍可带来强风暴雨，应继续遵从官方预警。',
       }
     }
 
-    if (distance <= 0.10) {
+    if (distance <= VORTEX_MAP_PROFILE.eyewallRadius) {
       return {
-        signal: `${city.name}非常接近低压中心，气压最低，强风和强降水风险达到高值。`,
-        temperature: '变化不大',
-        pressure: '接近最低值',
-        wind: '强风并明显转向',
-        sky: '浓密云墙与强降水',
-        impact: getCityImpact(city, 'storm'),
+        signal: `${city.name}位于本例眼墙区域，环状云墙中的上升运动强，风通常比风眼内更强。${rainDeveloped ? '当前眼墙雨区已发展。' : '当前先展示结构，降水图层尚未发展。'}`,
+        temperature: '不能由本图单独判断',
+        pressure: '很低，但非中心最低值',
+        wind: '本例强风区',
+        sky: rainDeveloped ? '眼墙云层与强降水' : '眼墙云层，降水尚未发展',
+        impact: '实际眼墙影响可能很强，应持续关注官方预警并远离窗户、海岸和易涝低洼地带。',
       }
     }
 
-    if (distance <= 0.23) {
+    if (distance <= VORTEX_MAP_PROFILE.outerRadius) {
       return {
-        signal: `${city.name}位于气旋内侧环流，螺旋雨带可能反复扫过当地。`,
-        temperature: '受云雨影响偏低',
-        pressure: '明显偏低',
-        wind: '强风持续并转向',
-        sky: '阵雨或持续降水',
-        impact: getCityImpact(city, 'storm'),
-      }
-    }
-
-    if (distance <= 0.40) {
-      return {
-        signal: `${city.name}位于气旋外围，气压下降且风力增强，外围云带开始影响当地。`,
-        temperature: '小幅波动',
-        pressure: '逐渐下降',
-        wind: '风力逐渐增强',
-        sky: '云量增加，阵雨间歇',
-        impact: getCityImpact(city, 'rain'),
+        signal: `${city.name}位于本例外围环流与螺旋云带范围。${rainDeveloped ? '雨带扫过时可能出现阵雨和阵风，雨带之间风雨可暂时减弱。' : '降水尚未进入演示阶段，不能提前判为正在下雨。'}`,
+        temperature: '不能由本图单独判断',
+        pressure: '低压外围，相对偏低',
+        wind: '沿外围环流运动',
+        sky: rainDeveloped ? '雨带内有雨，带间较弱' : '螺旋云带，降水尚未发展',
+        impact: rainDeveloped ? getCityImpact(city, 'storm') : '可继续观察螺旋雨带如何发展；实际影响以当地预报为准。',
       }
     }
 
     return {
-      signal: `${city.name}距离气旋主体较远，目前只受到外围气压场的弱影响。`,
-      temperature: '变化不明显',
-      pressure: '缓慢变化',
-      wind: '微风至和风',
-      sky: '局部多云',
-      impact: getCityImpact(city, 'fair'),
-    }
-  }
-
-  if (currentStageIndex.value === 0) {
-    if (distance <= 0.30) {
-      return {
-        signal: `${city.name}靠近正在建立的高压区，气压逐渐升高，云层开始减少。`,
-        temperature: '日较差开始增大',
-        pressure: '逐渐升高',
-        wind: '风力减弱',
-        sky: '云量逐渐减少',
-        impact: getCityImpact(city, 'fair'),
-      }
-    }
-
-    return {
-      signal: `${city.name}距离新生高压中心较远，目前受其直接影响较小。`,
-      temperature: '变化不明显',
-      pressure: '接近常值',
-      wind: '风力较弱',
-      sky: '局部多云',
+      signal: `${city.name}不在本例主要云雨范围内；不能据此推断当地一定晴朗或没有其他天气影响。`,
+      temperature: '无法由此系统判断',
+      pressure: '外围影响较弱',
+      wind: '无法由此系统判断',
+      sky: '主要云雨范围未覆盖',
       impact: getCityImpact(city, 'fair'),
     }
   }
 
   if (distance <= 0.15) {
     return {
-      signal: `${city.name}处于高压中心附近，下沉气流抑制云层和降水发展。`,
+      signal: `${city.name}处于高压中心附近。本例下沉空气较干、少云；实际湿冷季节也可能有低云、雾或毛毛雨。`,
       temperature: '昼夜温差较大',
       pressure: '维持高值',
       wind: '风力较弱',
-      sky: '晴朗少云',
+      sky: '本例晴朗少云',
       impact: getCityImpact(city, 'fair'),
     }
   }
 
   if (distance <= 0.36) {
     return {
-      signal: `${city.name}位于反气旋外围，下沉空气仍使天气总体稳定。`,
+      signal: `${city.name}位于反气旋外围，本例天气较稳定；实际云量仍取决于湿度和其他天气系统。`,
       temperature: '较稳定',
       pressure: '偏高且稳定',
       wind: '沿高压外围流动',
@@ -2062,10 +1891,10 @@ function getVortexCityWeather(
 
   return {
     signal: `${city.name}位于高压系统影响边缘，天气主要受当地其他系统控制。`,
-    temperature: '变化不明显',
-    pressure: '接近常值',
-    wind: '风力较弱',
-    sky: '局部多云',
+    temperature: '无法由此系统判断',
+    pressure: '外围影响较弱',
+    wind: '无法由此系统判断',
+    sky: '本图未表示其他系统',
     impact: getCityImpact(city, 'fair'),
   }
 }
@@ -2077,6 +1906,21 @@ const currentLifeWeather =
     ][currentStageIndex.value]!
 
     if (displayMode.value !== 'weatherMap') {
+      const phase = progress.value / 100
+      const development = {
+        coldFront: { cloud: 0.50, rain: 0.52 },
+        warmFront: { cloud: 0.46, rain: 0.56 },
+        stationaryFront: { cloud: 0.42, rain: 0.52 },
+        cyclone: { cloud: -1, rain: 0.58 },
+      }[currentModel.value as Exclude<FrontModel, 'anticyclone'>]
+      if (development && phase <= development.rain) {
+        return {
+          ...weather,
+          sky: phase <= development.cloud
+            ? '云雨尚未发展'
+            : '云层已显示，降水尚未发展',
+        }
+      }
       return weather
     }
 
@@ -2119,12 +1963,12 @@ function projectMapLongitude(
   return (
     worldX - currentWeatherMapRegion.value.minX
   ) /
-  (
-    currentWeatherMapRegion.value.maxX -
-    currentWeatherMapRegion.value.minX +
-    1
-  ) *
-  100
+    (
+      currentWeatherMapRegion.value.maxX -
+      currentWeatherMapRegion.value.minX +
+      1
+    ) *
+    100
 }
 
 function projectMapLatitude(
@@ -2147,29 +1991,26 @@ function projectMapLatitude(
   return (
     worldY - currentWeatherMapRegion.value.minY
   ) /
-  (
-    currentWeatherMapRegion.value.maxY -
-    currentWeatherMapRegion.value.minY +
-    1
-  ) *
-  100
+    (
+      currentWeatherMapRegion.value.maxY -
+      currentWeatherMapRegion.value.minY +
+      1
+    ) *
+    100
 }
 
 const projectedMapCities =
   computed(() => {
     return currentWeatherMapRegion.value.cities.map(
-      (city) => ({
-        ...city,
-        style: {
-          left: `${projectMapLongitude(city.longitude)}%`,
-          top: `${projectMapLatitude(city.latitude)}%`,
-        },
-      })
+      (city) => {
+        const point = mapToScreen(getNormalizedCityPoint(city), mapRectangle.value)
+        return { ...city, style: { left: `${point.x}px`, top: `${point.y}px` } }
+      }
     )
   })
 
 const timelineStages = computed(() => {
-  return currentDefinition.value.stages.map((item, index) => ({
+  return presentationStages.value.map((item, index) => ({
     ...item,
     progress: index * 25,
   }))
@@ -2192,8 +2033,8 @@ function shouldShowSceneLabel(
       return stageIndex >= 1
     }
 
-    if (item.key === 'vertical-circulation') {
-      return stageIndex === 2
+    if (item.key === 'vertical-circulation' || item.key === 'eye-descent') {
+      return stageIndex >= 2 && layers.uplift
     }
 
     return true
@@ -2267,9 +2108,12 @@ let lastSceneHeight = 0
 let lastSceneDpr = 0
 
 let cameraAnimationToken = 0
-
-const sceneClock =
-  new THREE.Clock()
+let lastSimulationElapsed = 0
+let cameraUserAdjusted = false
+let lastCameraFitDistance = 0
+const modelCameraBounds = new THREE.Box3()
+let modelCameraPoints = new Float32Array(0)
+let modelCameraSprites = new Float32Array(0)
 
 const labelAnchors:
   LabelAnchor[] = []
@@ -2284,18 +2128,18 @@ const transientTextures:
   THREE.Texture[] = []
 
 const cloudLightColors:
-  Record<FrontModel, THREE.Color> = {
-    coldFront: new THREE.Color('#c4d0d6'),
-    warmFront: new THREE.Color('#c9ced1'),
-    stationaryFront: new THREE.Color('#b8c2c9'),
-  }
+  Record<FrontalCloudModel, THREE.Color> = {
+  coldFront: new THREE.Color('#c4d0d6'),
+  warmFront: new THREE.Color('#c9ced1'),
+  stationaryFront: new THREE.Color('#b8c2c9'),
+}
 
 const cloudStormColors:
-  Record<FrontModel, THREE.Color> = {
-    coldFront: new THREE.Color('#687c89'),
-    warmFront: new THREE.Color('#7b878e'),
-    stationaryFront: new THREE.Color('#68788b'),
-  }
+  Record<FrontalCloudModel, THREE.Color> = {
+  coldFront: new THREE.Color('#687c89'),
+  warmFront: new THREE.Color('#7b878e'),
+  stationaryFront: new THREE.Color('#68788b'),
+}
 
 const airMassVeils:
   AirMassVeilHandle[] = []
@@ -2647,6 +2491,8 @@ function drawPressureCenter(
     kind === 'low'
       ? '#72dcff'
       : '#ffcf70'
+  const symbolScale = clamp(mapRectangle.value.height / 450, 0.55, 1)
+  const radius = 24 * symbolScale
 
   context.save()
   context.shadowColor = color
@@ -2655,21 +2501,23 @@ function drawPressureCenter(
   context.strokeStyle = color
   context.lineWidth = 2
   context.beginPath()
-  context.arc(center.x, center.y, 24, 0, Math.PI * 2)
+  context.arc(center.x, center.y, radius, 0, Math.PI * 2)
   context.fill()
   context.stroke()
 
   context.shadowBlur = 8
   context.fillStyle = '#ffffff'
-  context.font = '800 22px sans-serif'
+  context.font = `800 ${Math.max(14, 22 * symbolScale)}px sans-serif`
   context.textAlign = 'center'
   context.textBaseline = 'middle'
   context.fillText(kind === 'low' ? 'L' : 'H', center.x, center.y - 2)
 
   context.shadowBlur = 0
-  context.fillStyle = 'rgba(230, 247, 250, 0.92)'
-  context.font = '700 12px sans-serif'
-  context.fillText(caption, center.x, center.y + 39)
+  if (layers.labels && mapRectangle.value.width >= 640) {
+    context.fillStyle = 'rgba(230, 247, 250, 0.92)'
+    context.font = '700 12px sans-serif'
+    context.fillText(caption, center.x, center.y + radius + 15)
+  }
   context.restore()
 }
 
@@ -2732,11 +2580,9 @@ function drawPressureField(
       center.y +
       Math.sin(labelAngle) * radiusY
 
-    context.fillText(
-      String(value),
-      labelX + 4,
-      labelY - 2
-    )
+    if (layers.labels && (width >= 640 || index === 0 || index === 4)) {
+      context.fillText(String(value), labelX + 4, labelY - 2)
+    }
   })
 
   context.restore()
@@ -2847,6 +2693,101 @@ function drawCloudBand(
   context.restore()
 }
 
+let frontalCloudStamp: HTMLCanvasElement | null = null
+
+function getFrontalCloudStamp() {
+  if (frontalCloudStamp) return frontalCloudStamp
+  const canvas = document.createElement('canvas')
+  canvas.width = 96
+  canvas.height = 64
+  const context = canvas.getContext('2d')!
+  for (let index = 0; index < 14; index += 1) {
+    const x = 18 + hashRandom(index, 14) * 60
+    const y = 14 + hashRandom(index, 17) * 36
+    const radius = 13 + hashRandom(index, 18) * 13
+    const gradient = context.createRadialGradient(x, y, 0, x, y, radius)
+    gradient.addColorStop(0, 'rgba(234, 241, 245, 0.11)')
+    gradient.addColorStop(0.5, 'rgba(221, 231, 237, 0.05)')
+    gradient.addColorStop(1, 'rgba(218, 230, 235, 0)')
+    context.fillStyle = gradient
+    context.fillRect(x - radius, y - radius, radius * 2, radius * 2)
+  }
+  frontalCloudStamp = canvas
+  return canvas
+}
+
+function drawEvolvingFrontCloud(
+  context: CanvasRenderingContext2D,
+  path: FrontPath,
+  height: number,
+  kind: MovingFront,
+  strength: number,
+  hemisphereSign: number,
+) {
+  if (strength <= 0) return
+  const stamp = getFrontalCloudStamp()
+  const profile = FRONT_BANDS[kind]
+  const bandWidth = height * profile.cloudWidth
+  context.save()
+  context.globalCompositeOperation = 'screen'
+  // Reuse one soft texture, placing it on the current curved path. No full-screen
+  // blur or rigidly rotated old cloud map; clouds stay attached as the front bends.
+  for (let index = 0; index < 56; index += 1) {
+    const u = (index + 0.5) / 56
+    const point = getBezierPoint(path, u)
+    const tangent = getBezierTangent(path, u)
+    const edge = smoothStep(0, 0.055, u) * (1 - smoothStep(0.94, 1, u))
+    for (let row = 0; row < 5; row += 1) {
+      const spread = ((row + 0.5) / 5 - 0.5 + profile.cloudBias) *
+        bandWidth * hemisphereSign
+      const offset = (hashRandom(index + row * 56, 82) - 0.5) * bandWidth * 0.06
+      const x = point.x + tangent.y * (spread + offset)
+      const y = point.y - tangent.x * (spread + offset)
+      const size = bandWidth * (0.28 + hashRandom(index + row * 56, 92) * 0.13)
+      context.save()
+      context.translate(x, y)
+      context.rotate(Math.atan2(tangent.y, tangent.x))
+      context.globalAlpha = strength * edge * (kind === 'cold' ? 0.60 : 0.50)
+      context.drawImage(stamp, -size * 0.95, -size * 0.5, size * 1.9, size)
+      context.restore()
+    }
+  }
+  context.restore()
+}
+
+function drawFrontalRotationArrows(
+  context: CanvasRenderingContext2D,
+  center: SynopticPoint,
+  height: number,
+  hemisphereSign: number,
+  phase: number,
+) {
+  const radius = height * 0.16
+  const spin = -hemisphereSign
+  context.save()
+  context.strokeStyle = 'rgba(145, 223, 240, 0.66)'
+  context.fillStyle = 'rgba(177, 236, 247, 0.86)'
+  context.lineWidth = 1.8
+  for (let index = 0; index < 3; index += 1) {
+    const start = index * Math.PI * 2 / 3 + spin * phase * Math.PI * 0.78
+    const end = start + spin * 0.64
+    context.beginPath()
+    context.arc(center.x, center.y, radius, start, end, spin < 0)
+    context.stroke()
+    const x = center.x + Math.cos(end) * radius
+    const y = center.y + Math.sin(end) * radius
+    const dx = -Math.sin(end) * spin
+    const dy = Math.cos(end) * spin
+    context.beginPath()
+    context.moveTo(x + dx * 6, y + dy * 6)
+    context.lineTo(x - dx * 5 - dy * 4, y - dy * 5 + dx * 4)
+    context.lineTo(x - dx * 5 + dy * 4, y - dy * 5 - dx * 4)
+    context.closePath()
+    context.fill()
+  }
+  context.restore()
+}
+
 function drawCloudSpiral(
   context: CanvasRenderingContext2D,
   center: SynopticPoint,
@@ -2856,162 +2797,130 @@ function drawCloudSpiral(
   elapsed: number,
   model: 'cyclone' | 'anticyclone'
 ) {
-  const sparse =
-    model === 'anticyclone'
-
-  const strength =
-    clamp(
-      density /
-      (
-        sparse
-          ? 82
-          : 210
-      ),
-      0,
-      1
-    )
-
-  if (strength <= 0.01) {
-    return
-  }
-
+  const sparse = model === 'anticyclone'
+  const strength = clamp(density / (sparse ? 82 : 210), 0, 1)
+  if (strength <= 0.01) return
+  const profile = VORTEX_MAP_PROFILE
+  const spin = getVortexRotationSign(model, hemisphere.value)
+  const stamp = getFrontalCloudStamp()
   context.save()
+  // A cached soft texture avoids a full-canvas blur for each arm on every frame.
+  // Clip the clear eye explicitly; cloud, rain and city weather share its radius.
+  context.beginPath()
+  context.rect(0, 0, width, height)
+  context.ellipse(center.x, center.y, height * profile.eyeRadius * profile.xScale,
+    height * profile.eyeRadius * profile.yScale, 0, 0, Math.PI * 2)
+  context.clip('evenodd')
   context.globalCompositeOperation = 'screen'
-  context.lineCap = 'round'
-  context.lineJoin = 'round'
-  context.filter = sparse ? 'blur(7px)' : 'blur(6px)'
-
-  /*
-   * Canvas 的 Y 轴向下，因此角度增加在屏幕上表现为顺时针。
-   * 地图云带必须与三维环流使用同一组气象方向：
-   * 北半球气旋逆时针、反气旋顺时针；南半球相反。
-   */
-  const spinDirection =
-    getVortexRotationSign(
-      model,
-      hemisphere.value
-    )
-
-  const animation =
-    elapsed * 0.075 * spinDirection
-
-  const armCount =
-    sparse
-      ? 3
-      : 5
-
-  for (
-    let arm = 0;
-    arm < armCount;
-    arm += 1
-  ) {
-    context.beginPath()
-
-    for (
-      let step = 0;
-      step <= 92;
-      step += 1
-    ) {
-      const u = step / 92
-      const angle =
-        animation +
-        arm * Math.PI * 2 / armCount +
-        u * Math.PI * 4.7 * spinDirection
-      const radius =
-        (
-          0.075 +
-          u * 0.37
-        ) *
-        Math.min(width, height)
-      const ripple =
-        Math.sin(u * 19 + arm * 2.3) * 5
-      const x =
-        center.x +
-        Math.cos(angle) *
-        (
-          radius * 1.48 + ripple
-        )
-      const y =
-        center.y +
-        Math.sin(angle) *
-        (
-          radius * 0.70 + ripple * 0.34
-        )
-
-      if (step === 0) {
-        context.moveTo(x, y)
-      } else {
-        context.lineTo(x, y)
-      }
+  const arms = sparse ? 3 : 5
+  for (let arm = 0; arm < arms; arm += 1) {
+    for (let step = 0; step < 62; step += 1) {
+      const u = step / 61
+      const radius = height * (sparse ? 0.22 + u * 0.20 : 0.075 + u * (profile.outerRadius - 0.075))
+      const angle = elapsed * 0.075 * spin + arm * Math.PI * 2 / arms + u * Math.PI * 3.2 * spin
+      const x = center.x + Math.cos(angle) * radius * profile.xScale
+      const y = center.y + Math.sin(angle) * radius * profile.yScale
+      const size = height * (sparse ? 0.07 : 0.085) * (0.8 + hashRandom(step, arm + 35) * 0.5)
+      context.globalAlpha = strength * (sparse ? 0.58 : 1.2) * (1 - smoothStep(0.8, 1, u))
+      context.drawImage(stamp, x - size, y - size * 0.5, size * 2, size)
     }
-
-    context.globalAlpha =
-      strength *
-      (
-        sparse
-          ? 0.12
-          : 0.24
-      )
-    context.strokeStyle = sparse
-      ? 'rgb(232, 238, 232)'
-      : 'rgb(229, 239, 242)'
-    context.lineWidth =
-      sparse
-        ? 17 + arm * 2
-        : 24 + arm * 3
-    context.setLineDash(
-      sparse
-        ? [58 + arm * 9, 38 + arm * 5]
-        : [72 + arm * 10, 25 + arm * 4]
-    )
-    context.lineDashOffset =
-      -elapsed *
-      spinDirection *
-      (
-        7 + arm * 1.2
-      )
-    context.stroke()
   }
-
-  context.filter = 'none'
-  context.globalAlpha = strength * (sparse ? 0.10 : 0.16)
-  context.lineWidth = 1.25
-  context.strokeStyle = 'rgb(235, 246, 248)'
-  context.setLineDash([15, 12])
-
-  for (
-    let arm = 0;
-    arm < 3;
-    arm += 1
-  ) {
-    context.beginPath()
-
-    for (
-      let step = 0;
-      step <= 72;
-      step += 1
-    ) {
-      const u = step / 72
-      const angle =
-        animation +
-        arm * Math.PI * 2 / 3 +
-        u * Math.PI * 4.5 * spinDirection
-      const radius =
-        (0.085 + u * 0.35) *
-        Math.min(width, height)
-      const x = center.x + Math.cos(angle) * radius * 1.45
-      const y = center.y + Math.sin(angle) * radius * 0.68
-
-      if (step === 0) {
-        context.moveTo(x, y)
-      } else {
-        context.lineTo(x, y)
-      }
+  if (!sparse) {
+    // Closed eyewall connects the spiral bands without filling the clear eye.
+    for (let index = 0; index < 58; index += 1) {
+      const angle = index * Math.PI * 2 / 58 + elapsed * 0.075 * spin
+      const radius = height * (profile.eyeRadius + profile.eyewallRadius) * 0.5
+      const x = center.x + Math.cos(angle) * radius * profile.xScale
+      const y = center.y + Math.sin(angle) * radius * profile.yScale
+      const size = height * 0.055
+      context.globalAlpha = strength * 1.3
+      context.drawImage(stamp, x - size, y - size * 0.5, size * 2, size)
     }
-
-    context.stroke()
   }
+  context.restore()
+}
 
+function drawVortexMapFlow(
+  context: CanvasRenderingContext2D, center: SynopticPoint, height: number, elapsed: number, cyclone: boolean,
+) {
+  const spin = getVortexRotationSign(cyclone ? 'cyclone' : 'anticyclone', hemisphere.value)
+  const profile = VORTEX_MAP_PROFILE
+  context.save()
+  context.strokeStyle = cyclone ? 'rgba(139,225,247,0.78)' : 'rgba(255,214,126,0.78)'
+  context.fillStyle = context.strokeStyle
+  context.lineWidth = 1.5
+  const arrowCount = height < 260 ? 16 : 32
+  const arrowSize = clamp(height / 450, 0.48, 1)
+  for (let index = 0; index < arrowCount; index += 1) {
+    const t = (index / arrowCount + elapsed * 0.055) % 1
+    const radius = height * (cyclone ? 0.35 - t * 0.24 : 0.09 + t * 0.27)
+    const angle = index * 2.399 + elapsed * 0.38 * spin
+    const x = center.x + Math.cos(angle) * radius * profile.xScale
+    const y = center.y + Math.sin(angle) * radius * profile.yScale
+    const radial = cyclone ? -0.25 : 0.25
+    const vx = (-Math.sin(angle) * spin + Math.cos(angle) * radial) * profile.xScale
+    const vy = (Math.cos(angle) * spin + Math.sin(angle) * radial) * profile.yScale
+    const norm = Math.hypot(vx, vy)
+    const dx = vx / norm * arrowSize, dy = vy / norm * arrowSize
+    context.beginPath()
+    context.moveTo(x - dx * 12, y - dy * 12)
+    context.lineTo(x + dx * 5, y + dy * 5)
+    context.stroke()
+    context.beginPath()
+    context.moveTo(x + dx * 7, y + dy * 7)
+    context.lineTo(x - dx * 2 - dy * 3, y - dy * 2 + dx * 3)
+    context.lineTo(x - dx * 2 + dy * 3, y - dy * 2 - dx * 3)
+    context.closePath()
+    context.fill()
+  }
+  context.restore()
+}
+
+function drawVortexMapRain(
+  context: CanvasRenderingContext2D, center: SynopticPoint, height: number, elapsed: number, strength: number,
+) {
+  const profile = VORTEX_MAP_PROFILE
+  const spin = getVortexRotationSign('cyclone', hemisphere.value)
+  context.save()
+  context.strokeStyle = 'rgba(73,207,255,0.72)'
+  context.lineWidth = 1.3
+  context.globalAlpha = strength
+  context.beginPath()
+  for (let index = 0; index < 118; index += 1) {
+    const fraction = hashRandom(index, 27)
+    const radius = height * (index < 42
+      ? profile.eyeRadius + 0.013 + fraction * (profile.eyewallRadius - profile.eyeRadius - 0.013)
+      : profile.eyewallRadius + fraction * (profile.outerRadius - profile.eyewallRadius))
+    const angle = index * 2.399 + elapsed * 0.075 * spin
+    const x = center.x + Math.cos(angle) * radius * profile.xScale
+    const y = center.y + Math.sin(angle) * radius * profile.yScale
+    const length = 5 + (Math.sin(elapsed * 4 + index) * 0.5 + 0.5) * 6
+    context.moveTo(x, y)
+    context.lineTo(x - 2, y + length)
+  }
+  context.stroke()
+  context.restore()
+}
+
+function drawStationaryMapAir(context: CanvasRenderingContext2D, path: FrontPath, height: number, elapsed: number) {
+  context.save()
+  context.lineWidth = 1.5
+  for (let side of [-1, 1]) {
+    context.strokeStyle = side < 0 ? 'rgba(117,207,255,0.65)' : 'rgba(255,171,133,0.65)'
+    for (let index = 0; index < 18; index += 1) {
+      const u = (index + 0.5) / 18
+      const p = getBezierPoint(path, u)
+      const tangent = getBezierTangent(path, u)
+      const amount = height * (0.065 + (index % 3) * 0.032)
+      const x = p.x + tangent.y * side * amount + Math.sin(elapsed * 0.6 + index) * 4
+      const y = p.y - tangent.x * side * amount
+      context.beginPath()
+      context.moveTo(x - 10 * side, y + 5 * side)
+      context.lineTo(x + 7 * side, y - 3 * side)
+      context.lineTo(x + 2 * side, y - 5 * side)
+      context.stroke()
+    }
+  }
   context.restore()
 }
 
@@ -3071,7 +2980,7 @@ function drawRainAlongPath(
     context.lineTo(x - 4, y + 11 + pulse * 8)
   }
 
-  context.globalAlpha = 0.62
+  context.globalAlpha *= 0.62
   context.stroke()
   context.restore()
 }
@@ -3136,15 +3045,13 @@ function drawFrontSymbols(
           : 'warm'
         : kind
 
-    // Canvas arcs are drawn toward the positive local Y axis by default.
-    // A moving warm front therefore needs to be flipped to the left/cold-air
-    // side of its eastward path. On a stationary front both symbol types use
-    // the same local sign: triangles project to the right normal while the
-    // semicircle arc naturally occupies the opposite side of the baseline.
-    const side =
-      kind === 'warm'
-        ? -1
-        : 1
+    const advance = kind === 'stationary'
+      ? rightNormal
+      : frontAdvanceDirection(progress.value / 100, hemisphere.value, kind, u, currentModel.value === 'warmFront' ? 'warm' : 'cold')
+    const advanceSide = rightNormal.x * advance.x + rightNormal.y * advance.y >= 0 ? 1 : -1
+    const side = kind === 'stationary'
+      ? 1
+      : kind === 'warm' ? -advanceSide : advanceSide
 
     const color =
       actualKind === 'cold'
@@ -3191,112 +3098,158 @@ function drawFrontSymbols(
   context.restore()
 }
 
+function drawFrontAdvanceLabel(
+  context: CanvasRenderingContext2D, path: FrontPath, kind: MovingFront, width: number, height: number,
+) {
+  context.save()
+  context.font = '700 13px sans-serif'
+  const label = kind === 'cold' ? '冷气团推进 → 暖气团' : '暖气团推进 → 冷气团'
+  const labelWidth = context.measureText(label).width + 22
+  const mobile = width < 640
+  const length = mobile ? 18 : 36
+  const cities = currentWeatherMapRegion.value.cities.map(city => {
+    const p = getNormalizedCityPoint(city)
+    return { x: p.x * width, y: p.y * height }
+  })
+  const choices = Array.from({ length: 17 }, (_, i) => {
+    const u = 0.16 + i * 0.04
+    const point = getBezierPoint(path, u)
+    const normal = frontAdvanceDirection(progress.value / 100, hemisphere.value, kind, u, currentModel.value === 'warmFront' ? 'warm' : 'cold')
+    const start = { x: point.x - normal.x * length, y: point.y - normal.y * length }
+    const end = { x: point.x + normal.x * length, y: point.y + normal.y * length }
+    const x = clamp(start.x - labelWidth / 2, 10, Math.max(10, width - labelWidth - 10))
+    const y = clamp(start.y + (normal.y < 0 ? 14 : -36), 10, height - 38)
+    let penalty = Math.abs(u - .48)
+    if (point.x < 30 || point.x > width - 30 || point.y < 40 || point.y > height - 50) penalty += 100
+    for (const city of cities) {
+      if (city.x > x - 52 && city.x < x + labelWidth + 52 && city.y > y - 20 && city.y < y + 46) penalty += 10
+      if (Math.hypot(city.x - point.x, city.y - point.y) < 65) penalty += 10
+    }
+    for (const air of mapAirLabels.value) {
+      const ax = parseFloat(air.style.left) - mapRectangle.value.x
+      const ay = parseFloat(air.style.top) - mapRectangle.value.y
+      if (ax > x - 65 && ax < x + labelWidth + 65 && ay > y - 40 && ay < y + 70) penalty += 5
+    }
+    return { start, end, normal, x, y, penalty }
+  }).sort((a, b) => a.penalty - b.penalty)
+  const { start, end, normal, x, y } = choices[0]!
+  const color = kind === 'cold' ? '#77caff' : '#ff9c9c'
+  context.strokeStyle = color
+  context.fillStyle = color
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(start.x, start.y)
+  context.lineTo(end.x, end.y)
+  context.stroke()
+  context.beginPath()
+  context.moveTo(end.x, end.y)
+  context.lineTo(end.x - normal.x * 9 - normal.y * 4, end.y - normal.y * 9 + normal.x * 4)
+  context.lineTo(end.x - normal.x * 9 + normal.y * 4, end.y - normal.y * 9 - normal.x * 4)
+  context.closePath()
+  context.fill()
+  if (!mobile) {
+    context.fillStyle = 'rgba(5,25,38,0.94)'
+    context.beginPath()
+    context.roundRect(x, y, labelWidth, 28, 7)
+    context.fill()
+    context.fillStyle = color
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.fillText(label, x + labelWidth / 2, y + 14)
+  }
+  context.restore()
+}
+
+function traceWarmSector(
+  context: CanvasRenderingContext2D,
+  coldPath: FrontPath,
+  warmPath: FrontPath,
+  center: SynopticPoint,
+  hemisphereSign: number,
+) {
+  context.moveTo(warmPath[0].x, warmPath[0].y)
+  context.bezierCurveTo(warmPath[1].x, warmPath[1].y, warmPath[2].x, warmPath[2].y, warmPath[3].x, warmPath[3].y)
+  const warmAngle = Math.atan2(warmPath[3].y - center.y, warmPath[3].x - center.x)
+  const coldAngle = Math.atan2(coldPath[3].y - center.y, coldPath[3].x - center.x)
+  const sectorAngle = ((coldAngle - warmAngle) * hemisphereSign + Math.PI * 2) % (Math.PI * 2)
+  const warmRadius = Math.hypot(warmPath[3].x - center.x, warmPath[3].y - center.y)
+  const coldRadius = Math.hypot(coldPath[3].x - center.x, coldPath[3].y - center.y)
+  for (let step = 1; step <= 48; step += 1) {
+    const t = step / 48
+    const angle = warmAngle + sectorAngle * t * hemisphereSign
+    const radius = warmRadius + (coldRadius - warmRadius) * t
+    context.lineTo(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius)
+  }
+  context.bezierCurveTo(coldPath[2].x, coldPath[2].y, coldPath[1].x, coldPath[1].y, coldPath[0].x, coldPath[0].y)
+  context.closePath()
+}
+
+function drawFrontalAirMasses(
+  context: CanvasRenderingContext2D,
+  coldPath: FrontPath,
+  warmPath: FrontPath,
+  center: SynopticPoint,
+  height: number,
+  hemisphereSign: number,
+) {
+  context.save()
+  // The exact same moving boundaries define the tint, symbols and city air mass.
+  const coldTint = context.createRadialGradient(center.x, center.y, height * 0.12, center.x, center.y, height * 0.99)
+  coldTint.addColorStop(0, 'rgba(53, 155, 231, 0.17)')
+  coldTint.addColorStop(0.76, 'rgba(53, 155, 231, 0.12)')
+  coldTint.addColorStop(1, 'rgba(53, 155, 231, 0)')
+  context.fillStyle = coldTint
+  context.beginPath()
+  context.arc(center.x, center.y, height * 0.99, 0, Math.PI * 2)
+  traceWarmSector(context, coldPath, warmPath, center, hemisphereSign)
+  context.fill('evenodd')
+  const warmTint = context.createRadialGradient(center.x, center.y, height * 0.1, center.x, center.y, height * 0.96)
+  warmTint.addColorStop(0, 'rgba(255, 169, 96, 0.18)')
+  warmTint.addColorStop(0.78, 'rgba(255, 169, 96, 0.16)')
+  warmTint.addColorStop(1, 'rgba(255, 169, 96, 0)')
+  context.fillStyle = warmTint
+  context.beginPath()
+  traceWarmSector(context, coldPath, warmPath, center, hemisphereSign)
+  context.fill()
+  context.restore()
+}
+
 function drawSynopticOverlay(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
   elapsed: number
 ) {
-  const phase =
-    progress.value / 100
-
-  const reveal =
-    0.12 +
-    smoothStep(0.14, 0.92, phase) * 0.88
-
-  const frontReveal =
-    smoothStep(0.16, 0.42, phase)
-
-  const driftX =
-    THREE.MathUtils.lerp(
-      -0.18,
-      0.27,
-      phase
-    ) * width
-
-  const lowCenter = {
-    x: width * 0.49 + driftX,
-    y: height * 0.34,
-  }
-
-  const coldPath: [
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-  ] = [
-      lowCenter,
-      {
-        x: width * 0.44 + driftX,
-        y: height * 0.49,
-      },
-      {
-        x: width * 0.34 + driftX,
-        y: height * 0.66,
-      },
-      {
-        x: width * 0.20 + driftX,
-        y: height * 0.92,
-      },
-    ]
-
-  const warmPath: [
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-  ] = [
-      lowCenter,
-      {
-        x: width * 0.60 + driftX,
-        y: height * 0.33,
-      },
-      {
-        x: width * 0.73 + driftX,
-        y: height * 0.35,
-      },
-      {
-        x: width * 0.89 + driftX,
-        y: height * 0.41,
-      },
-    ]
-
-  const stationaryDrift =
-    Math.sin(elapsed * 0.72) * width * 0.012 *
-    smoothStep(0.18, 0.6, phase)
-
-  const stationaryPath: [
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-    SynopticPoint,
-  ] = [
-      {
-        x: width * 0.10 + stationaryDrift,
-        y: height * 0.56,
-      },
-      {
-        x: width * 0.34 + stationaryDrift,
-        y: height * 0.48,
-      },
-      {
-        x: width * 0.66 + stationaryDrift,
-        y: height * 0.63,
-      },
-      {
-        x: width * 0.92 + stationaryDrift,
-        y: height * 0.53,
-      },
-    ]
+  // Tiles, symbols, cloud bands and city hit targets all use an undistorted 2:1 map.
+  context.save()
+  const rotatingFronts = currentModel.value === 'coldFront' || currentModel.value === 'warmFront'
+  const phase = progress.value / 100
+  const focus = currentModel.value === 'warmFront' ? 'warm' : 'cold'
+  const frontState = getFrontalMapState(phase, focus)
+  elapsed = simulationElapsed.value
+  const reveal = rotatingFronts
+    ? frontState.cloudOpacity
+    : currentModel.value === 'stationaryFront'
+      ? smoothStep(0.42, 0.70, phase)
+      : 0.12 + smoothStep(0.40, 0.78, phase) * 0.88
+  const frontReveal = rotatingFronts
+    ? frontState.frontOpacity
+    : smoothStep(0.16, 0.42, phase)
+  const geometry = getCurrentSynopticGeometry()
+  const toPixel = (point: SynopticPoint): SynopticPoint => ({
+    x: point.x * width,
+    y: point.y * height,
+  })
+  const lowCenter = toPixel(geometry.lowCenter)
+  const coldPath = geometry.coldPath.map(toPixel) as FrontPath
+  const warmPath = geometry.warmPath.map(toPixel) as FrontPath
+  const stationaryPath = geometry.stationaryPath.map(toPixel) as FrontPath
 
   if (
     currentModel.value === 'cyclone' ||
     currentModel.value === 'anticyclone'
   ) {
-    const center = {
-      x: width * 0.55 + driftX * 0.42,
-      y: height * 0.48,
-    }
+    const center = toPixel(geometry.vortexCenter)
 
     const isCyclone =
       currentModel.value === 'cyclone'
@@ -3318,7 +3271,7 @@ function drawSynopticOverlay(
         center,
         width,
         height,
-      Math.round(
+        Math.round(
           (isCyclone ? 210 : 82) * reveal
         ),
         elapsed,
@@ -3328,45 +3281,19 @@ function drawSynopticOverlay(
       )
     }
 
+    if (layers.air && phase > 0.16) {
+      drawVortexMapFlow(context, center, height, elapsed, isCyclone)
+    }
+
     if (
       layers.rain &&
       isCyclone &&
-      currentStageIndex.value >= 1
+      phase > 0.58
     ) {
-      const spiralRainPath: [
-        SynopticPoint,
-        SynopticPoint,
-        SynopticPoint,
-        SynopticPoint,
-      ] = [
-          {
-            x: center.x - width * 0.28,
-            y: center.y + height * 0.15,
-          },
-          {
-            x: center.x - width * 0.08,
-            y: center.y + height * 0.32,
-          },
-          {
-            x: center.x + width * 0.20,
-            y: center.y + height * 0.08,
-          },
-          {
-            x: center.x + width * 0.08,
-            y: center.y - height * 0.18,
-          },
-        ]
-
-      drawRainAlongPath(
-        context,
-        spiralRainPath,
-        height * 0.22,
-        86,
-        elapsed
-      )
+      drawVortexMapRain(context, center, height, elapsed, smoothStep(0.58, 0.78, phase))
     }
 
-    drawPressureCenter(
+    if (layers.front) drawPressureCenter(
       context,
       center,
       isCyclone ? 'low' : 'high',
@@ -3375,6 +3302,7 @@ function drawSynopticOverlay(
         : '高压中心 · 晴空区'
     )
 
+    context.restore()
     return
   }
 
@@ -3388,79 +3316,52 @@ function drawSynopticOverlay(
     )
   }
 
-  if (currentModel.value === 'coldFront') {
-    if (layers.cloud) {
-      drawCloudBand(
-        context,
-        coldPath,
-        height * 0.18,
-        Math.round(190 * reveal),
-        elapsed,
-        '220, 234, 239',
-        -0.06
-      )
+  if (currentModel.value === 'coldFront' || currentModel.value === 'warmFront') {
+    if (layers.air) {
+      drawFrontalAirMasses(context, coldPath, warmPath, lowCenter, height, geometry.hemisphereSign)
     }
-
-    if (
-      layers.rain &&
-      currentStageIndex.value >= 2
-    ) {
-      drawRainAlongPath(
-        context,
-        coldPath,
-        height * 0.12,
-        72,
-        elapsed,
-        -0.06
-      )
+    for (const kind of ['cold', 'warm'] as const) {
+      const path = kind === 'cold' ? coldPath : warmPath
+      const profile = FRONT_BANDS[kind]
+      const emphasis = focus === kind ? 1 : 0.55
+      if (layers.cloud && reveal > 0) {
+        drawEvolvingFrontCloud(context, path, height, kind, reveal * emphasis, geometry.hemisphereSign)
+      }
+      if (layers.rain && frontState.rainOpacity > 0) {
+        context.save()
+        context.globalAlpha = frontState.rainOpacity * emphasis
+        drawRainAlongPath(
+          context, path, height * profile.rainWidth,
+          kind === 'cold' ? 76 : 104, elapsed,
+          profile.rainBias * geometry.hemisphereSign,
+        )
+        context.restore()
+      }
     }
-
     if (layers.front) {
-      drawFrontSymbols(
-        context,
-        coldPath,
-        'cold',
-        frontReveal
-      )
-    }
-  } else if (
-    currentModel.value === 'warmFront'
-  ) {
-    if (layers.cloud) {
-      drawCloudBand(
-        context,
-        warmPath,
-        height * 0.31,
-        Math.round(245 * reveal),
-        elapsed,
-        '225, 232, 236',
-        0.30
-      )
-    }
-
-    if (
-      layers.rain &&
-      currentStageIndex.value >= 2
-    ) {
-      drawRainAlongPath(
-        context,
-        warmPath,
-        height * 0.26,
-        96,
-        elapsed,
-        0.38
-      )
-    }
-
-    if (layers.front) {
-      drawFrontSymbols(
-        context,
-        warmPath,
-        'warm',
-        frontReveal
-      )
+      if (frontReveal < 1) {
+        context.save()
+        context.globalAlpha = (1 - frontReveal) * 0.5
+        context.strokeStyle = '#d4e5eb'
+        context.lineWidth = 1.2
+        context.setLineDash([5, 7])
+        for (const path of [coldPath, warmPath]) {
+          traceBezierPath(context, path)
+          context.stroke()
+        }
+        context.restore()
+      }
+      if (frontReveal > 0) {
+        drawFrontSymbols(context, coldPath, 'cold', frontReveal * (focus === 'cold' ? 1 : 0.48))
+        drawFrontSymbols(context, warmPath, 'warm', frontReveal * (focus === 'warm' ? 1 : 0.48))
+      }
+      if (frontState.motion > 0) drawFrontalRotationArrows(context, lowCenter, height, geometry.hemisphereSign, frontState.motion)
+      if (layers.labels && frontState.motion > 0) {
+        drawFrontAdvanceLabel(context, focus === 'cold' ? coldPath : warmPath, focus, width, height)
+      }
     }
   } else {
+    if (layers.air) drawStationaryMapAir(context, stationaryPath, height, elapsed)
     if (layers.cloud) {
       drawCloudBand(
         context,
@@ -3474,8 +3375,10 @@ function drawSynopticOverlay(
 
     if (
       layers.rain &&
-      currentStageIndex.value >= 1
+      phase > 0.52
     ) {
+      context.save()
+      context.globalAlpha = smoothStep(0.52, 0.74, phase)
       drawRainAlongPath(
         context,
         stationaryPath,
@@ -3483,6 +3386,7 @@ function drawSynopticOverlay(
         108,
         elapsed
       )
+      context.restore()
     }
 
     if (layers.front) {
@@ -3498,123 +3402,65 @@ function drawSynopticOverlay(
     }
   }
 
-  drawPressureCenter(
+  if (layers.front) drawPressureCenter(
     context,
     lowCenter,
     'low',
     '温带低压中心'
   )
+  context.restore()
 }
 
-function drawWeatherMap(
-  elapsed: number
-) {
-  const canvas =
-    weatherMapCanvasRef.value
+let lastWeatherMapSignature = ''
 
-  if (!canvas) {
-    return
-  }
-
-  const rect =
-    canvas.getBoundingClientRect()
-
-  const width =
-    Math.round(rect.width)
-
-  const height =
-    Math.round(rect.height)
-
-  if (
-    width < 16 ||
-    height < 16
-  ) {
-    return
-  }
-
-  const dpr =
-    Math.min(
-      window.devicePixelRatio || 1,
-      1.25
-    )
-
-  const pixelWidth =
-    Math.round(width * dpr)
-
-  const pixelHeight =
-    Math.round(height * dpr)
-
-  if (
-    canvas.width !== pixelWidth ||
-    canvas.height !== pixelHeight
-  ) {
+function drawWeatherMap(elapsed = simulationElapsed.value) {
+  const canvas = weatherMapCanvasRef.value
+  if (!canvas) return
+  const bounds = canvas.getBoundingClientRect()
+  const width = Math.round(bounds.width), height = Math.round(bounds.height)
+  if (width < 16 || height < 16) return
+  mapViewport.width = width
+  mapViewport.height = height
+  const sceneStyle = getComputedStyle(canvas)
+  mapViewport.topInset = parseFloat(sceneStyle.getPropertyValue('--scene-safe-top')) || 0
+  mapViewport.bottomInset = parseFloat(sceneStyle.getPropertyValue('--scene-safe-bottom')) || 0
+  elapsed = simulationElapsed.value
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+  const signature = [width, height, mapViewport.topInset, mapViewport.bottomInset, dpr, elapsed, currentModel.value, hemisphere.value,
+    weatherMapStatus.value, ...Object.values(layers)].join('|')
+  // Frozen scenes do not repeatedly repaint large cloud canvases.
+  if (signature === lastWeatherMapSignature) return
+  const pixelWidth = Math.round(width * dpr), pixelHeight = Math.round(height * dpr)
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
     canvas.width = pixelWidth
     canvas.height = pixelHeight
   }
-
-  const context =
-    canvas.getContext('2d')
-
-  if (!context) {
-    return
-  }
-
+  const context = canvas.getContext('2d')
+  if (!context) return
+  lastWeatherMapSignature = signature
+  const map = mapRectangle.value
   context.setTransform(dpr, 0, 0, dpr, 0, 0)
   context.clearRect(0, 0, width, height)
-
-  const fallbackGradient =
-    context.createLinearGradient(0, 0, width, height)
-
-  fallbackGradient.addColorStop(0, '#173e50')
-  fallbackGradient.addColorStop(1, '#071c2d')
-  context.fillStyle = fallbackGradient
+  context.fillStyle = '#0a2231'
   context.fillRect(0, 0, width, height)
-
-  const weatherTileCanvas =
-    weatherTileCanvases[hemisphere.value]
-
-  if (layers.ground && weatherTileCanvas) {
-    context.globalAlpha = 0.82
-    context.drawImage(
-      weatherTileCanvas,
-      0,
-      0,
-      width,
-      height
-    )
+  context.save()
+  context.translate(map.x, map.y)
+  context.beginPath()
+  context.rect(0, 0, map.width, map.height)
+  context.clip()
+  const tileCanvas = weatherTileCanvases[hemisphere.value]
+  if (layers.ground && tileCanvas) {
+    context.globalAlpha = 0.86
+    context.drawImage(tileCanvas, 0, 0, map.width, map.height)
     context.globalAlpha = 1
   }
-
-  const nightOverlay =
-    context.createLinearGradient(0, 0, width, height)
-
-  nightOverlay.addColorStop(0, 'rgba(3, 17, 31, 0.30)')
-  nightOverlay.addColorStop(0.55, 'rgba(5, 25, 40, 0.46)')
-  nightOverlay.addColorStop(1, 'rgba(2, 13, 26, 0.62)')
-  context.fillStyle = nightOverlay
-  context.fillRect(0, 0, width, height)
-
-  const vignette =
-    context.createRadialGradient(
-      width * 0.52,
-      height * 0.46,
-      height * 0.14,
-      width * 0.52,
-      height * 0.46,
-      width * 0.72
-    )
-
-  vignette.addColorStop(0, 'rgba(5, 25, 38, 0)')
-  vignette.addColorStop(1, 'rgba(1, 9, 18, 0.52)')
-  context.fillStyle = vignette
-  context.fillRect(0, 0, width, height)
-
-  drawSynopticOverlay(
-    context,
-    width,
-    height,
-    elapsed
-  )
+  const shade = context.createLinearGradient(0, 0, map.width, map.height)
+  shade.addColorStop(0, 'rgba(3,17,31,0.22)')
+  shade.addColorStop(1, 'rgba(2,13,26,0.45)')
+  context.fillStyle = shade
+  context.fillRect(0, 0, map.width, map.height)
+  drawSynopticOverlay(context, map.width, map.height, elapsed)
+  context.restore()
 }
 
 function animateWeatherMap() {
@@ -3638,7 +3484,7 @@ function animateWeatherMap() {
   weatherMapLastDrawTime = currentTime
 
   drawWeatherMap(
-    currentTime / 1000
+    simulationElapsed.value
   )
 }
 
@@ -5631,8 +5477,8 @@ function updateUpliftArrows(
         0.25,
         tempPoint.y -
         tempTangent.x *
-          0.25 +
-          0.12,
+        0.25 +
+        0.12,
         Number(
           child.userData.zOffset ||
           0
@@ -5665,7 +5511,7 @@ function updateUpliftArrows(
         motionProgress *
         endFade *
         (
-            index %
+          index %
             2 === 0
             ? 0.64
             : 0.54
@@ -6075,44 +5921,44 @@ function createFrontSurface(
         ? '#f5c1b2'
         : '#ddd0ee'
 
-  ;[-9.42, 9.42].forEach(
-    (z) => {
-      const borderPoints =
-        curve.getPoints(120).map(
-          (point) =>
-            new THREE.Vector3(
-              point.x,
-              point.y,
-              z
-            )
-        )
+    ;[-9.42, 9.42].forEach(
+      (z) => {
+        const borderPoints =
+          curve.getPoints(120).map(
+            (point) =>
+              new THREE.Vector3(
+                point.x,
+                point.y,
+                z
+              )
+          )
 
-      const border =
-        new THREE.Mesh(
-          new THREE.TubeGeometry(
-            new THREE.CatmullRomCurve3(borderPoints),
-            128,
-            0.052,
-            8,
-            false
-          ),
-          new THREE.MeshStandardMaterial({
-            color: sideBorderColor,
-            emissive: sideBorderColor,
-            emissiveIntensity: 0.10,
-            roughness: 0.84,
-            metalness: 0.02,
-            transparent: true,
-            opacity: 0,
-            depthWrite: false,
-          })
-        )
+        const border =
+          new THREE.Mesh(
+            new THREE.TubeGeometry(
+              new THREE.CatmullRomCurve3(borderPoints),
+              128,
+              0.052,
+              8,
+              false
+            ),
+            new THREE.MeshStandardMaterial({
+              color: sideBorderColor,
+              emissive: sideBorderColor,
+              emissiveIntensity: 0.10,
+              roughness: 0.84,
+              metalness: 0.02,
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+            })
+          )
 
-      border.renderOrder = 8
-      border.userData.frontSideBorder = true
-      symbolGroup.add(border)
-    }
-  )
+        border.renderOrder = 8
+        border.userData.frontSideBorder = true
+        symbolGroup.add(border)
+      }
+    )
 
   const upliftArrowGroup =
     createUpliftArrowGroup(
@@ -6170,7 +6016,7 @@ function createAirflowStrandMaterial(
       ? new THREE.Color('#d8f2ff')
       : role === 'warm'
         ? new THREE.Color('#ffe5d8')
-      : new THREE.Color('#eee9ff')
+        : new THREE.Color('#eee9ff')
 
   const material =
     new THREE.ShaderMaterial({
@@ -7390,7 +7236,7 @@ function createVolumeCloudBank(
 }
 
 function createCloudBank(
-  model: FrontModel,
+  model: FrontalCloudModel,
   curve: THREE.CatmullRomCurve3
 ) {
   if (!cloudGroup) {
@@ -7675,15 +7521,15 @@ function updateCloudBank(
 
     volumeCloud.mesh.updateMatrixWorld()
 
-    ;(
-      volumeCloud.material.uniforms
-        .uModelMatrixInverse!.value as
-      THREE.Matrix4
-    )
-      .copy(
-        volumeCloud.mesh.matrixWorld
+      ; (
+        volumeCloud.material.uniforms
+          .uModelMatrixInverse!.value as
+        THREE.Matrix4
       )
-      .invert()
+        .copy(
+          volumeCloud.mesh.matrixWorld
+        )
+        .invert()
 
     volumeCloud.material.uniforms
       .uOpacity!.value =
@@ -8276,17 +8122,18 @@ function updateRainField(
   model: FrontModel,
   curve?: THREE.CatmullRomCurve3
 ) {
+  // createRainField allocates every per-drop buffer with handle.count entries.
   for (
     let index = 0;
     index < handle.count;
     index += 1
   ) {
     let top =
-      handle.topY[index]
+      handle.topY[index]!
 
     let x =
       offsetX +
-      handle.baseX[index]
+      handle.baseX[index]!
 
     if (
       model ===
@@ -8300,7 +8147,7 @@ function updateRainField(
        */
       const localX =
         1.55 +
-        handle.baseX[index] *
+        handle.baseX[index]! *
         5.15
 
       const frontHeight =
@@ -8328,14 +8175,14 @@ function updateRainField(
       top -
       (
         elapsed *
-        handle.speed[index] *
+        handle.speed[index]! *
         flowSpeed.value +
-        handle.phase[index]
+        handle.phase[index]!
       ) %
       top
 
     const z =
-      handle.baseZ[index]
+      handle.baseZ[index]!
 
     const lineIndex =
       index *
@@ -8979,7 +8826,7 @@ function createVortexHorizontalCurve(
       isCyclone
         ? THREE.MathUtils.lerp(
           8.6,
-          1.05,
+          VORTEX_SECTION_PROFILE.eyewallRadius,
           t
         )
         : THREE.MathUtils.lerp(
@@ -9034,6 +8881,12 @@ function createVortexHorizontalCurve(
   )
 }
 
+const VORTEX_SECTION_PROFILE = {
+  eyeRadius: 1.25,
+  eyewallRadius: 2.2,
+  eyewallOuterRadius: 2.7,
+} as const
+
 function createVortexVerticalCurve(
   model:
     | 'cyclone'
@@ -9054,7 +8907,7 @@ function createVortexVerticalCurve(
   const points:
     THREE.Vector3[] = []
 
-  /* 气旋自近地面螺旋上升并向高空展开；反气旋反向螺旋下沉。 */
+  /* 热带气旋的上升气流位于眼墙，不能穿过中央下沉的风眼。 */
   const verticalTurns =
     3.25
 
@@ -9085,8 +8938,8 @@ function createVortexVerticalCurve(
 
     const radius =
       THREE.MathUtils.lerp(
-        0.72,
-        2.35,
+        isCyclone ? VORTEX_SECTION_PROFILE.eyewallRadius : 0.72,
+        isCyclone ? VORTEX_SECTION_PROFILE.eyewallOuterRadius : 2.35,
         t
       )
 
@@ -9131,6 +8984,23 @@ function createVortexVerticalCurve(
     'catmullrom',
     0.44
   )
+}
+
+function createCycloneEyeDescentCurve(currentHemisphere: Hemisphere) {
+  const spin = getVortexRotationSign('cyclone', currentHemisphere)
+  const points: THREE.Vector3[] = []
+  for (let step = 0; step <= 72; step += 1) {
+    const t = step / 72
+    const angle = spin * t * Math.PI * 1.1
+    const radius = THREE.MathUtils.lerp(0.35, 0.55, t)
+    // 眼内下沉在低层减弱；不画成贯穿地面的强下沉喷流。
+    points.push(new THREE.Vector3(
+      Math.cos(angle) * radius,
+      THREE.MathUtils.lerp(7.2, 1.35, t),
+      Math.sin(angle) * radius,
+    ))
+  }
+  return new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.4)
 }
 
 
@@ -9497,7 +9367,8 @@ function createPressureCenter(
 function createVortexCloudMaterial(
   model: 'cyclone' | 'anticyclone',
   rotationSign: number,
-  layerPhase: number
+  layerPhase: number,
+  worldRadius: number
 ) {
   const isCyclone =
     model === 'cyclone'
@@ -9510,6 +9381,9 @@ function createVortexCloudMaterial(
         uRotationSign: { value: rotationSign },
         uLayerPhase: { value: layerPhase },
         uCyclone: { value: isCyclone ? 1 : 0 },
+        uWorldRadius: { value: worldRadius },
+        uEyeRadius: { value: VORTEX_SECTION_PROFILE.eyeRadius },
+        uEyewallRadius: { value: VORTEX_SECTION_PROFILE.eyewallRadius },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -9527,6 +9401,9 @@ function createVortexCloudMaterial(
         uniform float uRotationSign;
         uniform float uLayerPhase;
         uniform float uCyclone;
+        uniform float uWorldRadius;
+        uniform float uEyeRadius;
+        uniform float uEyewallRadius;
         varying vec2 vUv;
 
         float hash21(vec2 p) {
@@ -9580,8 +9457,8 @@ function createVortexCloudMaterial(
             textureNoise + broadArm * mix(0.25, 0.42, uCyclone)
           );
 
-          float eyeRadius = mix(0.36, 0.135, uCyclone);
-          float eyeEdge = mix(0.48, 0.225, uCyclone);
+          float eyeRadius = mix(0.36, uEyeRadius / uWorldRadius, uCyclone);
+          float eyeEdge = mix(0.48, (uEyeRadius + 0.45) / uWorldRadius, uCyclone);
           float eyeMask = smoothstep(eyeRadius, eyeEdge, radius);
           float outerFade = 1.0 - smoothstep(0.83, 1.0, radius);
           float radialBands = 0.72 + 0.28 * sin(radius * 38.0 - uTime * 0.32);
@@ -9593,10 +9470,10 @@ function createVortexCloudMaterial(
             mix(radialBands * 0.62, 1.0, uCyclone);
 
           float eyewall =
-            exp(-pow((radius - 0.255) * 17.0, 2.0)) *
+            exp(-pow((radius * uWorldRadius - uEyewallRadius) / 0.38, 2.0)) *
             uCyclone;
 
-          density = max(density, eyewall * (0.62 + textureNoise * 0.38));
+          density = max(density, eyewall * eyeMask * (0.62 + textureNoise * 0.38));
 
           vec3 shadowColor = mix(
             vec3(0.56, 0.64, 0.69),
@@ -9642,27 +9519,28 @@ function createVortexCloudDeck(
   const group = new THREE.Group()
   const layers: VortexCloudLayerHandle[] = []
 
-  ;[
-    { radius: isCyclone ? 9.4 : 9.7, y: 1.42, scale: 1, phase: 0 },
-    { radius: isCyclone ? 8.1 : 8.7, y: 1.82, scale: 0.82, phase: 2.35 },
-  ].forEach((layer) => {
-    const material =
-      createVortexCloudMaterial(
-        model,
-        rotationSign,
-        layer.phase
+    ;[
+      { radius: isCyclone ? 9.4 : 9.7, y: 1.42, scale: 1, phase: 0 },
+      { radius: isCyclone ? 8.1 : 8.7, y: 1.82, scale: 0.82, phase: 2.35 },
+    ].forEach((layer) => {
+      const material =
+        createVortexCloudMaterial(
+          model,
+          rotationSign,
+          layer.phase,
+          layer.radius * layer.scale
+        )
+      const mesh = new THREE.Mesh(
+        new THREE.CircleGeometry(layer.radius, 128),
+        material
       )
-    const mesh = new THREE.Mesh(
-      new THREE.CircleGeometry(layer.radius, 128),
-      material
-    )
-    mesh.rotation.x = -Math.PI / 2
-    mesh.position.y = layer.y
-    mesh.scale.setScalar(layer.scale)
-    mesh.renderOrder = 7
-    group.add(mesh)
-    layers.push({ mesh, material })
-  })
+      mesh.rotation.x = -Math.PI / 2
+      mesh.position.y = layer.y
+      mesh.scale.setScalar(layer.scale)
+      mesh.renderOrder = 7
+      group.add(mesh)
+      layers.push({ mesh, material })
+    })
 
   const sprites: VortexCloudSpriteHandle[] = []
   const spriteCount = isCyclone ? 78 : 34
@@ -9675,9 +9553,9 @@ function createVortexCloudDeck(
         : hashRandom(index, 231) * Math.PI * 2
     const radius =
       isEyeWall
-        ? 1.34 + (hashRandom(index, 232) - 0.5) * 0.34
+        ? VORTEX_SECTION_PROFILE.eyewallRadius + (hashRandom(index, 232) - 0.5) * 0.24
         : isCyclone
-          ? 2.2 + hashRandom(index, 233) * 5.5
+          ? 3.4 + hashRandom(index, 233) * 4.3
           : 4.0 + hashRandom(index, 234) * 4.6
     const height =
       isEyeWall
@@ -9709,7 +9587,7 @@ function createVortexCloudDeck(
     )
     const baseScale = new THREE.Vector2(
       isEyeWall
-        ? 1.25 + hashRandom(index, 238) * 1.35
+        ? 0.65 + hashRandom(index, 238) * 0.45
         : isCyclone
           ? 1.7 + hashRandom(index, 239) * 2.1
           : 2.4 + hashRandom(index, 240) * 2.4,
@@ -9749,14 +9627,14 @@ function updateVortexCloudDeck(
   const growth = smoothStep(0, 0.72, opacity)
 
   handle.group.rotation.y =
-    elapsed *
+    -elapsed *
     rotationSign *
     (isCyclone ? 0.075 : 0.042)
 
   handle.layers.forEach((layer, index) => {
-    layer.material.uniforms.uTime.value = elapsed
-    layer.material.uniforms.uRotationSign.value = rotationSign
-    layer.material.uniforms.uOpacity.value =
+    layer.material.uniforms.uTime!.value = elapsed
+    layer.material.uniforms.uRotationSign!.value = rotationSign
+    layer.material.uniforms.uOpacity!.value =
       growth * (index === 0 ? 1 : isCyclone ? 0.78 : 0.54)
   })
 
@@ -9775,8 +9653,8 @@ function updateVortexCloudDeck(
       spriteHandle.baseScale.y * growth * pulse,
       1
     )
-    ;(spriteHandle.sprite.material as THREE.SpriteMaterial).opacity =
-      growth * spriteHandle.opacityWeight
+      ; (spriteHandle.sprite.material as THREE.SpriteMaterial).opacity =
+        growth * spriteHandle.opacityWeight
   })
 }
 
@@ -9796,15 +9674,10 @@ function configureVortexRain(
     index < handle.count;
     index += 1
   ) {
-    const radius =
-      1.78 +
-      Math.sqrt(
-        hashRandom(
-          index,
-          242
-        )
-      ) *
-      5.32
+    const inEyewall = index % 3 === 0
+    const radius = inEyewall
+      ? VORTEX_SECTION_PROFILE.eyewallRadius + (hashRandom(index, 242) - 0.5) * 0.60
+      : VORTEX_SECTION_PROFILE.eyewallOuterRadius + Math.sqrt(hashRandom(index, 242)) * 4.4
 
     const arm =
       Math.floor(
@@ -9812,8 +9685,9 @@ function configureVortexRain(
         5
       )
 
-    const angle =
-      arm / 5 *
+    const angle = inEyewall
+      ? hashRandom(index, 247) * Math.PI * 2
+      : arm / 5 *
       Math.PI * 2 +
       rotationSign *
       radius * 0.72 +
@@ -9869,32 +9743,38 @@ function updateVortexRain(
   elapsed: number,
   opacity: number
 ) {
+  const rotation = elapsed * getVortexRotationSign('cyclone', hemisphere.value) * 0.075
+  const cos = Math.cos(rotation)
+  const sin = Math.sin(rotation)
+  // These buffers share the count established by createRainField.
   for (
     let index = 0;
     index < handle.count;
     index += 1
   ) {
     const top =
-      handle.topY[index]
+      handle.topY[index]!
 
     const y =
       top -
       (
         elapsed *
-        handle.speed[index] *
+        handle.speed[index]! *
         flowSpeed.value +
-        handle.phase[index]
+        handle.phase[index]!
       ) %
       top
 
     const lineIndex =
       index *
       6
+    const x = handle.baseX[index]! * cos - handle.baseZ[index]! * sin
+    const z = handle.baseX[index]! * sin + handle.baseZ[index]! * cos
 
     handle.positions[
       lineIndex
     ] =
-      handle.baseX[index]
+      x
 
     handle.positions[
       lineIndex +
@@ -9909,13 +9789,13 @@ function updateVortexRain(
       lineIndex +
       2
     ] =
-      handle.baseZ[index]
+      z
 
     handle.positions[
       lineIndex +
       3
     ] =
-      handle.baseX[index] -
+      x -
       0.08
 
     handle.positions[
@@ -9932,7 +9812,7 @@ function updateVortexRain(
       lineIndex +
       5
     ] =
-      handle.baseZ[index]
+      z
   }
 
   const attribute =
@@ -9997,7 +9877,7 @@ function updateVortexHorizontalMist(
         isCyclone
           ? THREE.MathUtils.lerp(
             8.4,
-            1.0,
+            VORTEX_SECTION_PROFILE.eyewallRadius,
             t
           )
           : THREE.MathUtils.lerp(
@@ -10150,7 +10030,7 @@ function buildVortexModel(
 
   const verticalTubes: SmokeTubeHandle[] = []
   const verticalArrows: VortexArrowHandle[] = []
-  const verticalCount = 1
+  const verticalCount = isCyclone ? 3 : 1
 
   for (let index = 0; index < verticalCount; index += 1) {
     const verticalCurve =
@@ -10164,10 +10044,10 @@ function buildVortexModel(
     const verticalTube =
       createSmokeTube(
         verticalCurve,
-        isCyclone ? '#dff6ff' : '#d8efff',
+        isCyclone ? '#ffd5a0' : '#d8efff',
         index / verticalCount,
         upliftGroup,
-        isCyclone ? 0.095 : 0.105
+        isCyclone ? 0.060 : 0.105
       )
 
     verticalTube.mesh.renderOrder = 10
@@ -10177,12 +10057,32 @@ function buildVortexModel(
         createVortexArrow(
           verticalCurve,
           0.08 + arrowIndex * 0.29,
-          isCyclone ? '#f3fcff' : '#e7f6ff',
+          isCyclone ? '#ffe1b0' : '#e7f6ff',
           upliftGroup,
           0.028 + arrowIndex * 0.002
         )
       )
     }
+  }
+
+  if (isCyclone) {
+    const eyeCurve = createCycloneEyeDescentCurve(hemisphere.value)
+    const eyeTube = createSmokeTube(eyeCurve, '#79cbff', 0, upliftGroup, 0.085)
+    eyeTube.material.depthTest = false
+    eyeTube.mesh.renderOrder = 13
+    verticalTubes.push(eyeTube)
+    for (let index = 0; index < 3; index += 1) {
+      const arrow = createVortexArrow(eyeCurve, index / 3, '#71caff', upliftGroup, 0.040)
+      arrow.cone.scale.setScalar(1.2)
+      verticalArrows.push(arrow)
+    }
+    createLabelAnchor(
+      'eye-descent',
+      '风眼内下沉 · 风雨较弱',
+      'vertical-flow-label',
+      new THREE.Vector3(-0.9, 6.9, 0),
+      labelGroup,
+    )
   }
 
   const horizontalMist =
@@ -10218,7 +10118,7 @@ function buildVortexModel(
   createLabelAnchor(
     'pressure-center',
     isCyclone
-      ? '低压中心'
+      ? '风眼 · 低压中心'
       : '高压中心',
     isCyclone
       ? 'cyclone-center-label'
@@ -10258,11 +10158,11 @@ function buildVortexModel(
   createLabelAnchor(
     'vertical-circulation',
     isCyclone
-      ? '中心气流螺旋上升'
+      ? '眼墙上升 · 强风雨区'
       : '中心空气螺旋下沉',
     'vertical-flow-label',
     new THREE.Vector3(
-      1.05,
+      isCyclone ? VORTEX_SECTION_PROFILE.eyewallOuterRadius + 0.6 : 1.05,
       6.35,
       0
     ),
@@ -10298,15 +10198,15 @@ function buildVortexModel(
 
     const verticalFactor = isCyclone
       ? smoothStep(
-          0.32,
-          0.58,
-          stage
-        )
+        0.32,
+        0.58,
+        stage
+      )
       : smoothStep(
-          0.08,
-          0.35,
-          stage
-        )
+        0.08,
+        0.35,
+        stage
+      )
 
     const weatherFactor =
       smoothStep(
@@ -10318,10 +10218,10 @@ function buildVortexModel(
     const clearSkyFactor = isCyclone
       ? 0
       : smoothStep(
-          0.62,
-          0.92,
-          stage
-        )
+        0.62,
+        0.92,
+        stage
+      )
 
     const horizontalDisplayFactor =
       horizontalFactor *
@@ -10368,11 +10268,11 @@ function buildVortexModel(
         index
       ) => {
         handle.material.uniforms
-          .uTime.value =
+          .uTime!.value =
           elapsed
 
         handle.material.uniforms
-          .uOpacity.value =
+          .uOpacity!.value =
           layers.air
             ? horizontalDisplayFactor *
             (
@@ -10387,8 +10287,8 @@ function buildVortexModel(
 
     verticalTubes.forEach(
       (handle, index) => {
-        handle.material.uniforms.uTime.value = elapsed
-        handle.material.uniforms.uOpacity.value =
+        handle.material.uniforms.uTime!.value = elapsed
+        handle.material.uniforms.uOpacity!.value =
           layers.uplift
             ? verticalDisplayFactor *
             (isCyclone ? 0.68 : 0.64)
@@ -10694,11 +10594,11 @@ function buildColdFrontModel() {
       frontOffset
 
     front.material.uniforms
-      .uTime.value =
+      .uTime!.value =
       elapsed
 
     front.material.uniforms
-      .uOpacity.value =
+      .uOpacity!.value =
       layers.front
         ? 0.14 +
         contact *
@@ -10802,7 +10702,7 @@ function buildColdFrontModel() {
       elapsed,
       frontOffset,
       layers.cloud &&
-      layers.rain
+        layers.rain
         ? rainFactor
         : 0
     )
@@ -11020,11 +10920,11 @@ function buildWarmFrontModel() {
       frontOffset
 
     front.material.uniforms
-      .uTime.value =
+      .uTime!.value =
       elapsed
 
     front.material.uniforms
-      .uOpacity.value =
+      .uOpacity!.value =
       layers.front
         ? 0.14 +
         contact *
@@ -11325,11 +11225,11 @@ function buildStationaryFrontModel() {
       frontOffset
 
     front.material.uniforms
-      .uTime.value =
+      .uTime!.value =
       elapsed
 
     front.material.uniforms
-      .uOpacity.value =
+      .uOpacity!.value =
       layers.front
         ? 0.16 +
         contact *
@@ -11421,7 +11321,7 @@ function buildStationaryFrontModel() {
       elapsed,
       frontOffset,
       layers.cloud &&
-      layers.rain
+        layers.rain
         ? rainFactor *
         0.72
         : 0
@@ -11476,11 +11376,10 @@ function buildActiveModel() {
 
   applyLayerVisibility()
 
-  activeModelUpdater?.(
-    sceneClock.elapsedTime,
-    0,
-    progress.value
-  )
+  measureModelCameraBounds()
+  lastSimulationElapsed = simulationElapsed.value
+  if (skyMaterial) skyMaterial.uniforms.uTime!.value = simulationElapsed.value
+  activeModelUpdater?.(simulationElapsed.value, 0, progress.value)
 
   setCameraImmediate(
     viewMode.value
@@ -11521,7 +11420,7 @@ function applyLayerVisibility() {
   }
 }
 
-function getCameraPreset(
+function getCameraDirectionPreset(
   mode: ViewMode
 ): CameraPreset {
   if (
@@ -11624,6 +11523,131 @@ function getCameraPreset(
   }
 }
 
+function measureModelCameraBounds() {
+  modelCameraBounds.makeEmpty()
+  modelCameraPoints = new Float32Array(0)
+  modelCameraSprites = new Float32Array(0)
+  if (!modelRoot || !activeModelUpdater) return
+
+  // Preserve the actual silhouette of each phase. A single world-axis box
+  // combines the terrain's width with the eyewall's height into empty corners.
+  const points: number[] = []
+  const sprites: number[] = []
+  const vertex = new THREE.Vector3()
+  const scale = new THREE.Vector3()
+  for (const sampleProgress of [0, 25, 50, 75, 100]) {
+    activeModelUpdater(sampleProgress / 8, 0, sampleProgress)
+    modelRoot.updateMatrixWorld(true)
+    modelRoot.traverse((object) => {
+      if (object instanceof THREE.Sprite) {
+        object.getWorldPosition(vertex)
+        object.getWorldScale(scale)
+        const cosine = Math.abs(Math.cos(object.material.rotation))
+        const sine = Math.abs(Math.sin(object.material.rotation))
+        const halfWidth = (Math.abs(scale.x) * cosine + Math.abs(scale.y) * sine) / 2
+        const halfHeight = (Math.abs(scale.x) * sine + Math.abs(scale.y) * cosine) / 2
+        sprites.push(vertex.x, vertex.y, vertex.z, halfWidth, halfHeight)
+        modelCameraBounds.expandByPoint(vertex)
+        return
+      }
+      if (!(object instanceof THREE.Mesh || object instanceof THREE.Line)) return
+      const positions = object.geometry.getAttribute('position')
+      if (!positions) return
+      for (let index = 0; index < positions.count; index += 1) {
+        vertex.fromBufferAttribute(positions, index).applyMatrix4(object.matrixWorld)
+        points.push(vertex.x, vertex.y, vertex.z)
+        modelCameraBounds.expandByPoint(vertex)
+      }
+    })
+  }
+  modelCameraPoints = new Float32Array(points)
+  modelCameraSprites = new Float32Array(sprites)
+}
+
+function getCameraPreset(mode: ViewMode): CameraPreset {
+  const preset = getCameraDirectionPreset(mode)
+  if (modelCameraBounds.isEmpty()) return preset
+
+  const rect = threeContainerRef.value?.getBoundingClientRect()
+  const aspect = rect && rect.width > 0 && rect.height > 0
+    ? rect.width / rect.height
+    : camera?.aspect || 1
+  const backward = preset.position.clone().sub(preset.target).normalize()
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), backward).normalize()
+  const up = new THREE.Vector3().crossVectors(backward, right).normalize()
+  const tangent = Math.tan(THREE.MathUtils.degToRad(camera?.fov ?? 42) / 2)
+  const host = threeContainerRef.value
+  const style = host && typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'
+    ? window.getComputedStyle(host) : null
+  const height = rect?.height || 1
+  const topInset = Math.max(0, Number.parseFloat(style?.getPropertyValue('--scene-safe-top') || '0') || 0)
+  const bottomInset = Math.max(0, Number.parseFloat(style?.getPropertyValue('--scene-safe-bottom') || '0') || 0)
+  const safeHeight = Math.max(1, height - topInset - bottomInset)
+  const safeCenter = (bottomInset - topInset) / height
+  const verticalTopTangent = tangent * (safeCenter + safeHeight / height * 0.90)
+  const verticalBottomTangent = tangent * (safeCenter - safeHeight / height * 0.90)
+  const horizontalTangent = tangent * aspect * 0.90
+  let rightMinimum = Infinity
+  let rightMaximum = -Infinity
+  let upMinimum = Infinity
+  let upMaximum = -Infinity
+  let depthMinimum = Infinity
+  let depthMaximum = -Infinity
+  function includePoint(x: number, y: number, z: number, halfWidth = 0, halfHeight = 0) {
+    const horizontal = x * right.x + y * right.y + z * right.z
+    const vertical = x * up.x + y * up.y + z * up.z
+    const depth = x * backward.x + y * backward.y + z * backward.z
+    rightMinimum = Math.min(rightMinimum, horizontal - halfWidth - depth * horizontalTangent)
+    rightMaximum = Math.max(rightMaximum, horizontal + halfWidth + depth * horizontalTangent)
+    upMinimum = Math.min(upMinimum, vertical - halfHeight + depth * verticalBottomTangent)
+    upMaximum = Math.max(upMaximum, vertical + halfHeight + depth * verticalTopTangent)
+    depthMinimum = Math.min(depthMinimum, depth)
+    depthMaximum = Math.max(depthMaximum, depth)
+  }
+
+  if (modelCameraPoints.length) {
+    for (let index = 0; index < modelCameraPoints.length; index += 3) {
+      includePoint(modelCameraPoints[index]!, modelCameraPoints[index + 1]!, modelCameraPoints[index + 2]!)
+    }
+    for (let index = 0; index < modelCameraSprites.length; index += 5) {
+      includePoint(modelCameraSprites[index]!, modelCameraSprites[index + 1]!, modelCameraSprites[index + 2]!,
+        modelCameraSprites[index + 3]!, modelCameraSprites[index + 4]!)
+    }
+  } else {
+    for (const x of [modelCameraBounds.min.x, modelCameraBounds.max.x]) {
+      for (const y of [modelCameraBounds.min.y, modelCameraBounds.max.y]) {
+        for (const z of [modelCameraBounds.min.z, modelCameraBounds.max.z]) includePoint(x, y, z)
+      }
+    }
+  }
+
+  // Solve the four frustum planes together, centering the visible silhouette
+  // instead of centering an oversized box above the terrain.
+  const cameraDepth = Math.max(
+    (rightMaximum - rightMinimum) / (2 * horizontalTangent),
+    (upMaximum - upMinimum) / (verticalTopTangent - verticalBottomTangent),
+    depthMaximum + 8,
+  )
+  const center = right.clone().multiplyScalar((rightMaximum + rightMinimum) / 2)
+    .addScaledVector(up, (upMaximum + upMinimum - cameraDepth * (verticalTopTangent + verticalBottomTangent)) / 2)
+  return {
+    position: center.clone().addScaledVector(backward, cameraDepth),
+    target: center.clone().addScaledVector(backward, (depthMinimum + depthMaximum) / 2),
+  }
+}
+
+function updateCameraRange(distance: number) {
+  if (!camera || !orbitControls) return
+  orbitControls.maxDistance = Math.max(60, distance * 2.5)
+  camera.far = Math.max(160, distance * 4)
+  camera.updateProjectionMatrix()
+}
+
+function handleCameraInteraction() {
+  cameraUserAdjusted = true
+  cameraAnimationToken += 1
+}
+
 
 function setCameraImmediate(
   mode: ViewMode
@@ -11639,6 +11663,11 @@ function setCameraImmediate(
     getCameraPreset(
       mode
     )
+
+  cameraAnimationToken += 1
+  cameraUserAdjusted = false
+  lastCameraFitDistance = preset.position.distanceTo(preset.target)
+  updateCameraRange(lastCameraFitDistance)
 
   camera.position.copy(
     preset.position
@@ -11670,6 +11699,10 @@ function animateCameraTo(
     getCameraPreset(
       mode
     )
+
+  cameraUserAdjusted = false
+  lastCameraFitDistance = preset.position.distanceTo(preset.target)
+  updateCameraRange(lastCameraFitDistance)
 
   const startPosition =
     camera.position.clone()
@@ -11761,6 +11794,9 @@ function resizeSceneNow() {
     container
       .getBoundingClientRect()
 
+  // v-show hides the 3D host in map mode; keep its last usable camera aspect.
+  if (rect.width < 32 || rect.height < 32) return
+
   const width =
     Math.max(
       1,
@@ -11821,6 +11857,19 @@ function resizeSceneNow() {
     height,
     false
   )
+
+  const fittedPreset = getCameraPreset(viewMode.value)
+  const fittedDistance = fittedPreset.position.distanceTo(fittedPreset.target)
+  if (cameraUserAdjusted && orbitControls) {
+    // Keep the user's orbit, pan and relative zoom when the available area changes.
+    const offset = camera.position.clone().sub(orbitControls.target)
+    if (lastCameraFitDistance > 0) offset.multiplyScalar(fittedDistance / lastCameraFitDistance)
+    camera.position.copy(orbitControls.target).add(offset)
+    updateCameraRange(Math.max(fittedDistance, offset.length()))
+  } else {
+    setCameraImmediate(viewMode.value)
+  }
+  lastCameraFitDistance = fittedDistance
 
   orbitControls?.update()
 
@@ -11963,18 +12012,13 @@ function animateScene() {
   if (
     displayMode.value !== 'section3d'
   ) {
-    sceneClock.getDelta()
+    lastSimulationElapsed = simulationElapsed.value
     return
   }
 
-  const delta =
-    Math.min(
-      sceneClock.getDelta(),
-      0.05
-    )
-
-  const elapsed =
-    sceneClock.elapsedTime
+  const elapsed = simulationElapsed.value
+  const delta = isPlaying.value ? Math.max(0, elapsed - lastSimulationElapsed) : 0
+  lastSimulationElapsed = elapsed
 
   if (skyMaterial) {
     skyMaterial.uniforms
@@ -12057,7 +12101,17 @@ function animateTimeline(
   }
 }
 
+function pauseForScrub(event: Event) {
+  if (event.type === 'keydown' && ![
+    'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+    'Home', 'End', 'PageUp', 'PageDown',
+  ].includes((event as KeyboardEvent).key)) return
+  isPlaying.value = false
+  timelineLastTime = 0
+}
+
 function togglePlayback() {
+  timelineLastTime = 0
   if (
     progress.value >=
     99.95
@@ -12108,10 +12162,7 @@ function selectStage(
 
   progress.value =
     clamp(
-      index ===
-        currentDefinition.value.stages.length - 1
-        ? 100
-        : index * 25,
+      index * 25,
       0,
       100
     )
@@ -12139,8 +12190,9 @@ function resetCurrentModel() {
   cloudAmount.value =
     0.78
 
-  hemisphere.value =
-    'north'
+  if (isVortexModel.value) {
+    vortexHemisphere.value = 'north'
+  }
 
   viewMode.value =
     isVortexModel.value
@@ -12309,6 +12361,8 @@ function initScene() {
     Math.PI *
     0.49
 
+  orbitControls.addEventListener('start', handleCameraInteraction)
+
   createEnvironment()
   createSceneGroups()
   buildActiveModel()
@@ -12337,8 +12391,6 @@ function initScene() {
 
   sceneStatus.value =
     'ready'
-
-  sceneClock.start()
 
   animateScene()
 }
@@ -12475,15 +12527,17 @@ watch(
       )
 
       drawWeatherMap(
-        performance.now() / 1000
+        simulationElapsed.value
       )
     }
   }
 )
 
 watch(
-  hemisphere,
-  (value) => {
+  () => [hemisphere.value, currentModel.value] as const,
+  ([value, model], [previousHemisphere, previousModel]) => {
+    if (value === previousHemisphere) return
+
     const region =
       weatherMapRegions[value]
 
@@ -12493,7 +12547,7 @@ watch(
     void loadWeatherMapTiles(value)
 
     if (
-      isVortexModel.value
+      isVortexModel.value && model === previousModel
     ) {
       if (displayMode.value !== 'section3d') {
         threeModelDirty = true
@@ -12606,10 +12660,20 @@ onBeforeUnmount(
    - 气旋和反气旋中心垂直烟流增加为 6.25 圈。
    ========================================================= */
 
-.frontal-section-page {
+.frontal-section-page.geo-template-page {
   --front-surface: rgba(8, 25, 36, 0.88);
   --front-surface-strong: rgba(7, 22, 32, 0.96);
   --front-border: rgba(111, 210, 214, 0.18);
+  --front-header-height: 64px;
+  --front-panel-width: 440px;
+  --front-dock-clearance: 166px;
+  --scene-safe-top: 76px;
+  --scene-safe-bottom: 230px;
+  --vortex-color: #86dce8;
+  --vortex-rgb: 134, 220, 232;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   background:
     radial-gradient(circle at 52% 24%, rgba(37, 116, 126, 0.22), transparent 38%),
     linear-gradient(135deg, #07131e 0%, #0a202c 46%, #071723 100%);
@@ -12628,7 +12692,14 @@ onBeforeUnmount(
 }
 
 .frontal-section-page .top-toolbar {
+  position: relative !important;
+  padding-right: 66px !important;
   border-bottom-color: var(--front-border) !important;
+}
+
+.frontal-section-page.is-anticyclone {
+  --vortex-color: #ffd578;
+  --vortex-rgb: 255, 213, 120;
 }
 
 .frontal-section-page .side-panel,
@@ -12683,9 +12754,15 @@ onBeforeUnmount(
 }
 
 .frontal-section-page .center-stage {
-  position: relative;
+  position: relative !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
   min-width: 0;
   min-height: 0;
+  padding: 0;
+  box-sizing: border-box;
   overflow: hidden;
   background:
     radial-gradient(ellipse at 50% 38%,
@@ -12694,11 +12771,50 @@ onBeforeUnmount(
       #06141f 100%);
 }
 
-.view-mode-switch {
+.stage-toolbar {
   position: absolute;
-  top: 82px;
-  left: 50%;
-  z-index: 70;
+  top: 12px;
+  right: 12px;
+  left: 12px;
+  z-index: 35;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 16px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.stage-toolbar .view-mode-switch,
+.stage-toolbar .map-city-select {
+  pointer-events: auto;
+}
+
+.stage-viewport {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #061725;
+}
+
+.stage-legend-row {
+  position: absolute;
+  right: 12px;
+  bottom: var(--front-dock-clearance);
+  left: 12px;
+  z-index: 25;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.view-mode-switch {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(2, minmax(112px, 1fr));
   gap: 4px;
@@ -12710,15 +12826,14 @@ onBeforeUnmount(
   border-radius: 12px;
   box-shadow: 0 14px 35px rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(14px);
-  transform: translateX(-50%);
 }
 
 .view-mode-switch button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 15px;
-  color: rgba(198, 222, 226, 0.72);
+  color: #bdd5dc;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   cursor: pointer;
   background: transparent;
@@ -12787,35 +12902,89 @@ onBeforeUnmount(
 }
 
 .weather-map-caption {
-  position: absolute;
-  top: 134px;
-  left: 50%;
-  z-index: 4;
+  position: static;
   display: flex;
   align-items: center;
   flex-direction: column;
   gap: 4px;
-  min-width: 280px;
-  padding: 9px 16px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 12px;
   color: #eaf7f8;
   text-align: center;
   pointer-events: none;
-  background: rgba(4, 22, 34, 0.58);
-  border: 1px solid rgba(115, 211, 216, 0.16);
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
-  transform: translateX(-50%);
+  background: rgba(4, 22, 34, 0.86);
+  border: 1px solid var(--front-border);
+  border-radius: 10px;
 }
 
 .weather-map-caption small {
   color: #71e4dc;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
 }
 
 .weather-map-caption strong {
   font-size: 15px;
+}
+
+.map-city-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #bfd5dd;
+  font-size: 13px;
+}
+
+.map-city-select select {
+  max-width: 160px;
+  min-height: 40px;
+  padding: 7px 28px 7px 10px;
+  color: #edfafa;
+  font: inherit;
+  background: #0d2a3a;
+  border: 1px solid #357078;
+  border-radius: 8px;
+}
+
+.weather-air-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.weather-air-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 88px;
+  padding: 9px 13px;
+  color: #a4dcff;
+  border: 1px solid rgba(116, 196, 242, 0.42);
+  border-radius: 11px;
+  background: rgba(5, 31, 47, 0.82);
+  transform: translate(-50%, -50%);
+  text-shadow: 0 1px 5px #001321;
+}
+
+.weather-air-label strong {
+  font-size: clamp(13px, 1.1vw, 17px);
+  letter-spacing: 0.12em;
+}
+
+.weather-air-label span {
+  font-size: 12px;
+  color: #bdd8e6;
+}
+
+.weather-air-label.warm {
+  color: #ffcd9c;
+  border-color: rgba(244, 172, 113, 0.55);
+  background: rgba(55, 32, 25, 0.80);
 }
 
 .weather-map-cities {
@@ -12833,7 +13002,7 @@ onBeforeUnmount(
   padding: 4px 7px 4px 5px;
   color: rgba(228, 245, 247, 0.86);
   font: inherit;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
@@ -12872,17 +13041,15 @@ onBeforeUnmount(
 }
 
 .weather-map-legend {
-  position: absolute;
-  right: 18px;
-  bottom: 136px;
-  z-index: 5;
+  position: static;
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
-  max-width: 420px;
-  padding: 10px 13px;
-  color: rgba(218, 238, 240, 0.82);
-  font-size: 10px;
+  justify-content: center;
+  max-width: none;
+  padding: 10px 12px;
+  color: #d4e6eb;
+  font-size: 12px;
   font-weight: 700;
   pointer-events: none;
   background: rgba(4, 24, 37, 0.72);
@@ -12907,6 +13074,10 @@ onBeforeUnmount(
   border-top: 1px dashed #cceef7;
 }
 
+.is-anticyclone .map-legend-isobar {
+  border-top-color: var(--vortex-color);
+}
+
 .map-legend-cloud {
   background: rgba(226, 237, 240, 0.72);
   border-radius: 999px;
@@ -12926,7 +13097,12 @@ onBeforeUnmount(
 }
 
 .frontal-section-page .workspace {
-  grid-template-columns: minmax(0, 1fr) !important;
+  position: relative !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .frontal-floating-card {
@@ -12936,56 +13112,82 @@ onBeforeUnmount(
   --feature-divider: rgba(111, 210, 214, 0.16);
   --feature-title: #6de9df;
   --feature-text: #edf8f8;
-  --feature-muted: rgba(185, 216, 220, 0.68);
+  --feature-muted: #bbd5da;
   --feature-button-bg: rgba(25, 96, 103, 0.24);
   --feature-button-border: rgba(103, 221, 214, 0.28);
 }
 
 .right-panel-stack {
-  position: fixed;
-  top: 82px;
-  right: 18px;
-  z-index: 70;
-  display: flex;
-  align-items: flex-end;
-  flex-direction: column;
-  gap: 12px;
-  width: clamp(310px, 18vw, 420px);
-  max-height: calc(100vh - 214px);
-  overflow-x: hidden;
-  overflow-y: auto;
-  pointer-events: none;
-  scrollbar-width: none;
-}
-
-.right-panel-stack::-webkit-scrollbar {
-  display: none;
+  display: contents;
 }
 
 .right-panel-stack .frontal-floating-card {
-  position: relative !important;
-  top: auto !important;
-  left: auto !important;
-  flex: 0 0 auto;
-  max-width: 100%;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100dvh - var(--front-header-height) - 20px);
   pointer-events: auto;
 }
 
-.right-panel-stack .frontal-floating-card:not(.collapsed) {
-  width: 100% !important;
+.right-panel-stack .frontal-floating-card.collapsed {
+  width: 200px;
+}
+
+.control-floating-card:not(.collapsed) {
+  width: min(var(--front-panel-width, 440px), calc(100vw - 20px));
+  height: min(640px, calc(100dvh - 142px - var(--scene-safe-bottom) - 12px));
+}
+
+.stage-floating-card:not(.collapsed) {
+  width: min(var(--front-panel-width, 440px), calc(100vw - 20px));
+  height: min(550px, calc(100dvh - 206px - var(--scene-safe-bottom) - 12px));
 }
 
 .right-panel-stack .floating-control-content,
 .right-panel-stack .floating-stage-content {
-  max-height: max(240px, calc(100vh - 402px));
+  max-height: none;
+  overflow: visible;
 }
 
-.right-panel-stack :deep(.drag-hint) {
-  display: none;
+.right-panel-stack :deep(.feature-card-content) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(100dvh - 230px);
+  padding-bottom: 32px;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: #4e979f #102c3a;
 }
 
-.right-panel-stack :deep(.feature-card-head) {
-  cursor: default;
+.stage-floating-card :deep(.feature-card-content) {
+  max-height: calc(100dvh - 294px);
+}
+
+.right-panel-stack :deep(.feature-card-content::-webkit-scrollbar) {
+  width: 7px;
+}
+
+.right-panel-stack :deep(.feature-card-content::-webkit-scrollbar-thumb) {
+  background: #4e979f;
+  border-radius: 999px;
+}
+
+.right-panel-stack :deep(.collapse-btn) {
+  width: 36px;
+  height: 36px;
+}
+
+.right-panel-stack :deep(.feature-card-title-label) {
+  font-size: 15px;
+}
+
+.right-panel-stack :deep(.feature-card-title strong) {
+  font-size: 13px;
+  white-space: normal;
+}
+
+.right-panel-stack :deep(.feature-card-head),
+.right-panel-stack :deep(.feature-resize-handle) {
+  touch-action: none;
 }
 
 .floating-control-content,
@@ -12996,15 +13198,13 @@ onBeforeUnmount(
 }
 
 .floating-stage-content {
-  max-height: calc(100vh - 312px);
-  overflow-x: hidden;
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .floating-control-content {
-  max-height: calc(100vh - 312px);
-  overflow-x: hidden;
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .floating-control-content::-webkit-scrollbar {
@@ -13026,8 +13226,8 @@ onBeforeUnmount(
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
-  color: rgba(197, 225, 227, 0.72);
-  font-size: 11px;
+  color: #bfd8de;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -13044,7 +13244,7 @@ onBeforeUnmount(
 
 .current-stage-card small {
   color: #6de9df;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -13058,8 +13258,8 @@ onBeforeUnmount(
 
 .current-stage-card p {
   margin: 0;
-  color: #bfd1d5;
-  font-size: 12px;
+  color: #d4e3e7;
+  font-size: 14px;
   line-height: 1.7;
 }
 
@@ -13085,14 +13285,14 @@ onBeforeUnmount(
   gap: 10px;
 }
 
-.life-weather-heading > div {
+.life-weather-heading>div {
   display: grid;
   gap: 3px;
 }
 
 .life-weather-heading small {
   color: #6de9df;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -13103,10 +13303,12 @@ onBeforeUnmount(
 }
 
 .map-jump-button {
+  flex: 0 0 auto;
+  min-height: 36px;
   padding: 6px 9px;
   color: #9ff4ec;
   font: inherit;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   cursor: pointer;
   background: rgba(42, 160, 159, 0.14);
@@ -13121,7 +13323,7 @@ onBeforeUnmount(
 
 .current-stage-card .life-weather-signal {
   color: #e5f1f2;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -13131,7 +13333,7 @@ onBeforeUnmount(
   gap: 7px;
 }
 
-.life-weather-grid > div {
+.life-weather-grid>div {
   display: grid;
   gap: 3px;
   min-width: 0;
@@ -13142,17 +13344,16 @@ onBeforeUnmount(
 }
 
 .life-weather-grid span {
-  color: rgba(174, 203, 208, 0.65);
-  font-size: 9px;
+  color: #b5cfd6;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .life-weather-grid strong {
-  overflow: hidden;
   color: #dff4f4;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .current-stage-card .life-weather-impact {
@@ -13167,101 +13368,105 @@ onBeforeUnmount(
   display: block;
   margin-bottom: 2px;
   color: #f2ca73;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .frontal-section-page .frontal-timeline-dock {
-  width: min(1180px, calc(100% - 30px));
-  padding-top: 10px;
-  padding-bottom: 11px;
+  position: absolute !important;
+  z-index: 30;
+  left: 50%;
+  bottom: 12px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: min(1180px, calc(100% - 24px)) !important;
+  max-width: none !important;
+  padding: 12px !important;
+  transform: translateX(-50%) !important;
+}
+
+.frontal-section-page .timeline-copy {
+  gap: 12px;
+  margin-bottom: 0;
+  color: #d2e6ea;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.frontal-section-page .timeline-copy strong {
+  flex: 0 0 auto;
+}
+
+.frontal-section-page .speed-btn {
+  min-width: 40px;
+  min-height: 36px;
+  font-size: 12px;
+}
+
+.frontal-section-page .timeline-icon-btn {
+  width: 44px;
+  height: 44px;
 }
 
 .timeline-track-wrap {
   position: relative;
   min-width: 0;
-  padding-bottom: 38px;
+}
+
+.timeline-track-wrap :deep(.el-slider) {
+  height: 30px;
 }
 
 .timeline-milestones {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 34px;
-  pointer-events: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .timeline-milestone {
-  position: absolute;
-  top: 0;
-  display: block;
-  width: 25%;
-  height: 34px;
-  padding: 0;
-  color: rgba(169, 198, 203, 0.64);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 7px 9px;
+  color: #b9d0d7;
   font: inherit;
+  text-align: left;
   cursor: pointer;
-  pointer-events: auto;
-  background: transparent;
-  border: 0;
+  background: rgba(10, 37, 50, 0.68);
+  border: 1px solid #315360;
+  border-top: 3px solid #466471;
+  border-radius: 6px;
   transition: color 0.2s ease, filter 0.2s ease;
 }
 
-.timeline-milestone i {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: block;
-  width: 7px;
-  height: 7px;
-  background: #183d4a;
-  border: 1px solid rgba(150, 206, 211, 0.58);
-  border-radius: 50%;
-  box-shadow: 0 0 0 3px rgba(24, 61, 74, 0.48);
-  transform: translateX(-50%);
-}
-
-.timeline-milestone:first-child i {
-  transform: none;
+.stage-progress-range {
+  font-size: 12px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .timeline-milestone span {
-  position: absolute;
-  top: 14px;
-  left: 0;
   display: block;
-  overflow: hidden;
-  width: 100%;
-  padding: 0 8px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.25;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .timeline-milestone.reached {
-  color: rgba(203, 241, 239, 0.82);
-}
-
-.timeline-milestone.reached i {
-  background: #46cfc5;
-  border-color: #93f2e9;
-  box-shadow: 0 0 0 3px rgba(70, 207, 197, 0.16), 0 0 10px rgba(70, 207, 197, 0.52);
+  color: #dbefed;
+  border-top-color: #48bfb7;
 }
 
 .timeline-milestone.active {
-  color: #7df1e7;
-  filter: drop-shadow(0 0 6px rgba(70, 207, 197, 0.28));
-}
-
-.timeline-milestone.active i {
-  width: 9px;
-  height: 9px;
-  margin-top: -1px;
-  background: #eafffd;
-  border-color: #66e9df;
+  color: #eafffc;
+  background: #164c55;
+  border-color: #69e9de;
 }
 
 .frontal-section-page .scene-host {
@@ -13338,16 +13543,15 @@ onBeforeUnmount(
 }
 
 .scene-legend {
-  position: absolute;
-  right: 18px;
-  bottom: 136px;
+  position: static;
   display: flex;
   flex-wrap: wrap;
   gap: 8px 13px;
-  max-width: 410px;
-  padding: 10px 13px;
-  color: #c0d1d7;
-  font-size: 11px;
+  justify-content: center;
+  max-width: none;
+  padding: 10px 12px;
+  color: #d4e6eb;
+  font-size: 12px;
   background:
     linear-gradient(145deg, rgba(15, 43, 55, 0.90), rgba(7, 24, 35, 0.88));
   border: 1px solid rgba(114, 214, 214, 0.22);
@@ -13428,7 +13632,7 @@ onBeforeUnmount(
   position: absolute;
   padding: 4px 7px;
   color: #eef8fa;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
   background: rgba(5, 21, 31, 0.84);
@@ -13535,8 +13739,8 @@ onBeforeUnmount(
 
 .hemisphere-tip {
   margin: 9px 0 0;
-  color: var(--text-secondary);
-  font-size: 11px;
+  color: #c0d7dd;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -13545,12 +13749,12 @@ onBeforeUnmount(
   height: 8px;
   background:
     linear-gradient(90deg,
-      rgba(142, 126, 255, 0),
-      rgba(142, 126, 255, 0.92),
-      rgba(142, 126, 255, 0));
+      rgba(var(--vortex-rgb), 0),
+      rgba(var(--vortex-rgb), 0.92),
+      rgba(var(--vortex-rgb), 0));
   border-radius: 999px;
   box-shadow:
-    0 0 8px rgba(142, 126, 255, 0.60);
+    0 0 8px rgba(var(--vortex-rgb), 0.60);
 }
 
 .legend-vertical-flow {
@@ -13558,19 +13762,27 @@ onBeforeUnmount(
   height: 24px;
   background:
     linear-gradient(180deg,
-      rgba(210, 201, 255, 0),
-      rgba(210, 201, 255, 0.90),
-      rgba(210, 201, 255, 0));
+      rgba(226, 246, 247, 0),
+      rgba(226, 246, 247, 0.90),
+      rgba(226, 246, 247, 0));
   border-radius: 999px;
+}
+
+.legend-eyewall-flow {
+  background: linear-gradient(180deg, transparent, #ffb46e, transparent);
+}
+
+.legend-eye-flow {
+  background: linear-gradient(180deg, transparent, #92d6ff, transparent);
 }
 
 .legend-pressure-ring {
   width: 20px;
   height: 20px;
-  border: 2px solid #9588ff;
+  border: 2px solid var(--vortex-color);
   border-radius: 50%;
   box-shadow:
-    0 0 7px rgba(149, 136, 255, 0.55);
+    0 0 7px rgba(var(--vortex-rgb), 0.55);
 }
 
 .scene-label.stationary-front-label {
@@ -13646,6 +13858,47 @@ onBeforeUnmount(
   gap: 2px;
 }
 
+.frontal-section-page .control-copy strong,
+.frontal-section-page .option-btn {
+  font-size: 14px;
+}
+
+.frontal-section-page .control-copy span {
+  color: #b9d0d8;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.frontal-section-page .switch-row {
+  gap: 14px;
+  padding: 11px 0;
+}
+
+.frontal-section-page .option-btn {
+  min-height: 42px;
+}
+
+.frontal-section-page :deep(.el-switch) {
+  flex: 0 0 auto;
+}
+
+.frontal-section-page button:focus-visible,
+.frontal-section-page select:focus-visible,
+.right-panel-stack :deep(button:focus-visible),
+.frontal-section-page :deep(.el-slider__button-wrapper:focus-visible) {
+  outline: 3px solid #a6fff0;
+  outline-offset: 3px;
+}
+
+:global(.app-container:has(.frontal-section-page) > .back-home-btn) {
+  top: 12px;
+  right: 12px;
+  bottom: auto;
+  width: 40px;
+  height: 40px;
+  z-index: 130;
+}
+
 
 .frontal-section-page .workspace.panel-resizing,
 .frontal-section-page .workspace.layout-resizing,
@@ -13656,36 +13909,219 @@ onBeforeUnmount(
   transition: none !important;
 }
 
+@media (min-width: 1800px) {
+  .frontal-section-page.geo-template-page {
+    --front-panel-width: 480px;
+  }
+}
+
 @media (max-width: 1100px) {
-  .scene-legend {
-    right: 12px;
-    bottom: 126px;
-    max-width: 310px;
+  .frontal-section-page.geo-template-page {
+    --front-dock-clearance: 220px;
+    --scene-safe-bottom: 284px;
+  }
+
+  .frontal-section-page .frontal-timeline-dock {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .frontal-section-page .speed-options {
+    grid-column: 2;
+    justify-content: flex-end;
   }
 }
 
 @media (max-width: 760px) {
-  .scene-legend {
+  .right-panel-stack .frontal-floating-card.collapsed {
+    width: 158px;
+  }
+
+  .frontal-section-page.geo-template-page {
+    --front-dock-clearance: 236px;
+    --scene-safe-bottom: 312px;
+  }
+
+  .frontal-section-page.geo-template-page.is-map-view {
+    --scene-safe-top: 242px;
+  }
+
+  .frontal-section-page .top-toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 8px 60px 8px 10px !important;
+  }
+
+  .frontal-section-page .brand-area {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .frontal-section-page .brand-logo {
+    max-width: 90px;
+    max-height: 30px;
+    object-fit: contain;
+  }
+
+  .frontal-section-page .page-title {
     display: none;
   }
 
-  .floating-control-content {
-    max-height: calc(100vh - 286px);
+  .frontal-section-page .toolbar-actions {
+    gap: 6px;
+  }
+
+  .frontal-section-page .toolbar-btn {
+    min-width: 0;
+    min-height: 40px;
+    padding: 7px 9px;
+    font-size: 12px !important;
+    white-space: nowrap;
+  }
+
+  .stage-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 166px;
+    align-items: start;
+    gap: 8px;
+  }
+
+  .view-mode-switch {
+    grid-column: 1 / -1;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .weather-map-caption {
+    grid-column: 1;
+    align-items: flex-start;
+    padding: 7px 8px;
+    text-align: left;
+  }
+
+  .weather-map-caption strong {
+    font-size: 14px;
+  }
+
+  .map-city-select {
+    grid-column: 1;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    padding: 7px 8px;
+    background: rgba(4, 22, 34, 0.86);
+    border: 1px solid var(--front-border);
+    border-radius: 10px;
+  }
+
+  .map-city-select select {
+    width: 100%;
+    max-width: 100%;
+    font-size: 12px;
+  }
+
+  .right-panel-stack :deep(.feature-card-title-label) {
+    font-size: 14px;
+  }
+
+  .right-panel-stack :deep(.feature-card-head) {
+    gap: 8px;
+  }
+
+  .scene-legend,
+  .weather-map-legend {
+    display: flex;
+    gap: 8px 12px;
+    padding: 9px;
+    font-size: 12px;
   }
 
   .frontal-section-page .frontal-timeline-dock {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 6px;
+    padding: 8px !important;
+  }
+
+  .frontal-section-page .timeline-copy {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .timeline-track-wrap :deep(.el-slider) {
+    height: 26px;
   }
 
   .frontal-section-page .speed-options {
-    grid-column: 1 / -1;
-    justify-content: center;
+    grid-column: 2;
+    justify-content: flex-end;
+  }
+
+  .timeline-milestones {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .timeline-milestone {
+    gap: 2px;
+    min-height: 52px;
+    padding: 5px 7px;
   }
 
   .timeline-milestone span {
-    padding: 0 3px;
-    font-size: 9px;
+    font-size: 12px;
+    line-height: 1.3;
   }
 
+  .frontal-section-page .speed-btn {
+    min-height: 32px;
+  }
+
+  .weather-air-label {
+    gap: 2px;
+    min-width: 0;
+    padding: 5px 7px;
+  }
+
+  .weather-air-label strong {
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+
+  .weather-air-label span {
+    font-size: 11px;
+  }
+
+  .weather-city-marker {
+    min-width: 24px;
+    min-height: 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  .weather-city-marker:not(.active) {
+    justify-content: center;
+    gap: 0;
+    width: 26px;
+    height: 26px;
+    padding: 4px;
+  }
+
+  .weather-city-marker:not(.active) span {
+    display: none;
+  }
+
+  .weather-city-marker.active {
+    min-height: 26px;
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .frontal-section-page *,
+  .frontal-section-page *::before,
+  .frontal-section-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+  }
 }
 </style>

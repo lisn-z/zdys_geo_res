@@ -23,9 +23,8 @@
     <main class="workspace" v-bind="workspaceAttrs">
       <aside v-show="panelsVisible" class="sun-panel-stack" aria-label="观测控制与数据">
         <FloatingFeatureCard class="control-floating-card" title="控制面板" subtitle="调整观测纬度、日期与场景图层" variant="control"
-          :initial-top="floatingPanelTop"
-          :initial-right="18" :bottom-inset="floatingPanelBottomInset" :min-height="120" draggable resizable light
-          v-model:collapsed="controlCardCollapsed">
+          :initial-top="floatingPanelTop" :initial-right="18" :bottom-inset="floatingPanelBottomInset" :min-height="120"
+          draggable resizable light v-model:collapsed="controlCardCollapsed">
           <div class="panel-scroll">
             <section class="geo-card control-section">
               <div class="section-title-row">
@@ -54,9 +53,9 @@
 
               <div class="scale-labels latitude-scale" role="group" aria-label="关键纬度快捷选择">
                 <button v-for="mark in latitudeMarks" :key="mark.value" type="button" class="latitude-mark"
-                  :style="{ left: `${(mark.value + 90) / 180 * 100}%` }"
-                  :aria-label="`选择${mark.name}（${mark.label}）`" :title="`选择${mark.name}（${mark.label}）`"
-                  :aria-pressed="currentLatitude === mark.value" @click="selectLatitudeMark(mark.value)">
+                  :style="{ left: `${(mark.value + 90) / 180 * 100}%` }" :aria-label="`选择${mark.name}（${mark.label}）`"
+                  :title="`选择${mark.name}（${mark.label}）`" :aria-pressed="currentLatitude === mark.value"
+                  @click="selectLatitudeMark(mark.value)">
                   {{ mark.label }}
                 </button>
               </div>
@@ -166,9 +165,8 @@
         </FloatingFeatureCard>
 
         <FloatingFeatureCard class="data-floating-card" title="数据面板" subtitle="查看太阳高度、昼长与日出日落方位" variant="data"
-          :initial-top="floatingPanelTop + 72"
-          :initial-right="18" :bottom-inset="floatingPanelBottomInset" :min-height="120" draggable resizable light
-          v-model:collapsed="dataCardCollapsed">
+          :initial-top="floatingPanelTop + 72" :initial-right="18" :bottom-inset="floatingPanelBottomInset"
+          :min-height="120" draggable resizable light v-model:collapsed="dataCardCollapsed">
           <div class="data-grid sun-data-grid">
             <article v-for="item in sunDataCards" :key="item.label" class="geo-card data-card" :class="item.className">
               <span>{{ item.label }}</span>
@@ -2409,10 +2407,6 @@ onUnmounted(() => {
 .model-note summary {
   cursor: pointer;
   font-weight: 700;
-}
-
-.apparent-motion-of-the-sun-container.theme-light.layout-floating .top-toolbar {
-  background: rgba(240, 249, 253, 0.94) !important;
 }
 
 .apparent-motion-of-the-sun-container .toolbar-btn {

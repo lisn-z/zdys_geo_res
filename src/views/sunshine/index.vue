@@ -1,6 +1,5 @@
 <template>
-  <div ref="pageRef" class="sunshine-container geo-template-page geo-page theme-dark layout-floating"
-    :class="'layout-' + layoutMode">
+  <div ref="pageRef" class="sunshine-container geo-template-page geo-page theme-dark" :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -177,7 +176,8 @@
           <!-- 场景说明浮层 -->
           <div class="scene-overlay">
             <div class="overlay-title">{{ currentModule === 'experiment' ? '实验模块：手电筒平行光实验' : '宇宙模块：太阳辐射与五带' }}</div>
-            <div class="overlay-tip">{{ currentModule === 'experiment' ? '用手电筒近似平行光照射倾斜地球仪，比较不同黄色光斑区域的照度差异' : '从宇宙视角观察太阳平行光、地轴倾斜与外置五带壳层的关系' }}</div>
+            <div class="overlay-tip">{{ currentModule === 'experiment' ? '用手电筒近似平行光照射倾斜地球仪，比较不同黄色光斑区域的照度差异' :
+              '从宇宙视角观察太阳平行光、地轴倾斜与外置五带壳层的关系' }}</div>
           </div>
         </div>
       </section>
@@ -292,7 +292,7 @@ const illuminanceSpots = computed(() => {
   return RAY_LATITUDES.map((lat) => {
     const incidence = Math.max(0, Math.cos(THREE.MathUtils.degToRad(Math.abs(lat - solarDeclination.value))))
     return {
-      label: `${lat > 0 ? lat + '°N' : lat < 0 ? Math.abs(lat) + '°S' : '赤道 0°'}` ,
+      label: `${lat > 0 ? lat + '°N' : lat < 0 ? Math.abs(lat) + '°S' : '赤道 0°'}`,
       lux: Math.round(incidence * 1000),
     }
   })

@@ -1,5 +1,5 @@
 <template>
-  <div ref="pageRef" class="earth-ball-container geo-template-page geo-page theme-light layout-floating"
+  <div ref="pageRef" class="earth-ball-container geo-template-page geo-page theme-light"
     :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">

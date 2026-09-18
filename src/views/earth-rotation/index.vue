@@ -1,6 +1,5 @@
 <template>
-  <section ref="rootRef"
-    class="earth-rotation-container earth-rotation-template geo-template-page geo-page theme-dark layout-floating"
+  <section ref="rootRef" class="earth-rotation-container earth-rotation-template geo-template-page geo-page theme-dark"
     :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
@@ -137,8 +136,7 @@
 
             <div class="grid-labels-overlay">
               <div v-for="(t, i) in tzLabelScreenData" :key="'tz' + i" :ref="el => registerOverlayLabel('tz-' + i, el)"
-                v-show="t.visible" class="grid-label tz-label"
-                title="教学模拟：理想时区中央经线的地方时；城市法定区时（含夏令时）请查看城市信息。"
+                v-show="t.visible" class="grid-label tz-label" title="教学模拟：理想时区中央经线的地方时；城市法定区时（含夏令时）请查看城市信息。"
                 :class="{ 'tz-label-with-time': layers.tzTimes }" :style="{ left: t.x + 'px', top: t.y + 'px' }">
                 <i class="tz-label-dot" aria-hidden="true"></i>
                 <span class="tz-label-copy">
@@ -183,9 +181,12 @@
                         }}</b></span>
                     <span class="axis-point-summary axis-point-summary-b"><small>B 经度</small><b>{{ formatLon(pointB.lon)
                         }}</b></span>
-                    <span title="沿较短经度弧计算，范围 0°–180°。"><small>经度夹角</small><b>{{ abLongitudeRelation.angularSeparation }}°</b></span>
-                    <span title="不看日期，按24小时循环取最短间隔；日期与时间读数的差值见 A/B 卡片。"><small>最短间隔</small><b>{{ formatTimeDiff(abLongitudeRelation.angularSeparation / 15) }}</b></span>
-                    <span class="axis-relation" title="按较短经度弧判断东西；相差 180° 时两个方向等距。">{{ describeLongitudeDirection(pointA.lon, pointB.lon) }}</span>
+                    <span title="沿较短经度弧计算，范围 0°–180°。"><small>经度夹角</small><b>{{ abLongitudeRelation.angularSeparation
+                    }}°</b></span>
+                    <span title="不看日期，按24小时循环取最短间隔；日期与时间读数的差值见 A/B 卡片。"><small>最短间隔</small><b>{{
+                      formatTimeDiff(abLongitudeRelation.angularSeparation / 15) }}</b></span>
+                    <span class="axis-relation" title="按较短经度弧判断东西；相差 180° 时两个方向等距。">{{
+                      describeLongitudeDirection(pointA.lon, pointB.lon) }}</span>
                   </div>
                 </div>
                 <div class="axis-scale-wrap">
@@ -225,8 +226,10 @@
           <div class="panel-rotation-legend-item"><span class="legend-dot" style="background:#247cff"></span>B 点</div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#fbbf24"></span>经度弧</div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#ef4444"></span>赤道</div>
-          <div class="panel-rotation-legend-item"><span class="legend-line" style="height:0;background:none;border-top:2px dashed #f4cc77"></span>南北回归线</div>
-          <div class="panel-rotation-legend-item"><span class="legend-line" style="height:0;background:none;border-top:2px dashed #67dce5"></span>南北极圈</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line"
+              style="height:0;background:none;border-top:2px dashed #f4cc77"></span>南北回归线</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line"
+              style="height:0;background:none;border-top:2px dashed #67dce5"></span>南北极圈</div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#ff8800"></span>晨线（日出）
           </div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#6366f1"></span>昏线（日落）
@@ -237,7 +240,8 @@
               style="background:#ef4444"></span>国际日界线（现代制图近似）</div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#2ec4b6"></span>时区线 / 时区范围
           </div>
-          <div class="panel-rotation-legend-item"><span class="legend-line" :style="{ background: NIGHT_ARC_COLOR }"></span>夜弧</div>
+          <div class="panel-rotation-legend-item"><span class="legend-line"
+              :style="{ background: NIGHT_ARC_COLOR }"></span>夜弧</div>
         </div>
       </aside>
 
@@ -2762,8 +2766,8 @@ const abComparisonSummary = computed(() => {
     explanation: datedHours === 24
       ? `180°经线东、西侧采用不同的日期记法：钟面相同，${leader}的地方日期领先1天。`
       : datedHours > 12
-      ? `钟面每24小时重复一次；连同上方日期一起比较，${leader}的地方时读数领先${datedGap}。`
-      : leader ? `这组经度的两种比较结果相同：${leader}的地方时读数领先${datedGap}。` : 'A、B 的日期和时间读数相同。',
+        ? `钟面每24小时重复一次；连同上方日期一起比较，${leader}的地方时读数领先${datedGap}。`
+        : leader ? `这组经度的两种比较结果相同：${leader}的地方时读数领先${datedGap}。` : 'A、B 的日期和时间读数相同。',
   }
 })
 
@@ -6835,45 +6839,6 @@ body.geo-panel-resizing {
   .earth-rotation-template .training-floating-card {
     bottom: 184px !important;
   }
-}
-
-/* ===================== v24: 右侧内容改为 FloatingFeatureCard 浮动卡片 ===================== */
-/*
- * 卡片内容包裹层保留 .right-panel 类，以继承页面里大量 ".right-panel .xxx" 选择器；
- * 但公共模板对 .layout-floating.layout-large/medium/small 下的 .right-panel
- * 有多条 "width: var(--right-panel-width) !important" 的全局规则（0,4,0 优先级），
- * 右侧面板禁用后该变量为 0，会把包裹层压成 0 宽并绝对定位。
- * 因此这里用 (0,5,0) + !important 强制还原为普通流式块。
- */
-.earth-rotation-container.geo-template-page.layout-floating .floating-card-body.right-panel {
-  position:
-    static !important;
-  left:
-    auto !important;
-  right:
-    auto !important;
-  top:
-    auto !important;
-  bottom:
-    auto !important;
-  width:
-    auto !important;
-  height:
-    auto !important;
-  max-width:
-    none !important;
-  transform:
-    none !important;
-  background:
-    transparent !important;
-  border:
-    none !important;
-  box-shadow:
-    none !important;
-  backdrop-filter:
-    none !important;
-  -webkit-backdrop-filter:
-    none !important;
 }
 
 /* 卡片内容包裹层：补内边距与纵向节奏（块内 .geo-card 保留原有外观） */
