@@ -40,8 +40,26 @@
             </div>
           </section>
 
-          <!-- 纬度选择 -->
-          <section class="geo-card control-section">
+          <!-- 手电筒照射控制（实验模块） -->
+          <section v-if="currentModule === 'experiment'" class="geo-card control-section">
+            <h3 class="section-title">照射高度角</h3>
+            <div class="section-title-row">
+              <span class="mini-control-label">光线与桌面夹角</span>
+              <strong class="control-value">{{ beamAngle }}°</strong>
+            </div>
+            <el-slider v-model="beamAngle" :min="15" :max="90" :step="1" :show-tooltip="false" />
+
+            <div class="option-grid">
+              <button v-for="item in beamPresets" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: beamAngle === item.value }" @click="beamAngle = item.value">
+                {{ item.label }}
+              </button>
+            </div>
+
+          </section>
+
+          <!-- 纬度选择（宇宙模块） -->
+          <section v-if="currentModule === 'universe'" class="geo-card control-section">
             <h3 class="section-title">目标纬度</h3>
             <div class="section-title-row">
               <span class="mini-control-label">当前纬度</span>
@@ -60,8 +78,8 @@
             </div>
           </section>
 
-          <!-- 季节 / 黄赤交角 -->
-          <section class="geo-card control-section">
+          <!-- 季节 / 黄赤交角（宇宙模块） -->
+          <section v-if="currentModule === 'universe'" class="geo-card control-section">
             <h3 class="section-title">太阳直射点</h3>
             <div class="section-title-row">
               <span class="mini-control-label">直射纬度</span>
@@ -79,16 +97,16 @@
             </div>
           </section>
 
-          <!-- 显示控制 -->
-          <section class="geo-card control-section">
+          <!-- 显示控制（宇宙模块） -->
+          <section v-if="currentModule === 'universe'" class="geo-card control-section">
             <h3 class="section-title">显示控制</h3>
 
             <div class="switch-row">
               <div class="control-copy">
-                <strong>辐射强度热力图</strong>
-                <span>在地球表面显示纬度辐射分布</span>
+                <strong>地轴与轨道面夹角</strong>
+                <span>显示地轴与公转轨道平面的夹角</span>
               </div>
-              <el-switch v-model="showRadiation" />
+              <el-switch v-model="showOrbitalPlane" />
             </div>
 
             <div class="switch-row">
@@ -115,6 +133,12 @@
               <el-switch v-model="showClimateZones" />
             </div>
 
+            <div v-if="showClimateZones" class="zone-legend">
+              <div class="zone-item"><span class="zone-dot cold"></span>北寒带 / 南寒带</div>
+              <div class="zone-item"><span class="zone-dot temp"></span>北温带 / 南温带</div>
+              <div class="zone-item"><span class="zone-dot trop"></span>热带</div>
+            </div>
+
             <div class="switch-row">
               <div class="control-copy">
                 <strong>经纬网</strong>
@@ -126,15 +150,42 @@
 
           <!-- 数据面板 -->
           <section v-if="currentModule === 'experiment'" class="geo-card control-section">
-            <h3 class="section-title">实验照度对比</h3>
+            <h3 class="section-title">光斑观测数据</h3>
             <div class="data-list">
-              <div v-for="item in illuminanceSpots" :key="item.label" class="data-row compact-row">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.lux }} lx</strong>
+              <div class="data-row">
+                <span>照射高度角</span>
+                <strong>{{ beamAngle }}°</strong>
               </div>
               <div class="data-row">
-                <span>地轴倾角</span>
-                <strong>{{ AXIAL_TILT_DEG.toFixed(1) }}°</strong>
+                <span>光斑形状</span>
+                <strong>{{ spotShapeLabel }}</strong>
+              </div>
+              <div class="data-row">
+                <span>光斑面积</span>
+                <strong>{{ spotAreaFactor.toFixed(2) }} 倍</strong>
+                <span class="data-hint">（相对直射）</span>
+              </div>
+              <div class="data-row">
+                <span>相对亮度</span>
+                <strong>{{ Math.round(spotBrightness * 100) }}%</strong>
+                <div class="mini-bar-wrap">
+                  <div class="mini-bar" :style="{ width: (spotBrightness * 100) + '%' }"></div>
+                </div>
+              </div>
+              <div class="data-row">
+                <span>模拟照度</span>
+                <strong>{{ Math.round(spotBrightness * 1000) }} lx</strong>
+              </div>
+              <div class="data-row">
+                <span>地表热度</span>
+                <strong>{{ spotHeatLabel }}</strong>
+                <div class="mini-bar-wrap heat">
+                  <div class="mini-bar heat" :style="{ width: (spotBrightness * 100) + '%' }"></div>
+                </div>
+              </div>
+              <div class="data-row">
+                <span>模拟温度</span>
+                <strong>{{ spotTemp }}°C</strong>
               </div>
             </div>
           </section>
@@ -175,8 +226,8 @@
 
           <!-- 场景说明浮层 -->
           <div class="scene-overlay">
-            <div class="overlay-title">{{ currentModule === 'experiment' ? '实验模块：手电筒平行光实验' : '宇宙模块：太阳辐射与五带' }}</div>
-            <div class="overlay-tip">{{ currentModule === 'experiment' ? '用手电筒近似平行光照射倾斜地球仪，比较不同黄色光斑区域的照度差异' :
+            <div class="overlay-title">{{ currentModule === 'experiment' ? '实验模块：手电筒照射桌面' : '宇宙模块：太阳辐射与五带' }}</div>
+            <div class="overlay-tip">{{ currentModule === 'experiment' ? '保持手电筒与桌面距离不变，调节照射高度角：直射（90°）时光斑呈圆形、小而亮；斜射时光斑拉成椭圆、面积变大、亮度变暗' :
               '从宇宙视角观察太阳平行光、地轴倾斜与外置五带壳层的关系' }}</div>
           </div>
         </div>
@@ -245,13 +296,26 @@ const activeSeason = ref('summer')
 const currentModule = ref<'experiment' | 'universe'>('experiment')
 const AXIAL_TILT_DEG = 23.5
 const AXIAL_TILT_RAD = THREE.MathUtils.degToRad(AXIAL_TILT_DEG)
-const RAY_LATITUDES = [75, 23.5, 0, -23.5, -75]
+const RAY_LATITUDES = [66.5, 0, -23.5]
 
-const showRadiation = ref(true)
+// 实验模块：手电筒与桌面的固定几何参数
+const EXP_LIGHT_DIST = 5.2
+const EXP_TAN_BETA = 0.165
+
+const showOrbitalPlane = ref(true)
 const showSunRays = ref(true)
 const autoRotate = ref(true)
 const showGraticule = ref(true)
 const showClimateZones = ref(true)
+
+// ── 实验模块：手电筒照射桌面 ──
+const beamAngle = ref(90)
+const beamPresets = [
+  { label: '直射 90°', value: 90 },
+  { label: '斜射 60°', value: 60 },
+  { label: '斜射 45°', value: 45 },
+  { label: '斜射 30°', value: 30 },
+]
 
 const latitudePresets = [
   { label: '赤道 0°', value: 0 },
@@ -288,20 +352,33 @@ const relativeRadiation = computed(() => {
   return Math.sin((alt * Math.PI) / 180) * 100
 })
 
-const illuminanceSpots = computed(() => {
-  return RAY_LATITUDES.map((lat) => {
-    const incidence = Math.max(0, Math.cos(THREE.MathUtils.degToRad(Math.abs(lat - solarDeclination.value))))
-    return {
-      label: `${lat > 0 ? lat + '°N' : lat < 0 ? Math.abs(lat) + '°S' : '赤道 0°'}`,
-      lux: Math.round(incidence * 1000),
-    }
-  })
+// 光斑观测：亮度 ∝ sin(高度角)，面积 ∝ 1/sin(高度角)
+const spotBrightness = computed(() =>
+  Math.sin(THREE.MathUtils.degToRad(beamAngle.value)),
+)
+const spotAreaFactor = computed(() =>
+  1 / Math.max(0.05, spotBrightness.value),
+)
+const spotShapeLabel = computed(() =>
+  beamAngle.value >= 90 ? '圆形（直射）' : '椭圆（斜射）',
+)
+// 热度与亮度正相关：直射→高热，斜射→低温
+const spotHeatLabel = computed(() => {
+  const b = spotBrightness.value
+  if (b > 0.85) return '强热'
+  if (b > 0.60) return '较热'
+  if (b > 0.35) return '温和'
+  if (b > 0.15) return '偏凉'
+  return '寒冷'
+})
+const spotTemp = computed(() => {
+  // 模拟温度：直射90°≈36°C，斜射15°≈-2°C
+  return Math.round(-2 + 38 * spotBrightness.value)
 })
 
 // ── Three.js 场景 ──
 const threeContainerRef = ref<HTMLElement | null>(null)
 const EARTH_TEXTURE_URL = '/geo-resources-folder/images/earth.jpg'
-const EARTH_EMISSIVE_TEXTURE_URL = '/geo-resources-folder/images/emissive.jpg'
 const SUN_TEXTURE_URL = '/geo-resources-folder/images/sun.png'
 
 let scene: THREE.Scene | null = null
@@ -313,18 +390,22 @@ let sunMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = nul
 let sunGlowMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
 let sunTexture: THREE.Texture | null = null
 let earthTexture: THREE.Texture | null = null
-let earthEmissiveTexture: THREE.Texture | null = null
 let sunLight: THREE.DirectionalLight | null = null
 let ambientLight: THREE.AmbientLight | null = null
 let hemisphereLight: THREE.HemisphereLight | null = null
 let earthFillLight: THREE.DirectionalLight | null = null
 let raysGroup: THREE.Group | null = null
 let graticuleGroup: THREE.Group | null = null
-let climateZonesGroup: THREE.Group | null = null
-let flashlightGroup: THREE.Group | null = null
 let earthAxisGroup: THREE.Group | null = null
-let radiationRings: THREE.Mesh[] = []
-let radiationMaterials: THREE.MeshBasicMaterial[] = []
+let starsPoints: THREE.Points | null = null
+
+// ── 实验模块：手电筒照射桌面 ──
+let experimentGroup: THREE.Group | null = null
+let expDynamicGroup: THREE.Group | null = null
+let expFlashlight: THREE.Group | null = null
+let expSpotLight: THREE.SpotLight | null = null
+let expFlashGlow: THREE.PointLight | null = null
+let orbitalPlaneGroup: THREE.Group | null = null
 
 let sceneAnimationFrameId = 0
 let lastSceneWidth = 0
@@ -335,33 +416,125 @@ let sceneResizeFrame = 0
 let sceneResizeSettleFrame = 0
 let lastAnimateTime = 0
 
-function createEquatorLine() {
-  const ringGeo = new THREE.TorusGeometry(3.04, 0.03, 12, 96)
-  const ringMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.6,
-    depthTest: false,
-  })
-  radiationMaterials.push(ringMat)
-  const equator = new THREE.Mesh(ringGeo, ringMat)
-  equator.rotation.x = Math.PI / 2
-  equator.renderOrder = 3
-  return equator
+function makeTextSprite(text: string, position: THREE.Vector3, fontSize = 28, color = '#ffffff') {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  canvas.width = 256
+  canvas.height = 80
+  ctx.font = `bold ${fontSize}px sans-serif`
+  ctx.fillStyle = color
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, 128, 40)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false })
+  const sprite = new THREE.Sprite(mat)
+  sprite.position.copy(position)
+  sprite.scale.set(2.2, 0.7, 1)
+  return sprite
 }
 
-function updateRadiationRings() {
-  radiationRings.forEach(ring => ring.removeFromParent?.() || scene?.remove(ring))
-  radiationMaterials.forEach(m => m.dispose())
-  radiationRings = []
-  radiationMaterials = []
+function updateOrbitalPlaneDiagram() {
+  orbitalPlaneGroup?.removeFromParent?.()
+  orbitalPlaneGroup = new THREE.Group()
 
-  if (!showRadiation.value || !scene) return
+  if (!showOrbitalPlane.value || !scene) {
+    scene?.add(orbitalPlaneGroup)
+    return
+  }
 
-  // 赤道标注线
-  const equator = createEquatorLine()
-  radiationRings.push(equator)
-  scene!.add(equator)
+  // ── 公转轨道面：半透明水平圆盘（y=0 平面）──
+  const discGeo = new THREE.RingGeometry(0.5, 6.5, 96)
+  const discMat = new THREE.MeshBasicMaterial({
+    color: 0x1e5a8a,
+    transparent: true,
+    opacity: 0.12,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  })
+  const disc = new THREE.Mesh(discGeo, discMat)
+  disc.rotation.x = -Math.PI / 2
+  disc.renderOrder = 1
+  orbitalPlaneGroup.add(disc)
+
+  // 轨道面边线
+  const rimPts: THREE.Vector3[] = []
+  for (let i = 0; i <= 96; i++) {
+    const t = (i / 96) * Math.PI * 2
+    rimPts.push(new THREE.Vector3(6.5 * Math.cos(t), 0, 6.5 * Math.sin(t)))
+  }
+  const rimLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(rimPts),
+    new THREE.LineBasicMaterial({ color: 0x2a7ab5, transparent: true, opacity: 0.5 })
+  )
+  rimLine.renderOrder = 2
+  orbitalPlaneGroup.add(rimLine)
+
+  // "公转轨道面"标签
+  orbitalPlaneGroup.add(makeTextSprite('公转轨道面', new THREE.Vector3(4.5, 0.15, 3.0), 24, '#6ab8e8'))
+
+  // ── 轨道面法线（竖直虚线）──
+  orbitalPlaneGroup.add(makeDashedLine(
+    new THREE.Vector3(0, -3.8, 0),
+    new THREE.Vector3(0, 3.8, 0),
+    0x5599bb,
+  ))
+
+  // ── 地轴方向线（延伸到地球外部）──
+  // 轴向：rotation.z = -AXIAL_TILT_RAD → 局部+Y 在世界空间指向 (sin23.5°, cos23.5°, 0)
+  const axisDir = new THREE.Vector3(Math.sin(AXIAL_TILT_RAD), Math.cos(AXIAL_TILT_RAD), 0).normalize()
+  orbitalPlaneGroup.add(makeDashedLine(
+    axisDir.clone().multiplyScalar(-4.2),
+    axisDir.clone().multiplyScalar(4.2),
+    0x8dd9ff,
+  ))
+
+  // ── 角度弧线：23.5°（黄赤交角：地轴与轨道面法线的夹角）──
+  const arcR23 = 2.4
+  const arc23Start = Math.PI / 2 - AXIAL_TILT_RAD  // 轴方向角度
+  const arc23End = Math.PI / 2                       // 竖直方向角度
+  const curve23 = new THREE.EllipseCurve(0, 0, arcR23, arcR23, arc23Start, arc23End, false, 0)
+  const arc23Pts = curve23.getPoints(24).map(p => new THREE.Vector3(p.x, p.y, 0))
+  const arc23Line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(arc23Pts),
+    new THREE.LineBasicMaterial({ color: 0xffd966, transparent: true, opacity: 0.9 })
+  )
+  arc23Line.renderOrder = 5
+  orbitalPlaneGroup.add(arc23Line)
+
+  // "23.5°" 标签（弧线中点外侧）
+  const mid23 = (arc23Start + arc23End) / 2
+  orbitalPlaneGroup.add(makeTextSprite(
+    '23.5°',
+    new THREE.Vector3((arcR23 + 0.6) * Math.cos(mid23), (arcR23 + 0.6) * Math.sin(mid23), 0),
+    32,
+    '#ffd966',
+  ))
+
+  // ── 角度弧线：66.5°（地轴与轨道面的夹角）──
+  const arcR66 = 3.0
+  const arc66Start = 0                    // 轨道面方向（+X）
+  const arc66End = Math.PI / 2 - AXIAL_TILT_RAD  // 轴方向角度
+  const curve66 = new THREE.EllipseCurve(0, 0, arcR66, arcR66, arc66Start, arc66End, false, 0)
+  const arc66Pts = curve66.getPoints(32).map(p => new THREE.Vector3(p.x, p.y, 0))
+  const arc66Line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(arc66Pts),
+    new THREE.LineBasicMaterial({ color: 0x7adcff, transparent: true, opacity: 0.9 })
+  )
+  arc66Line.renderOrder = 5
+  orbitalPlaneGroup.add(arc66Line)
+
+  // "66.5°" 标签
+  const mid66 = (arc66Start + arc66End) / 2
+  orbitalPlaneGroup.add(makeTextSprite(
+    '66.5°',
+    new THREE.Vector3((arcR66 + 0.6) * Math.cos(mid66), (arcR66 + 0.6) * Math.sin(mid66), 0),
+    32,
+    '#7adcff',
+  ))
+
+  scene.add(orbitalPlaneGroup)
 }
 
 function updateSunRays() {
@@ -487,52 +660,295 @@ function updateSunRays() {
   scene.add(raysGroup)
 }
 
-function createFlashlight() {
-  flashlightGroup?.removeFromParent?.()
-  if (!scene) return
-  flashlightGroup = new THREE.Group()
+function buildFlashlightModel() {
+  const g = new THREE.Group()
 
+  // 机身——浅银灰色，明显可见
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(0.62, 0.56, 4.6, 28),
-    new THREE.MeshStandardMaterial({ color: 0x26394f, roughness: 0.68, metalness: 0.22 })
+    new THREE.MeshStandardMaterial({ color: 0x9eaab8, roughness: 0.42, metalness: 0.55 })
   )
   body.rotation.z = Math.PI / 2
-  flashlightGroup.add(body)
+  g.add(body)
 
+  // 灯头——深银色
   const head = new THREE.Mesh(
     new THREE.CylinderGeometry(0.95, 0.72, 1.15, 28),
-    new THREE.MeshStandardMaterial({ color: 0x4f6479, roughness: 0.45, metalness: 0.25 })
+    new THREE.MeshStandardMaterial({ color: 0xb0bcc8, roughness: 0.35, metalness: 0.6 })
   )
   head.rotation.z = Math.PI / 2
   head.position.x = -2.5
-  flashlightGroup.add(head)
+  g.add(head)
 
+  // 尾部
   const tail = new THREE.Mesh(
     new THREE.CylinderGeometry(0.42, 0.48, 0.6, 20),
-    new THREE.MeshStandardMaterial({ color: 0x162230, roughness: 0.7, metalness: 0.2 })
+    new THREE.MeshStandardMaterial({ color: 0x7a8899, roughness: 0.5, metalness: 0.4 })
   )
   tail.rotation.z = Math.PI / 2
   tail.position.x = 2.55
-  flashlightGroup.add(tail)
+  g.add(tail)
 
+  // 镜片——高亮发光
   const lens = new THREE.Mesh(
     new THREE.CircleGeometry(0.62, 32),
-    new THREE.MeshBasicMaterial({ color: 0xfff1b3, transparent: true, opacity: 0.92 })
+    new THREE.MeshStandardMaterial({
+      color: 0xfff8e0,
+      emissive: 0xffe880,
+      emissiveIntensity: 1.2,
+      roughness: 0.1,
+      metalness: 0.0,
+    })
   )
   lens.rotation.y = Math.PI / 2
   lens.position.x = -3.05
-  flashlightGroup.add(lens)
+  g.add(lens)
 
+  // 手柄
   const handle = new THREE.Mesh(
     new THREE.CylinderGeometry(0.22, 0.22, 1.7, 18),
-    new THREE.MeshStandardMaterial({ color: 0x1b2a3a, roughness: 0.78, metalness: 0.1 })
+    new THREE.MeshStandardMaterial({ color: 0x6a7888, roughness: 0.6, metalness: 0.3 })
   )
   handle.position.set(0.8, -1.0, 0)
-  flashlightGroup.add(handle)
+  g.add(handle)
 
-  flashlightGroup.position.set(25.5, 0.4, 0)
-  flashlightGroup.renderOrder = 2
-  scene.add(flashlightGroup)
+  // 灯头前缘亮环（视觉标记）
+  const rimGeo = new THREE.TorusGeometry(0.95, 0.055, 8, 28)
+  const rim = new THREE.Mesh(
+    rimGeo,
+    new THREE.MeshStandardMaterial({ color: 0xdde4ea, roughness: 0.3, metalness: 0.7 })
+  )
+  rim.rotation.y = Math.PI / 2
+  rim.position.x = -3.06
+  g.add(rim)
+
+  g.scale.setScalar(0.65)
+  return g
+}
+
+function createTableScene() {
+  experimentGroup?.removeFromParent?.()
+  if (!scene) return
+  experimentGroup = new THREE.Group()
+
+  // 桌面（顶面在 y = 0）
+  const tableTop = new THREE.Mesh(
+    new THREE.BoxGeometry(9, 0.32, 5.6),
+    new THREE.MeshStandardMaterial({ color: 0x8a5a34, roughness: 0.82, metalness: 0.05 })
+  )
+  tableTop.position.y = -0.16
+  experimentGroup.add(tableTop)
+
+  // 白纸——放在桌面中央，光斑打在白纸上，亮度差异一目了然
+  const paper = new THREE.Mesh(
+    new THREE.BoxGeometry(4.2, 0.02, 3.2),
+    new THREE.MeshStandardMaterial({ color: 0xf0ece4, roughness: 0.92, metalness: 0 })
+  )
+  paper.position.y = 0.005
+  experimentGroup.add(paper)
+
+  // 桌腿
+  const legGeo = new THREE.BoxGeometry(0.32, 3.1, 0.32)
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x5d3b21, roughness: 0.85, metalness: 0.04 })
+  const legX = 4.1
+  const legZ = 2.4
+  const legSpots: Array<[number, number]> = [
+    [legX, legZ], [legX, -legZ], [-legX, legZ], [-legX, -legZ],
+  ]
+  legSpots.forEach(([x, z]) => {
+    const leg = new THREE.Mesh(legGeo, legMat)
+    leg.position.set(x, -1.87, z)
+    experimentGroup!.add(leg)
+  })
+
+  // 地板（BasicMaterial 不受光照影响，避免光斑透到地面）
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(28, 48),
+    new THREE.MeshBasicMaterial({ color: 0x0b1524 })
+  )
+  floor.rotation.x = -Math.PI / 2
+  floor.position.y = -3.44
+  experimentGroup.add(floor)
+
+  // 手电筒（朝向与位置由 updateBeam 控制）
+  expFlashlight = buildFlashlightModel()
+  experimentGroup.add(expFlashlight)
+
+  // 聚光灯：真实照亮桌面，亮度随高度角变化
+  expSpotLight = new THREE.SpotLight(0xfff2c4, 3, 0, THREE.MathUtils.degToRad(11), 0.3, 0)
+  expSpotLight.target.position.set(0, 0, 0)
+  experimentGroup.add(expSpotLight)
+  experimentGroup.add(expSpotLight.target)
+
+  // 镜头位置补光——让手电筒镜头处有可见光晕
+  expFlashGlow = new THREE.PointLight(0xfff4d0, 1.0, 8, 1.5)
+  experimentGroup.add(expFlashGlow)
+
+  // 动态元素容器（光斑 / 光锥 / 角度指示）
+  expDynamicGroup = new THREE.Group()
+  experimentGroup.add(expDynamicGroup)
+
+  scene.add(experimentGroup)
+  updateBeam()
+}
+
+function makeDashedLine(a: THREE.Vector3, b: THREE.Vector3, color: number) {
+  const geo = new THREE.BufferGeometry().setFromPoints([a, b])
+  const mat = new THREE.LineDashedMaterial({
+    color,
+    transparent: true,
+    opacity: 0.75,
+    dashSize: 0.12,
+    gapSize: 0.08,
+  })
+  const line = new THREE.Line(geo, mat)
+  line.computeLineDistances()
+  return line
+}
+
+function updateBeam() {
+  if (!experimentGroup || !expDynamicGroup || !expFlashlight) return
+
+  // 清理旧的动态元素
+  while (expDynamicGroup.children.length > 0) {
+    const child = expDynamicGroup.children[0]
+    expDynamicGroup.remove(child)
+    if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
+      child.geometry.dispose()
+      if (Array.isArray(child.material)) child.material.forEach(m => m.dispose())
+      else child.material.dispose()
+    }
+  }
+
+  const hRad = THREE.MathUtils.degToRad(beamAngle.value)
+  const alphaRad = THREE.MathUtils.degToRad(90 - beamAngle.value)
+  const sinH = Math.max(0.05, Math.sin(hRad))
+  const cosA = Math.max(0.25, Math.cos(alphaRad))
+
+  // 光线方向（从手电筒指向桌面中心）
+  const dir = new THREE.Vector3(Math.sin(alphaRad), -Math.cos(alphaRad), 0)
+  // 镜头位置（与桌面中心保持固定距离）
+  const lensPos = dir.clone().multiplyScalar(-EXP_LIGHT_DIST)
+  // 模型缩放 0.5 后镜头位于局部 -x 方向约 1.53 处
+  expFlashlight.position.copy(lensPos).addScaledVector(dir, -1.53)
+  expFlashlight.quaternion.setFromUnitVectors(new THREE.Vector3(-1, 0, 0), dir)
+
+  // 光斑：直射为半径 r0 的圆，斜射沿 x 方向拉长为椭圆（面积 1/cosα 增大）
+  const r0 = EXP_LIGHT_DIST * EXP_TAN_BETA
+  const semiA = r0
+  const semiB = r0 / cosA
+
+  // 光斑椭圆面片（亮度随 sin h 大幅变化，直射→浓亮，斜射→暗淡）
+  const spotGeo = new THREE.CircleGeometry(1, 64)
+  spotGeo.rotateX(-Math.PI / 2)
+  spotGeo.scale(semiB, 1, semiA)
+  const spotMesh = new THREE.Mesh(
+    spotGeo,
+    new THREE.MeshBasicMaterial({
+      color: 0xfff0a8,
+      transparent: true,
+      opacity: 0.06 + 0.88 * sinH,
+      depthWrite: false,
+    })
+  )
+  spotMesh.position.y = 0.025
+  spotMesh.renderOrder = 4
+  expDynamicGroup.add(spotMesh)
+
+  // 光斑描边
+  const ringPts: THREE.Vector3[] = []
+  for (let i = 0; i <= 96; i++) {
+    const t = (i / 96) * Math.PI * 2
+    ringPts.push(new THREE.Vector3(semiB * Math.cos(t), 0.02, semiA * Math.sin(t)))
+  }
+  const ring = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(ringPts),
+    new THREE.LineBasicMaterial({ color: 0xffd966, transparent: true, opacity: 0.95 })
+  )
+  ring.renderOrder = 5
+  expDynamicGroup.add(ring)
+
+  // 直射对照：始终显示 90° 时的圆形光斑，面积对比一目了然
+  // 填充半透明圆
+  const refFillGeo = new THREE.CircleGeometry(r0, 64)
+  refFillGeo.rotateX(-Math.PI / 2)
+  const refFill = new THREE.Mesh(
+    refFillGeo,
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.10,
+      depthWrite: false,
+    })
+  )
+  refFill.position.y = 0.018
+  refFill.renderOrder = 4
+  expDynamicGroup.add(refFill)
+
+  // 轮廓线
+  const refPts: THREE.Vector3[] = []
+  for (let i = 0; i <= 96; i++) {
+    const t = (i / 96) * Math.PI * 2
+    refPts.push(new THREE.Vector3(r0 * Math.cos(t), 0.02, r0 * Math.sin(t)))
+  }
+  const refRing = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(refPts),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 })
+  )
+  refRing.renderOrder = 5
+  expDynamicGroup.add(refRing)
+
+  // 光锥（镜头 → 光斑边缘），亮度随 sin h 变化
+  const RING = 48
+  const beamPositions: number[] = [lensPos.x, lensPos.y, lensPos.z]
+  const beamIndices: number[] = []
+  for (let i = 0; i <= RING; i++) {
+    const t = (i / RING) * Math.PI * 2
+    beamPositions.push(semiB * Math.cos(t), 0.025, semiA * Math.sin(t))
+  }
+  for (let i = 1; i <= RING; i++) {
+    beamIndices.push(0, i, i + 1)
+  }
+  const beamGeo = new THREE.BufferGeometry()
+  beamGeo.setAttribute('position', new THREE.Float32BufferAttribute(beamPositions, 3))
+  beamGeo.setIndex(beamIndices)
+  const beamMesh = new THREE.Mesh(
+    beamGeo,
+    new THREE.MeshBasicMaterial({
+      color: 0xffe9a0,
+      transparent: true,
+      opacity: 0.04 + 0.18 * sinH,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+  )
+  beamMesh.renderOrder = 3
+  expDynamicGroup.add(beamMesh)
+
+  // 角度指示：竖直虚线 / 光轴 / 倾角圆弧
+  expDynamicGroup.add(makeDashedLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2.0, 0), 0x8dd9ff))
+  expDynamicGroup.add(makeDashedLine(new THREE.Vector3(0, 0, 0), dir.clone().multiplyScalar(-2.0), 0xffd966))
+  if (alphaRad > 0.02) {
+    const arc = new THREE.EllipseCurve(0, 0, 1.15, 1.15, Math.PI / 2, Math.PI / 2 + alphaRad, false, 0)
+    const arcPts = arc.getPoints(32).map(p => new THREE.Vector3(p.x, p.y, 0))
+    const arcLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(arcPts),
+      new THREE.LineBasicMaterial({ color: 0x7adcff, transparent: true, opacity: 0.9 })
+    )
+    arcLine.renderOrder = 6
+    expDynamicGroup.add(arcLine)
+  }
+
+  // 聚光灯 + 镜头补光：位置跟随镜头，亮度随 sin h 大幅变化
+  if (expSpotLight) {
+    expSpotLight.position.copy(lensPos)
+    expSpotLight.intensity = 0.3 + 9.0 * sinH
+  }
+  if (expFlashGlow) {
+    expFlashGlow.position.copy(lensPos)
+    expFlashGlow.intensity = 0.4 + 2.0 * sinH
+  }
 }
 
 function createEarthAxis() {
@@ -550,87 +966,31 @@ function createEarthAxis() {
 }
 
 function applyModuleScene() {
-  if (sunMesh) sunMesh.visible = currentModule.value === 'universe'
-  if (sunGlowMesh) sunGlowMesh.visible = currentModule.value === 'universe'
-  if (flashlightGroup) flashlightGroup.visible = currentModule.value === 'experiment'
-  if (earthAxisGroup) earthAxisGroup.visible = currentModule.value === 'experiment'
-}
+  const isExp = currentModule.value === 'experiment'
 
-function createExperimentSensors() {
-  // 已移除传感器实体，改在左侧面板中直接显示照度对比数值。
-}
+  if (sunMesh) sunMesh.visible = !isExp
+  if (sunGlowMesh) sunGlowMesh.visible = !isExp
+  if (earthMesh) earthMesh.visible = !isExp
+  if (raysGroup) raysGroup.visible = !isExp
+  if (graticuleGroup) graticuleGroup.visible = !isExp
+  if (earthAxisGroup) earthAxisGroup.visible = !isExp
+  if (starsPoints) starsPoints.visible = !isExp
+  if (orbitalPlaneGroup) orbitalPlaneGroup.visible = !isExp
 
-function createClimateZones() {
-  climateZonesGroup?.removeFromParent?.()
-  if (!scene) return
-  climateZonesGroup = new THREE.Group()
+  if (experimentGroup) experimentGroup.visible = isExp
+  if (sunLight) sunLight.intensity = isExp ? 0 : 3.0
+  if (earthFillLight) earthFillLight.intensity = isExp ? 0.06 : 0.16
 
-  if (!showClimateZones.value) {
-    scene.add(climateZonesGroup)
-    return
+  if (camera && orbitControls) {
+    if (isExp) {
+      camera.position.set(5.8, 3.8, 7.8)
+      orbitControls.target.set(0, 0.2, 0)
+    } else {
+      camera.position.set(0, 2, 18)
+      orbitControls.target.set(0, 0, 0)
+    }
+    orbitControls.update()
   }
-
-  const zones = [
-    { min: 66.5, max: 90, color: 0x88bbee, label: '北寒带' },
-    { min: 23.5, max: 66.5, color: 0x88cc88, label: '北温带' },
-    { min: -23.5, max: 23.5, color: 0xeecc88, label: '热带' },
-    { min: -66.5, max: -23.5, color: 0x88cc88, label: '南温带' },
-    { min: -90, max: -66.5, color: 0x88bbee, label: '南寒带' },
-  ]
-  const R = 3.14
-
-  zones.forEach((zone) => {
-    const minRad = THREE.MathUtils.degToRad(zone.min)
-    const maxRad = THREE.MathUtils.degToRad(zone.max)
-    const segments = 96
-    const samples = 28
-    const points: THREE.Vector2[] = []
-
-    for (let i = 0; i <= samples; i++) {
-      const t = i / samples
-      const phi = maxRad - t * (maxRad - minRad)
-      const r = R * Math.cos(phi)
-      const y = R * Math.sin(phi)
-      points.push(new THREE.Vector2(r, y))
-    }
-
-    const latheGeo = new THREE.LatheGeometry(points, segments)
-    const latheMat = new THREE.MeshBasicMaterial({
-      color: zone.color,
-      transparent: true,
-      opacity: 0.2,
-      side: THREE.DoubleSide,
-      depthTest: true,
-      depthWrite: false,
-    })
-    const zoneMesh = new THREE.Mesh(latheGeo, latheMat)
-    zoneMesh.renderOrder = 0
-    climateZonesGroup!.add(zoneMesh)
-
-    const boundaries = [zone.min, zone.max]
-    for (const boundary of boundaries) {
-      if (Math.abs(boundary) === 90) continue
-      const bRad = THREE.MathUtils.degToRad(boundary)
-      const bR = R * Math.cos(bRad)
-      const bY = R * Math.sin(bRad)
-      const bGeo = new THREE.TorusGeometry(bR, 0.018, 10, 120)
-      const bMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.45,
-        depthTest: false,
-        depthWrite: false,
-      })
-      const bMesh = new THREE.Mesh(bGeo, bMat)
-      bMesh.position.y = bY
-      bMesh.rotation.x = Math.PI / 2
-      bMesh.renderOrder = 1
-      climateZonesGroup!.add(bMesh)
-    }
-  })
-
-  climateZonesGroup.rotation.z = -AXIAL_TILT_RAD
-  scene.add(climateZonesGroup)
 }
 
 function createGraticule() {
@@ -667,65 +1027,101 @@ function updateEarthAxialTilt() {
   earthMesh.rotation.z = -AXIAL_TILT_RAD
 }
 
-function createEarthDayNightMaterial(
-  dayTexture: THREE.Texture,
-  nightTexture: THREE.Texture,
-) {
+function createEarthShaderMaterial(earthTex: THREE.Texture) {
   return new THREE.ShaderMaterial({
     uniforms: {
-      uDayTexture: { value: dayTexture },
-      uNightTexture: { value: nightTexture },
-      // 指向太阳的世界坐标方向。从地球指向太阳 = 太阳位置 - 地球位置。
+      uEarthTexture: { value: earthTex },
       uSunDirection: { value: new THREE.Vector3(1, 0, 0) },
-      uNightLightIntensity: { value: 1.12 },
+      uShowClimateZones: { value: showClimateZones.value ? 1.0 : 0.0 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
       varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
 
       void main() {
         vUv = uv;
         vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: /* glsl */ `
-      uniform sampler2D uDayTexture;
-      uniform sampler2D uNightTexture;
+      uniform sampler2D uEarthTexture;
       uniform vec3 uSunDirection;
-      uniform float uNightLightIntensity;
+      uniform float uShowClimateZones;
 
       varying vec2 vUv;
       varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
 
       void main() {
         vec3 normal = normalize(vWorldNormal);
-        vec3 sunDirection = normalize(uSunDirection);
-        float sunFacing = dot(normal, sunDirection);
+        vec3 sunDir = normalize(uSunDirection);
 
-        // 晨昏线保持柔和，但夜面不会再被环境光整体抬亮。
-        float dayMask = smoothstep(-0.06, 0.14, sunFacing);
-        float nightMask = 1.0 - smoothstep(-0.14, 0.04, sunFacing);
-        float directLight = max(sunFacing, 0.0);
+        // ── Lambert 漫反射：受光面明亮，背光面黑暗 ──
+        float NdotL = dot(normal, sunDir);
+        float diffuse = max(NdotL, 0.0);
 
-        vec3 dayColor = texture2D(uDayTexture, vUv).rgb;
-        vec3 nightColor = texture2D(uNightTexture, vUv).rgb;
+        // ── 晨昏线柔和过渡 ──
+        float dayMask = smoothstep(-0.12, 0.22, NdotL);
 
-        // 日面由太阳方向决定亮度；夜面底色压到接近黑色。
-        vec3 litDay = dayColor * (0.045 + directLight * 1.10);
+        // ── 采样 earth.jpg 纹理：大陆、海洋、山地、极地冰盖细节 ──
+        vec3 earthColor = texture2D(uEarthTexture, vUv).rgb;
 
-        // 夜面保留少量冷色环境底光，使大陆轮廓可辨，但仍明显暗于日面。
-        vec3 darkNight = dayColor * vec3(0.038, 0.046, 0.062);
+        // ── 海洋检测（用原始纹理亮度，避免五带着色干扰）──
+        float luminance = dot(earthColor, vec3(0.2126, 0.7152, 0.0722));
+        float oceanMask = 1.0 - smoothstep(0.06, 0.22, luminance);
 
-        // emissive.jpg 只在背光面显现，避免整个球体被自发光贴图照亮。
-        float nightLuminance = dot(nightColor, vec3(0.2126, 0.7152, 0.0722));
-        vec3 cityLights = nightColor
-          * (0.55 + nightLuminance * 0.9)
-          * uNightLightIntensity
-          * nightMask;
+        // ── 五带着色（北寒带 / 北温带 / 热带 / 南温带 / 南寒带）──
+        if (uShowClimateZones > 0.5) {
+          float lat = 90.0 - vUv.y * 180.0;  // 纬度（°）
+          float absLat = abs(lat);
 
-        vec3 finalColor = mix(darkNight + cityLights, litDay, dayMask);
-        gl_FragColor = vec4(finalColor, 1.0);
+          vec3 coldZone = vec3(0.55, 0.75, 0.95);  // 蓝——寒带
+          vec3 tempZone = vec3(0.50, 0.82, 0.55);  // 绿——温带
+          vec3 tropZone = vec3(0.95, 0.82, 0.45);  // 黄橙——热带
+
+          vec3 zoneColor;
+          if (absLat > 66.5) {
+            zoneColor = coldZone;
+          } else if (absLat > 23.5) {
+            zoneColor = tempZone;
+          } else {
+            zoneColor = tropZone;
+          }
+
+          earthColor = mix(earthColor, zoneColor, 0.30);
+
+          // ── 分界线：回归线 ±23.5° / 极圈 ±66.5° ──
+          float d1 = abs(absLat - 23.5);
+          float d2 = abs(absLat - 66.5);
+          float dMin = min(d1, d2);
+          float lineAlpha = 1.0 - smoothstep(0.0, 0.6, dMin);
+          earthColor = mix(earthColor, vec3(1.0), lineAlpha * 0.80);
+        }
+
+        // ── 日面：环境底光 + 太阳漫反射 ──
+        vec3 daySide = earthColor * (0.10 + diffuse * 1.05);
+
+        // ── 夜面：极暗冷蓝底光，大陆轮廓隐约可辨 ──
+        vec3 nightSide = earthColor * vec3(0.012, 0.018, 0.032);
+
+        vec3 color = mix(nightSide, daySide, dayMask);
+
+        // ── 大气边缘散射：日面边缘泛蓝光晕 ──
+        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+        float rim = 1.0 - max(dot(normal, viewDir), 0.0);
+        rim = pow(rim, 3.5);
+        vec3 atmosphere = vec3(0.28, 0.55, 1.0) * rim * dayMask * 0.45;
+        color += atmosphere;
+
+        // ── 海洋高光：深色低亮度区域（海洋）受太阳镜面反射 ──
+        vec3 halfDir = normalize(sunDir + viewDir);
+        float spec = pow(max(dot(normal, halfDir), 0.0), 80.0);
+        color += vec3(1.0, 0.97, 0.92) * spec * oceanMask * diffuse * 0.55;
+
+        gl_FragColor = vec4(color, 1.0);
 
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -745,12 +1141,9 @@ function updateSunDirection() {
 
   if (sunMesh) sunMesh.position.set(sunX, 0, 0)
   if (sunGlowMesh) sunGlowMesh.position.set(sunX, 0, 0)
-  if (flashlightGroup) flashlightGroup.position.set(sunX + 0.5, 0.4, 0)
 
   if (earthMesh?.material instanceof THREE.ShaderMaterial) {
-    earthMesh.material.uniforms.uSunDirection.value
-      .set(sunX, 0, 0)
-      .normalize()
+    earthMesh.material.uniforms.uSunDirection.value.set(sunX, 0, 0).normalize()
   }
 }
 
@@ -931,7 +1324,8 @@ function initScene() {
     starsPositions[i * 3 + 2] = r * Math.cos(phi)
   }
   starsGeo.setAttribute('position', new THREE.BufferAttribute(starsPositions, 3))
-  scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.7 })))
+  starsPoints = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.7 }))
+  scene.add(starsPoints)
 
   // 保留少量基础补光，让背光面仍能辨认，但明显暗于受光面。
   ambientLight = new THREE.AmbientLight(0x8fb7e6, 0.26)
@@ -980,33 +1374,18 @@ function initScene() {
   scene.add(sunMesh)
   scene.add(sunGlowMesh)
 
-  // ── 地球：基础贴图与独立自发光贴图都加载完成后再创建球体 ──
+  // ── 地球：使用 ShaderMaterial + earth.jpg sampler2D uniform ──
   const earthGeo = new THREE.SphereGeometry(3, 64, 64)
 
-  // 地球基础贴图必须成功；夜景自发光贴图加载失败时，仅回退为基础贴图副本，
-  // 避免 Promise.all 因任意一张贴图失败而导致整个 earthMesh 都不创建。
   textureLoader.loadAsync(EARTH_TEXTURE_URL)
-    .then(async (loadedEarthTexture) => {
-      let loadedEmissiveTexture: THREE.Texture
-
-      try {
-        loadedEmissiveTexture = await textureLoader.loadAsync(EARTH_EMISSIVE_TEXTURE_URL)
-      } catch (error) {
-        console.warn('[Sunshine] 地球自发光贴图加载失败，使用基础贴图回退', error)
-        loadedEmissiveTexture = loadedEarthTexture.clone()
-        loadedEmissiveTexture.needsUpdate = true
-      }
-
+    .then((loadedEarthTexture) => {
       if (!scene) {
         loadedEarthTexture.dispose()
-        loadedEmissiveTexture.dispose()
         earthGeo.dispose()
         return
       }
 
       earthTexture = loadedEarthTexture
-      earthEmissiveTexture = loadedEmissiveTexture
-
       const maxAnisotropy = renderer?.capabilities.getMaxAnisotropy() ?? 1
 
       earthTexture.colorSpace = THREE.SRGBColorSpace
@@ -1015,16 +1394,7 @@ function initScene() {
       earthTexture.magFilter = THREE.LinearFilter
       earthTexture.needsUpdate = true
 
-      earthEmissiveTexture.colorSpace = THREE.SRGBColorSpace
-      earthEmissiveTexture.anisotropy = maxAnisotropy
-      earthEmissiveTexture.minFilter = THREE.LinearMipmapLinearFilter
-      earthEmissiveTexture.magFilter = THREE.LinearFilter
-      earthEmissiveTexture.needsUpdate = true
-
-      const earthMat = createEarthDayNightMaterial(
-        earthTexture,
-        earthEmissiveTexture,
-      )
+      const earthMat = createEarthShaderMaterial(earthTexture)
 
       earthMesh = new THREE.Mesh(earthGeo, earthMat)
       updateEarthAxialTilt()
@@ -1034,17 +1404,16 @@ function initScene() {
     })
     .catch((error) => {
       earthGeo.dispose()
-      console.error('[Sunshine] 地球基础贴图加载失败', error)
+      console.error('[Sunshine] 地球贴图加载失败', error)
     })
 
-  createFlashlight()
+  createTableScene()
   createEarthAxis()
 
   updateSunDirection()
   createGraticule()
   updateSunRays()
-  updateRadiationRings()
-  createClimateZones()
+  updateOrbitalPlaneDiagram()
   applyModuleScene()
 
   resizeThreeSceneNow()
@@ -1089,7 +1458,7 @@ function animateThreeScene(timestamp: number) {
   lastAnimateTime = timestamp
 
   if (earthMesh && autoRotate.value) {
-    earthMesh.rotation.y += delta * 0.15
+    earthMesh.rotation.y -= delta * 0.15
   }
 
   // 更新太阳 Shader 时间 uniform
@@ -1115,10 +1484,15 @@ function animateThreeScene(timestamp: number) {
 }
 
 // ── Watchers ──
+watch(beamAngle, updateBeam)
 watch(showGraticule, createGraticule)
 watch(showSunRays, updateSunRays)
-watch(showRadiation, updateRadiationRings)
-watch(showClimateZones, createClimateZones)
+watch(showOrbitalPlane, updateOrbitalPlaneDiagram)
+watch(showClimateZones, (val) => {
+  if (earthMesh?.material instanceof THREE.ShaderMaterial) {
+    earthMesh.material.uniforms.uShowClimateZones.value = val ? 1.0 : 0.0
+  }
+})
 watch(currentModule, () => {
   applyModuleScene()
   updateSunRays()
@@ -1126,17 +1500,16 @@ watch(currentModule, () => {
 watch(solarDeclination, () => {
   updateSunDirection()
   updateSunRays()
-  updateRadiationRings()
+  updateOrbitalPlaneDiagram()
 })
-watch(selectedLatitude, updateRadiationRings)
-
 // ── 重置 ──
 function resetControls() {
   currentModule.value = 'experiment'
+  beamAngle.value = 90
   selectedLatitude.value = 40
   solarDeclination.value = 23.5
   activeSeason.value = 'summer'
-  showRadiation.value = true
+  showOrbitalPlane.value = true
   showSunRays.value = true
   showClimateZones.value = true
   autoRotate.value = true
@@ -1160,8 +1533,6 @@ onBeforeUnmount(() => {
   threeResizeObserver?.disconnect()
   threeResizeObserver = null
   orbitControls?.dispose()
-  radiationMaterials.forEach(m => m.dispose())
-  radiationRings.forEach(r => r.geometry.dispose())
   earthMesh?.geometry.dispose()
   earthMesh?.material.dispose()
   sunMesh?.geometry.dispose()
@@ -1170,7 +1541,6 @@ onBeforeUnmount(() => {
   sunGlowMesh?.material.dispose()
   sunTexture?.dispose()
   earthTexture?.dispose()
-  earthEmissiveTexture?.dispose()
   renderer?.dispose()
   if (renderer?.domElement.parentElement) {
     renderer.domElement.parentElement.removeChild(renderer.domElement)
@@ -1184,10 +1554,11 @@ onBeforeUnmount(() => {
   })
   scene = null; camera = null; renderer = null; orbitControls = null
   earthMesh = null; sunMesh = null; sunGlowMesh = null; sunTexture = null
-  earthTexture = null; earthEmissiveTexture = null
+  earthTexture = null
   sunLight = null; ambientLight = null; hemisphereLight = null; earthFillLight = null
-  raysGroup = null; graticuleGroup = null; climateZonesGroup = null; flashlightGroup = null; earthAxisGroup = null
-  radiationRings = []; radiationMaterials = []
+  raysGroup = null; graticuleGroup = null; earthAxisGroup = null
+  experimentGroup = null; expDynamicGroup = null; expFlashlight = null; expSpotLight = null; expFlashGlow = null; starsPoints = null
+  orbitalPlaneGroup = null
 })
 </script>
 
@@ -1271,6 +1642,59 @@ onBeforeUnmount(() => {
   color: var(--accent-color, #2ec4b6);
   font-family: 'JetBrains Mono', Consolas, monospace;
 }
+
+.data-hint {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
+.mini-bar-wrap {
+  width: 52px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  margin-left: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.mini-bar-wrap.heat {
+  background: rgba(255, 140, 60, 0.12);
+}
+.mini-bar {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2ec4b6, #5dd9c8);
+  transition: width 0.3s ease;
+}
+.mini-bar.heat {
+  background: linear-gradient(90deg, #3b9dff, #ff6b35, #ff3b3b);
+  transition: width 0.3s ease;
+}
+
+.zone-legend {
+  margin-top: 8px;
+  padding: 6px 0 2px;
+  border-top: 1px solid var(--inactive-border, rgba(255, 255, 255, 0.08));
+}
+.zone-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  padding: 3px 0;
+}
+.zone-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.zone-dot.cold { background: #8cc0f2; }
+.zone-dot.temp { background: #80d18c; }
+.zone-dot.trop { background: #f2d17a; }
 
 /* ── Canvas ── */
 .sunshine-container .scene-host {
