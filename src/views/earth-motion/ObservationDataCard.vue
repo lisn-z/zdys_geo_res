@@ -8,7 +8,7 @@
           <strong>{{ solarAltitude }}</strong>
         </article>
         <article>
-          <span>当地太阳时</span>
+          <span>地方时</span>
           <strong>{{ solarTime }}</strong>
         </article>
       </div>
@@ -47,7 +47,7 @@
         </div>
       </dl>
       <p v-if="showRiseSetReferenceNote" class="rise-set-reference-note" role="note">日出、日落为正常自转参考值，反向演示时不代表当前升落过程。</p>
-      <p class="speed-model-note">采用当地太阳时，非北京时间。昼长及日出日落按理想光照条件估算；自转速度按约 24 小时一周计算。</p>
+      <p class="speed-model-note">采用地方时，非北京时间。昼长及日出日落按理想光照条件估算；自转速度按约 24 小时一周计算。</p>
     </div>
 
     <p v-else class="empty-tip">选择预设城市或点击地球选点，查看观测数据。</p>

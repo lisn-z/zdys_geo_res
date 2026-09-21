@@ -133,7 +133,8 @@ const initMap = () => {
 const drawGraticule = () => {
   graticuleLayerGroup.clearLayers();
 
-  const lineColor = 'rgba(0, 0, 0, 0.45)';
+  // 线型遵循制图常规：普通经纬线为细实线，赤道与本初子午线加粗实线，回归线等特殊纬线为虚线。
+  const lineColor = 'rgba(0, 0, 0, 0.4)';
   const labelColor = '#333333';
 
   // 1. 绘制纬线 (从-75到75，每15度一条) 并在 0度经线 处添加度数标注
@@ -141,8 +142,7 @@ const drawGraticule = () => {
     const isEquator = lat === 0;
     L.polyline([[lat, -180], [lat, 180]], {
       color: isEquator ? '#333' : lineColor,
-      weight: isEquator ? 2 : 1.2,
-      dashArray: isEquator ? '' : '6, 6'
+      weight: isEquator ? 2 : 1.2
     }).addTo(graticuleLayerGroup);
 
     let latLabel = lat === 0 ? '0° (赤道)' : (lat > 0 ? `${lat}°N` : `${Math.abs(lat)}°S`);
@@ -160,8 +160,7 @@ const drawGraticule = () => {
     const isPrimeMeridian = lng === 0;
     L.polyline([[-85, lng], [85, lng]], {
       color: isPrimeMeridian ? '#333' : lineColor,
-      weight: isPrimeMeridian ? 2 : 1.2,
-      dashArray: isPrimeMeridian ? '' : '6, 6'
+      weight: isPrimeMeridian ? 2 : 1.2
     }).addTo(graticuleLayerGroup);
 
     let lngLabel = lng === 0 ? '0°' : (lng > 0 ? `${lng}°E` : `${Math.abs(lng)}°W`);
@@ -176,9 +175,13 @@ const drawGraticule = () => {
     L.marker([0, lng], { icon: txtIcon, interactive: false }).addTo(graticuleLayerGroup);
   }
 
-  // 3. 绘制回归线 (北回归线 23.26, 南回归线 -23.26)
+  // 3. 绘制回归线 (北回归线 23.26, 南回归线 -23.26)，属特殊纬线，按常规用虚线
   const tropicColor = '#e76f51';
-  L.polyline([[23.26, -180], [23.26, 180]], { color: tropicColor, weight: 2 }).addTo(graticuleLayerGroup);
+  L.polyline([[23.26, -180], [23.26, 180]], {
+    color: tropicColor,
+    weight: 1.8,
+    dashArray: '8, 6'
+  }).addTo(graticuleLayerGroup);
   const ntLabel = L.divIcon({
     className: 'graticule-text-label tropic-label',
     html: `<span style="color: ${tropicColor}; font-size:11px;">北回归线 (23.26°N)</span>`,
@@ -187,7 +190,11 @@ const drawGraticule = () => {
   });
   L.marker([23.26, 30], { icon: ntLabel, interactive: false }).addTo(graticuleLayerGroup);
 
-  L.polyline([[-23.26, -180], [-23.26, 180]], { color: tropicColor, weight: 2 }).addTo(graticuleLayerGroup);
+  L.polyline([[-23.26, -180], [-23.26, 180]], {
+    color: tropicColor,
+    weight: 1.8,
+    dashArray: '8, 6'
+  }).addTo(graticuleLayerGroup);
   const stLabel = L.divIcon({
     className: 'graticule-text-label tropic-label',
     html: `<span style="color: ${tropicColor}; font-size:11px;">南回归线 (23.26°S)</span>`,

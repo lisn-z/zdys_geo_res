@@ -175,14 +175,14 @@
             </article>
           </div>
           <div class="trajectory-note">
-            <strong>轨迹平面倾角 {{ trackInclination.toFixed(1) }}°</strong>
+            <strong>轨迹平面倾角 {{ formatDegrees(trackInclination) }}</strong>
             <p>与地平面的夹角为 90° − |纬度|。{{ trackTiltDescription }}</p>
             <p>节气改变轨迹的位置，不改变这一夹角；屏幕上的投影角度会随视角变化。</p>
           </div>
           <details class="model-note">
             <summary>模型说明</summary>
             <p>采用2026年代表节气日期与近似直射纬度，城市纬度作教学取整。一天内保持直射纬度不变，以太阳中心经过地平线为日出、日落，未计入大气折射和太阳视半径。</p>
-            <p>地方太阳时12:00表示太阳经过当地子午线，不等于北京时间12:00。参考节气为距离所选日期最近的八个预设节气之一。</p>
+            <p>地方时12:00表示太阳经过当地子午线、升到最高，不等于北京时间12:00。参考节气为距离所选日期最近的八个预设节气之一。</p>
             <p v-if="Math.abs(currentLatitude) === 90">极点的东、南、西、北没有唯一的常规含义，场景以参考经线展示方向；二分日按太阳中心位于地平线上处理。</p>
           </details>
         </FloatingFeatureCard>
@@ -203,21 +203,21 @@
           </button>
 
           <div class="solar-time-readout">
-            <span>地方太阳时</span>
+            <span>地方时</span>
             <strong>{{ solarTimeStr }}</strong>
           </div>
 
           <div class="timeline-main">
-            <div class="time-markers">
-              <span>00:00</span>
-              <span>06:00</span>
-              <span>12:00</span>
-              <span>18:00</span>
-              <span>24:00</span>
+            <div class="time-markers" role="group" aria-label="地方时快捷选择">
+              <button v-for="marker in hourMarkers" :key="marker.label" type="button" class="time-marker-btn"
+                :aria-label="`跳到地方时${marker.label}`" :title="`跳到地方时${marker.label}`"
+                @click="updateHourAngle(marker.hourAngle)">
+                {{ marker.label }}
+              </button>
             </div>
 
             <el-slider :model-value="currentHourAngle" :min="-180" :max="180" :step="1" :show-tooltip="false"
-              aria-label="地方太阳时" @input="handleHourSlider" />
+              aria-label="地方时" @input="handleHourSlider" />
           </div>
 
           <div class="speed-options">
@@ -263,10 +263,13 @@ import '@/styles/geo-page-template.css'
 import {
   useGeoPanelLayout,
 } from '@/hooks/useGeoPanelLayout'
+import { useDegreeFormat } from '@/hooks/useDegreeFormat'
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import { calculateSunPosition, closestSeason, dateFromDay, dayFromDate, declinationForDay, getDaylight, getTrackInclination, seasons } from './solar-model'
 import { advanceHourAngle } from './playback'
 import { getSkyAppearance } from './sky-appearance'
+
+const { formatDegrees, formatLatitude } = useDegreeFormat()
 
 // ===== 按太阳高度更新天空、环境光与地面 =====
 function rgbStr(color: number[]): string {
@@ -339,13 +342,14 @@ const latitudeMarks = [
   { value: 90, name: '北极' },
 ].map(mark => ({
   ...mark,
-  label: mark.value === 0 ? '0°' : `${Math.abs(mark.value)}°${mark.value < 0 ? 'S' : 'N'}`,
+  label: formatLatitude(mark.value),
 }))
 
 // --- 核心状态 ---
 const currentLatitude = ref(40)
 const currentDeclination = ref(declinationForDay(dayFromDate('2026-06-21')))
-const currentHourAngle = ref(0)
+// 时角 15° 即地方时 13:00：初始时刻避开正午，当前太阳高度与正午太阳高度不同值。
+const currentHourAngle = ref(15)
 const currentSeasonName = ref('夏至')
 const currentDate = ref('2026-06-21')
 const activeCity = ref('北京')
@@ -368,6 +372,14 @@ const logoUrl = ref(
 
 const speedOptions =
   [1, 2, 5, 10, 20]
+
+const hourMarkers = [
+  { label: '00:00', hourAngle: -180 },
+  { label: '06:00', hourAngle: -90 },
+  { label: '12:00', hourAngle: 0 },
+  { label: '18:00', hourAngle: 90 },
+  { label: '24:00', hourAngle: 180 },
+]
 
 const controlCardCollapsed = ref(true)
 const dataCardCollapsed = ref(true)
@@ -444,20 +456,9 @@ const decHemisphere = computed(() => {
   return '赤道'
 })
 
-const decHemisphereUnit = computed(() => {
-  if (currentDeclination.value > 0) return '°N'
-  if (currentDeclination.value < 0) return '°S'
-  return '°'
-})
-
 const noonHeight = computed(() => 90 - Math.abs(currentLatitude.value - currentDeclination.value))
 
-const latDisplay = computed(() => {
-  const lat = currentLatitude.value
-  if (lat > 0) return `${lat}°N`
-  if (lat < 0) return `${Math.abs(lat)}°S`
-  return '0°'
-})
+const latDisplay = computed(() => formatLatitude(currentLatitude.value))
 
 const latRad = computed(() => currentLatitude.value * Math.PI / 180)
 const decRad = computed(() => currentDeclination.value * Math.PI / 180)
@@ -476,15 +477,22 @@ const solarTimeStr = computed(() => {
   return `${Math.floor(totalMinutes / 60).toString().padStart(2, '0')}:${(totalMinutes % 60).toString().padStart(2, '0')}`
 })
 
+const noonOffsetDescription = computed(() => {
+  const totalMinutes = Math.round(Math.abs(currentHourAngle.value) * 4)
+  if (totalMinutes === 0) return '正午，太阳升到最高'
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  const span = `${hours ? `${hours}小时` : ''}${minutes ? `${minutes}分` : ''}`
+  return `${currentHourAngle.value < 0 ? '上午' : '下午'}，距正午${span}`
+})
+
 const monthDayDisplay = computed(() => {
   const parts = currentDate.value.split('-')
   return `${parseInt(parts[1]!)}月${parseInt(parts[2]!)}日`
 })
 
 const currentDayOfYear = computed(() => dayFromDate(currentDate.value))
-const declinationDisplay = computed(() =>
-  Math.abs(currentDeclination.value).toFixed(2) + decHemisphereUnit.value
-)
+const declinationDisplay = computed(() => formatLatitude(currentDeclination.value))
 const daylight = computed(() => getDaylight(currentLatitude.value, currentDeclination.value))
 const polarStatus = computed(() => ({
   normal: '正常昼夜交替',
@@ -542,27 +550,20 @@ const sunDataCards = computed(() => [
     className: 'purple-card',
   },
   {
-    label: '地方太阳时',
+    label: '地方时',
     value: solarTimeStr.value,
-    description:
-      '时角 ' +
-      currentHourAngle.value.toFixed(0) +
-      '°',
+    description: noonOffsetDescription.value,
     className: 'orange-card',
   },
   {
     label: '正午太阳高度',
-    value:
-      noonHeight.value.toFixed(2) +
-      '°',
+    value: formatDegrees(noonHeight.value),
     description: noonHeight.value < 0 ? '正午太阳仍在地平线下' : 'H = 90° − |φ − δ|',
     className: 'cyan-card',
   },
   {
     label: '当前太阳高度',
-    value:
-      currentSunHeight.value.toFixed(2) +
-      '°',
+    value: formatDegrees(currentSunHeight.value),
     description: currentSunHeight.value < 0 ? '太阳在地平线下' : '太阳与地平面的夹角',
     className: 'blue-card',
   },
@@ -596,11 +597,10 @@ let gridLines: THREE.Line[] = []
 let pathLine: THREE.Object3D | null = null
 let currentSunMarker: THREE.Mesh | null = null
 let curSunGlowSprite: THREE.Sprite | null = null
-let flagpoleGroup: THREE.Group | null = null
+let sunAngleGroup: THREE.Group | null = null
 let sunriseLabel: THREE.Sprite | null = null
 let sunsetLabel: THREE.Sprite | null = null
 let undergroundPath: THREE.Group | null = null
-let flagShaderMat: THREE.ShaderMaterial | null = null
 let animFrameId = 0
 let lastFrameTime: number | null = null
 let cameraTransition: {
@@ -778,17 +778,17 @@ function updateSunAtTime() {
   dirLight.intensity = isAboveHorizon ? 0.8 + position.y / 8 * 0.8 : 0
   dirLight.castShadow = showShadows.value && isAboveHorizon
   renderer.shadowMap.enabled = dirLight.castShadow
-  updateFlagpoleAngle(position)
+  updateSunAngleIndicator(position)
   updateSkyBackground()
 }
 
-function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: number }) {
-  if (!flagpoleGroup) return
+function updateSunAngleIndicator(curPos: { x: number; y: number; z: number; alt: number }) {
+  if (!sunAngleGroup) return
   // 清除上次的线条/弧线/标注
-  for (let i = flagpoleGroup.children.length - 1; i >= 0; i--) {
-    const child = flagpoleGroup.children[i]!
+  for (let i = sunAngleGroup.children.length - 1; i >= 0; i--) {
+    const child = sunAngleGroup.children[i]!
     if ((child as any)._isDynamic) {
-      flagpoleGroup.remove(child)
+      sunAngleGroup.remove(child)
       disposeSceneObject(child)
     }
   }
@@ -814,7 +814,7 @@ function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: num
   rayCyl.position.copy(rayMid)
   rayCyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rayDir.normalize())
     ; (rayCyl as any)._isDynamic = true
-  flagpoleGroup.add(rayCyl)
+  sunAngleGroup.add(rayCyl)
 
   // 地面水平线：从中心向太阳水平方向（夹角的另一条边）
   const groundLineLen = 1.2
@@ -825,7 +825,7 @@ function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: num
   groundCyl.position.copy(groundMid)
   groundCyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), groundDirVec.normalize())
     ; (groundCyl as any)._isDynamic = true
-  flagpoleGroup.add(groundCyl)
+  sunAngleGroup.add(groundCyl)
 
   // 角度弧线：在正中心，从地面方向到太阳光线方向（管道体）
   const up = new THREE.Vector3(0, 1, 0)
@@ -843,7 +843,7 @@ function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: num
   const arcCurve = new THREE.CatmullRomCurve3(arcPoints, false, 'catmullrom', 0.3)
   const arcTube = new THREE.Mesh(new THREE.TubeGeometry(arcCurve, 32, 0.018, 8, false), arcMat)
     ; (arcTube as any)._isDynamic = true
-  flagpoleGroup.add(arcTube)
+  sunAngleGroup.add(arcTube)
 
   // 标注太阳高度角文字
   const labelCanvas = document.createElement('canvas')
@@ -856,7 +856,7 @@ function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: num
   lctx.fillStyle = '#e4d28b'
   lctx.strokeStyle = '#000000'
   lctx.lineWidth = 4
-  const text = curPos.alt > 89.999 ? '太阳高度角 90°（天顶）' : `太阳高度角 ${curPos.alt.toFixed(1)}°`
+  const text = curPos.alt > 89.999 ? '太阳高度角 90°（天顶）' : `太阳高度角 ${formatDegrees(curPos.alt)}`
   lctx.strokeText(text, 8, 42)
   lctx.fillText(text, 8, 42)
   const labelTex = new THREE.CanvasTexture(labelCanvas)
@@ -870,7 +870,7 @@ function updateFlagpoleAngle(curPos: { x: number; y: number; z: number; alt: num
     .add(up.clone().multiplyScalar(Math.sin(midAngle) * (arcRadius + 0.3)))
   labelSprite.position.copy(labelPos)
     ; (labelSprite as any)._isDynamic = true
-  flagpoleGroup.add(labelSprite)
+  sunAngleGroup.add(labelSprite)
 }
 
 // --- 动态天空背景与城市夜景 ---
@@ -1087,20 +1087,20 @@ function initThree() {
   scene.add(dirLight)
   scene.add(dirLight.target)
 
-  // 地平圈 - 深色草地
-  const horizonGeo = new THREE.CylinderGeometry(8, 8, 0.1, 64)
+  // 地平圈 - 深色草地。顶面略低于地平面，避免与地平相切的太阳轨迹管被埋进底座。
+  const horizonGeo = new THREE.CylinderGeometry(8, 8, 0.07, 64)
   const horizonMat = new THREE.MeshLambertMaterial({ color: 0x103808, transparent: true, opacity: 0.92 })
   horizonMeshRef = new THREE.Mesh(horizonGeo, horizonMat)
-  horizonMeshRef.position.y = -0.05
+  horizonMeshRef.position.y = -0.065
   horizonMeshRef.receiveShadow = true
   scene.add(horizonMeshRef)
 
   // 地表圆边框
-  const borderGeo = new THREE.TorusGeometry(8, 0.08, 8, 64)
+  const borderGeo = new THREE.TorusGeometry(8, 0.05, 8, 64)
   const borderMat = new THREE.MeshStandardMaterial({ color: 0x3a6a2a, roughness: 0.8 })
   const border = new THREE.Mesh(borderGeo, borderMat)
   border.rotation.x = Math.PI / 2
-  border.position.y = 0.02
+  border.position.y = -0.08
   scene.add(border)
 
   // 方位线
@@ -1531,101 +1531,9 @@ function initThree() {
 
   scene.add(buildingGroup)
 
-  // 旗杆（太阳高度角演示）
-  flagpoleGroup = new THREE.Group()
-  const poleHeight = 1.8
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.4, metalness: 0.6 })
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, poleHeight, 8), poleMat)
-  pole.position.y = poleHeight / 2
-  pole.castShadow = true
-  flagpoleGroup.add(pole)
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), poleMat)
-  ball.position.y = poleHeight + 0.04
-  flagpoleGroup.add(ball)
-
-  // 旗面（canvas 贴图：正面"智地有申" 背面"太阳视运动"，风吹 shader 动画）
-  const flagCanvas = document.createElement('canvas')
-  flagCanvas.width = 256
-  flagCanvas.height = 160
-  const fctx = flagCanvas.getContext('2d')!
-  const flagGrad = fctx.createLinearGradient(0, 0, 256, 160)
-  flagGrad.addColorStop(0, '#c8102e')
-  flagGrad.addColorStop(1, '#a00d22')
-  fctx.fillStyle = flagGrad
-  fctx.fillRect(0, 0, 256, 160)
-  fctx.font = 'bold 56px sans-serif'
-  fctx.fillStyle = '#ffd700'
-  fctx.strokeStyle = '#8a6a00'
-  fctx.lineWidth = 3
-  fctx.textAlign = 'center'
-  fctx.textBaseline = 'middle'
-  fctx.strokeText('智地有申', 128, 80)
-  fctx.fillText('智地有申', 128, 80)
-  const flagTex = new THREE.CanvasTexture(flagCanvas)
-
-  // 背面贴图：太阳视运动
-  const flagCanvasBack = document.createElement('canvas')
-  flagCanvasBack.width = 256
-  flagCanvasBack.height = 160
-  const fbctx = flagCanvasBack.getContext('2d')!
-  const flagGradB = fbctx.createLinearGradient(0, 0, 256, 160)
-  flagGradB.addColorStop(0, '#a00d22')
-  flagGradB.addColorStop(1, '#c8102e')
-  fbctx.fillStyle = flagGradB
-  fbctx.fillRect(0, 0, 256, 160)
-  fbctx.font = 'bold 48px sans-serif'
-  fbctx.fillStyle = '#ffd700'
-  fbctx.strokeStyle = '#8a6a00'
-  fbctx.lineWidth = 3
-  fbctx.textAlign = 'center'
-  fbctx.textBaseline = 'middle'
-  fbctx.strokeText('太阳视运动', 128, 80)
-  fbctx.fillText('太阳视运动', 128, 80)
-  const flagTexBack = new THREE.CanvasTexture(flagCanvasBack)
-
-  flagShaderMat = new THREE.ShaderMaterial({
-    uniforms: {
-      uTime: { value: 0 },
-      uMap: { value: flagTex },
-      uMapBack: { value: flagTexBack },
-    },
-    vertexShader: `
-      uniform float uTime;
-      varying vec2 vUv;
-      varying float vShade;
-      void main() {
-        vUv = uv;
-        vec3 pos = position;
-        float amp = (pos.x + 0.35) / 0.7;
-        pos.z += sin(uTime * 5.0 + pos.x * 6.0) * 0.07 * amp;
-        pos.y += cos(uTime * 4.0 + pos.x * 5.0) * 0.04 * amp;
-        vShade = 0.75 + 0.25 * (1.0 - amp * abs(sin(uTime * 5.0 + pos.x * 6.0)));
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform sampler2D uMap;
-      uniform sampler2D uMapBack;
-      varying vec2 vUv;
-      varying float vShade;
-      void main() {
-        vec4 tex;
-        if (gl_FrontFacing) {
-          tex = texture2D(uMap, vUv);
-        } else {
-          tex = texture2D(uMapBack, vec2(1.0 - vUv.x, vUv.y));
-        }
-        gl_FragColor = vec4(tex.rgb * vShade, tex.a);
-      }
-    `,
-    side: THREE.DoubleSide,
-    transparent: true,
-  })
-  const flagGeo = new THREE.PlaneGeometry(0.7, 0.44, 16, 8)
-  const flag = new THREE.Mesh(flagGeo, flagShaderMat)
-  flag.position.set(0.38, poleHeight - 0.15, 0)
-  flagpoleGroup.add(flag)
-  scene.add(flagpoleGroup)
+  // 太阳高度角指示物容器
+  sunAngleGroup = new THREE.Group()
+  scene.add(sunAngleGroup)
 
   // 初始绘制太阳路径
   drawSunPath()
@@ -1640,10 +1548,6 @@ function animate(now = performance.now()) {
   if (isAnimating.value && deltaSeconds > 0) {
     currentHourAngle.value = advanceHourAngle(currentHourAngle.value, animSpeed.value, deltaSeconds)
     updateSunAtTime()
-  }
-
-  if (flagShaderMat) {
-    flagShaderMat.uniforms.uTime!.value += deltaSeconds * 2.4
   }
 
   updateCameraTransition(now)
@@ -1934,6 +1838,21 @@ onUnmounted(() => {
 
 .scale-labels {
   margin-top: -2px;
+}
+
+.time-marker-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.time-marker-btn:hover,
+.time-marker-btn:focus-visible {
+  text-decoration: underline;
 }
 
 .parameter-banner {

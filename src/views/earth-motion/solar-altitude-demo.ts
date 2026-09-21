@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { formatSignedDegreesMinutes } from './obliquity'
+import { formatSignedDegrees } from '@/hooks/useDegreeFormat'
 
 /** Solar elevation is measured from the tangent plane, not from the surface normal. */
 export function solarAltitudeFrame(normal: THREE.Vector3, sunlight: THREE.Vector3) {
@@ -100,7 +100,7 @@ export function createSolarAltitudeDemo(radius: number) {
   const horizonLabel = label('当地水平面', '#c3e6ef')
   horizonLabel.anchor.set(length * 0.8, -radius * 0.06, 0)
   const sunLabel = label('太阳光线', '#ffdc80')
-  const angleLabel = label(`h = ${formatSignedDegreesMinutes(0)}`, '#ffdc80', true)
+  const angleLabel = label(`h = ${formatSignedDegrees(0)}`, '#ffdc80', true)
   const labels = [angleLabel, normalLabel, sunLabel, horizonLabel]
   labels.forEach((item) => group.add(item.sprite, item.leader))
   group.traverse((object) => {
@@ -149,7 +149,7 @@ export function createSolarAltitudeDemo(radius: number) {
     sunLabel.anchor.copy(sun).multiplyScalar(length * 0.88).add(new THREE.Vector3(radius * 0.06, radius * 0.04, 0))
     const halfAngle = frame.altitude / 2
     angleLabel.anchor.set(Math.cos(halfAngle) * arcRadius * 1.18, Math.sin(halfAngle) * arcRadius * 1.18, radius * 0.02)
-    angleLabel.setText(`h = ${formatSignedDegreesMinutes(THREE.MathUtils.radToDeg(frame.altitude))}`)
+    angleLabel.setText(`h = ${formatSignedDegrees(THREE.MathUtils.radToDeg(frame.altitude))}`)
   }
   const projected = new THREE.Vector3()
   const labelLocal = new THREE.Vector3()

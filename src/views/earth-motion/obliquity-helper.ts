@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { formatDegreesMinutes } from './obliquity'
+import { formatDegrees } from '@/hooks/useDegreeFormat'
 
 interface ObliquityColors {
   eclipticColor?: THREE.ColorRepresentation
@@ -49,7 +49,7 @@ export function createObliquityHelper(radius: number, tilt: number, colors: Obli
     context.strokeStyle = 'rgba(3, 13, 24, 0.94)'
     context.lineWidth = 6
     context.font = '600 46px "Microsoft YaHei", sans-serif'
-    const value = formatDegreesMinutes(THREE.MathUtils.radToDeg(Math.abs(currentTilt)))
+    const value = formatDegrees(THREE.MathUtils.radToDeg(Math.abs(currentTilt)))
     context.strokeText(value, 112, 37)
     context.fillStyle = '#f4e5c2'
     context.fillText(value, 112, 37)

@@ -132,6 +132,9 @@ import { Download } from '@element-plus/icons-vue'
 import L, { type Map as LMap, type Marker as LMarker } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import * as echarts from 'echarts'
+import { useDegreeFormat } from '@/hooks/useDegreeFormat'
+
+const { formatLatitude, formatLongitude } = useDegreeFormat()
 
 interface CityItem {
   id: string
@@ -146,17 +149,19 @@ interface CityItem {
   precipitation: number[] // 12 个月
 }
 
-// 12 个世界气候类型典型城市（数据按图片 Y 轴 -60~40℃ / 0~500mm 刻度逐月精确还原，保留 1 位小数）
+// 14 个世界气候类型典型城市，覆盖七大洲。
+// 多数城市按教材图册 Y 轴 -60~40℃ / 0~500mm 刻度逐月还原；悉尼（澳大利亚气象局）、
+// 巴罗（NOAA 1991—2020）、东方站（实测）取站点气候常年值。统一保留 1 位小数。
 const cityList: CityItem[] = [
   {
-    id: 'ibadan',
+    id: 'iquitos',
     name: '伊基托斯',
-    lat: 7.3775,
-    lng: 3.9470,
-    altitude: 126,
+    lat: -3.7492,
+    lng: -73.2538,
+    altitude: 106,
     climateKey: 'tropical-rainforest',
     climateName: '热带雨林气候',
-    feature: '分布在赤道附近，全年高温多雨，生长着茂密的森林，有多种鸟类和动物栖息。',
+    feature: '全年高温，各月均温都在 25℃ 以上，最热月与最冷月仅相差 2℃；全年多雨，各月降水量都在 160 毫米以上，分配均匀，年降水量约 2810 毫米。',
     // 气温：全年 25~27℃；降水：全年 150~310mm
     temperature: [26.0, 27.0, 27.0, 27.0, 26.0, 25.0, 25.0, 25.0, 25.0, 26.0, 26.0, 25.0],
     precipitation: [260.0, 220.0, 250.0, 300.0, 260.0, 210.0, 170.0, 160.0, 200.0, 230.0, 270.0, 280.0],
@@ -169,7 +174,7 @@ const cityList: CityItem[] = [
     altitude: 331,
     climateKey: 'tropical-savanna',
     climateName: '热带稀树草原气候',
-    feature: '分布在热带雨林地区的南北两侧，一年分为湿季和干季，地面树木稀疏，长着较高的草。',
+    feature: '全年高温，各月均温在 24℃ 以上，5 月最热达 33℃；降水季节分配极不均匀，6—9 月为湿季，8 月最多 330 毫米，11 月至次年 3 月几乎无降水，年降水量约 1030 毫米。',
     // 气温：5月最高 33℃；降水：8月最高 330mm
     temperature: [24.0, 27.0, 30.0, 32.0, 33.0, 30.0, 27.0, 26.0, 26.0, 27.0, 26.0, 24.0],
     precipitation: [0.0, 0.0, 5.0, 20.0, 60.0, 140.0, 220.0, 330.0, 190.0, 60.0, 5.0, 0.0],
@@ -182,7 +187,7 @@ const cityList: CityItem[] = [
     altitude: 6,
     climateKey: 'tropical-monsoon',
     climateName: '热带季风气候',
-    feature: '分布在南亚、东南亚地区，全年高温，夏季降水丰沛，冬季降水稀少。',
+    feature: '全年高温，各月均温在 25℃ 以上，4—5 月最热约 30℃；降水集中在 5—11 月，9 月最多达 320 毫米，1—3 月月降水量仅 5—10 毫米，年降水量约 1825 毫米。',
     // 气温：4-5月最高 30℃；降水：6/9月最高 300/320mm
     temperature: [25.5, 26.5, 28.5, 30.0, 30.0, 29.0, 28.0, 28.0, 27.5, 27.0, 26.5, 25.5],
     precipitation: [10.0, 5.0, 10.0, 50.0, 220.0, 300.0, 280.0, 260.0, 320.0, 240.0, 100.0, 30.0],
@@ -195,7 +200,7 @@ const cityList: CityItem[] = [
     altitude: 359,
     climateKey: 'tropical-desert',
     climateName: '热带沙漠气候',
-    feature: '分布在南、北回归线附近的大陆西部和中部，终年干旱酷热，地面沙漠广布，只有很少的耐旱植物。',
+    feature: '终年炎热，7 月均温高达 40℃，最冷的 1 月也有 20℃，气温年较差 20℃；降水极其稀少，年降水量仅约 35 毫米，且有 8 个月完全没有降水。',
     // 气温：7月最高 40℃；降水：全年几乎为 0
     temperature: [20.0, 22.0, 26.0, 31.0, 35.0, 38.0, 40.0, 39.0, 36.0, 30.0, 25.0, 21.0],
     precipitation: [0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 10.0, 15.0, 5.0, 0.0, 0.0, 0.0],
@@ -207,11 +212,24 @@ const cityList: CityItem[] = [
     lng: 121.4737,
     altitude: 4,
     climateKey: 'subtropical-monsoon',
-    climateName: '亚热带季风气候和亚热带湿润气候',
-    feature: '分布在亚热带地区的大陆东岸，受季风影响，夏季高温多雨，冬季温度较低，雨量偏少。',
+    climateName: '亚热带季风气候',
+    feature: '夏季高温多雨，7 月均温 28.5℃；冬季温和少雨，1 月均温 2℃，气温年较差 26.5℃；降水较丰富，6 月最多 140 毫米，最少的 12 月也有 40 毫米，年降水量约 1060 毫米。',
     // 气温：7-8月最高 28℃；降水：6月最高 140mm
     temperature: [2.0, 4.5, 8.5, 14.5, 20.0, 24.5, 28.5, 28.0, 24.5, 19.0, 12.5, 6.0],
     precipitation: [50.0, 60.0, 80.0, 90.0, 110.0, 140.0, 130.0, 130.0, 120.0, 60.0, 50.0, 40.0],
+  },
+  {
+    id: 'sydney',
+    name: '悉尼',
+    lat: -33.8688,
+    lng: 151.2093,
+    altitude: 39,
+    climateKey: 'subtropical-humid',
+    climateName: '亚热带季风性湿润气候',
+    feature: '夏季温暖，1 月均温 22.3℃；冬季温和，7 月均温 12.2℃，气温年较差仅 10.1℃；全年降水丰富且分配均匀，各月都在 68 毫米以上，6 月最多 131.2 毫米，年降水量约 1214 毫米。',
+    // 气温：南半球，1月最高 22.3℃、7月最低 12.2℃；降水：各月 68~131mm，年总量 1214mm（悉尼天文台山站，均温取「平均高温+平均低温」的一半）
+    temperature: [22.3, 22.3, 21.2, 18.6, 15.5, 13.1, 12.2, 13.4, 15.6, 17.9, 19.6, 21.4],
+    precipitation: [101.7, 118.3, 129.8, 127.2, 120.6, 131.2, 98.3, 80.3, 68.6, 77.1, 83.6, 77.6],
   },
   {
     id: 'moscow',
@@ -221,7 +239,7 @@ const cityList: CityItem[] = [
     altitude: 149,
     climateKey: 'temperate-continental',
     climateName: '温带大陆性气候',
-    feature: '分布在亚欧大陆和北美大陆的内陆地区，受海洋影响小，终年干旱少雨，冬季严寒，夏季炎热，气温年较差很大。',
+    feature: '冬季寒冷，1 月均温 -10℃；夏季温暖，7 月均温 22℃，气温年较差达 32℃；降水不多但季节分配较均匀，各月 30—80 毫米，7 月最多，年降水量约 620 毫米。',
     // 气温：7月最高 22℃；降水：7月最高 80mm
     temperature: [-10.0, -8.0, -2.0, 6.0, 14.0, 18.0, 22.0, 20.0, 14.0, 6.0, 0.0, -6.0],
     precipitation: [40.0, 30.0, 40.0, 40.0, 50.0, 60.0, 80.0, 70.0, 60.0, 60.0, 50.0, 40.0],
@@ -234,7 +252,7 @@ const cityList: CityItem[] = [
     altitude: 107,
     climateKey: 'mediterranean',
     climateName: '地中海气候',
-    feature: '在地中海地区分布最广，夏季炎热干燥，冬季温和湿润。',
+    feature: '夏季炎热干燥，7—8 月均温 28℃，月降水量仅 3 毫米；冬季温和湿润，1 月均温 10℃，12 月降水最多 60 毫米；气温年较差 18℃，年降水量约 326 毫米。',
     // 气温：7-8月最高 28℃；降水：12月最高 60mm，7-8月接近 0
     temperature: [10.0, 11.0, 13.0, 16.0, 21.0, 26.0, 28.0, 28.0, 24.0, 19.0, 14.0, 11.0],
     precipitation: [50.0, 40.0, 30.0, 20.0, 15.0, 5.0, 3.0, 3.0, 10.0, 40.0, 50.0, 60.0],
@@ -247,7 +265,7 @@ const cityList: CityItem[] = [
     altitude: 99,
     climateKey: 'subarctic',
     climateName: '亚寒带针叶林气候',
-    feature: '分布在亚欧大陆和北美洲的北部，冬季严寒，夏季温暖，地面生长着大片针叶林。',
+    feature: '冬季严寒漫长，1 月均温 -42℃；夏季短促温暖，7 月均温 20℃，气温年较差高达 62℃；降水少且集中在夏季，7—8 月最多约 50 毫米，年降水量仅约 270 毫米。',
     // 气温：7月最高 20℃；降水：7-8月最高 50mm
     temperature: [-42.0, -35.0, -22.0, -6.0, 6.0, 16.0, 20.0, 16.0, 6.0, -8.0, -28.0, -40.0],
     precipitation: [10.0, 10.0, 5.0, 10.0, 20.0, 40.0, 50.0, 50.0, 30.0, 20.0, 15.0, 10.0],
@@ -260,7 +278,7 @@ const cityList: CityItem[] = [
     altitude: 31,
     climateKey: 'temperate-monsoon',
     climateName: '温带季风气候',
-    feature: '分布在温带地区的亚欧大陆东岸，受季风影响，夏季高温多雨，冬季寒冷干燥。',
+    feature: '夏季高温多雨，8 月均温 30℃、降水 240 毫米；冬季寒冷干燥，1 月均温 -4℃、降水仅 3 毫米；气温年较差 34℃，约 64% 的降水集中在 7、8 两月，年降水量约 661 毫米。',
     // 气温：8月最高 30℃；降水：8月最高 240mm
     temperature: [-4.0, -1.0, 6.0, 13.5, 20.0, 24.5, 28.0, 30.0, 22.0, 14.0, 6.0, 0.0],
     precipitation: [3.0, 5.0, 10.0, 25.0, 35.0, 70.0, 180.0, 240.0, 55.0, 25.0, 10.0, 3.0],
@@ -273,7 +291,7 @@ const cityList: CityItem[] = [
     altitude: 3648,
     climateKey: 'plateau',
     climateName: '高原山地气候',
-    feature: '分布在亚洲、欧洲、非洲和南、北美洲的一些海拔很高的高山高原地区。一般来说，地势越高，气温越低。',
+    feature: '全年气温偏低，年均温仅 8.2℃，最热的 7—8 月也只有 18℃，1 月均温 -2℃；降水集中在 6—9 月，8 月最多 140 毫米，11 月至次年 4 月都不超过 5 毫米，年降水量约 443 毫米。',
     // 气温：7-8月最高 18℃；降水：8月最高 140mm
     temperature: [-2.0, 1.0, 4.0, 8.0, 12.0, 16.0, 18.0, 18.0, 14.0, 8.0, 2.0, -1.0],
     precipitation: [0.0, 2.0, 3.0, 5.0, 30.0, 70.0, 120.0, 140.0, 60.0, 10.0, 2.0, 1.0],
@@ -286,10 +304,24 @@ const cityList: CityItem[] = [
     altitude: 60,
     climateKey: 'temperate-marine',
     climateName: '温带海洋性气候',
-    feature: '分布在温带地区的大陆西岸，受海面吹来的暖湿西风影响，全年温和多雨。',
+    feature: '全年温和，1 月均温 5℃，7—8 月均温 18℃，气温年较差仅 13℃；全年湿润多雨，各月降水量都在 50—70 毫米之间，分配十分均匀，年降水量约 715 毫米。',
     // 气温：7-8月最高 18℃；降水：全年均匀 50~70mm
     temperature: [5.0, 5.0, 7.0, 10.0, 13.0, 16.0, 18.0, 18.0, 15.0, 11.0, 7.0, 5.0],
     precipitation: [60.0, 50.0, 50.0, 55.0, 60.0, 60.0, 60.0, 65.0, 60.0, 70.0, 65.0, 60.0],
+  },
+  {
+    id: 'utqiagvik',
+    name: '巴罗',
+    lat: 71.2906,
+    lng: -156.7887,
+    altitude: 4,
+    climateKey: 'tundra',
+    climateName: '苔原气候',
+    feature: '终年寒冷，最热的 7 月均温也只有 5.4℃，最冷的 2 月低至 -24.4℃，年均温约 -10℃；降水稀少且集中在短暂的夏季，7—9 月占全年一半以上，8 月最多 28 毫米，年降水量仅约 138 毫米。',
+    // 气温：7月最高 5.4℃、2月最低 -24.4℃；降水：年总量约 138mm，8月最多 28mm（NOAA 1991—2020 常年值）
+    // 现名乌特恰维克（Utqiaġvik），2016 年改名；地图标签沿用教材常见的「巴罗」，避免 5 字地名撑爆大头针文字框
+    temperature: [-24.2, -24.4, -23.6, -15.6, -5.2, 2.2, 5.4, 4.3, 0.9, -6.0, -14.6, -21.3],
+    precipitation: [3.6, 5.3, 4.6, 4.6, 7.1, 11.0, 25.0, 28.0, 20.0, 14.0, 9.4, 5.6],
   },
   {
     id: 'vostok',
@@ -297,12 +329,12 @@ const cityList: CityItem[] = [
     lat: -78.4644,
     lng: 106.8370,
     altitude: 3420,
-    climateKey: 'polar',
-    climateName: '极地气候',
-    feature: '分布在南极大陆和格陵兰岛的大部分地区，气温极低，地面全被冰雪覆盖。',
-    // 气温：7-8月最低 -72℃；降水：全年 0
+    climateKey: 'ice-cap',
+    climateName: '冰原气候',
+    feature: '终年严寒，7—8 月均温低至 -72℃，最暖的 1、12 月也只有 -32℃，年均温约 -57℃；降水极少且全为降雪，5 月最多也仅 2.8 毫米，年降水量约 22 毫米。',
+    // 气温：7-8月最低 -72℃；降水：年总量仅约 22mm，5月最多 2.8mm（沃斯托克站实测气候资料，非图册读数）
     temperature: [-32.0, -45.0, -58.0, -64.0, -68.0, -70.0, -72.0, -72.0, -68.0, -58.0, -44.0, -32.0],
-    precipitation: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    precipitation: [1.0, 0.7, 2.0, 2.4, 2.8, 2.5, 2.2, 2.3, 2.4, 1.9, 1.1, 0.7],
   },
 ]
 
@@ -382,7 +414,7 @@ function initMap() {
     // 这样缩放时大头针不会飘动（位置由 marker 的 latLng 锁定）
     const redPinIcon = L.icon({
       iconUrl: makePinSvg(city.name, city.lat, city.lng),
-      iconSize: [220, 56],
+      iconSize: [236, 56],
       iconAnchor: [20, 50], // 针尖对准坐标点
       popupAnchor: [0, -46],
     })
@@ -415,11 +447,11 @@ function initMap() {
 
 // 用 SVG 内联生成大头针图标（避免使用 divIcon 缩放时位置漂移）
 function makePinSvg(name: string, lat: number, lng: number): string {
-  const label = `${name}（${lng.toFixed(2)}°E，${lat.toFixed(2)}N）`
+  const label = `${name}（${formatLatitude(lat)}，${formatLongitude(lng)}）`
   // 转义 XML 特殊字符
   const safe = label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="220" height="56" viewBox="0 0 220 56">
+<svg xmlns="http://www.w3.org/2000/svg" width="236" height="56" viewBox="0 0 236 56">
   <defs>
     <radialGradient id="g" cx="35%" cy="30%" r="60%">
       <stop offset="0%" stop-color="#ff6b7a"/>
@@ -435,14 +467,31 @@ function makePinSvg(name: string, lat: number, lng: number): string {
   <!-- 针身 -->
   <line x1="20" y1="28" x2="20" y2="42" stroke="#b71c1c" stroke-width="2"/>
   <!-- 文字框 -->
-  <rect x="38" y="6" width="178" height="28" rx="6" ry="6" fill="rgba(230,57,70,0.95)" stroke="#fff" stroke-width="1" filter="url(#s)"/>
-  <text x="127" y="25" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">${safe}</text>
+  <rect x="38" y="6" width="194" height="28" rx="6" ry="6" fill="rgba(230,57,70,0.95)" stroke="#fff" stroke-width="1" filter="url(#s)"/>
+  <text x="135" y="25" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">${safe}</text>
 </svg>`
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
 }
 
 function onResize() {
   handleResize()
+}
+
+/** 气温轴刻度间隔：按量程选 5 / 10 / 20℃，保证刻度均匀且落在整数上。 */
+function tempAxisStep(span: number) {
+  if (span <= 40) return 5
+  if (span <= 80) return 10
+  return 20
+}
+
+/** 向上取到 1 / 2 / 2.5 / 5 ×10^n 的整刻度，用作降水轴每格的毫米数。 */
+function niceCeil(value: number) {
+  if (value <= 0) return 1
+  const magnitude = Math.pow(10, Math.floor(Math.log10(value)))
+  for (const factor of [1, 2, 2.5, 5]) {
+    if (value <= factor * magnitude) return factor * magnitude
+  }
+  return 10 * magnitude
 }
 
 // 渲染 ECharts：气温折线（左轴）+ 降水柱状（右轴）
@@ -456,11 +505,20 @@ function renderChart() {
   const tMin = Math.min(...currentCity.value.temperature)
   const tMax = Math.max(...currentCity.value.temperature)
   const pMax = Math.max(...currentCity.value.precipitation)
-  // 气温 Y 轴：上下留 10℃ 余量，整 5 对齐
-  const yTempMin = Math.floor((tMin - 10) / 5) * 5
-  const yTempMax = Math.ceil((tMax + 10) / 5) * 5
-  // 降水 Y 轴：向上取 50 整
-  const yPrecMax = Math.ceil((pMax + 50) / 50) * 50
+  /*
+   * 气温 0℃ 线与降水 0mm 线必须重合，两者共用同一条起始线。
+   * 做法：两轴在 0 上下的格数取同一组（下 belowZero 格、上 aboveZero 格），
+   * 各自用整刻度间隔，0 就必然落在同一高度，且左右网格线一一对应。
+   */
+  const tStep = tempAxisStep(tMax - tMin + 20)
+  const belowZero = tMin < 0 ? Math.ceil((-tMin + 10) / tStep) : 0
+  const aboveZero = Math.max(1, Math.ceil((Math.max(tMax, 0) + 10) / tStep))
+  const yTempMin = -belowZero * tStep
+  const yTempMax = aboveZero * tStep
+  // 降水轴沿用同一组格数，每格毫米数取「aboveZero 格能装下最大月降水量」的整刻度，留 10% 余量
+  const pStep = niceCeil((pMax / aboveZero) * 1.1)
+  const yPrecMin = -belowZero * pStep
+  const yPrecMax = aboveZero * pStep
 
   const option: echarts.EChartsCoreOption = {
     tooltip: {
@@ -505,6 +563,7 @@ function renderChart() {
         name: '气温/℃',
         min: yTempMin,
         max: yTempMax,
+        interval: tStep,
         nameTextStyle: { color: '#0b3660', fontWeight: 600 },
         axisLine: { lineStyle: { color: '#2ec4b6' } },
         axisLabel: { color: '#0b3660' },
@@ -513,11 +572,17 @@ function renderChart() {
       {
         type: 'value',
         name: '降水量/毫米',
-        min: 0,
+        min: yPrecMin,
         max: yPrecMax,
+        interval: pStep,
         nameTextStyle: { color: '#0b3660', fontWeight: 600 },
         axisLine: { lineStyle: { color: '#247cff' } },
-        axisLabel: { color: '#0b3660' },
+        // 0 以下的刻度只为把 0mm 压到与 0℃ 同一高度，不显示标签与刻度线
+        axisTick: { show: false },
+        axisLabel: {
+          color: '#0b3660',
+          formatter: (value: number) => (value < 0 ? '' : String(value)),
+        },
         splitLine: { show: false },
       },
     ],

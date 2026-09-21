@@ -39,6 +39,11 @@
           :title="panelsVisible ? '隐藏全部面板' : '显示全部面板'" @click="panelsVisible = !panelsVisible">
           {{ panelsVisible ? '隐藏面板' : '显示面板' }}
         </button>
+
+        <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :class="{ active: sceneHintsVisible }"
+          :title="sceneHintsVisible ? '隐藏左上角场景提示' : '显示左上角场景提示'" @click="sceneHintsVisible = !sceneHintsVisible">
+          {{ sceneHintsVisible ? '隐藏提示' : '显示提示' }}
+        </button>
       </div>
     </header>
 
@@ -84,7 +89,7 @@
             <div class="motion-mode-help">
               <div class="motion-status-head"><span class="motion-status-dot"
                   :class="{ playing: isPlaying }"></span><strong>{{ playbackCaption }}</strong><span>{{ isPlaying ?
-                    '演示运行中' : '日期与当地太阳时已固定' }}</span></div>
+                    '演示运行中' : '日期与地方时已固定' }}</span></div>
               <p v-if="isPlaying">{{ playbackHint.split(' · ')[1] }}</p>
               <small>公转、自转可独立播放；总按钮恢复上次组合。</small>
             </div>
@@ -92,15 +97,17 @@
               <div class="parameter-control">
                 <div class="parameter-head"><span>公转演示速度</span><strong>{{ orbitSpeed.toFixed(2) }}×</strong></div>
                 <el-slider v-model="orbitSpeed" :min="0.05" :max="8" :step="0.05" :show-tooltip="false"
-                  aria-label="公转演示速度" />
+                  :disabled="scienceMode" aria-label="公转演示速度" />
               </div>
               <div class="parameter-control">
                 <div class="parameter-head"><span>自转演示速度</span><strong>{{ daySpeed.toFixed(2) }}×</strong></div>
                 <el-slider v-model="daySpeed" :min="0.05" :max="8" :step="0.05" :show-tooltip="false"
-                  aria-label="自转演示速度" />
+                  :disabled="scienceMode" aria-label="自转演示速度" />
               </div>
             </div>
-            <p class="motion-speed-note">两项演示倍速独立调节，暂停时调整不会启动播放。</p>
+            <p class="motion-speed-note">{{ scienceMode
+              ? `科学模式已锁定真实比例 ≈ ${REAL_ROTATIONS_PER_ORBIT} : 1，倍速不可调；关闭后恢复独立调节。`
+              : '两项演示倍速独立调节，暂停时调整不会启动播放。' }}</p>
           </section>
 
           <section class="geo-card control-section layer-section">
@@ -220,7 +227,7 @@
           </div>
 
           <div class="orbit-overlay-layer">
-            <div class="scene-teaching-status">
+            <div v-show="sceneHintsVisible" class="scene-teaching-status">
               <div class="camera-follow-status" :class="{ locked: focusMode === 'earth' }" role="status"
                 aria-live="polite">
                 <el-icon>
@@ -229,6 +236,11 @@
                 </el-icon>
                 <strong>{{ focusMode === 'earth' ? '锁定地球' : '自由观察' }}</strong>
                 <span>{{ focusMode === 'earth' ? '公转跟随 · 可旋转 / 缩放' : '太阳中心 · 未跟随地球' }}</span>
+              </div>
+              <div class="science-mode-status" :class="{ on: scienceMode }" role="status" aria-live="polite">
+                <strong>{{ scienceMode ? '科学模式' : '演示模式' }} · 自转:公转 {{ motionRatioLabel }}</strong>
+                <span v-if="scienceMode">{{ motionPeriodLabel }}</span>
+                <span v-else>{{ motionPeriodLabel }} · 非真实比例（真实 ≈ 365:1）</span>
               </div>
               <div v-if="toggles.solarAltitude" class="teaching-scene-note altitude-scene-note">
                 <div class="teaching-note-heading"><strong>太阳高度角</strong><b>{{ observationCardData.solarAltitude }}</b>
@@ -266,8 +278,8 @@
             <section v-show="timelineDockVisible" ref="timelineDockRef" class="timeline-dock orbit-time-dock">
               <div v-if="solarTimeReversing" class="solar-time-reverse-note" role="status">
                 <div class="solar-time-reverse-head">
-                  <strong>太阳时反向变化</strong>
-                  <p>{{ orbitOnlyMode ? '地球停止自转后，公转使当地太阳时反向变化；日期仍向前推进。' : '当前演示倍速的组合使当地太阳时反向变化；日期仍向前推进。' }}</p>
+                  <strong>地方时反向变化</strong>
+                  <p>{{ orbitOnlyMode ? '地球停止自转后，公转使地方时反向变化；日期仍向前推进。' : '当前演示倍速的组合使地方时反向变化；日期仍向前推进。' }}</p>
                 </div>
               </div>
               <div class="timeline-master-control">
@@ -288,28 +300,32 @@
               <div class="timeline-main orbit-timeline-main">
                 <div class="timeline-channel orbit-timeline-channel"
                   :class="{ 'motion-paused': !motionPlayback.orbit }">
-                  <div class="timeline-label timeline-inline-label">
-                    <button type="button" class="channel-play-btn" :class="{ active: motionPlayback.orbit }"
-                      :aria-label="motionPlayback.orbit ? '暂停公转' : '播放公转'" :aria-pressed="motionPlayback.orbit"
-                      :title="motionPlayback.orbit ? '暂停公转，固定日期' : '播放公转，不改变自转播放状态'" @click="toggleMotion('orbit')">
-                      <el-icon>
-                        <VideoPause v-if="motionPlayback.orbit" />
-                        <VideoPlay v-else />
-                      </el-icon>
-                    </button>
+                  <button type="button" class="channel-play-btn orbit-play-control" :class="{ active: motionPlayback.orbit }"
+                    :disabled="scienceMode" :aria-label="motionPlayback.orbit ? '暂停公转' : '播放公转'"
+                    :aria-pressed="motionPlayback.orbit"
+                    :title="motionPlayback.orbit ? '暂停公转，固定日期' : '播放公转，不改变自转播放状态'" @click="toggleMotion('orbit')">
+                    <el-icon>
+                      <VideoPause v-if="motionPlayback.orbit" />
+                      <VideoPlay v-else />
+                    </el-icon>
                     <span>公转</span>
-                    <strong class="accent-value">{{ currentSeasonLabel }}</strong>
-                  </div>
-                  <div class="timeline-slider-stack">
-                    <el-slider v-model="yearProgress" :min="0" :max="1" :step="0.001" :show-tooltip="false"
-                      aria-label="公转日期" @input="onManualTimeChange('orbit')" />
-                    <div class="timeline-term-scale" aria-label="主要节气刻度">
-                      <button v-for="term in solarTerms" :key="term.name" type="button"
-                        :class="{ active: isSolarTermActive(term) }" :style="{ left: sliderTrackLeft(term.progress) }"
-                        :title="`${term.name} ${term.date}（教学示意日期）`" @click="setSolarTerm(term.progress)">
-                        <i></i>
-                        <span>{{ term.name }}</span>
-                      </button>
+                  </button>
+                  <div class="timeline-local-time">
+                    <div class="local-time-readout">
+                      <span>日期</span>
+                      <strong>{{ currentMonthDay }}</strong>
+                    </div>
+                    <div class="timeline-slider-stack">
+                      <el-slider v-model="yearProgress" :min="0" :max="1" :step="0.001" :show-tooltip="false"
+                        aria-label="公转日期" @input="onManualTimeChange('orbit')" />
+                      <div class="timeline-term-scale" aria-label="主要节气刻度">
+                        <button v-for="term in solarTerms" :key="term.name" type="button"
+                          :class="{ active: isSolarTermActive(term) }" :style="{ left: sliderTrackLeft(term.progress) }"
+                          :title="`${term.name} ${term.date}（教学示意日期）`" @click="setSolarTerm(term.progress)">
+                          <i></i>
+                          <span>{{ term.name }}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -319,9 +335,10 @@
                 <div class="timeline-channel rotation-timeline-channel"
                   :class="{ 'motion-paused': !motionPlayback.rotation }">
                   <button type="button" class="channel-play-btn rotation-play-control"
-                    :class="{ active: motionPlayback.rotation }" :aria-label="motionPlayback.rotation ? '暂停自转' : '播放自转'"
+                    :class="{ active: motionPlayback.rotation }" :disabled="scienceMode"
+                    :aria-label="motionPlayback.rotation ? '暂停自转' : '播放自转'"
                     :aria-pressed="motionPlayback.rotation"
-                    :title="motionPlayback.rotation ? '暂停自转，固定地球朝向；若继续公转，太阳时会反向变化' : '播放自转，不改变公转播放状态'"
+                    :title="motionPlayback.rotation ? '暂停自转，固定地球朝向；若继续公转，地方时会反向变化' : '播放自转，不改变公转播放状态'"
                     @click="toggleMotion('rotation')">
                     <el-icon>
                       <VideoPause v-if="motionPlayback.rotation" />
@@ -331,7 +348,7 @@
                   </button>
                   <div class="timeline-local-time">
                     <div class="local-time-readout">
-                      <span>当地太阳时</span>
+                      <span>地方时</span>
                       <strong>{{ observerSolarTime }}</strong>
                     </div>
                     <div class="local-time-track">
@@ -340,7 +357,7 @@
                         <span>{{ observerCoordinateLabel }}</span>
                       </div>
                       <el-slider v-model="observerLocalHour" :min="0" :max="24" :step="0.05" :show-tooltip="false"
-                        :aria-label="`${observerLocationLabel}的当地太阳时`" @input="onManualTimeChange('rotation')" />
+                        :aria-label="`${observerLocationLabel}的地方时`" @input="onManualTimeChange('rotation')" />
                     </div>
                   </div>
                 </div>
@@ -351,8 +368,18 @@
                     <strong>{{ obliquityLabel }}</strong>
                   </div>
                   <el-slider v-model="obliquityMinutes" :min="0" :max="MAX_OBLIQUITY_MINUTES" :step="1"
-                    :show-tooltip="false" aria-label="黄赤交角" :aria-valuetext="obliquityLabel"
+                    :disabled="scienceMode" :show-tooltip="false" aria-label="黄赤交角" :aria-valuetext="obliquityLabel"
                     :format-value-text="formatObliquitySliderValue" />
+                </div>
+                <i class="timeline-channel-divider science-divider" aria-hidden="true"></i>
+                <div class="timeline-channel science-mode-channel" :class="{ active: scienceMode }"
+                  :title="scienceMode
+                    ? `科学模式：锁定真实比例 自转:公转 ≈ ${REAL_ROTATIONS_PER_ORBIT}:1，公转极慢，用时间轴或节气看四季`
+                    : '演示模式：比例非真实，可用倍速调节'">
+                  <div class="science-mode-head">
+                    <span>科学模式</span>
+                    <el-switch v-model="scienceMode" size="small" aria-label="科学模式：锁定真实自转公转比例" />
+                  </div>
                 </div>
               </div>
             </section>
@@ -370,7 +397,7 @@
       :geographic-point-x="mapGeographicPointX" :geographic-point-y="mapPointY"
       :current-longitude="formatLon(currentSubsolarLongitude)" :current-latitude="currentDeclinationLabel"
       :solar-term-name="currentSeasonLabel" :obliquity-degrees="earthTiltDegrees" :day-of-year="currentDayOfYear"
-      :bottom-inset="timelineDockVisible ? timelineBottomInset : 10" :initial-top="200" :initial-right="18"
+      :bottom-inset="timelineBottomInset" :initial-top="200" :initial-right="18"
       initial-collapsed />
 
     <FloatingFeatureCard v-model:collapsed="subSceneCollapsed" class="floating-sub-scene-card"
@@ -404,17 +431,19 @@ import {
 } from './season-calendar'
 import { createSolarAltitudeDemo, solarAltitudeFrame } from './solar-altitude-demo'
 import { createObliquityHelper } from './obliquity-helper'
+import { MAX_OBLIQUITY_MINUTES } from './obliquity'
 import {
-  MAX_OBLIQUITY_MINUTES, formatDegreesMinutes, formatLatitudeDegreesMinutes,
-  formatLongitudeDegreesMinutes, formatSignedDegreesMinutes,
-} from './obliquity'
+  formatDegrees, formatLatitude, formatLongitude, formatSignedDegrees,
+} from '@/hooks/useDegreeFormat'
 import { createSubsolarTrail } from './subsolar-trail'
 import {
   advanceMotion, createMotionPlayback, setMotionPlaying, toggleMotionPlayback,
-  solarHourFromSpinAngle, spinAngleFromSolarHour, solarHourRate,
+  solarHourFromSpinAngle, spinAngleFromSolarHour, solarHourRate, resolveMotionRates,
+  REAL_ROTATIONS_PER_ORBIT,
   formatSolarHour as formatHour, formatSolarDuration as formatDuration, type MotionChannel,
 } from './motion-playback'
 import { createRotationSpeedDemo, rotationSpeedAtLatitude } from './rotation-speed-demo'
+import { createSunBeam } from './sun-beam'
 import { applySurfaceCutaway, isInsideRotationCutaway, rotationCutawayShader, rotationCutawayUniforms } from './earth-cutaway'
 import {
   useGeoPanelLayout,
@@ -504,8 +533,8 @@ const obliquityMinutes = ref(MAX_OBLIQUITY_MINUTES)
 const earthTiltDegrees = computed(() => obliquityMinutes.value / 60)
 const earthTilt = computed(() => earthTiltDegrees.value * DEG)
 const polarCircleDegrees = computed(() => 90 - earthTiltDegrees.value)
-const obliquityLabel = computed(() => formatDegreesMinutes(earthTiltDegrees.value))
-const formatObliquitySliderValue = (minutes: number) => formatDegreesMinutes(minutes / 60)
+const obliquityLabel = computed(() => formatDegrees(earthTiltDegrees.value))
+const formatObliquitySliderValue = (minutes: number) => formatDegrees(minutes / 60)
 const EARTH_RADIUS = 1.35
 const SUN_RADIUS = 2.45
 const ORBIT_RADIUS = 12.6
@@ -767,17 +796,37 @@ const isPlaying = computed(() => motionPlayback.orbit || motionPlayback.rotation
 const orbitOnlyMode = computed(() => motionPlayback.orbit && !motionPlayback.rotation)
 const playbackCaption = computed(() => !isPlaying.value ? '已暂停'
   : motionPlayback.orbit && motionPlayback.rotation ? '联动' : motionPlayback.orbit ? '仅公转' : '仅自转')
-const playbackHint = computed(() => !isPlaying.value ? '全部暂停 · 日期和当地太阳时均固定'
-  : motionPlayback.orbit && motionPlayback.rotation ? '联动播放 · 日期向前，公转与自转共同决定当地太阳时'
-    : motionPlayback.orbit ? '仅公转 · 日期向前，当地太阳时反向变化'
+const playbackHint = computed(() => !isPlaying.value ? '全部暂停 · 日期和地方时均固定'
+  : motionPlayback.orbit && motionPlayback.rotation ? '联动播放 · 日期向前，公转与自转共同决定地方时'
+    : motionPlayback.orbit ? '仅公转 · 日期向前，地方时反向变化'
       : '仅自转 · 固定日期，观察一天的昼夜变化')
 // Preserve the history basis through a total pause; changing demonstration mode starts a new trail.
 const trailCycle = computed(() => (isPlaying.value ? motionPlayback.rotation : motionPlayback.resumeRotation) ? 'rotation' : 'orbit')
-const daySpeed = ref(1.4)
+const daySpeed = ref(1)
 const orbitSpeed = ref(1)
+// 科学模式：锁定真实自转/公转比例（约 365:1），此时两个演示倍速不再适用。
+const scienceMode = ref(false)
+const currentRates = computed(() => resolveMotionRates(scienceMode.value, daySpeed.value, orbitSpeed.value))
+const motionRatioLabel = computed(() => `≈${Math.round(currentRates.value.rotationsPerOrbit)}:1`)
+const formatPeriodSeconds = (value: number) => {
+  const rounded = Math.round(value * 10) / 10
+  return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(1)
+}
+const motionPeriodLabel = computed(() => {
+  const spinSec = currentRates.value.rotationRadiansPerSecond > 0
+    ? (Math.PI * 2) / currentRates.value.rotationRadiansPerSecond
+    : 0
+  const orbitSec = currentRates.value.orbitCyclesPerSecond > 0
+    ? 1 / currentRates.value.orbitCyclesPerSecond
+    : 0
+  const orbitText = orbitSec >= 60
+    ? `${formatPeriodSeconds(orbitSec)} 秒（约 ${(orbitSec / 60).toFixed(1)} 分钟）`
+    : `${formatPeriodSeconds(orbitSec)} 秒`
+  return `自转 ${formatPeriodSeconds(spinSec)} 秒/圈 · 公转 ${orbitText}/圈`
+})
 const solarTimeReversing = computed(() => solarHourRate(motionPlayback,
   calendarProgressToSeasonProgress(yearProgress.value) * Math.PI * 2, earthTilt.value,
-  daySpeed.value, orbitSpeed.value, calendarOrbitRateScale(yearProgress.value)) < -1e-8)
+  currentRates.value, calendarOrbitRateScale(yearProgress.value)) < -1e-8)
 const showRiseSetReferenceNote = computed(() => {
   // Keep the reference notice when the user pauses to inspect or capture a frame.
   const playback = isPlaying.value ? motionPlayback : {
@@ -786,7 +835,7 @@ const showRiseSetReferenceNote = computed(() => {
   }
   return playback.orbit && (!playback.rotation || solarHourRate(playback,
     calendarProgressToSeasonProgress(yearProgress.value) * Math.PI * 2, earthTilt.value,
-    daySpeed.value, orbitSpeed.value, calendarOrbitRateScale(yearProgress.value)) < -1e-8)
+    currentRates.value, calendarOrbitRateScale(yearProgress.value)) < -1e-8)
 })
 const sunLightPower = ref(1.45)
 const nightMapPower = ref(1.75)
@@ -813,6 +862,7 @@ const referenceSolarHour = computed({
   },
 })
 const panelsVisible = ref(true)
+const sceneHintsVisible = ref(true)
 
 const toggles = reactive<DisplayToggleMap>({
   orbit: true,
@@ -861,7 +911,7 @@ const displayOptionGroups = [
   {
     key: 'illumination', label: '光照与昼夜', items: [
       { key: 'sunRays', label: '太阳光线' },
-      { key: 'sunGlow', label: '太阳光束' },
+      { key: 'sunGlow', label: '太阳光辉' },
       { key: 'terminator', label: '晨昏线' },
       { key: 'dayArc', label: '昼弧' },
       { key: 'nightArc', label: '夜弧' },
@@ -929,10 +979,10 @@ const DEFAULT_OBSERVATION: ObservationPoint = { id: 1, name: '上海，中国', 
 const observationPoints = ref<ObservationPoint[]>([{ ...DEFAULT_OBSERVATION }])
 const selectedObservationId = ref(DEFAULT_OBSERVATION.id)
 let pointCounter = 1
-let showObservationMarker = false
+let showObservationMarker = true
 
 const currentDeclinationDeg = computed(() => getDeclination(yearProgress.value) * RAD)
-const currentDeclinationLabel = computed(() => formatLatitudeDegreesMinutes(currentDeclinationDeg.value))
+const currentDeclinationLabel = computed(() => formatLatitude(currentDeclinationDeg.value))
 // The direct meridian is where local solar time (derived from the two physical phases) is 12:00.
 const currentSubsolarLongitude = computed(() => normalizeLon((12 - referenceSolarHour.value) * 15))
 const mapGeographicPointX = computed(() => (currentSubsolarLongitude.value + 180) * 2)
@@ -1052,8 +1102,7 @@ let earthTiltGroup!: THREE.Group
 let earthSpinGroup!: THREE.Group
 let earthMesh!: THREE.Mesh
 let earthAtmosphere: THREE.Mesh | null = null
-let earthSunGlow: THREE.Mesh | null = null
-let sunGlowBeam: THREE.Mesh | null = null
+let sunBeamFx: ReturnType<typeof createSunBeam> | null = null
 let orbitGroup: THREE.Group | null = null
 let orbitAnnotationGroup: THREE.Group | null = null
 let starField: THREE.Points | null = null
@@ -1125,11 +1174,6 @@ const earthAtmosphereUniforms = {
   atmosphereTwilightColor: atmosphereTwilightColorUniform,
 }
 
-const earthSunGlowUniforms = {
-  ...rotationCutawayUniforms,
-  sunDirection: { value: new THREE.Vector3(0, 0, 1) },
-}
-
 onMounted(() => {
   nextTick(() => {
     try {
@@ -1152,6 +1196,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   cancelEarthFocusTransition()
+  sunBeamFx?.dispose()
+  sunBeamFx = null
   cancelAnimationFrame(animationId)
   cancelAnimationFrame(yearProgressTweenId)
   if (solarTermFeedbackTimer !== null) window.clearTimeout(solarTermFeedbackTimer)
@@ -1210,9 +1256,18 @@ watch(earthTilt, () => {
   subsolarTrail?.clear()
   solarTermFeedback.value = null
 }, { flush: 'sync' })
-watch([() => motionPlayback.orbit, () => motionPlayback.rotation, daySpeed, orbitSpeed], () => {
+watch([() => motionPlayback.orbit, () => motionPlayback.rotation, daySpeed, orbitSpeed, scienceMode], () => {
   celestialStateDirty = true
 }, { flush: 'sync' })
+// 科学模式锁定真实状态：交角回到 23°26′，倍速归回 1.00，公转与自转必须联动，禁止单独播放某一通道。
+watch(scienceMode, (on) => {
+  if (!on) return
+  obliquityMinutes.value = MAX_OBLIQUITY_MINUTES
+  daySpeed.value = 1
+  orbitSpeed.value = 1
+  setMotionPlaying(motionPlayback, 'orbit', true)
+  setMotionPlaying(motionPlayback, 'rotation', true)
+})
 watch(selectedObservationId, () => {
   updateCelestialState()
   updateObservationMarkers()
@@ -1583,108 +1638,8 @@ function createEarth() {
   earthAtmosphere.renderOrder = 2
   earthSpinGroup.add(earthAtmosphere)
 
-  const sunGlowMaterial = new THREE.ShaderMaterial({
-    uniforms: earthSunGlowUniforms,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    depthTest: true,
-    side: THREE.BackSide,
-    toneMapped: true,
-    vertexShader: `
-      varying vec3 vWorldNormal;
-      varying vec3 vWorldPosition;
-      void main() {
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vWorldPosition = worldPosition.xyz;
-        vWorldNormal = normalize(mat3(modelMatrix) * normal);
-        gl_Position = projectionMatrix * viewMatrix * worldPosition;
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 sunDirection;
-      ${rotationCutawayShader}
-      varying vec3 vWorldNormal;
-      varying vec3 vWorldPosition;
-      void main() {
-        vec3 normalDirection = normalize(vWorldNormal);
-        if (insideRotationCutaway(normalDirection)) discard;
-        vec3 viewDirection = isOrthographic
-          ? vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2])
-          : normalize(cameraPosition - vWorldPosition);
-        float fresnel = 1.0 - abs(dot(normalDirection, viewDirection));
-        float rim = pow(smoothstep(0.48, 0.99, fresnel), 2.75);
-        float sunOrientation = dot(normalDirection, normalize(sunDirection));
-        float daylight = smoothstep(-0.10, 0.42, sunOrientation);
-        float glow = rim * daylight;
-        if (glow < 0.01) discard;
-        vec3 glowColor = mix(vec3(1.0, 0.66, 0.25), vec3(1.0, 0.94, 0.72), daylight);
-        gl_FragColor = vec4(glowColor * (0.58 + glow * 0.86), glow * 0.56);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }
-    `,
-  })
-  earthSunGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(EARTH_RADIUS * 1.058, 96, 96),
-    sunGlowMaterial,
-  )
-  earthSunGlow.renderOrder = 3
-  earthSpinGroup.add(earthSunGlow)
-
-  const sunGlowBeamMaterial = new THREE.ShaderMaterial({
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    depthTest: true,
-    side: THREE.DoubleSide,
-    toneMapped: true,
-    vertexShader: `
-      varying float vBeamProgress;
-      varying vec3 vWorldNormal;
-      varying vec3 vWorldPosition;
-      void main() {
-        vBeamProgress = clamp(position.y + 0.5, 0.0, 1.0);
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vWorldPosition = worldPosition.xyz;
-        vWorldNormal = normalize(mat3(modelMatrix) * normal);
-        gl_Position = projectionMatrix * viewMatrix * worldPosition;
-      }
-    `,
-    fragmentShader: `
-      varying float vBeamProgress;
-      varying vec3 vWorldNormal;
-      varying vec3 vWorldPosition;
-      void main() {
-        vec3 viewDirection = isOrthographic
-          ? vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2])
-          : normalize(cameraPosition - vWorldPosition);
-        float sideGlow = pow(1.0 - abs(dot(normalize(vWorldNormal), viewDirection)), 1.75);
-        float startFade = smoothstep(0.0, 0.12, vBeamProgress);
-        float earthwardStrength = mix(0.28, 1.0, smoothstep(0.16, 1.0, vBeamProgress));
-        float alpha = sideGlow * 0.165 * startFade * earthwardStrength;
-        if (alpha < 0.002) discard;
-        vec3 beamColor = mix(vec3(1.0, 0.52, 0.12), vec3(1.0, 0.94, 0.68), vBeamProgress);
-        gl_FragColor = vec4(beamColor * 1.28, alpha);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }
-    `,
-  })
-  sunGlowBeam = new THREE.Mesh(
-    new THREE.CylinderGeometry(
-      EARTH_RADIUS * 1.07,
-      EARTH_RADIUS * 0.54,
-      1,
-      64,
-      1,
-      true,
-    ),
-    sunGlowBeamMaterial,
-  )
-  sunGlowBeam.renderOrder = 1
-  sunGlowBeam.frustumCulled = false
-  scene.add(sunGlowBeam)
+  sunBeamFx = createSunBeam(SUN_RADIUS, EARTH_RADIUS)
+  scene.add(sunBeamFx.group)
 
   zonesGroup = createFiveZones()
   gridGroup = createLatLonGrid()
@@ -2024,7 +1979,7 @@ function animate(time: number) {
 
   // Render the initial scene while textures load, but keep its date and pose fixed.
   const motionDt = pageLoading.value ? 0 : dt
-  const nextMotion = advanceMotion(motionPlayback, yearProgress.value, earthSpinAngle.value, motionDt, daySpeed.value, orbitSpeed.value)
+  const nextMotion = advanceMotion(motionPlayback, yearProgress.value, earthSpinAngle.value, motionDt, currentRates.value)
   yearProgress.value = nextMotion.yearProgress
   earthSpinAngle.value = nextMotion.spinAngle
   if (celestialStateDirty) {
@@ -2189,8 +2144,7 @@ function updateCelestialState() {
   updateLightUniforms()
   earthUniforms.sunDirection.value.copy(sunDir)
   earthAtmosphereUniforms.sunDirection.value.copy(sunDir)
-  earthSunGlowUniforms.sunDirection.value.copy(sunDir)
-  updateSunGlowBeam()
+  sunBeamFx?.update(earthRoot.position, toggles.sunGlow, 1)
   // Same geometric reference as the self project: the tilted geographic axis,
   // independent of playback. The joints are its projection onto the terminator plane.
   earthUniforms.earthAxis.value.set(0, 1, 0)
@@ -2249,24 +2203,6 @@ function updateSunRays(sunDir: THREE.Vector3) {
   }
 }
 
-function updateSunGlowBeam() {
-  if (!sunGlowBeam || !earthRoot) return
-  const earthPosition = earthRoot.position.clone()
-  const travelDirection = earthPosition.clone().normalize()
-  const beamStart = travelDirection.clone().multiplyScalar(SUN_RADIUS * 1.12)
-  const beamEnd = earthPosition
-  const beamVector = new THREE.Vector3().subVectors(beamEnd, beamStart)
-  const beamLength = beamVector.length()
-
-  sunGlowBeam.position.copy(beamStart).add(beamEnd).multiplyScalar(0.5)
-  sunGlowBeam.quaternion.setFromUnitVectors(
-    new THREE.Vector3(0, 1, 0),
-    beamVector.clone().normalize(),
-  )
-  sunGlowBeam.scale.set(1, beamLength, 1)
-  sunGlowBeam.visible = toggles.sunGlow
-}
-
 function updateVisibility() {
   earthUniforms.showTerminator.value = toggles.terminator ? 1 : 0
   earthUniforms.showDayArc.value = toggles.dayArc ? 1 : 0
@@ -2287,8 +2223,7 @@ function updateVisibility() {
   if (nightArcLine) nightArcLine.visible = false
   if (sunRaysGroup) sunRaysGroup.visible = toggles.sunRays
   if (subsolarMarker) subsolarMarker.visible = toggles.sunRays
-  if (earthSunGlow) earthSunGlow.visible = toggles.sunGlow
-  if (sunGlowBeam) sunGlowBeam.visible = toggles.sunGlow
+  sunBeamFx?.update(earthRoot.position, toggles.sunGlow, 1)
   if (solarAltitudeDemo) solarAltitudeDemo.group.visible = toggles.solarAltitude
   if (subsolarTrail) subsolarTrail.group.visible = toggles.subsolarTrail
   if (rotationSpeedDemo) rotationSpeedDemo.group.visible = toggles.rotationSpeeds
@@ -3099,15 +3034,15 @@ function formatGridLon(lon: number) {
 }
 
 function formatLat(lat: number) {
-  return formatLatitudeDegreesMinutes(lat)
+  return formatLatitude(lat)
 }
 
 function formatLon(lon: number) {
-  return formatLongitudeDegreesMinutes(lon)
+  return formatLongitude(lon)
 }
 
 function formatSignedDeg(value: number) {
-  return formatSignedDegreesMinutes(value)
+  return formatSignedDegrees(value)
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -3185,6 +3120,7 @@ function normalizeLon(value: number) {
 }
 
 .camera-follow-status,
+.science-mode-status,
 .teaching-scene-note {
   border: 1px solid rgba(109, 178, 207, 0.24);
   background: rgba(5, 19, 30, 0.82);
@@ -3218,6 +3154,32 @@ function normalizeLon(value: number) {
   grid-column: 2;
   color: #9eb8c9;
   font-size: 0.84em;
+}
+
+.science-mode-status {
+  display: grid;
+  gap: 4px;
+  padding: 10px 13px;
+  width: fit-content;
+}
+
+.science-mode-status strong {
+  font-weight: 650;
+}
+
+.science-mode-status>span {
+  color: #9eb8c9;
+  font-size: 0.84em;
+}
+
+.science-mode-status.on {
+  --science-accent: #58d3a5;
+  --science-accent-rgb: 88, 211, 165;
+  border-color: rgba(var(--science-accent-rgb), 0.5);
+}
+
+.science-mode-status.on strong {
+  color: var(--science-accent);
 }
 
 .teaching-scene-note {
@@ -5372,6 +5334,11 @@ function normalizeLon(value: number) {
   outline-offset: 3px;
 }
 
+.channel-play-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .earth-orbit-template.theme-light .orbit-timeline-channel {
   --axis-accent: #926413;
   --axis-accent-rgb: 146, 100, 19;
@@ -5495,7 +5462,8 @@ function normalizeLon(value: number) {
   gap: 3px;
 }
 
-.rotation-timeline-channel .rotation-play-control {
+.rotation-timeline-channel .rotation-play-control,
+.orbit-timeline-channel .orbit-play-control {
   width: 36px;
   height: 46px;
   padding: 5px 0;
@@ -5504,7 +5472,8 @@ function normalizeLon(value: number) {
   font-size: 18px;
 }
 
-.rotation-play-control>span {
+.rotation-play-control>span,
+.orbit-play-control>span {
   font-size: 9px;
   font-weight: 500;
   line-height: 1;
@@ -5715,12 +5684,8 @@ function normalizeLon(value: number) {
   }
 
   .orbit-timeline-channel {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-  }
-
-  .orbit-timeline-channel .timeline-inline-label {
-    justify-self: start;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px;
   }
 
   .rotation-timeline-channel {
@@ -5788,7 +5753,7 @@ function normalizeLon(value: number) {
 }
 
 .earth-orbit-template .orbit-overlay-layer .orbit-timeline-main {
-  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1.08fr) 1px minmax(150px, 0.58fr);
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1.08fr) 1px minmax(108px, 0.42fr) 1px minmax(96px, 0.4fr);
 }
 
 .obliquity-timeline-channel {
@@ -5836,7 +5801,34 @@ function normalizeLon(value: number) {
   --axis-accent-rgb: 113, 82, 183;
 }
 
-@media (max-width: 760px) {
+.science-mode-channel {
+  --science-accent: #58d3a5;
+  --science-accent-rgb: 88, 211, 165;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+}
+
+.science-mode-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: clamp(11px, 0.6vw, 14px);
+  white-space: nowrap;
+}
+
+:deep(.science-mode-channel .el-switch.is-checked .el-switch__core) {
+  background-color: var(--science-accent);
+  border-color: var(--science-accent);
+}
+
+.earth-orbit-template.theme-light .science-mode-channel {
+  --science-accent: #149c6c;
+  --science-accent-rgb: 20, 156, 108;
+}
+
+@media (max-width: 1080px) {
   .earth-orbit-template .orbit-overlay-layer .orbit-time-dock {
     width: calc(100% - 36px) !important;
     bottom: 92px !important;
@@ -5852,11 +5844,25 @@ function normalizeLon(value: number) {
   }
 
   .obliquity-timeline-channel {
-    grid-column: 1 / -1;
+    grid-column: 1;
+    grid-row: 2;
     grid-template-columns: auto minmax(0, 1fr);
     gap: 15px;
     padding-top: 7px;
     border-top: 1px solid rgba(var(--axis-accent-rgb), 0.18);
+  }
+
+  .science-divider {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .science-mode-channel {
+    grid-column: 3;
+    grid-row: 2;
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 7px;
+    border-top: 1px solid rgba(var(--science-accent-rgb), 0.18);
   }
 }
 

@@ -1,6 +1,16 @@
 <template>
   <section ref="rootRef" class="earth-rotation-container earth-rotation-template geo-template-page geo-page theme-dark"
     :class="'layout-' + layoutMode">
+    <transition name="loading-fade">
+      <div v-if="!sceneReady" class="page-loading-overlay" role="status" aria-live="polite" aria-busy="true">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <p class="loading-text">正在加载地球贴图…</p>
+        <div class="loading-progress-track" role="progressbar" aria-label="贴图加载进度"
+          :aria-valuenow="loadingProgress" aria-valuemin="0" aria-valuemax="100">
+          <div class="loading-progress-fill" :style="{ width: loadingProgress + '%' }"></div>
+        </div>
+      </div>
+    </transition>
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -83,7 +93,7 @@
               <div class="toggle-list">
                 <label v-for="l in layerDefs" :key="l.key" class="toggle-item">
                   <span>{{ l.label }}</span>
-                  <el-switch v-model="layers[l.key]" size="small" />
+                  <el-switch v-model="layers[l.key]" />
                 </label>
               </div>
             </section>
@@ -178,11 +188,11 @@
                 <div class="axis-header">
                   <div class="axis-summary">
                     <span class="axis-point-summary axis-point-summary-a"><small>A 经度</small><b>{{ formatLon(pointA.lon)
-                        }}</b></span>
+                    }}</b></span>
                     <span class="axis-point-summary axis-point-summary-b"><small>B 经度</small><b>{{ formatLon(pointB.lon)
-                        }}</b></span>
+                    }}</b></span>
                     <span title="沿较短经度弧计算，范围 0°–180°。"><small>经度夹角</small><b>{{ abLongitudeRelation.angularSeparation
-                    }}°</b></span>
+                        }}°</b></span>
                     <span title="不看日期，按24小时循环取最短间隔；日期与时间读数的差值见 A/B 卡片。"><small>最短间隔</small><b>{{
                       formatTimeDiff(abLongitudeRelation.angularSeparation / 15) }}</b></span>
                     <span class="axis-relation" title="按较短经度弧判断东西；相差 180° 时两个方向等距。">{{
@@ -230,15 +240,18 @@
               style="height:0;background:none;border-top:2px dashed #f4cc77"></span>南北回归线</div>
           <div class="panel-rotation-legend-item"><span class="legend-line"
               style="height:0;background:none;border-top:2px dashed #67dce5"></span>南北极圈</div>
-          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#ff8800"></span>晨线（日出）
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#1f618f"></span>晨线（日出）
           </div>
-          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#6366f1"></span>昏线（日落）
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#8f1f38"></span>昏线（日落）
           </div>
           <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#fbbf24"></span>本初子午线 0°
           </div>
           <div class="panel-rotation-legend-item"><span class="legend-line"
               style="background:#ef4444"></span>国际日界线（现代制图近似）</div>
-          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#2ec4b6"></span>时区线 / 时区范围
+          <div class="panel-rotation-legend-item"><span class="legend-line" style="background:#2dd4bf"></span>时区线
+          </div>
+          <div class="panel-rotation-legend-item"><span class="legend-line"
+              style="background:linear-gradient(90deg,#2ec4b6 0%,#2ec4b6 20%,#247cff 20%,#247cff 40%,#ffd166 40%,#ffd166 55%,#ff8800 55%,#ff8800 70%,#ef4444 70%,#ef4444 100%)"></span>时区范围（东/西/中/八/十二区）
           </div>
           <div class="panel-rotation-legend-item"><span class="legend-line"
               :style="{ background: NIGHT_ARC_COLOR }"></span>夜弧</div>
@@ -646,6 +659,28 @@ const abCardCollapsed = ref(true)
 const cityPreviewCardCollapsed = ref(true)
 const trainingCardCollapsed = ref(true)
 const cityShortcutCardCollapsed = ref(true)
+
+// 页面级 loading：三张异步贴图（地球昼面、夜面 emissive、银河天空盒）全部就绪后再揭示页面。
+const sceneReady = ref(false)
+const loadingProgress = ref(0)
+let loadingSafetyTimer: number | null = null
+
+const textureLoadingManager = new THREE.LoadingManager()
+textureLoadingManager.onLoad = () => {
+  sceneReady.value = true
+  loadingProgress.value = 100
+  if (loadingSafetyTimer !== null) {
+    clearTimeout(loadingSafetyTimer)
+    loadingSafetyTimer = null
+  }
+}
+textureLoadingManager.onProgress = (_url, loaded, total) => {
+  loadingProgress.value = total > 0 ? Math.round((loaded / total) * 100) : 0
+}
+textureLoadingManager.onError = (url) => {
+  // 单张贴图失败时各自已有程序化兜底，这里只记录，不阻塞揭示。
+  console.warn('贴图加载失败:', url)
+}
 
 const selectedSolarTermName = ref('冬至')
 const currentSolarTerm = computed(() => (
@@ -1938,7 +1973,7 @@ function createRotationArrows(): THREE.Group {
 
 // ===================== 银河天空盒 =====================
 function loadGalaxySkybox() {
-  new THREE.TextureLoader().load(
+  new THREE.TextureLoader(textureLoadingManager).load(
     GALAXY_SKYBOX_URL,
     (texture) => {
       texture.mapping = THREE.EquirectangularReflectionMapping
@@ -2302,7 +2337,7 @@ function initThree() {
     `,
   })
 
-  const texLoader = new THREE.TextureLoader()
+  const texLoader = new THREE.TextureLoader(textureLoadingManager)
 
   const prepareEarthTexture = (texture: THREE.Texture) => {
     texture.colorSpace = THREE.SRGBColorSpace
@@ -3378,6 +3413,11 @@ onMounted(async () => {
   trainingCardCollapsed.value = true
   cityShortcutCardCollapsed.value = true
   await nextTick()
+  // 兜底：若某张贴图请求长时间挂起（既不 onLoad 也不 onError），20s 后强制揭示页面。
+  loadingSafetyTimer = window.setTimeout(() => {
+    sceneReady.value = true
+    loadingSafetyTimer = null
+  }, 20000)
   initThree()
 })
 
@@ -3400,6 +3440,11 @@ onUnmounted(() => {
     )
 
     sceneResizeTimer = null
+  }
+
+  if (loadingSafetyTimer !== null) {
+    clearTimeout(loadingSafetyTimer)
+    loadingSafetyTimer = null
   }
 
   sceneResizeObserver?.disconnect()
@@ -3485,6 +3530,67 @@ body {
   background: radial-gradient(ellipse at center, #0a1428 0%, #000511 100%);
   position: relative;
   overflow: hidden;
+}
+
+/* ===================== 页面级 loading 遮罩 ===================== */
+.page-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: radial-gradient(ellipse at center, #0a1428 0%, #000511 100%);
+}
+
+.loading-spinner {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid rgba(46, 196, 182, 0.16);
+  border-top-color: #2ec4b6;
+  border-right-color: #247cff;
+  animation: loading-spin 0.9s linear infinite;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: #a5f3fc;
+}
+
+.loading-progress-track {
+  width: 220px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(165, 243, 252, 0.14);
+  overflow: hidden;
+}
+
+.loading-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2ec4b6, #247cff);
+  box-shadow: 0 0 10px rgba(46, 196, 182, 0.5);
+  transition: width 0.35s ease;
+}
+
+.loading-fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.loading-fade-leave-to {
+  opacity: 0;
 }
 
 #earth-3d-container {
