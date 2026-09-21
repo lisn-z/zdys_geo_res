@@ -1,4 +1,4 @@
-<!-- TerrainProjection_v6：山脊线改为红色虚线，新增蓝色山谷虚线，默认等高距5m -->
+<!-- TerrainProjection_v7：修正独立山谷纵坡；三角网格逐段校验河道；统一 Shader 下坡流向 -->
 <template>
   <div ref="pageRef" class="terrain-projection-template geo-template-page geo-page theme-dark"
     :class="'layout-' + layoutMode">
@@ -449,7 +449,7 @@ let ridgeProjectionGroup: THREE.Group
 let valleyRiverGroup: THREE.Group
 let valleyGuideGroup3D: THREE.Group
 let valleyGuideProjectionGroup: THREE.Group
-const featureGuideMaterials: THREE.Material[] = []
+let valleyRiverPath: TerrainFeaturePosition[] = []
 let valleyRiverMaterial: THREE.ShaderMaterial | null = null
 type RidgePath = { points: TerrainFeaturePosition[]; branch: boolean }
 let cachedRidgeHeightfield: number[][] | null = null
@@ -1302,7 +1302,7 @@ function trimRidgePathAroundLabel(path: RidgePath, anchor: TerrainFeaturePositio
 function getFocusedRidgePaths(paths: RidgePath[]): RidgePath[] {
   if (!paths.length) return []
   const anchor = currentFeaturePositions.ridge ?? DEFAULT_FEATURE_POSITIONS.ridge
-  let chosen = paths[0]
+  let chosen = paths[0]!
   let nearestDistance = Infinity
   for (const path of paths) {
     for (const point of path.points) {
@@ -1316,84 +1316,180 @@ function getFocusedRidgePaths(paths: RidgePath[]): RidgePath[] {
   return [trimRidgePathAroundLabel(chosen, anchor)]
 }
 
+// 独立山谷与河流共用同一条平面中心线；随机参数只改变位置/平面弯曲，不制造纵向拦水坎。
+function generatedValleyAxisX(z: number, cx: number, cz: number): number {
+  return cx + 0.018 * Math.sin((z - cz) * 5.0)
+}
+
+function generatedValleyHeight(x: number, z: number, cx: number, cz: number): number {
+  const axisX = generatedValleyAxisX(z, cx, cz)
+  // 沿 +z 下游方向：d(bed)/dz = -0.38 - 0.05 * (1-z) < 0。
+  // 不再把 sin() 加到谷底高程上；起伏留给两侧地貌/地表材质。
+  const bed = 0.62 - 0.38 * z + 0.025 * (1 - z) ** 2
+  const valleyWidth = 0.075 + 0.035 * z
+  const lateral = (x - axisX) / valleyWidth
+  const bankHeight = 0.31 + 0.035 * (1 - z)
+  return bed + bankHeight * (1 - Math.exp(-0.5 * lateral * lateral))
+}
+
+// 把路径分段点落在高度场每一条相交的网格边/三角形对角线上。
+// 只看首尾高差不够：两点之间也可能跨过小土坎；三角面内的高度才是线性的。
+function sampleRiverSegment(a: TerrainFeaturePosition, b: TerrainFeaturePosition): TerrainFeaturePosition[] {
+  const cuts = [0, 1]
+  const n = GRID_SIZE - 1
+  const ax = a.x * n, az = (1 - a.z) * n
+  const bx = b.x * n, bz = (1 - b.z) * n
+  const addCrossings = (start: number, end: number) => {
+    const delta = end - start
+    if (Math.abs(delta) < 1e-12) return
+    for (let edge = Math.ceil(Math.min(start, end)); edge <= Math.floor(Math.max(start, end)); edge++) {
+      const t = (edge - start) / delta
+      if (t > 1e-9 && t < 1 - 1e-9) cuts.push(t)
+    }
+  }
+  addCrossings(ax, bx)
+  addCrossings(az, bz)
+  addCrossings(ax + az, bx + bz)
+  // 同时细分绘图采样，防止河流带的长三角面跨过弯曲坡面。
+  const subdivisions = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.0025))
+  for (let i = 1; i < subdivisions; i++) cuts.push(i / subdivisions)
+  cuts.sort((a, b) => a - b)
+  return cuts.filter((t, i) => i === 0 || t - cuts[i - 1]! > 1e-9).map(t => ({
+    x: a.x + (b.x - a.x) * t,
+    z: a.z + (b.z - a.z) * t,
+  }))
+}
+
+function validateDownhillRiverPath(candidate: TerrainFeaturePosition[]): TerrainFeaturePosition[] {
+  if (candidate.length < 2) return []
+  const path = candidate.map(point => ({ ...point }))
+  const elevation = (point: TerrainFeaturePosition) => sampleRealHeightNormalized(point.x, point.z)
+  const first = path[0]!, last = path[path.length - 1]!
+  // 顺序统一成上游 -> 下游；随后仍须逐段校验，不能只反转整条线就算修复。
+  if (elevation(first) < elevation(last)) path.reverse()
+  const checked: TerrainFeaturePosition[] = [path[0]!]
+  let previousHeight = elevation(path[0]!)
+  for (let i = 1; i < path.length; i++) {
+    const samples = sampleRiverSegment(path[i - 1]!, path[i]!)
+    for (let k = 1; k < samples.length; k++) {
+      const point = samples[k]!
+      const h = elevation(point)
+      if (!Number.isFinite(h) || h > previousHeight + 1e-6) {
+        // 未来调整地形产生洼地时停在洼地前；不跳过高点拼接成一条穿坡的河。
+        return checked.length >= 3 ? checked : []
+      }
+      checked.push(point)
+      previousHeight = h
+    }
+  }
+  return checked
+}
+
 function traceValleyRiverPath(): TerrainFeaturePosition[] {
-  if (!['all', 'valley'].includes(terrainGenType.value)) return []
-  const center = currentFeaturePositions.valley ?? DEFAULT_FEATURE_POSITIONS.valley
-  const saddle = currentFeaturePositions.saddle ?? DEFAULT_FEATURE_POSITIONS.saddle
   const type = terrainGenType.value
-  const startZ = type === 'valley'
-    ? Math.max(0.02, currentTerrainParams.cz - 0.42)
-    : Math.max(0.04, Math.min(saddle.z + 0.015, center.z - 0.04))
-  const endZ = type === 'valley'
-    ? Math.min(0.985, currentTerrainParams.cz + 0.42)
-    : Math.min(0.975, center.z + 0.50)
-  const halfWidth = type === 'valley' ? 0.20 : 0.14
-  const path: TerrainFeaturePosition[] = []
-  let xCenter = type === 'valley'
-    ? center.x
-    : THREE.MathUtils.lerp(saddle.x, center.x, 0.35)
-  const steps = Math.max(26, Math.ceil((endZ - startZ) / 0.005))
+  if (!['all', 'valley'].includes(type) || !heightsData.length) return []
+
+  if (type === 'valley') {
+    const { cx, cz } = currentTerrainParams
+    const candidate: TerrainFeaturePosition[] = []
+    // 贯穿独立山谷，保留上版的长河道；不再随着随机 cz 把河流截成半段。
+    const startZ = 0.025, endZ = 0.975
+    const steps = Math.ceil((endZ - startZ) / 0.003)
+    for (let i = 0; i <= steps; i++) {
+      const z = startZ + (endZ - startZ) * i / steps
+      candidate.push({ x: generatedValleyAxisX(z, cx, cz), z })
+    }
+    return validateDownhillRiverPath(candidate)
+  }
+
+  // 综合地形：从鞍部的同一侧谷头出发，保留接近鞍部的长河道，但不能翻越分水岭。
+  const saddle = findDefaultSaddleAnchor()
+  const center = currentFeaturePositions.valley ?? DEFAULT_FEATURE_POSITIONS.valley
+  const startZ = saddle.z + 0.015
+  const endZ = 0.975
+  const candidate: TerrainFeaturePosition[] = []
+  const steps = Math.ceil((endZ - startZ) / 0.004)
+  let previousX = saddle.x
   for (let i = 0; i <= steps; i++) {
-    const z = startZ + (endZ - startZ) * i / steps
-    if (type === 'all') {
-      const progress = steps > 0 ? i / steps : 0
-      xCenter = THREE.MathUtils.lerp(saddle.x, center.x, Math.min(1, progress * 1.25))
-    }
-    const point = findTransverseTrough('z', z, xCenter, halfWidth)
-    if (!point) continue
-    if (path.length) {
-      const prev = path[path.length - 1]!
-      if (Math.hypot(prev.x - point.x, prev.z - point.z) < 0.003) continue
-      if (Math.abs(prev.x - point.x) > 0.10) continue
-    }
-    path.push(point)
-    xCenter = point.x
+    const t = i / steps
+    const z = startZ + (endZ - startZ) * t
+    const expectedX = THREE.MathUtils.lerp(saddle.x, center.x, Math.min(1, t * 1.25))
+    const point = findTransverseTrough('z', z, expectedX, 0.14)
+    // 不跳过缺失横断面，避免跨过分隔的地形直接拉一条直线。
+    if (!point) break
+    if (candidate.length && Math.abs(point.x - previousX) > 0.03) break
+    candidate.push(point)
+    previousX = point.x
   }
-  if (type === 'all' && path.length) {
-    const head = path[0]!
-    const riverHead: TerrainFeaturePosition = {
-      x: THREE.MathUtils.lerp(saddle.x, head.x, 0.45),
-      z: Math.max(0.035, saddle.z + 0.01),
-    }
-    path.unshift(riverHead)
-  }
-  return path
+  return validateDownhillRiverPath(candidate)
 }
 
 function createRiverRibbonGeometry(points: TerrainFeaturePosition[], halfWidth = 0.05) {
-  const worldPoints = points.map((point) => new THREE.Vector3(
+  const worldPoints = points.map(point => new THREE.Vector3(
     (point.x - 0.5) * TERRAIN_SIZE,
-    sampleTerrainHeightAtSceneXZ((point.x - 0.5) * TERRAIN_SIZE, (0.5 - point.z) * TERRAIN_SIZE) + 0.02,
+    sampleTerrainHeightAtSceneXZ((point.x - 0.5) * TERRAIN_SIZE, (0.5 - point.z) * TERRAIN_SIZE),
     (0.5 - point.z) * TERRAIN_SIZE,
   ))
   if (worldPoints.length < 2) return null
-  const positions: number[] = []
-  const uvs: number[] = []
-  const indices: number[] = []
-  let total = 0
   const cumulative = [0]
   for (let i = 1; i < worldPoints.length; i++) {
-    total += worldPoints[i]!.distanceTo(worldPoints[i - 1]!)
-    cumulative.push(total)
+    cumulative.push(cumulative[i - 1]! + worldPoints[i]!.distanceTo(worldPoints[i - 1]!))
   }
-  const safeTotal = Math.max(total, 1e-6)
+  const total = cumulative[cumulative.length - 1]!
+  if (total <= 1e-6) return null
+
+  const positions: number[] = [], uvs: number[] = [], indices: number[] = []
+  const acrossSegments = 6
+  const columns = acrossSegments + 1
   for (let i = 0; i < worldPoints.length; i++) {
     const point = worldPoints[i]!
     const prev = worldPoints[Math.max(0, i - 1)]!
     const next = worldPoints[Math.min(worldPoints.length - 1, i + 1)]!
     const tangent = next.clone().sub(prev)
     tangent.y = 0
-    if (tangent.lengthSq() < 1e-8) tangent.set(0, 0, 1)
+    if (tangent.lengthSq() < 1e-10) tangent.set(0, 0, 1)
     tangent.normalize()
-    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize()
-    const left = point.clone().addScaledVector(normal, halfWidth)
-    const right = point.clone().addScaledVector(normal, -halfWidth)
-    positions.push(left.x, left.y, left.z, right.x, right.y, right.z)
-    const v = cumulative[i]! / safeTotal
-    uvs.push(0, v, 1, v)
-    if (i < worldPoints.length - 1) {
-      const base = i * 2
-      indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2)
+    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x)
+    const progress = cumulative[i]! / total
+    const width = halfWidth * (0.5 + 0.5 * smoothStep01(progress / 0.10))
+    // 谷底之上很薄的示意水层；横断面水面保持水平，纵向跟随已校验的下降剖面。
+    // 不能把每个水面顶点都抬到岸坡高度，否则带子的边缘仍可能形成局部逆坡。
+    const waterY = point.y + 0.012
+    const bankExtent = (side: number): number => {
+      const bankHeight = (distance: number) => sampleTerrainHeightAtSceneXZ(
+        point.x + normal.x * side * distance,
+        point.z + normal.z * side * distance,
+      )
+      // 沿左右两侧分别寻找与岸坡的第一次接触；避免水带覆盖、爬上高岸。
+      let inside = 0
+      for (let step = 1; step <= 12; step++) {
+        const outside = width * step / 12
+        if (bankHeight(outside) > waterY - 0.001) {
+          let lo = inside, hi = outside
+          for (let k = 0; k < 12; k++) {
+            const mid = (lo + hi) * 0.5
+            if (bankHeight(mid) <= waterY - 0.001) lo = mid
+            else hi = mid
+          }
+          return lo
+        }
+        inside = outside
+      }
+      return width
+    }
+    const leftWidth = bankExtent(1), rightWidth = bankExtent(-1)
+    for (let column = 0; column <= acrossSegments; column++) {
+      const u = column / acrossSegments
+      const lateral = (1 - 2 * u) * (u <= 0.5 ? leftWidth : rightWidth)
+      const x = point.x + normal.x * lateral
+      const z = point.z + normal.z * lateral
+      positions.push(x, waterY, z)
+      // v 为从上游累计到下游的实际弧长，箭头/水纹只沿 +v 移动。
+      uvs.push(u, cumulative[i]!)
+      if (i < worldPoints.length - 1 && column < acrossSegments) {
+        const a = i * columns + column, b = a + 1, c = a + columns, d = c + 1
+        indices.push(a, b, c, b, d, c)
+      }
     }
   }
   const geometry = new THREE.BufferGeometry()
@@ -1401,35 +1497,38 @@ function createRiverRibbonGeometry(points: TerrainFeaturePosition[], halfWidth =
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
   geometry.setIndex(indices)
   geometry.computeVertexNormals()
+  geometry.computeBoundingSphere()
+  geometry.userData.riverLength = total
   return geometry
 }
 
 function buildValleyRiverBand() {
   if (!valleyRiverGroup) return
   disposeFeatureLineGroup(valleyRiverGroup)
-  disposeFeatureLineGroup(valleyGuideGroup3D)
-  disposeFeatureLineGroup(valleyGuideProjectionGroup)
-  valleyRiverMaterial?.dispose()
+  // 材质由所属分组统一 dispose，避免共享清理列表把另一个分组仍在使用的材质释放。
   valleyRiverMaterial = null
-  const path = traceValleyRiverPath()
-  buildValleyGuideLines(path)
-  if (path.length < 3) {
+  valleyRiverPath = traceValleyRiverPath()
+  buildValleyGuideLines(valleyRiverPath)
+  if (valleyRiverPath.length < 3) {
     onToggleValleyRiver()
-    onToggleValleyGuides()
     return
   }
-  const geometry = createRiverRibbonGeometry(path, terrainGenType.value === 'valley' ? 0.05 : 0.04)
+  const geometry = createRiverRibbonGeometry(valleyRiverPath, terrainGenType.value === 'valley' ? 0.05 : 0.04)
   if (!geometry) {
     onToggleValleyRiver()
-    onToggleValleyGuides()
     return
   }
   valleyRiverMaterial = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
+    depthTest: true,
     side: THREE.DoubleSide,
+    toneMapped: false,
     uniforms: {
       uTime: { value: 0 },
+      uFlowSpeed: { value: 0.11 },
+      uArrowSpacing: { value: 0.20 },
+      uLength: { value: geometry.userData.riverLength },
     },
     vertexShader: `varying vec2 vUv;
       void main(){
@@ -1437,34 +1536,68 @@ function buildValleyRiverBand() {
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: `uniform float uTime;
+      uniform float uFlowSpeed;
+      uniform float uArrowSpacing;
+      uniform float uLength;
       varying vec2 vUv;
-      float chevron(vec2 uv, float t){
-        float p = fract(uv.y * 9.0 - t * 0.35);
-        float center = abs(uv.x - 0.5);
-        float body = 1.0 - smoothstep(0.06, 0.11, abs(p - 0.48 + center * 0.75));
-        float mask = 1.0 - smoothstep(0.22, 0.48, center);
-        return body * mask * step(p, 0.88);
-      }
       void main(){
-        float edge = smoothstep(0.0, 0.16, vUv.x) * (1.0 - smoothstep(0.84, 1.0, vUv.x));
-        float mid = 1.0 - smoothstep(0.0, 0.5, abs(vUv.x - 0.5) * 2.0);
-        float arrow = chevron(vUv, uTime);
-        float shimmer = 0.08 * sin((vUv.y - uTime * 0.18) * 40.0);
-        vec3 deep = vec3(0.04, 0.31, 0.54);
-        vec3 shallow = vec3(0.22, 0.78, 0.93);
-        vec3 color = mix(deep, shallow, clamp(mid * 0.85 + 0.10, 0.0, 1.0));
-        color += arrow * vec3(0.78, 0.96, 1.00);
-        color += shimmer * edge;
-        float alpha = (0.16 + 0.56 * edge) * (0.82 + 0.18 * mid);
+        // 路径已逐三角面验证为下坡；phase 恒定的位置随时间沿 +v 移向下游。
+        float downstream = vUv.y - uTime * uFlowSpeed;
+        float phase = fract(downstream / uArrowSpacing);
+        float center = abs(vUv.x - 0.5);
+        // 箭尖位于更大的 v；不得只让图案移动，而箭头本身指向相反方向。
+        float arrow = (1.0 - smoothstep(0.035, 0.065, abs(phase - 0.64 + center * 0.82)))
+          * (1.0 - smoothstep(0.27, 0.43, center));
+        float edge = smoothstep(0.0, 0.14, vUv.x) * (1.0 - smoothstep(0.86, 1.0, vUv.x));
+        float mid = 1.0 - smoothstep(0.0, 0.5, center);
+        float shimmer = 0.045 * sin(downstream * 100.0 + vUv.x * 4.0);
+        vec3 color = mix(vec3(0.03, 0.28, 0.48), vec3(0.13, 0.65, 0.84), mid * 0.82);
+        color += arrow * vec3(0.55, 0.70, 0.73) + shimmer * edge;
+        float cap = smoothstep(0.0, 0.025, vUv.y) * (1.0 - smoothstep(uLength - 0.02, uLength, vUv.y));
+        float alpha = edge * cap * (0.70 + 0.22 * arrow);
         gl_FragColor = vec4(color, alpha);
       }`,
   })
   const mesh = new THREE.Mesh(geometry, valleyRiverMaterial)
   mesh.name = 'valleyRiverBand'
-  mesh.renderOrder = 10
+  mesh.renderOrder = 12
+  mesh.userData.flowDirection = 'upstream-to-downstream'
+  mesh.userData.upstreamElevation = sampleRealHeightNormalized(valleyRiverPath[0]!.x, valleyRiverPath[0]!.z)
+  const end = valleyRiverPath[valleyRiverPath.length - 1]!
+  mesh.userData.downstreamElevation = sampleRealHeightNormalized(end.x, end.z)
   valleyRiverGroup.add(mesh)
   onToggleValleyRiver()
-  onToggleValleyGuides()
+}
+
+function updateRiverElevationLabelVisibility() {
+  if (!featureLabelGroup) return
+  for (const label of featureLabelGroup.children) {
+    if (label.name === 'riverElevationLabel') {
+      label.visible = showValleyRiver.value && !learningMode.value
+    }
+  }
+}
+
+function addRiverElevationLabels() {
+  if (learningMode.value || terrainGenType.value !== 'valley' || valleyRiverPath.length < 3) return
+  const markers = [
+    { text: '上游', point: valleyRiverPath[0]! },
+    { text: '下游', point: valleyRiverPath[valleyRiverPath.length - 1]! },
+  ]
+  for (const { text, point } of markers) {
+    const div = document.createElement('div')
+    div.textContent = `${text} ${sampleRealHeightNormalized(point.x, point.z).toFixed(1)}m`
+    div.style.cssText = 'color:#eafaff;background:rgba(5,34,56,0.88);padding:3px 8px;'
+      + 'border:1px solid rgba(80,198,244,0.65);border-radius:6px;white-space:nowrap;'
+      + 'font-weight:700;pointer-events:none;text-shadow:0 1px 2px #000;'
+    div.style.fontSize = `${Math.max(12, 13 * uiScale.value)}px`
+    const label = new CSS2DObject(div)
+    label.name = 'riverElevationLabel'
+    const x = (point.x - 0.5) * TERRAIN_SIZE, z = (0.5 - point.z) * TERRAIN_SIZE
+    label.position.set(x, sampleTerrainHeightAtSceneXZ(x, z) + 0.07, z)
+    featureLabelGroup.add(label)
+  }
+  updateRiverElevationLabelVisibility()
 }
 
 function onToggleValleyRiver() {
@@ -1474,6 +1607,7 @@ function onToggleValleyRiver() {
     && !learningMode.value
     && ['all', 'valley'].includes(terrainGenType.value)
   onToggleValleyGuides()
+  updateRiverElevationLabelVisibility()
   invalidateSceneRender()
 }
 
@@ -1579,24 +1713,21 @@ function addDashedGuideLine(
 ) {
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  const opacity = options.opacity ?? 1
-  for (const outline of [true, false]) {
-    const material = new THREE.LineDashedMaterial({
-      color: outline ? options.outlineColor : options.color,
-      dashSize: options.dashSize,
-      gapSize: options.gapSize,
-      transparent: true,
-      opacity: outline ? Math.min(1, opacity * 0.95) : opacity,
-      linewidth: 1,
-      depthTest: true,
-      depthWrite: false,
-    })
-    featureGuideMaterials.push(material)
-    const line = new THREE.Line(geometry.clone(), material)
-    line.computeLineDistances()
-    line.renderOrder = outline ? 14 : 15
-    group.add(line)
-  }
+  const material = new THREE.LineDashedMaterial({
+    color: options.color,
+    dashSize: options.dashSize,
+    gapSize: options.gapSize,
+    transparent: true,
+    opacity: options.opacity ?? 1,
+    linewidth: 1,
+    depthTest: true,
+    depthWrite: false,
+    toneMapped: false,
+  })
+  const line = new THREE.Line(geometry, material)
+  line.computeLineDistances()
+  line.renderOrder = 15
+  group.add(line)
 }
 
 function addRidgeStroke(group: THREE.Group, positions: number[], branch: boolean) {
@@ -1612,8 +1743,6 @@ function addRidgeStroke(group: THREE.Group, positions: number[], branch: boolean
 function buildRidgeLines() {
   disposeFeatureLineGroup(ridgeGroup3D)
   disposeFeatureLineGroup(ridgeProjectionGroup)
-  featureGuideMaterials.forEach(material => material.dispose())
-  featureGuideMaterials.length = 0
   if (cachedRidgeHeightfield !== heightsData) {
     cachedRidgeHeightfield = heightsData
     cachedRidgePaths = traceRidgePaths()
@@ -2164,7 +2293,6 @@ function buildTerrain() {
   terrainMesh.receiveShadow = true
   terrainMesh.name = 'terrainMesh'
   terrainGroup.add(terrainMesh)
-  buildValleyRiverBand()
   invalidateTerrainShadow()
 }
 
@@ -2255,7 +2383,6 @@ function buildContoursAndProjection() {
   // 6. 投影分层设色
   buildProjectionColoring(segments)
   buildBasinContourHints(segments, levels)
-  buildRidgeLines()
   onToggleTerrain()
   onToggleProjection()
 }
@@ -2356,6 +2483,15 @@ function defaultZc(x: number): number {
 }
 
 function computeFeatureAnchorsFromHeightfield() {
+  if (terrainGenType.value === 'valley') {
+    const { cx, cz } = currentTerrainParams
+    const z = 0.60
+    currentFeaturePositions = Object.fromEntries(
+      Object.entries(DEFAULT_FEATURE_POSITIONS).map(([type, point]) => [type, { ...point }])
+    )
+    currentFeaturePositions.valley = { x: generatedValleyAxisX(z, cx, cz), z }
+    return
+  }
   // 默认设计地形：锚点直接取设计位置，保证鞍部在垭口、山脊在峰侧脊线、山谷在鞍部下游
   if (terrainGenType.value === 'all') {
     // 支脊融合后峰顶位置略有变化，标签跟随实际网格的最高点。
@@ -2527,13 +2663,14 @@ function buildLabels(recalculateAnchors = true) {
   addElevationLabels()
   // 地形特征标注（受"地形标签"开关控制，同时跟随"地形显示"）
   addFeatureLabels()
+  addRiverElevationLabels()
   addBasinElevationLabels()
   onToggleFeatureLabels()
   invalidateSceneRender()
 }
 
 function addElevationLabels() {
-  // buildLabels() 也会由标签定位触发，先移除旧的投影海拔数字，避免叠加。
+  // 标签重建前先移除旧的投影海拔数字，避免叠加。
   for (const child of [...projectionGroup.children]) {
     if (child.name === 'projectionElevationLabel') child.removeFromParent()
   }
@@ -2857,15 +2994,9 @@ const TERRAIN_SEEDS: Record<string, (x: number, z: number, params?: { cx: number
     return 0.55 * gauss2d(x, z, cx, cz, 0.35, 0.06) + 0.04
   },
   valley: (x, z, p) => {
-    // 真实 U 型河谷：沿 z 方向的长条低洼，中央低、两侧高
     const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
-    const baseH = 0.55
-    const distX = Math.abs(x - cx)
-    // 横截面：中心为谷底线（低），向外升到谷坡（高）
-    const cross = 0.20 - 0.30 * Math.exp(-(distX * distX) / (2 * 0.10 * 0.10))
-    // 沿 z 方向谷底有起伏
-    const alongZ = 0.08 * Math.sin((z - cz) * 8) * Math.exp(-(distX * distX) / (2 * 0.15 * 0.15))
-    return Math.max(0, baseH + cross + alongZ)
+    // 横向两侧高、谷底低；纵向上游高、下游低，允许平面轻微弯曲。
+    return generatedValleyHeight(x, z, cx, cz)
   },
   cliff: (x, z, p) => {
     const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
@@ -2923,7 +3054,7 @@ function generateRandomTerrain() {
     } else {
       // 单类型：随机位置 + TERRAIN_SEEDS 函数，每次不同
       // 盆地的完整盆缘必须留在画面内；陡崖两端也要有足够的过渡空间。
-      const margin = type === 'basin' ? 0.31 : type === 'cliff' ? 0.30 : 0.15
+      const margin = type === 'basin' ? 0.31 : type === 'cliff' ? 0.30 : type === 'valley' ? 0.28 : 0.15
       const cx = margin + Math.random() * (1 - 2 * margin)
       const cz = margin + Math.random() * (1 - 2 * margin)
       currentTerrainParams = { cx, cz }
@@ -2992,7 +3123,6 @@ function generateRandomTerrain() {
     // 重建等高线、河流带和标签
     buildContoursAndProjection()
     buildLabels()
-    buildValleyRiverBand()
     generatingTerrain.value = false
   }, 50)
 }
@@ -3078,7 +3208,6 @@ function endLearning() {
     invalidateTerrainShadow()
     buildContoursAndProjection()
     buildLabels()
-    buildValleyRiverBand()
   }
   onToggleValleyRiver()
   setView('front')
@@ -3556,7 +3685,6 @@ function resizeSceneNow() {
 
   }
 
-  updateRidgeLineResolution()
   // 响应式缩放后同步校准视角立方体位置。
   applyResponsiveScale()
   updateViewCubeDockPosition()
@@ -3712,10 +3840,8 @@ onUnmounted(() => {
   disposeFeatureLineGroup(valleyRiverGroup)
   disposeFeatureLineGroup(valleyGuideGroup3D)
   disposeFeatureLineGroup(valleyGuideProjectionGroup)
-  valleyRiverMaterial?.dispose()
   valleyRiverMaterial = null
-  featureGuideMaterials.forEach(material => material.dispose())
-  featureGuideMaterials.length = 0
+  valleyRiverPath = []
   cachedRidgeHeightfield = null
   cachedRidgePaths = []
   controls?.dispose()
