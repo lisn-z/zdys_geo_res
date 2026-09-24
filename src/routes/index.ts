@@ -412,7 +412,7 @@ export const routes = [
     path: '/narrowing-effect',
     name: 'narrowing-effect',
     meta: {
-      title: '狭管效应',
+      title: '狭管效应', tags: ['第三批'],
     },
     component: () =>
       import('@/views/narrowing-effect/index.vue'),
@@ -422,9 +422,19 @@ export const routes = [
     name: 'three-feature-of-map',
     meta: {
       title: '地图三要素',
+      tags: ['第三批'],
     },
     component: () =>
       import('@/views/three-feature-of-map/index.vue'),
+  },
+  {
+    path: '/flying-into-space',
+    name: 'flying-into-space',
+    meta: {
+      title: '飞向太空',
+    },
+    component: () =>
+      import('@/views/flying-into-space/index.vue'),
   },
 ]
 

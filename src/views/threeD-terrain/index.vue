@@ -271,7 +271,8 @@ const MAX_RELIEF = 110             // 最大起伏，最高峰值约 150m
 const HEIGHT_SCALE = 1 / 70        // 真实米数 → 3D 显示单位
 const CONTOUR_START = 50
 const CONTOUR_END = 200
-const BASE_PLANE_Y = -1.0
+// 投影面相对山体基准面的下沉距离；适当拉开空间，便于观察垂直投影关系。
+const BASE_PLANE_Y = -1.3
 const TERRAIN_SIZE = 3.0
 
 // ============================================================
@@ -2001,16 +2002,16 @@ function initScene() {
       100
     )
 
-  // 默认前视图（正面对齐地形）
+  // 默认前视图：稍微拉远并降低相机高度，让山体与下方投影完整落入画面。
   camera.position.set(
     0,
-    2.5,
-    7.0
+    1.8,
+    7.6
   )
 
   camera.lookAt(
     0,
-    0.8,
+    0.4,
     0
   )
 
@@ -2068,7 +2069,7 @@ function initScene() {
   )
 
   controls = new OrbitControls(camera, renderer.domElement)
-  controls.target.set(0, 0.8, 0)
+  controls.target.set(0, 0.4, 0)
   controls.enableDamping = true
   controls.dampingFactor = 0.08
   controls.minDistance = 1.5
@@ -2827,7 +2828,7 @@ function onToggleTerrain() {
 // 视角切换 — 前/后/左/右/顶/底
 // ============================================================
 const VIEW_PRESETS: Record<string, { pos: [number, number, number]; target: [number, number, number] }> = {
-  front: { pos: [0, 2.5, 7.0], target: [0, 0.8, 0] },
+  front: { pos: [0, 1.8, 7.6], target: [0, 0.4, 0] },
   back: { pos: [0, 2.5, -7.0], target: [0, 0.8, 0] },
   left: { pos: [-7.0, 2.5, 0], target: [0, 0.8, 0] },
   right: { pos: [7.0, 2.5, 0], target: [0, 0.8, 0] },

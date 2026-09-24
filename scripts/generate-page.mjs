@@ -105,17 +105,6 @@ const THEME_OPTIONS = {
   },
 }
 
-const FLOATING_OPTIONS = {
-  1: {
-    key: 'yes',
-    label: '是，启用悬浮毛玻璃布局',
-  },
-  2: {
-    key: 'no',
-    label: '否，使用普通面板布局',
-  },
-}
-
 const SCENE_OPTIONS = {
   1: {
     key: 'three',
@@ -4122,7 +4111,9 @@ async function main() {
   )
 
   let scene = SCENE_OPTIONS[4]
-  let useFloating = false
+  // 不再询问悬浮毛玻璃风格，固定走普通面板布局；
+  // 保留开关变量，下游模板与提示词分支仍可复用。
+  const useFloating = false
 
   if (layout.key !== 'blank') {
     scene = await askChoice(
@@ -4130,15 +4121,6 @@ async function main() {
       SCENE_OPTIONS,
       '1'
     )
-
-    const floating = await askChoice(
-      '\n🧊 是否启用悬浮毛玻璃风格：',
-      FLOATING_OPTIONS,
-      '2'
-    )
-
-    useFloating =
-      floating.key === 'yes'
   }
 
   rl.close()
@@ -4252,12 +4234,6 @@ async function main() {
   if (layout.key !== 'blank') {
     console.log(
       `✅ 主场景案例: ${scene.label}`
-    )
-  }
-
-  if (layout.key !== 'blank') {
-    console.log(
-      `✅ 悬浮毛玻璃: ${useFloating ? '已启用' : '未启用'}`
     )
   }
 

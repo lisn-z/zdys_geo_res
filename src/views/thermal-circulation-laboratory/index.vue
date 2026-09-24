@@ -3,7 +3,7 @@
     :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+        <img class="brand-logo" :src="brandLogo"
           alt="地理实验室" />
       </div>
       <div class="title-stack">
@@ -39,22 +39,17 @@
           <div ref="coldSourceLabelRef" class="source-label cold-source-label"><span>COLD SOURCE</span><strong>冰块 ·
               冷空气下沉</strong></div>
 
-          <div ref="pressureCRef" class="pressure-point pressure-low pressure-c"><b>C</b><span><em>相对低压</em><strong>{{
-            signedPressure(upperColdAnomalyPa) }} Pa</strong></span></div>
-          <div ref="pressureDRef" class="pressure-point pressure-high pressure-d"><b>D</b><span><em>相对高压</em><strong>{{
-            signedPressure(upperHotAnomalyPa) }} Pa</strong></span></div>
-          <div ref="pressureBRef" class="pressure-point pressure-high pressure-b"><b>B</b><span><em>相对高压</em><strong>{{
-            signedPressure(lowerColdAnomalyPa) }} Pa</strong></span></div>
-          <div ref="pressureARef" class="pressure-point pressure-low pressure-a"><b>A</b><span><em>相对低压</em><strong>{{
-            signedPressure(lowerHotAnomalyPa) }} Pa</strong></span></div>
+          <div v-show="showPressureOverlay" ref="pressureCRef" class="pressure-point pressure-low pressure-c"><b>C</b><span><em>相对低压 {{ signedPressure(upperColdAnomalyPa) }} Pa</em><strong>{{ upperColdPressureHpa }} hPa</strong></span></div>
+          <div v-show="showPressureOverlay" ref="pressureDRef" class="pressure-point pressure-high pressure-d"><b>D</b><span><em>相对高压 {{ signedPressure(upperHotAnomalyPa) }} Pa</em><strong>{{ upperHotPressureHpa }} hPa</strong></span></div>
+          <div v-show="showPressureOverlay" ref="pressureBRef" class="pressure-point pressure-high pressure-b"><b>B</b><span><em>相对高压 {{ signedPressure(lowerColdAnomalyPa) }} Pa</em><strong>{{ lowerColdPressureHpa }} hPa</strong></span></div>
+          <div v-show="showPressureOverlay" ref="pressureARef" class="pressure-point pressure-low pressure-a"><b>A</b><span><em>相对低压 {{ signedPressure(lowerHotAnomalyPa) }} Pa</em><strong>{{ lowerHotPressureHpa }} hPa</strong></span></div>
 
-          <div ref="upperIsobarRef" class="isobar-tag upper-isobar-tag"><span>上层参考等压面</span><strong>600 hPa</strong></div>
-          <div ref="lowerIsobarRef" class="isobar-tag lower-isobar-tag"><span>近地面参考等压面</span><strong>1000 hPa</strong>
-          </div>
+          <div v-show="showIsobarSurfaces" ref="isobar860Ref" class="isobar-tag"><span>大气示意等压面</span><strong v-if="showPressureOverlay">860 hPa</strong></div>
+          <div v-show="showIsobarSurfaces" ref="isobar1010Ref" class="isobar-tag"><span>大气示意等压面</span><strong v-if="showPressureOverlay">1010 hPa</strong></div>
 
           <div class="airflow-legend">
             <span><i class="hot-dot"></i>暖空气上升</span>
-            <span><i class="neutral-line"></i>烟流轨迹</span>
+            <span><i class="neutral-line"></i>气流轨迹</span>
             <span><i class="cold-dot"></i>冷空气下沉</span>
           </div>
           <div v-if="sceneError" class="scene-error">场景渲染异常：{{ sceneError }}</div>
@@ -82,25 +77,33 @@
             <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
               :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">{{ item }}×</button>
           </div>
-          <div class="timeline-isobar-control">
-            <div class="switch-row timeline-isobar-switch">
-              <div class="control-copy"><strong>显示等压面形变</strong></div>
-              <el-switch v-model="showIsobarDeformation" size="small" aria-label="显示等压面形变" />
-            </div>
-            <small v-if="showIsobarDeformation && isRunning" class="isobar-demo-note">倾角放大 · 示意</small>
+          <div class="timeline-layer-controls" aria-label="教学图层开关">
+            <label class="timeline-layer-switch">
+              <span>气压值</span>
+              <el-switch v-model="showPressureOverlay" size="small" aria-label="显示气压值" />
+            </label>
+            <label class="timeline-layer-switch">
+              <span>等压面</span>
+              <el-switch v-model="showIsobarSurfaces" size="small" aria-label="显示等压面" />
+            </label>
+            <label class="timeline-layer-switch" :class="{ disabled: !showIsobarSurfaces }">
+              <span>等压面形变</span>
+              <el-switch v-model="showIsobarDeformation" size="small" :disabled="!showIsobarSurfaces"
+                aria-label="显示等压面形变" />
+            </label>
           </div>
         </div>
       </section>
     </main>
 
     <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="sensorCardCollapsed" class="lab-sensor-card"
-      title="实时实验数据" :subtitle="`${temperatureDifference.toFixed(1)}°C 温差`" variant="data" :initial-top="88"
+      title="实时实验数据" :subtitle="`${temperatureDifference.toFixed(1)}°C 冷热源温差`" variant="data" :initial-top="88"
       :initial-right="14" :bottom-inset="88" :min-width="280" :min-height="220" :light="true">
       <div class="sensor-console" aria-label="实验监测数据">
         <div class="console-kicker"><i></i> LIVE SENSOR</div>
         <div class="sensor-section">
           <div class="section-title-row">
-            <span>温度监测</span><b>{{ temperatureDifference.toFixed(1) }}°C 温差</b>
+            <span>冷热源温度</span><b>{{ temperatureDifference.toFixed(1) }}°C 冷热源温差</b>
           </div>
           <div class="metric-pair">
             <article class="metric hot-metric">
@@ -113,11 +116,85 @@
             </article>
           </div>
         </div>
-        <div class="pressure-list">
-          <div><span>热水侧压强异常</span><strong>{{ signedPressure(lowerHotAnomalyPa) }} <small>Pa</small></strong></div>
-          <div><span>冰块侧压强异常</span><strong>{{ signedPressure(lowerColdAnomalyPa) }} <small>Pa</small></strong></div>
+        <template v-if="showPressureOverlay">
+          <div class="pressure-reference">
+            <div class="pressure-reference-head"><strong>计算基准</strong><small>点位气压 (hPa) = 同层参考气压 (hPa) + 相对气压 (Pa) ÷ 100</small></div>
+            <div class="pressure-reference-levels">
+              <span>A/B · 近地面观测层<strong>{{ LOWER_REFERENCE_PRESSURE_HPA.toFixed(2) }} hPa</strong></span>
+              <span>C/D · 高空观测层<strong>{{ UPPER_REFERENCE_PRESSURE_HPA.toFixed(2) }} hPa</strong></span>
+            </div>
+            <p>参考气压 990 / 885 hPa 与等压面 1010 / 860 hPa 是不同概念。</p>
+          </div>
+          <div class="pressure-list">
+            <div><span>A 点 · 近地面热水侧</span><strong>{{ lowerHotPressureHpa }} <small>hPa · 相对 {{ signedPressure(lowerHotAnomalyPa) }} Pa</small></strong></div>
+            <div><span>B 点 · 近地面冰块侧</span><strong>{{ lowerColdPressureHpa }} <small>hPa · 相对 {{ signedPressure(lowerColdAnomalyPa) }} Pa</small></strong></div>
+            <div><span>C 点 · 高空冰块侧</span><strong>{{ upperColdPressureHpa }} <small>hPa · 相对 {{ signedPressure(upperColdAnomalyPa) }} Pa</small></strong></div>
+            <div><span>D 点 · 高空热水侧</span><strong>{{ upperHotPressureHpa }} <small>hPa · 相对 {{ signedPressure(upperHotAnomalyPa) }} Pa</small></strong></div>
+          </div>
+        </template>
+        <div v-show="showIsobarSurfaces" class="isobar-chart" aria-label="等压面垂直剖面图">
+          <div class="isobar-chart-head">
+            <div><strong>等压面垂直剖面</strong><small>{{ showIsobarDeformation ? '大气尺度剖面 · 曲线互不相交' : '大气尺度剖面 · 未形变参考态' }}</small></div>
+            <span>{{ showIsobarDeformation ? '同一等压面 · 凸高凹低' : '水平参考等压面' }}</span>
+          </div>
+          <svg viewBox="0 0 300 190" role="img" :aria-label="showIsobarDeformation
+            ? '呈河流状起伏且互不相交的二维等压线剖面'
+            : '两条水平平行且互不相交的未形变参考等压线'">
+            <defs>
+              <linearGradient id="pressure-map-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#f8fcfd" />
+                <stop offset="1" stop-color="#f3f8f7" />
+              </linearGradient>
+            </defs>
+            <rect x="8" y="8" width="284" height="174" rx="12" fill="url(#pressure-map-gradient)" />
+            <g class="isobar-chart-grid">
+              <path d="M81 24V162 M249 24V162" />
+            </g>
+            <g class="isobar-chart-lines">
+              <path v-for="curve in isobarChartPaths" :key="curve.pressure"
+                class="isobar-curve" :class="`curve-${curve.pressure}`" :d="curve.path" />
+              <template v-if="showPressureOverlay">
+                <text x="12" y="51">860 hPa</text>
+                <text x="8" y="156">1010 hPa</text>
+              </template>
+            </g>
+            <g class="observation-levels">
+              <path class="equal-height-line" d="M48 82 H282 M48 118 H282" />
+              <text class="equal-height-label" x="165" y="76" text-anchor="middle">高空等高观测层</text>
+              <text class="equal-height-label" x="165" y="112" text-anchor="middle">近地面等高观测层</text>
+            </g>
+            <g class="chart-pressure-points">
+              <g class="chart-pressure-point low" transform="translate(81 82)">
+                <circle r="10" /><text text-anchor="middle" y="3.2">C</text>
+              </g>
+              <g class="chart-pressure-point high" transform="translate(249 82)">
+                <circle r="10" /><text text-anchor="middle" y="3.2">D</text>
+              </g>
+              <g class="chart-pressure-point high" transform="translate(81 118)">
+                <circle r="10" /><text text-anchor="middle" y="3.2">B</text>
+              </g>
+              <g class="chart-pressure-point low" transform="translate(249 118)">
+                <circle r="10" /><text text-anchor="middle" y="3.2">A</text>
+              </g>
+              <template v-if="showPressureOverlay">
+                <text class="chart-pressure-value" x="94" y="86">{{ upperColdPressureHpa }} hPa</text>
+                <text class="chart-pressure-value" x="236" y="86" text-anchor="end">{{ upperHotPressureHpa }} hPa</text>
+                <text class="chart-pressure-value" x="94" y="122">{{ lowerColdPressureHpa }} hPa</text>
+                <text class="chart-pressure-value" x="236" y="122" text-anchor="end">{{ lowerHotPressureHpa }} hPa</text>
+              </template>
+            </g>
+            <g class="isobar-source-caption">
+              <circle cx="81" cy="171" r="5" class="cold" /><text x="91" y="175">冰块侧</text>
+              <circle cx="249" cy="171" r="5" class="hot" /><text x="259" y="175">热水侧</text>
+            </g>
+          </svg>
         </div>
-        <p class="sensor-note">点位压强为相对异常示意值，并非绝对气压；待机时冷热源上方仍会出现局地垂直气流。</p>
+        <p class="sensor-note">{{ showPressureOverlay
+          ? (showIsobarSurfaces
+            ? 'A/B 与 C/D 分别位于两条同高度观测层；同高度出现不同气压，形成水平气压差。各点均不在等压面上，数值并非箱内实测。'
+            : 'A/B 与 C/D 分别位于两条同高度观测层；同高度出现不同气压，形成水平气压差。当前数值并非箱内实测。打开等压面可进行剖面对照。')
+          : '先观察冷热源上方气流的运动差异；需要解释成因时，可在时间轴右侧打开气压值。' }}</p>
+        <p v-if="showPressureOverlay" class="pressure-precision-note">相对值按教学模型响应系数 {{ PRESSURE_RESPONSE_PA_PER_C.toFixed(2) }} Pa/°C 生成；hPa 与相对 Pa 均保留 2 位小数，采用四舍五入。</p>
       </div>
     </FloatingFeatureCard>
 
@@ -137,7 +214,7 @@
         </div>
         <div class="stage-explanation">
           <span>观察重点</span>
-          <p>{{ currentStage.description }}</p><small>{{ currentStage.rule }}</small>
+          <p>{{ currentStageDescription }}</p><small>{{ currentStageRule }}</small>
         </div>
         <button type="button" class="theme-btn option-btn advance-btn" @click="advanceStage">{{ advanceButtonText
         }}</button>
@@ -149,14 +226,18 @@
         class="lab-records-card" title="实验数据记录" subtitle="每 5 秒自动记录" variant="track"
         :initial-top="240" :initial-right="14" :bottom-inset="88" :min-width="460" :min-height="260" :light="true">
         <div class="records-panel" aria-label="实验数据记录表">
-          <div class="records-table">
+          <div class="records-export-row">
+            <span>{{ records.length > 0 ? '导出内容与当前实验记录一致' : '暂无记录，请先开始实验' }}</span>
+            <button type="button" class="theme-btn records-export-btn" :disabled="records.length === 0" @click="exportRecordsImage">导出图片</button>
+          </div>
+          <div class="records-table" :class="{ 'hide-pressure-column': !showPressureOverlay }">
             <div class="record-row record-header">
-              <span>时间</span><span>热水</span><span>冰块</span><span>压差</span><span>状态</span>
+              <span>时间</span><span>热水</span><span>冰块</span><span v-if="showPressureOverlay">A/B/C/D 气压</span><span>状态</span>
             </div>
             <div v-if="records.length === 0" class="record-empty">开始实验后每 5 秒自动记录一次</div>
             <div v-for="row in records" :key="row.id" class="record-row">
               <span>{{ row.time }}s</span><span class="hot-value">{{ row.hot }}°</span>
-              <span class="cold-value">{{ row.cold }}°</span><span>{{ row.delta }} Pa</span><span>{{ row.state
+              <span class="cold-value">{{ row.cold }}°</span><span v-if="showPressureOverlay" class="record-pressure">{{ row.pressure }}</span><span>{{ row.state
               }}</span>
             </div>
           </div>
@@ -167,7 +248,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -178,6 +259,7 @@ import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
 
 const labBackground = '/geo-resources-folder/images/thermal-lab-background.png'
+const brandLogo = 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png'
 
 interface ExperimentStage {
   title: string
@@ -187,7 +269,7 @@ interface ExperimentStage {
   rule: string
   anchor: number
 }
-interface DataRecord { id: number; time: number; hot: string; cold: string; delta: string; state: string }
+interface DataRecord { id: number; time: number; hot: string; cold: string; pressure: string; state: string }
 interface SmokeRuntime {
   curve: THREE.CatmullRomCurve3
   materials: THREE.ShaderMaterial[]
@@ -196,11 +278,27 @@ interface SmokeRuntime {
 }
 
 const stages: ExperimentStage[] = [
-  { title: '建立温差', short: '热水与冰块正在建立稳定温差', tag: '实验准备', description: '观察两侧温度、相对压强与等压面倾斜，确认冷热源开始作用。', rule: '暖空气柱膨胀、冷空气柱收缩，使上下等压面向相反方向倾斜。', anchor: 0 },
-  { title: '垂直运动', short: '右侧上升与左侧下沉同时发生', tag: '上升 / 下沉', description: '热源上方空气受热膨胀上升；冷源上方空气冷却收缩下沉。', rule: '同一时刻观察两侧烟流的相反垂直运动。', anchor: 18 },
-  { title: '高空流动', short: '上升气流在高处流向冷源', tag: '热源 → 冷源', description: '热源一侧上升的空气到达实验箱顶部后，沿高空向冷源一侧运动。', rule: '高空中，空气从相对高压区流向相对低压区。', anchor: 42 },
+  { title: '建立温差', short: '热水与冰块正在建立稳定温差', tag: '实验准备', description: '观察热水与冰块上方的局地气流，确认冷热源开始作用。', rule: '先记录气流现象，再逐步打开教学图层解释原因。', anchor: 0 },
+  { title: '垂直运动', short: '右侧上升与左侧下沉同时发生', tag: '上升 / 下沉', description: '热源上方空气受热膨胀上升；冷源上方空气冷却收缩下沉。', rule: '同一时刻观察两侧气流的相反垂直运动。', anchor: 18 },
+  { title: '高空流动', short: '上升气流在高处流向冷源', tag: '热源 → 冷源', description: '热源一侧上升的空气到达实验箱顶部后，沿高空向冷源一侧运动。', rule: '记录高空气流由热源侧流向冷源侧。', anchor: 42 },
   { title: '近地面流动', short: '冷空气贴近底部返回热源', tag: '冷源 → 热源', description: '冷源一侧下沉的空气在近地面向热源一侧补充，闭合气流路径。', rule: '近地面风向与高空气流方向相反。', anchor: 66 },
-  { title: '完整热力环流', short: '烟流连续循环，环流系统形成', tag: '循环系统', description: '上升、高空水平运动、下沉和近地面水平运动首尾相接，形成完整环流。', rule: '地面冷热不均 → 空气垂直运动 → 水平气压差 → 水平运动。', anchor: 84 },
+  { title: '完整热力环流', short: '气流连续循环，环流系统形成', tag: '循环系统', description: '上升、高空水平运动、下沉和近地面水平运动首尾相接，形成完整环流。', rule: '地面冷热不均会驱动空气形成闭合循环。', anchor: 84 },
+]
+
+const pressureStageNotes = [
+  '气压值显示 A/B/C/D 四点的大气尺度模型示意值，并非箱内实测。',
+  '近地面冷源侧为相对高压，热源侧为相对低压。',
+  '高空气流由热源上空的相对高压流向冷源上空的相对低压。',
+  '近地面气流由冷源侧的相对高压流向热源侧的相对低压。',
+  '上下层方向相反的水平气压差共同维持环流。',
+]
+
+const isobarStageNotes = [
+  '等压面由气压值相同的点组成，场景中的数值为大气尺度映射。',
+  '空气柱受热膨胀、遇冷收缩，为等压面形变建立条件。',
+  '上层参考等压面的高度差用于解释高空气流。',
+  '近地面参考等压面用于辅助理解底层气压差。',
+  '对照等压面与气流路径，区分气压结构和空气实际运动。',
 ]
 
 const progress = ref(0)
@@ -215,24 +313,52 @@ const panelsVisible = ref(true)
 const sensorCardCollapsed = ref(true)
 const stageCardCollapsed = ref(true)
 const recordsCardCollapsed = ref(true)
-const showIsobarDeformation = ref(true)
+const showPressureOverlay = ref(false)
+const showIsobarSurfaces = ref(false)
+const showIsobarDeformation = ref(false)
+const isobarChartMorph = ref(0)
+watch(showIsobarSurfaces, (visible) => {
+  if (!visible) showIsobarDeformation.value = false
+})
 const sceneError = ref('')
 const currentStageIndex = computed(() => {
   for (let index = stages.length - 1; index >= 0; index -= 1) if (progress.value >= stages[index]!.anchor) return index
   return 0
 })
 const currentStage = computed(() => stages[currentStageIndex.value]!)
+const currentStageDescription = computed(() => currentStage.value.description)
+const currentStageRule = computed(() => {
+  const notes = [currentStage.value.rule]
+  if (showPressureOverlay.value) notes.push(pressureStageNotes[currentStageIndex.value]!)
+  if (showIsobarSurfaces.value) {
+    notes.push(isobarStageNotes[currentStageIndex.value]!)
+    if (showIsobarDeformation.value) notes.push('当前形变幅度已适度放大，仅用于教学示意。')
+  }
+  return notes.join(' ')
+})
 const tempHot = computed(() => 42 + progress.value * 0.18)
 const tempCold = computed(() => 4 - progress.value * 0.04)
 const temperatureDifference = computed(() => tempHot.value - tempCold.value)
-const pressureAnomalyPa = computed(() => temperatureDifference.value * 0.02)
+const PRESSURE_RESPONSE_PA_PER_C = 0.45
+const LOWER_REFERENCE_PRESSURE_HPA = 990
+const UPPER_REFERENCE_PRESSURE_HPA = 885
+const pressureAnomalyPa = computed(() => temperatureDifference.value * PRESSURE_RESPONSE_PA_PER_C)
 const lowerHotAnomalyPa = computed(() => -pressureAnomalyPa.value)
 const lowerColdAnomalyPa = computed(() => pressureAnomalyPa.value)
 const upperHotAnomalyPa = computed(() => pressureAnomalyPa.value * 0.62)
 const upperColdAnomalyPa = computed(() => -pressureAnomalyPa.value * 0.62)
+const lowerHotPressureHpa = computed(() => (LOWER_REFERENCE_PRESSURE_HPA + lowerHotAnomalyPa.value / 100).toFixed(2))
+const lowerColdPressureHpa = computed(() => (LOWER_REFERENCE_PRESSURE_HPA + lowerColdAnomalyPa.value / 100).toFixed(2))
+const upperHotPressureHpa = computed(() => (UPPER_REFERENCE_PRESSURE_HPA + upperHotAnomalyPa.value / 100).toFixed(2))
+const upperColdPressureHpa = computed(() => (UPPER_REFERENCE_PRESSURE_HPA + upperColdAnomalyPa.value / 100).toFixed(2))
 const hotMeter = computed(() => THREE.MathUtils.clamp((tempHot.value - 20) / 40 * 100, 12, 100))
 const coldMeter = computed(() => THREE.MathUtils.clamp((25 - tempCold.value) / 30 * 100, 8, 100))
-function signedPressure(value: number) { return `${value >= 0 ? '+' : ''}${value.toFixed(2)}` }
+function signedPressure(value: number) {
+  return `${value < 0 ? '−' : '+'}${Math.abs(value).toFixed(2)}`
+}
+function formatModelPressures() {
+  return `A ${lowerHotPressureHpa.value} · B ${lowerColdPressureHpa.value} hPa\nC ${upperColdPressureHpa.value} · D ${upperHotPressureHpa.value} hPa`
+}
 const advanceButtonText = computed(() => {
   if (!isRunning.value) return '开始实验'
   if (currentStageIndex.value >= stages.length - 1) return '重新观察完整环流'
@@ -288,9 +414,104 @@ function toggleRecordsPanel() {
 function resetExperiment() {
   progress.value = 0; isPlaying.value = false; isRunning.value = false
   verticalReveal = 0
-  isobarTiltAmount = 0; updateIsobarSurfaces(0)
+  isobarTiltAmount = 0; isobarChartMorph.value = 0; updateIsobarSurfaces(0)
   experimentSeconds.value = 0; records.value = []; recordsOpen.value = true
   triggerSmokeBurst(); resetCamera()
+}
+
+function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  ctx.beginPath()
+  ctx.roundRect(x, y, width, height, radius)
+}
+
+async function exportRecordsImage() {
+  if (records.value.length === 0) return
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 1400
+  canvas.height = 900
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const gradient = ctx.createLinearGradient(0, 0, 1400, 900)
+  gradient.addColorStop(0, '#f8fdff')
+  gradient.addColorStop(.55, '#eaf7fb')
+  gradient.addColorStop(1, '#dceff5')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  ctx.fillStyle = 'rgba(64, 178, 207, .08)'
+  for (let x = -120; x < 1500; x += 160) {
+    ctx.beginPath(); ctx.arc(x, 70, 110, 0, Math.PI * 2); ctx.fill()
+  }
+
+  ctx.fillStyle = '#278eaa'
+  ctx.font = '700 24px "Microsoft YaHei", sans-serif'
+  ctx.fillText('智地有申 · 热力环流实验室', 70, 76)
+
+  ctx.fillStyle = '#123f55'
+  ctx.font = '800 42px "Microsoft YaHei", sans-serif'
+  ctx.fillText('热力环流实验记录', 70, 152)
+  ctx.fillStyle = '#518094'
+  ctx.font = '500 18px "Microsoft YaHei", sans-serif'
+  ctx.fillText(`THERMAL CIRCULATION LAB  ·  ${new Date().toLocaleString('zh-CN', { hour12: false })}`, 72, 184)
+
+  const cards = [
+    ['当前阶段', currentStage.value.title, '#168db9'],
+    ['热水温度', `${tempHot.value.toFixed(1)} °C`, '#ed714e'],
+    ['冰块温度', `${tempCold.value.toFixed(1)} °C`, '#168db9'],
+    ['冷热源温差', `${temperatureDifference.value.toFixed(1)} °C`, '#5a7fd8'],
+  ]
+  cards.forEach(([label, value, color], index) => {
+    const x = 70 + index * 318
+    drawRoundedRect(ctx, x, 220, 288, 112, 18)
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.fill()
+    ctx.fillStyle = color!; ctx.fillRect(x, 220, 6, 112)
+    ctx.fillStyle = '#678795'; ctx.font = '600 16px "Microsoft YaHei", sans-serif'; ctx.fillText(label!, x + 26, 257)
+    ctx.fillStyle = '#183f52'; ctx.font = '800 28px "Microsoft YaHei", sans-serif'; ctx.fillText(value!, x + 26, 302)
+  })
+
+  drawRoundedRect(ctx, 70, 370, 1260, 392, 20)
+  ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fill()
+  ctx.fillStyle = '#edf8fb'; ctx.fillRect(70, 370, 1260, 60)
+  const columns = [92, 260, 430, 635, 1035]
+  const headers = ['时间', '热水温度', '冰块温度', 'A/B/C/D 气压', '实验阶段']
+  ctx.font = '700 17px "Microsoft YaHei", sans-serif'; ctx.fillStyle = '#207c9e'
+  headers.forEach((header, index) => ctx.fillText(header, columns[index]!, 407))
+
+  const exportRows = records.value.slice(0, 6)
+  exportRows.forEach((row, index) => {
+    const y = 472 + index * 48
+    if (index % 2 === 1) { ctx.fillStyle = 'rgba(225,244,249,.48)'; ctx.fillRect(82, y - 29, 1236, 44) }
+    ctx.fillStyle = '#315869'; ctx.font = '500 16px "Microsoft YaHei", sans-serif'
+    const values = [`${row.time} s`, `${row.hot} °C`, `${row.cold} °C`, row.state]
+    values.forEach((value, columnIndex) => {
+      const targetColumn = columnIndex < 3 ? columnIndex : 4
+      ctx.fillText(value, columns[targetColumn]!, y)
+    })
+    const pressureLines = row.pressure.split('\n')
+    ctx.font = '500 13px "Microsoft YaHei", sans-serif'
+    ctx.fillText(pressureLines[0]!, columns[3]!, y - 8)
+    if (pressureLines[1]) ctx.fillText(pressureLines[1], columns[3]!, y + 10)
+  })
+
+  drawRoundedRect(ctx, 70, 792, 1260, 66, 14)
+  ctx.fillStyle = 'rgba(29, 139, 178, .09)'; ctx.fill()
+  ctx.fillStyle = '#23627a'; ctx.font = '600 16px "Microsoft YaHei", sans-serif'
+  ctx.fillText('观察结论：热源上方空气上升，冷源上方空气下沉；高空与近地面气流方向相反，形成完整热力环流。', 94, 832)
+  ctx.fillStyle = '#6c8c99'; ctx.font = '600 12px "Microsoft YaHei", sans-serif'
+  ctx.textAlign = 'right'; ctx.fillText(`模型示意值 · 非箱内实测：A ${lowerHotPressureHpa.value} / B ${lowerColdPressureHpa.value} / C ${upperColdPressureHpa.value} / D ${upperHotPressureHpa.value} hPa · 等压面 860 / 1010 hPa`, 1328, 884)
+  ctx.textAlign = 'left'
+
+  canvas.toBlob((blob) => {
+    if (!blob) return
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `热力环流实验记录-${new Date().toISOString().slice(0, 10)}.png`
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }, 'image/png')
 }
 
 const { rootRef: pageRef, layoutMode, draggingSide, viewportResizing, workspaceAttrs } = useGeoPanelLayout({
@@ -308,8 +529,8 @@ const pressureARef = ref<HTMLElement | null>(null)
 const pressureBRef = ref<HTMLElement | null>(null)
 const pressureCRef = ref<HTMLElement | null>(null)
 const pressureDRef = ref<HTMLElement | null>(null)
-const upperIsobarRef = ref<HTMLElement | null>(null)
-const lowerIsobarRef = ref<HTMLElement | null>(null)
+const isobar860Ref = ref<HTMLElement | null>(null)
+const isobar1010Ref = ref<HTMLElement | null>(null)
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let renderer: THREE.WebGLRenderer | null = null
@@ -330,19 +551,32 @@ const idlePlumeMaterials: THREE.ShaderMaterial[] = []
 const materials: THREE.Material[] = []
 const geometries: THREE.BufferGeometry[] = []
 const iceMeshes: THREE.Mesh[] = []
-const isobarLineMeshes: THREE.Mesh[] = []
+const isobarLineMeshes: THREE.Line[] = []
+const isobarSurfaceMeshes: THREE.Mesh[] = []
+const isobarSegmentsX = 96
+const isobarSegmentsZ = 24
+const isobarChartSegments = 128
+const isobarMinX = -7.15
+const isobarMaxX = 7.15
+const isobarMinZ = -2.68
+const isobarMaxZ = 2.48
+const isobarLevels = [
+  { pressure: 860, y: 6.62, tiltFactor: 1 },
+  { pressure: 1010, y: 1.22, tiltFactor: -.42 },
+] as const
+const sceneIsobarLevels = isobarLevels
 const flowUpAxis = new THREE.Vector3(0, 1, 0)
 let isobarTiltAmount = 0
 const overlayProjection = new THREE.Vector3()
 const overlayAnchors = {
   hotSource: new THREE.Vector3(5.15, -0.05, 0.3),
   coldSource: new THREE.Vector3(-5.15, -0.05, 0.3),
-  pressureA: new THREE.Vector3(5.15, 1.18, 2.72),
-  pressureB: new THREE.Vector3(-5.15, 1.18, 2.72),
-  pressureC: new THREE.Vector3(-5.15, 6.62, 2.72),
-  pressureD: new THREE.Vector3(5.15, 6.62, 2.72),
-  upperIsobar: new THREE.Vector3(2.4, 6.62, 2.72),
-  lowerIsobar: new THREE.Vector3(2.4, 1.18, 2.72),
+  pressureA: new THREE.Vector3(5.15, 2.05, 2.72),
+  pressureB: new THREE.Vector3(-5.15, 2.05, 2.72),
+  pressureC: new THREE.Vector3(-5.15, 5.35, 2.72),
+  pressureD: new THREE.Vector3(5.15, 5.35, 2.72),
+  isobar860: new THREE.Vector3(2.4, 6.62, 2.72),
+  isobar1010: new THREE.Vector3(2.4, 1.22, 2.72),
 }
 
 function projectOverlayLabel(
@@ -379,32 +613,68 @@ function projectOverlayLabel(
 function updateSceneLabels() {
   projectOverlayLabel(hotSourceLabelRef.value, overlayAnchors.hotSource, 18, 22, true)
   projectOverlayLabel(coldSourceLabelRef.value, overlayAnchors.coldSource, -18, 22, true)
-  projectOverlayLabel(pressureARef.value, overlayAnchors.pressureA, 42, -4)
-  projectOverlayLabel(pressureBRef.value, overlayAnchors.pressureB, -42, -4)
-  projectOverlayLabel(pressureCRef.value, overlayAnchors.pressureC, -34, 0)
-  projectOverlayLabel(pressureDRef.value, overlayAnchors.pressureD, 34, 0)
-  projectOverlayLabel(upperIsobarRef.value, overlayAnchors.upperIsobar, 0, -20)
-  projectOverlayLabel(lowerIsobarRef.value, overlayAnchors.lowerIsobar, 0, 18)
+  projectOverlayLabel(pressureARef.value, overlayAnchors.pressureA, 42, 8)
+  projectOverlayLabel(pressureBRef.value, overlayAnchors.pressureB, -42, -12)
+  projectOverlayLabel(pressureCRef.value, overlayAnchors.pressureC, -34, 12)
+  projectOverlayLabel(pressureDRef.value, overlayAnchors.pressureD, 34, -12)
+  projectOverlayLabel(isobar860Ref.value, overlayAnchors.isobar860, 0, -18)
+  projectOverlayLabel(isobar1010Ref.value, overlayAnchors.isobar1010, 0, 16)
 }
 
-function placeCylinderBetween(mesh: THREE.Mesh, start: THREE.Vector3, end: THREE.Vector3) {
-  const direction = end.clone().sub(start)
-  mesh.position.copy(start).add(end).multiplyScalar(0.5)
-  mesh.quaternion.setFromUnitVectors(flowUpAxis, direction.clone().normalize())
-  mesh.scale.set(1, direction.length(), 1)
+function getIsobarDeformation(x: number, z: number, tiltFactor: number, amount: number) {
+  const normalizedX = THREE.MathUtils.clamp(x / isobarMaxX, -1, 1)
+  const horizontalWave = Math.sin(Math.PI * normalizedX)
+  const depthInfluence = .76 + .24 * Math.exp(-(z ** 2) / (2 * 1.8 ** 2))
+  return .56 * THREE.MathUtils.clamp(amount, 0, 1) * tiltFactor * horizontalWave * depthInfluence
 }
+
+const isobarChartPaths = computed(() => {
+  const baseY = [40, 153]
+  return sceneIsobarLevels.map((level, levelIndex) => {
+    const points: string[] = []
+    for (let xIndex = 0; xIndex <= isobarChartSegments; xIndex += 1) {
+      const ratio = xIndex / isobarChartSegments
+      const worldX = THREE.MathUtils.lerp(isobarMinX, isobarMaxX, ratio)
+      const chartX = THREE.MathUtils.lerp(48, 282, ratio)
+      const chartY = baseY[levelIndex]!
+        - getIsobarDeformation(worldX, 0, level.tiltFactor, isobarChartMorph.value) * 28
+      points.push(`${xIndex === 0 ? 'M' : 'L'}${chartX.toFixed(2)} ${chartY.toFixed(2)}`)
+    }
+    return { pressure: level.pressure, path: points.join(' ') }
+  })
+})
 
 function updateIsobarSurfaces(amount: number) {
-  const tilt = 0.62 * THREE.MathUtils.clamp(amount, 0, 1)
-  const upperStart = new THREE.Vector3(-7.15, 6.62 - tilt, 2.72)
-  const upperEnd = new THREE.Vector3(7.15, 6.62 + tilt, 2.72)
-  const lowerStart = new THREE.Vector3(-7.15, 1.18 + tilt, 2.72)
-  const lowerEnd = new THREE.Vector3(7.15, 1.18 - tilt, 2.72)
-  if (isobarLineMeshes[0]) placeCylinderBetween(isobarLineMeshes[0], upperStart, upperEnd)
-  if (isobarLineMeshes[1]) placeCylinderBetween(isobarLineMeshes[1], lowerStart, lowerEnd)
-  const labelRatio = 2.4 / 7.15
-  overlayAnchors.upperIsobar.y = 6.62 + tilt * labelRatio
-  overlayAnchors.lowerIsobar.y = 1.18 - tilt * labelRatio
+  const labelAnchors = [overlayAnchors.isobar860, overlayAnchors.isobar1010]
+  sceneIsobarLevels.forEach((level, index) => {
+    updateIsobarLine(isobarLineMeshes[index], level.y, level.tiltFactor, amount)
+    updateIsobarPlane(isobarSurfaceMeshes[index], level.y, level.tiltFactor, amount)
+    labelAnchors[index]!.y = level.y + getIsobarDeformation(labelAnchors[index]!.x, isobarMaxZ, level.tiltFactor, amount)
+  })
+}
+
+function updateIsobarLine(line: THREE.Line | undefined, levelY: number, tiltFactor: number, amount: number) {
+  if (!line) return
+  const positions = line.geometry.getAttribute('position') as THREE.BufferAttribute
+  for (let xIndex = 0; xIndex <= isobarSegmentsX; xIndex += 1) {
+    const x = THREE.MathUtils.lerp(isobarMinX, isobarMaxX, xIndex / isobarSegmentsX)
+    positions.setXYZ(xIndex, x, levelY + getIsobarDeformation(x, isobarMaxZ, tiltFactor, amount), 2.72)
+  }
+  positions.needsUpdate = true
+}
+
+function updateIsobarPlane(mesh: THREE.Mesh | undefined, levelY: number, tiltFactor: number, amount: number) {
+  if (!mesh) return
+  const positions = mesh.geometry.getAttribute('position') as THREE.BufferAttribute
+  for (let zIndex = 0; zIndex <= isobarSegmentsZ; zIndex += 1) {
+    const z = THREE.MathUtils.lerp(isobarMinZ, isobarMaxZ, zIndex / isobarSegmentsZ)
+    for (let xIndex = 0; xIndex <= isobarSegmentsX; xIndex += 1) {
+      const x = THREE.MathUtils.lerp(isobarMinX, isobarMaxX, xIndex / isobarSegmentsX)
+      const vertexIndex = zIndex * (isobarSegmentsX + 1) + xIndex
+      positions.setXYZ(vertexIndex, x, levelY + getIsobarDeformation(x, z, tiltFactor, amount), z)
+    }
+  }
+  positions.needsUpdate = true
 }
 
 function registerMaterial<T extends THREE.Material>(material: T) { materials.push(material); return material }
@@ -450,17 +720,44 @@ function createLaboratory() {
 }
 
 function createIsobarLines() {
-  const material = registerMaterial(new THREE.MeshBasicMaterial({
-    color: 0x7897a2, transparent: true, opacity: 0.74, depthTest: false, depthWrite: false,
+  const lineMaterial = registerMaterial(new THREE.LineBasicMaterial({
+    color: 0x258fc2, transparent: true, opacity: 0.82, depthTest: false, depthWrite: false,
   }))
-  for (let index = 0; index < 2; index += 1) {
-    const line = new THREE.Mesh(
-      registerGeometry(new THREE.CylinderGeometry(0.022, 0.022, 1, 8)),
-      material,
-    )
+  const surfaceMaterial = registerMaterial(new THREE.MeshBasicMaterial({
+    color: 0x35ace2, transparent: true, opacity: 0.23, side: THREE.DoubleSide,
+    depthTest: true, depthWrite: false,
+  }))
+  for (let index = 0; index < sceneIsobarLevels.length; index += 1) {
+    const lineGeometry = registerGeometry(new THREE.BufferGeometry())
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array((isobarSegmentsX + 1) * 3), 3))
+    const line = new THREE.Line(lineGeometry, lineMaterial)
     line.renderOrder = 7
+    line.frustumCulled = false
+    line.visible = showIsobarSurfaces.value
     rootGroup.add(line)
     isobarLineMeshes.push(line)
+
+    const surfaceGeometry = registerGeometry(new THREE.BufferGeometry())
+    surfaceGeometry.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array((isobarSegmentsX + 1) * (isobarSegmentsZ + 1) * 3), 3,
+    ))
+    const indices: number[] = []
+    for (let zIndex = 0; zIndex < isobarSegmentsZ; zIndex += 1) {
+      for (let xIndex = 0; xIndex < isobarSegmentsX; xIndex += 1) {
+        const topLeft = zIndex * (isobarSegmentsX + 1) + xIndex
+        const topRight = topLeft + 1
+        const bottomLeft = topLeft + isobarSegmentsX + 1
+        const bottomRight = bottomLeft + 1
+        indices.push(topLeft, bottomLeft, topRight, topRight, bottomLeft, bottomRight)
+      }
+    }
+    surfaceGeometry.setIndex(indices)
+    const surface = new THREE.Mesh(surfaceGeometry, surfaceMaterial)
+    surface.renderOrder = 2
+    surface.frustumCulled = false
+    surface.visible = showIsobarSurfaces.value
+    rootGroup.add(surface)
+    isobarSurfaceMeshes.push(surface)
   }
   updateIsobarSurfaces(isobarTiltAmount)
 }
@@ -843,7 +1140,7 @@ function addRecord() {
   records.value.unshift({
     id: Date.now() + records.value.length, time: Math.floor(experimentSeconds.value),
     hot: tempHot.value.toFixed(1), cold: tempCold.value.toFixed(1),
-    delta: (lowerColdAnomalyPa.value - lowerHotAnomalyPa.value).toFixed(2), state: currentStage.value.title,
+    pressure: formatModelPressures(), state: currentStage.value.title,
   })
   records.value = records.value.slice(0, 7)
 }
@@ -864,11 +1161,16 @@ function animateScene(time: number) {
   } else if (currentStageIndex.value > 1) {
     verticalReveal = 1
   }
-  const targetIsobarTilt = showIsobarDeformation.value && isRunning.value
-    ? THREE.MathUtils.clamp(progress.value / stages[4]!.anchor, 0, 1)
-    : 0
+  isobarLineMeshes.forEach((line) => { line.visible = showIsobarSurfaces.value })
+  isobarSurfaceMeshes.forEach((surface) => { surface.visible = showIsobarSurfaces.value })
+  const targetIsobarTilt = showIsobarSurfaces.value && showIsobarDeformation.value ? 1 : 0
   const isobarFollow = 1 - Math.exp(-delta * 2.15)
   isobarTiltAmount = THREE.MathUtils.lerp(isobarTiltAmount, targetIsobarTilt, isobarFollow)
+  if (Math.abs(isobarChartMorph.value - isobarTiltAmount) > .001) {
+    isobarChartMorph.value = isobarTiltAmount
+  } else if (isobarChartMorph.value !== targetIsobarTilt) {
+    isobarChartMorph.value = targetIsobarTilt
+  }
   updateIsobarSurfaces(isobarTiltAmount)
   smokeBurst = Math.max(0, smokeBurst - delta * 0.7)
   const stage = currentStageIndex.value
@@ -918,7 +1220,7 @@ function disposeScene() {
   resizeObserver?.disconnect(); controls?.dispose()
   geometries.forEach((geometry) => geometry.dispose()); materials.forEach((material) => material.dispose())
   geometries.length = 0; materials.length = 0; smokeRuntimes.length = 0; idlePlumeMaterials.length = 0
-  iceMeshes.length = 0; isobarLineMeshes.length = 0
+  iceMeshes.length = 0; isobarLineMeshes.length = 0; isobarSurfaceMeshes.length = 0
   rootGroup.clear(); renderer?.dispose()
   if (renderer?.domElement.parentElement) renderer.domElement.parentElement.removeChild(renderer.domElement)
   renderer = null; scene = null; camera = null; controls = null
@@ -1145,7 +1447,8 @@ onBeforeUnmount(disposeScene)
 
 .metric>span {
   color: rgba(203, 228, 238, .62);
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .metric>strong {
@@ -1167,6 +1470,65 @@ onBeforeUnmount(disposeScene)
   font-size: 10px;
 }
 
+.pressure-reference {
+  display: grid;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 10px;
+  color: #315e72;
+  border: 1px solid rgba(39, 132, 166, .18);
+  border-radius: 10px;
+  background: rgba(232, 247, 251, .78);
+}
+
+.pressure-reference-head {
+  display: grid;
+  gap: 3px;
+}
+
+.pressure-reference-head>strong {
+  color: #176f92;
+  font-size: 12px;
+}
+
+.pressure-reference-head>small {
+  color: rgba(39, 86, 106, .78);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.pressure-reference-levels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.pressure-reference-levels>span {
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  color: rgba(39, 86, 106, .78);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .72);
+}
+
+.pressure-reference-levels strong {
+  color: #214f64;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pressure-reference>p {
+  margin: 0;
+  color: rgba(39, 86, 106, .76);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 .pressure-list {
   display: grid;
   gap: 1px;
@@ -1186,10 +1548,13 @@ onBeforeUnmount(disposeScene)
 
 .pressure-list span {
   color: rgba(197, 222, 231, .62);
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .pressure-list strong {
+  display: grid;
+  justify-items: end;
   color: #eafaff;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -1197,14 +1562,163 @@ onBeforeUnmount(disposeScene)
 
 .pressure-list small {
   color: rgba(190, 221, 233, .55);
-  font-size: 8px;
+  font-size: 10px;
+}
+
+.isobar-chart {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(39, 132, 166, .18);
+  border-radius: 11px;
+  background: rgba(235, 248, 252, .78);
+}
+
+.isobar-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.isobar-chart-head>div {
+  display: grid;
+  gap: 2px;
+}
+
+.isobar-chart-head strong {
+  color: #185c78;
+  font-size: 12px;
+}
+
+.isobar-chart-head small,
+.isobar-chart-head>span {
+  color: rgba(36, 77, 98, .62);
+  font-size: 10px;
+}
+
+.isobar-chart-head>span {
+  padding: 3px 6px;
+  color: #ba603d;
+  font-weight: 800;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: rgba(255, 227, 212, .62);
+}
+
+.isobar-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 7px;
+}
+
+.isobar-chart-grid path {
+  fill: none;
+  stroke: rgba(54, 111, 130, .14);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+}
+
+.isobar-curve {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 1px rgba(83, 54, 44, .1));
+}
+
+.curve-860,
+.curve-1010 {
+  stroke: #a85858;
+}
+
+.isobar-chart-lines text {
+  fill: #176e92;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.equal-height-line {
+  fill: none;
+  stroke: rgba(62, 86, 96, .56);
+  stroke-width: 1.15;
+  stroke-dasharray: 5 5;
+  vector-effect: non-scaling-stroke;
+}
+
+.equal-height-label {
+  fill: #607985;
+  font-size: 9px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgba(247, 252, 253, .92);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.chart-pressure-point circle {
+  fill: #fff;
+  stroke-width: 3.5px;
+  filter: drop-shadow(0 3px 4px rgba(28, 77, 96, .25));
+}
+
+.chart-pressure-point text {
+  fill: #fff;
+  font-size: 8.5px;
+  font-weight: 900;
+}
+
+.chart-pressure-point.low circle {
+  fill: #1e98c5;
+  stroke: rgba(255, 255, 255, .94);
+}
+
+.chart-pressure-point.high circle {
+  fill: #ee7b38;
+  stroke: rgba(255, 255, 255, .94);
+}
+
+.chart-pressure-value {
+  fill: #315f72;
+  font-size: 8.5px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: rgba(247, 252, 253, .96);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.isobar-source-caption text {
+  fill: #456b7c;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.isobar-source-caption .cold {
+  fill: #34b9eb;
+}
+
+.isobar-source-caption .hot {
+  fill: #ef7952;
+}
+
+.pressure-precision-note {
+  margin: 6px 0 0;
+  color: rgba(40, 87, 106, .76);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.55;
 }
 
 .sensor-note {
   margin: 9px 0 0;
-  color: rgba(166, 209, 223, .58);
-  font-size: 9px;
-  line-height: 1.55;
+  color: rgba(166, 209, 223, .76);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.65;
 }
 
 .stage-list {
@@ -1358,8 +1872,8 @@ onBeforeUnmount(disposeScene)
   z-index: 9;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px 6px 6px;
+  gap: 8px;
+  padding: 7px 12px 7px 7px;
   pointer-events: none;
   opacity: 0;
   transform: translate(-50%, -50%);
@@ -1372,11 +1886,11 @@ onBeforeUnmount(disposeScene)
 
 .pressure-point>b {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   color: #fff;
-  font-size: 14px;
+  font-size: 16px;
   border-radius: 50%;
   background: var(--pressure-color);
   box-shadow: 0 0 11px color-mix(in srgb, var(--pressure-color) 42%, transparent);
@@ -1384,20 +1898,21 @@ onBeforeUnmount(disposeScene)
 
 .pressure-point>span {
   display: grid;
-  line-height: 1.05;
+  line-height: 1.12;
 }
 
 .pressure-point em {
   color: var(--pressure-color);
-  font-size: 9px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .pressure-point strong {
-  margin-top: 2px;
+  margin-top: 3px;
   color: #284d5e;
-  font-size: 11px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1459,16 +1974,31 @@ onBeforeUnmount(disposeScene)
 }
 
 .thermal-circulation-laboratory-container .timeline-dock {
-  width: min(940px, calc(100% - 28px));
+  width: min(1080px, calc(100% - 160px));
   grid-template-columns: auto minmax(190px, 1fr) auto auto;
 }
 
-.timeline-isobar-control {
-  display: grid;
-  justify-items: center;
-  gap: 2px;
+.timeline-layer-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding-left: 10px;
   border-left: 1px solid rgba(53, 123, 148, .18);
+}
+
+.timeline-layer-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #315d70;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.timeline-layer-switch.disabled {
+  opacity: .5;
 }
 
 .airflow-legend span {
@@ -1499,28 +2029,6 @@ onBeforeUnmount(disposeScene)
   border-radius: 2px;
   background: #d7edf2;
   box-shadow: 0 0 8px #badde5;
-}
-
-.timeline-isobar-switch {
-  gap: 8px;
-  padding: 0;
-  border-bottom: 0;
-}
-
-.timeline-isobar-switch .control-copy strong {
-  color: #315d70;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.timeline-isobar-control .isobar-demo-note {
-  color: #b06443;
-  font-size: 8px;
-  font-weight: 800;
-  line-height: 1;
-  white-space: nowrap;
 }
 
 .records-panel {
@@ -1562,19 +2070,58 @@ onBeforeUnmount(disposeScene)
 
 .records-table {
   display: grid;
-  max-height: 210px;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.records-export-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  padding-bottom: 9px;
+  color: rgba(36, 77, 98, .66);
+  font-size: 10px;
+  border-bottom: 1px solid rgba(43, 131, 161, .14);
+}
+
+.records-export-btn {
+  min-width: 82px;
+  height: 30px;
+  padding: 0 13px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  border-color: rgba(17, 143, 183, .42);
+  background: linear-gradient(135deg, #21afd1, #2c8fca);
+  box-shadow: 0 6px 14px rgba(32, 143, 181, .2);
+}
+
+.records-export-btn:disabled {
+  cursor: not-allowed;
+  opacity: .46;
+  box-shadow: none;
 }
 
 .record-row {
   display: grid;
-  grid-template-columns: .7fr .8fr .8fr .9fr 1.4fr;
+  grid-template-columns: .55fr .72fr .72fr 1.65fr 1.05fr;
   gap: 10px;
   padding: 9px 10px;
   color: rgba(218, 237, 244, .78);
   font-size: 12.5px;
   line-height: 1.4;
   border-top: 1px solid rgba(97, 177, 203, .11);
+}
+
+.record-pressure {
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: pre-line;
+}
+
+.records-table.hide-pressure-column .record-row {
+  grid-template-columns: .7fr .8fr .8fr 1.4fr;
 }
 
 .record-header {
@@ -1660,7 +2207,6 @@ onBeforeUnmount(disposeScene)
 
 .lab-records-card {
   width: min(580px, calc(100vw - 40px));
-  max-height: 330px;
 }
 
 .sensor-console,
@@ -1804,7 +2350,7 @@ onBeforeUnmount(disposeScene)
 }
 
 .sensor-note {
-  color: rgba(39, 86, 106, .7);
+  color: rgba(39, 86, 106, .82);
 }
 
 .stage-list button {
@@ -1933,13 +2479,14 @@ onBeforeUnmount(disposeScene)
     gap: 6px;
   }
 
-  .timeline-isobar-control {
+  .timeline-layer-controls {
+    gap: 7px;
     padding-left: 6px;
   }
 
-  .timeline-isobar-control .isobar-demo-note,
-  .timeline-isobar-switch .control-copy {
-    display: none;
+  .timeline-layer-switch {
+    gap: 4px;
+    font-size: 8px;
   }
 }
 

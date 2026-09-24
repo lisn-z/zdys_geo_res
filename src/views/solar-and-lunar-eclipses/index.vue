@@ -225,7 +225,11 @@
             <div class="timeline-main">
               <div class="timeline-copy">
                 <span>月球公转进度</span>
-                <strong>{{ Math.round(moonLongitude) }}° · {{ currentPhaseName }}</strong>
+                <strong class="timeline-angle-value">
+                  <small>日地月夹角</small>
+                  <b>{{ sunEarthMoonAngle.toFixed(1) }}°</b>
+                  <i>· {{ currentPhaseName }}</i>
+                </strong>
               </div>
 
               <el-slider v-model="moonLongitude" :min="0" :max="360" :step="1" :show-tooltip="false"
@@ -815,6 +819,12 @@ const alignmentData = computed(() => {
   }
 })
 
+const sunEarthMoonAngle = computed(() =>
+  phaseAngle.value <= 180
+    ? phaseAngle.value
+    : 360 - phaseAngle.value
+)
+
 const currentPhenomenon = computed(() => {
   const data = alignmentData.value
 
@@ -966,13 +976,6 @@ const shadowLegendText = computed(() =>
 )
 
 const dataCards = computed(() => {
-  const data = alignmentData.value
-  const isSolarHalf =
-    phaseAngle.value < 90 || phaseAngle.value > 270
-  const separation = isSolarHalf
-    ? data.solarSeparation
-    : data.lunarSeparation
-
   return [
     {
       label: '当前阶段',
@@ -1010,9 +1013,9 @@ const dataCards = computed(() => {
       wide: true,
     },
     {
-      label: '共线偏差',
-      value: separation.toFixed(2) + '°',
-      description: isSolarHalf ? '月—日方向夹角' : '月—反日方向夹角',
+      label: '日地月夹角',
+      value: sunEarthMoonAngle.value.toFixed(2) + '°',
+      description: '按月相折算：朔为 0°，望为 180°，再回到 0°',
       className: 'purple-card',
       wide: false,
     },
@@ -4034,6 +4037,16 @@ function animateScene(time: number) {
   }
 
   if (
+    moonOrbitEnabled.value &&
+    moonMesh
+  ) {
+    moonMesh.rotation.y +=
+      delta *
+      0.2 *
+      playbackSpeed.value
+  }
+
+  if (
     earthRotationEnabled.value
   ) {
     earthRotationAngle.value = normalizeDegrees(
@@ -4047,16 +4060,6 @@ function animateScene(time: number) {
   }
 
   updateObserverMarker(delta)
-
-  if (
-    moonOrbitEnabled.value &&
-    moonMesh
-  ) {
-    moonMesh.rotation.y +=
-      delta *
-      0.2 *
-      playbackSpeed.value
-  }
 
   if (starField) {
     starField.rotation.y += delta * 0.002
@@ -6207,6 +6210,43 @@ onBeforeUnmount(() => {
   grid-template-columns: auto minmax(220px, 1fr) auto auto;
   align-items: center;
   gap: 10px;
+}
+
+.timeline-angle-value {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  font-style: normal;
+}
+
+.timeline-angle-value small {
+  padding: 2px 6px;
+  color: #84ece4;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+  background: rgba(46, 196, 182, 0.1);
+  border: 1px solid rgba(91, 231, 219, 0.2);
+  border-radius: 999px;
+}
+
+.timeline-angle-value b {
+  color: #9af7ee;
+  font-size: inherit;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.timeline-angle-value i {
+  overflow: hidden;
+  font-size: inherit;
+  font-style: normal;
+  font-weight: inherit;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .timeline-secondary-row {
