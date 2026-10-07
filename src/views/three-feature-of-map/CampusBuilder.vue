@@ -44,8 +44,8 @@
           </label>
           <p v-if="currentSpec && tool !== 'select'" class="builder-help">{{ currentSpec.description }}</p>
           <div class="builder-fields">
-            <label><span>{{ currentSpec?.mode === 'line' ? '宽度' : '东西宽' }}<output>{{ editWidth }} 米</output></span><input v-model.number="editWidth" :disabled="tool === 'move'" type="range" :aria-label="currentSpec?.mode === 'line' ? '宽度（米）' : '东西宽（米）'" :min="currentSpec?.mode === 'line' ? 0.5 : 2" :max="currentSpec?.mode === 'line' ? 30 : 180" :step="currentSpec?.mode === 'line' ? 0.1 : 1" @change="commitDimensions" /></label>
-            <label v-if="currentSpec?.mode !== 'line'"><span>南北长<output>{{ editDepth }} 米</output></span><input v-model.number="editDepth" :disabled="tool === 'move'" type="range" aria-label="南北长（米）" min="2" max="180" step="1" @change="commitDimensions" /></label>
+            <label><span>{{ currentSpec?.mode === 'line' ? '宽度' : '占地宽' }}<output>{{ editWidth }} 米</output></span><input v-model.number="editWidth" :disabled="tool === 'move'" type="range" :aria-label="currentSpec?.mode === 'line' ? '宽度（米）' : '占地宽（米）'" :min="currentSpec?.mode === 'line' ? 0.5 : 2" :max="currentSpec?.mode === 'line' ? 30 : 180" :step="currentSpec?.mode === 'line' ? 0.1 : 1" @change="commitDimensions" /></label>
+            <label v-if="currentSpec?.mode !== 'line'"><span>占地长<output>{{ editDepth }} 米</output></span><input v-model.number="editDepth" :disabled="tool === 'move'" type="range" aria-label="占地长（米）" min="2" max="180" step="1" @change="commitDimensions" /></label>
             <label v-if="tool !== 'line'"><span>旋转<output>{{ editRotation }}°</output></span><input v-model.number="editRotation" :disabled="tool === 'move'" type="range" aria-label="旋转（度）" min="0" max="345" step="15" @change="commitDimensions" /></label>
           </div>
           <p class="builder-help">尺寸是地面占地；旋转后宽、长随模型转动。模型为课堂示意。</p>
@@ -311,7 +311,7 @@ function generateCampus() {
   notify('校园已生成，可继续修改；撤销本步可恢复原布局。')
 }
 function positionLabel(point: BuilderPoint) { return `距中心：${point.x >= 0 ? '东' : '西'} ${Math.abs(point.x).toFixed(1)} 米 · ${point.z <= 0 ? '北' : '南'} ${Math.abs(point.z).toFixed(1)} 米` }
-function coordinateLabel(point: BuilderPoint) { const value = builderPointToCoordinate(point, origin); return `方位参考 ${Math.abs(value.lng).toFixed(5)}°${value.lng < 0 ? 'W' : 'E'} · ${Math.abs(value.lat).toFixed(5)}°${value.lat < 0 ? 'S' : 'N'}` }
+function coordinateLabel(point: BuilderPoint) { const value = builderPointToCoordinate(point, origin); return `参考经纬度 ${Math.abs(value.lng).toFixed(5)}°${value.lng < 0 ? 'W' : 'E'} · ${Math.abs(value.lat).toFixed(5)}°${value.lat < 0 ? 'S' : 'N'}` }
 function compassLabelStyle(bearing: number) { const radians = (bearing + viewState.value.compassAngle) * Math.PI / 180; return { left: `${50 + 41 * Math.sin(radians)}%`, top: `${50 - 41 * Math.cos(radians)}%` } }
 async function initializeScene() {
   await nextTick(); if (!hostRef.value || disposed) return

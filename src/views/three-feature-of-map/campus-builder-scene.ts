@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { campusLabelAnchor } from './campus-labels'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { buildCampusModel } from './campus-3d-model'
 import { builderItemToFeature, CAMPUS_RADIUS, GRID_METRES, type BuilderItem, type BuilderPoint } from './campus-builder-data'
@@ -607,10 +608,24 @@ export function createCampusBuilderScene(host: HTMLElement, callbacks: BuilderSc
     group.add(body)
     if (!isGhost && !['campus-road', 'footpath'].includes(item.kind)) {
       const extent = new THREE.Box3().setFromObject(body)
-      const nameLabel = screenLabel(item.name, new THREE.Vector3(feature.center.x, Math.max(7, extent.max.y + 6), feature.center.z), THREE.MathUtils.clamp(Math.sqrt(item.width * item.depth) * 0.7, 12, 23))
-      nameLabel.center.set(0.5, 0)
+      const anchor = campusLabelAnchor(feature)
+      const nameLabel = screenLabel(item.name, new THREE.Vector3(anchor.x, Math.max(7, extent.max.y + 6), anchor.z), THREE.MathUtils.clamp(Math.sqrt(item.width * item.depth) * 0.7, 12, 23))
+      // Keep the wall attachment at the tag's lower-left corner, leaving the
+      // perimeter readable beside neighbouring building/tree labels.
+      nameLabel.center.set(item.kind === 'campus-fence' ? 0 : 0.5, 0)
       nameLabel.userData.minimumPixelHeight = 22
       group.add(nameLabel)
+      if (item.kind === 'campus-fence') {
+        const leader = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(anchor.x, extent.max.y, anchor.z), nameLabel.position.clone(),
+          ]),
+          new THREE.LineBasicMaterial({ color: 0x537066, depthTest: false, depthWrite: false }),
+        )
+        leader.renderOrder = 29
+        leader.raycast = () => {}
+        group.add(leader)
+      }
     }
     group.position.set(item.x, 0, item.z)
     group.rotation.y = THREE.MathUtils.degToRad(item.rotation)

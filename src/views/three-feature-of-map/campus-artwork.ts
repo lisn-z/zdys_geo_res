@@ -38,7 +38,7 @@ export function renderCampusArtwork(capture: BuilderArtworkCapture, title: strin
   }
   ctx.fillStyle = '#6a8174'; ctx.font = `14px ${font}`
   ctx.fillText(capture.view.view === 'plan' ? '图中距离按米制校园绘制。' : '透视画面近大远小，参考尺仅适用于视图中心地面。', 46, footerTop + 118)
-  ctx.fillText(`方位参考 ${Math.abs(origin.lat).toFixed(4)}°${origin.lat < 0 ? 'S' : 'N'}  ${Math.abs(origin.lng).toFixed(4)}°${origin.lng < 0 ? 'W' : 'E'}`, 46, footerTop + 142)
+  ctx.fillText(`校园原点 ${Math.abs(origin.lat).toFixed(4)}°${origin.lat < 0 ? 'S' : 'N'}  ${Math.abs(origin.lng).toFixed(4)}°${origin.lng < 0 ? 'W' : 'E'}`, 46, footerTop + 142)
   const compassX = canvas.width - 105, compassY = footerTop + 85
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `14px ${font}`
   for (const direction of mapDirections) {

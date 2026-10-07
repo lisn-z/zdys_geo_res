@@ -503,7 +503,7 @@ export function renderCampusPlan({ items, title, origin }: CampusPlanOptions): H
   })
   if (!legendItems.length) text(ctx, '添加地物后显示对应图例', legendX, 260, 18, muted)
   line(ctx, legendX, 977, 1542, 977, '#d9e4db', 1.5)
-  text(ctx, '方位参考：中心经纬度', legendX, 998, 16, muted)
+  text(ctx, '校园中心经纬度', legendX, 998, 16, muted)
   text(ctx, `${Math.abs(origin.lat).toFixed(5)}°${origin.lat >= 0 ? 'N' : 'S'}   ${Math.abs(origin.lng).toFixed(5)}°${origin.lng >= 0 ? 'E' : 'W'}`, legendX, 1022, 17, ink)
 
   line(ctx, 64, 1061, 1542, 1061, '#d9e4db', 1.5)

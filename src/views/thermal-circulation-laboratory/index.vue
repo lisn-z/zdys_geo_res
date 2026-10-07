@@ -10,6 +10,10 @@
         <h1 class="page-title">热力环流实验室</h1>
       </div>
       <div class="toolbar-actions">
+        <button type="button" class="theme-btn toolbar-btn" :class="{ active: airColumnVisible }"
+          @click="toggleAirColumnScene">
+          {{ airColumnVisible ? '隐藏空气柱' : '空气柱与气压' }}
+        </button>
         <button type="button" class="theme-btn toolbar-btn" :class="{ active: recordsOpen && panelsVisible }"
           @click="toggleRecordsPanel">实验记录</button>
         <button type="button" class="theme-btn toolbar-btn" @click="panelsVisible = !panelsVisible">
@@ -22,30 +26,30 @@
     </header>
 
     <main class="workspace" v-bind="workspaceAttrs">
-      <section class="center-stage">
-        <div class="stage-content">
+      <section ref="centerStageRef" class="center-stage split-stage"
+        :class="{ 'air-column-visible': airColumnVisible, 'is-split-resizing': airColumnResizing }"
+        :style="airColumnVisible ? { '--air-column-width': `${airColumnWidth}px` } : undefined">
+        <div class="circulation-workspace">
+          <div class="stage-content">
           <img class="laboratory-backdrop" :src="labBackground" alt="虚拟大气科学实验室背景" />
           <div ref="threeContainerRef" class="scene-host three-host"></div>
           <div class="scene-vignette"></div>
 
           <div class="experiment-heading">
-            <span>THERMAL CIRCULATION</span>
             <strong>{{ currentStage.title }}</strong>
             <small>{{ currentStage.short }}</small>
           </div>
 
-          <div ref="hotSourceLabelRef" class="source-label hot-source-label"><span>HEAT SOURCE</span><strong>马克杯热水 ·
-              暖空气上升</strong></div>
-          <div ref="coldSourceLabelRef" class="source-label cold-source-label"><span>COLD SOURCE</span><strong>冰块 ·
-              冷空气下沉</strong></div>
+          <div ref="hotSourceLabelRef" class="source-label hot-source-label"><strong>马克杯热水 · 暖空气上升</strong></div>
+          <div ref="coldSourceLabelRef" class="source-label cold-source-label"><strong>冰块 · 冷空气下沉</strong></div>
 
           <div v-show="showPressureOverlay" ref="pressureCRef" class="pressure-point pressure-low pressure-c"><b>C</b><span><em>相对低压 {{ signedPressure(upperColdAnomalyPa) }} Pa</em><strong>{{ upperColdPressureHpa }} hPa</strong></span></div>
           <div v-show="showPressureOverlay" ref="pressureDRef" class="pressure-point pressure-high pressure-d"><b>D</b><span><em>相对高压 {{ signedPressure(upperHotAnomalyPa) }} Pa</em><strong>{{ upperHotPressureHpa }} hPa</strong></span></div>
           <div v-show="showPressureOverlay" ref="pressureBRef" class="pressure-point pressure-high pressure-b"><b>B</b><span><em>相对高压 {{ signedPressure(lowerColdAnomalyPa) }} Pa</em><strong>{{ lowerColdPressureHpa }} hPa</strong></span></div>
           <div v-show="showPressureOverlay" ref="pressureARef" class="pressure-point pressure-low pressure-a"><b>A</b><span><em>相对低压 {{ signedPressure(lowerHotAnomalyPa) }} Pa</em><strong>{{ lowerHotPressureHpa }} hPa</strong></span></div>
 
-          <div v-show="showIsobarSurfaces" ref="isobar860Ref" class="isobar-tag"><span>大气示意等压面</span><strong v-if="showPressureOverlay">860 hPa</strong></div>
-          <div v-show="showIsobarSurfaces" ref="isobar1010Ref" class="isobar-tag"><span>大气示意等压面</span><strong v-if="showPressureOverlay">1010 hPa</strong></div>
+          <div v-show="showIsobarSurfaces" ref="isobar500Ref" class="isobar-tag"><span>高空等压面</span><strong v-if="showPressureOverlay">500 hPa</strong></div>
+          <div v-show="showIsobarSurfaces" ref="isobar1000Ref" class="isobar-tag"><span>近地面等压面</span><strong v-if="showPressureOverlay">1000 hPa</strong></div>
 
           <div class="airflow-legend">
             <span><i class="hot-dot"></i>暖空气上升</span>
@@ -53,9 +57,9 @@
             <span><i class="cold-dot"></i>冷空气下沉</span>
           </div>
           <div v-if="sceneError" class="scene-error">场景渲染异常：{{ sceneError }}</div>
-        </div>
+          </div>
 
-        <div ref="timelineDockRef" class="timeline-dock">
+          <div ref="timelineDockRef" class="timeline-dock">
           <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
             :aria-label="isPlaying ? '暂停实验' : '开始实验'" @click="togglePlayback">
             <el-icon>
@@ -91,8 +95,37 @@
               <el-switch v-model="showIsobarDeformation" size="small" :disabled="!showIsobarSurfaces"
                 aria-label="显示等压面形变" />
             </label>
+            <label class="timeline-layer-switch" :class="{ disabled: !showIsobarSurfaces }">
+              <span>空气分子</span>
+              <el-switch v-model="showAirMolecules" size="small" :disabled="!showIsobarSurfaces"
+                aria-label="显示空气分子" />
+            </label>
+          </div>
           </div>
         </div>
+
+        <button v-if="airColumnVisible" type="button" class="scene-split-handle" aria-label="拖动调整两个场景宽度"
+          @pointerdown.stop.prevent="startAirColumnResize"><i></i></button>
+
+        <aside v-show="airColumnVisible" class="air-column-workspace" aria-label="空气柱与气压三维场景">
+          <div ref="moleculeSceneHostRef" class="molecule-scene-host air-column-scene-host"></div>
+          <div class="air-column-scene-wash"></div>
+          <div class="air-column-overlay">
+            <header class="air-column-header">
+              <div><strong>空气柱与气压</strong></div>
+              <small>三维空气分子模型</small>
+            </header>
+            <span ref="moleculeBoundaryRef" class="molecule-boundary-label">大气上界</span>
+            <span ref="moleculeARef" class="molecule-ground-label">A</span>
+            <span ref="moleculeBRef" class="molecule-high-label">B</span>
+            <span class="molecule-drag-tip">拖动模型可旋转观察</span>
+            <div class="molecule-explanation">
+              <strong>为什么海拔越高，气压越低？</strong>
+              <p>海拔升高后，上方空气柱缩短、空气总质量减少，对单位面积产生的压力随之减小。</p>
+            </div>
+            <p class="molecule-note">粒子仅表示空气分布趋势：近地面较密，高空较疏；等压面是气压相同点组成的假想面。</p>
+          </div>
+        </aside>
       </section>
     </main>
 
@@ -100,7 +133,7 @@
       title="实时实验数据" :subtitle="`${temperatureDifference.toFixed(1)}°C 冷热源温差`" variant="data" :initial-top="88"
       :initial-right="14" :bottom-inset="88" :min-width="280" :min-height="220" :light="true">
       <div class="sensor-console" aria-label="实验监测数据">
-        <div class="console-kicker"><i></i> LIVE SENSOR</div>
+        <div class="console-kicker"><i></i>实时监测</div>
         <div class="sensor-section">
           <div class="section-title-row">
             <span>冷热源温度</span><b>{{ temperatureDifference.toFixed(1) }}°C 冷热源温差</b>
@@ -123,7 +156,7 @@
               <span>A/B · 近地面观测层<strong>{{ LOWER_REFERENCE_PRESSURE_HPA.toFixed(2) }} hPa</strong></span>
               <span>C/D · 高空观测层<strong>{{ UPPER_REFERENCE_PRESSURE_HPA.toFixed(2) }} hPa</strong></span>
             </div>
-            <p>参考气压 990 / 885 hPa 与等压面 1010 / 860 hPa 是不同概念。</p>
+            <p>点位以对应观测层的 1000 / 500 hPa 为基准，再叠加冷热差异产生的相对气压异常。</p>
           </div>
           <div class="pressure-list">
             <div><span>A 点 · 近地面热水侧</span><strong>{{ lowerHotPressureHpa }} <small>hPa · 相对 {{ signedPressure(lowerHotAnomalyPa) }} Pa</small></strong></div>
@@ -154,8 +187,8 @@
               <path v-for="curve in isobarChartPaths" :key="curve.pressure"
                 class="isobar-curve" :class="`curve-${curve.pressure}`" :d="curve.path" />
               <template v-if="showPressureOverlay">
-                <text x="12" y="51">860 hPa</text>
-                <text x="8" y="156">1010 hPa</text>
+                <text x="12" y="51">500 hPa</text>
+                <text x="8" y="156">1000 hPa</text>
               </template>
             </g>
             <g class="observation-levels">
@@ -199,11 +232,11 @@
     </FloatingFeatureCard>
 
     <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="stageCardCollapsed" class="lab-stage-card"
-      title="分阶段实验" :subtitle="currentStage.title" variant="data" :initial-top="164" :initial-right="14"
+      title="分阶段实验" :subtitle="currentStage.title" variant="data" :initial-top="154" :initial-right="14"
       :bottom-inset="96" :min-width="300" :min-height="330" :light="true">
       <template #header-meta><span class="stage-progress">{{ Math.round(progress) }}%</span></template>
       <div class="lesson-console" aria-label="分阶段实验流程">
-        <div class="console-kicker"><i></i> GUIDED OBSERVATION</div>
+        <div class="console-kicker"><i></i>引导观察</div>
         <div class="stage-list">
           <button v-for="(stage, index) in stages" :key="stage.title" type="button"
             :class="{ active: index === currentStageIndex, complete: index < currentStageIndex }"
@@ -224,7 +257,7 @@
     <Transition name="record-panel">
       <FloatingFeatureCard v-if="recordsOpen" v-show="panelsVisible" v-model:collapsed="recordsCardCollapsed"
         class="lab-records-card" title="实验数据记录" subtitle="每 5 秒自动记录" variant="track"
-        :initial-top="240" :initial-right="14" :bottom-inset="88" :min-width="460" :min-height="260" :light="true">
+        :initial-top="220" :initial-right="14" :bottom-inset="88" :min-width="460" :min-height="260" :light="true">
         <div class="records-panel" aria-label="实验数据记录表">
           <div class="records-export-row">
             <span>{{ records.length > 0 ? '导出内容与当前实验记录一致' : '暂无记录，请先开始实验' }}</span>
@@ -276,6 +309,11 @@ interface SmokeRuntime {
   arrows: THREE.Group[]
   arrowMaterials: THREE.MeshBasicMaterial[]
 }
+interface MoleculeInstanceRuntime {
+  mesh: THREE.InstancedMesh
+  bases: Float32Array
+  phases: Float32Array
+}
 
 const stages: ExperimentStage[] = [
   { title: '建立温差', short: '热水与冰块正在建立稳定温差', tag: '实验准备', description: '观察热水与冰块上方的局地气流，确认冷热源开始作用。', rule: '先记录气流现象，再逐步打开教学图层解释原因。', anchor: 0 },
@@ -313,12 +351,19 @@ const panelsVisible = ref(true)
 const sensorCardCollapsed = ref(true)
 const stageCardCollapsed = ref(true)
 const recordsCardCollapsed = ref(true)
+const airColumnVisible = ref(false)
+const airColumnWidth = ref(500)
+const airColumnResizing = ref(false)
+const showAirMolecules = ref(false)
 const showPressureOverlay = ref(false)
 const showIsobarSurfaces = ref(false)
 const showIsobarDeformation = ref(false)
 const isobarChartMorph = ref(0)
 watch(showIsobarSurfaces, (visible) => {
-  if (!visible) showIsobarDeformation.value = false
+  if (!visible) {
+    showIsobarDeformation.value = false
+    showAirMolecules.value = false
+  }
 })
 const sceneError = ref('')
 const currentStageIndex = computed(() => {
@@ -340,8 +385,8 @@ const tempHot = computed(() => 42 + progress.value * 0.18)
 const tempCold = computed(() => 4 - progress.value * 0.04)
 const temperatureDifference = computed(() => tempHot.value - tempCold.value)
 const PRESSURE_RESPONSE_PA_PER_C = 0.45
-const LOWER_REFERENCE_PRESSURE_HPA = 990
-const UPPER_REFERENCE_PRESSURE_HPA = 885
+const LOWER_REFERENCE_PRESSURE_HPA = 1000
+const UPPER_REFERENCE_PRESSURE_HPA = 500
 const pressureAnomalyPa = computed(() => temperatureDifference.value * PRESSURE_RESPONSE_PA_PER_C)
 const lowerHotAnomalyPa = computed(() => -pressureAnomalyPa.value)
 const lowerColdAnomalyPa = computed(() => pressureAnomalyPa.value)
@@ -411,6 +456,77 @@ function toggleRecordsPanel() {
   }
   recordsOpen.value = !recordsOpen.value
 }
+
+let airColumnResizeState: { right: number; minWidth: number; maxWidth: number } | null = null
+let airColumnResizeFrame = 0
+let pendingAirColumnWidth = airColumnWidth.value
+
+function toggleAirColumnScene() {
+  airColumnVisible.value = !airColumnVisible.value
+  nextTick(() => {
+    resizeMoleculePanelScene()
+    scheduleSceneResize(0)
+  })
+}
+
+function startAirColumnResize(event: PointerEvent) {
+  const stage = centerStageRef.value
+  if (!stage) return
+  const rect = stage.getBoundingClientRect()
+  const minWidth = Math.min(280, rect.width * .28)
+  airColumnResizeState = {
+    right: rect.right,
+    minWidth,
+    maxWidth: Math.max(minWidth, rect.width - Math.min(320, rect.width * .35)),
+  }
+  pendingAirColumnWidth = airColumnWidth.value
+  airColumnResizing.value = true
+  document.body.classList.add('geo-panel-resizing')
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', moveAirColumnResize)
+  window.addEventListener('pointerup', endAirColumnResize, { once: true })
+  window.addEventListener('pointercancel', endAirColumnResize, { once: true })
+}
+
+function moveAirColumnResize(event: PointerEvent) {
+  if (!airColumnResizeState) return
+  pendingAirColumnWidth = THREE.MathUtils.clamp(
+    airColumnResizeState.right - event.clientX,
+    airColumnResizeState.minWidth,
+    airColumnResizeState.maxWidth,
+  )
+  if (airColumnResizeFrame) return
+  airColumnResizeFrame = requestAnimationFrame(() => {
+    airColumnResizeFrame = 0
+    airColumnWidth.value = pendingAirColumnWidth
+    nextTick(() => {
+      resizeSceneNow()
+      resizeMoleculePanelScene()
+    })
+  })
+}
+
+function endAirColumnResize() {
+  if (airColumnResizeFrame) {
+    cancelAnimationFrame(airColumnResizeFrame)
+    airColumnResizeFrame = 0
+    airColumnWidth.value = pendingAirColumnWidth
+  }
+  airColumnResizeState = null
+  airColumnResizing.value = false
+  document.body.classList.remove('geo-panel-resizing')
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('pointermove', moveAirColumnResize)
+  window.removeEventListener('pointerup', endAirColumnResize)
+  window.removeEventListener('pointercancel', endAirColumnResize)
+  nextTick(() => {
+    resizeSceneNow()
+    resizeMoleculePanelScene()
+  })
+}
+
 function resetExperiment() {
   progress.value = 0; isPlaying.value = false; isRunning.value = false
   verticalReveal = 0
@@ -454,7 +570,7 @@ async function exportRecordsImage() {
   ctx.fillText('热力环流实验记录', 70, 152)
   ctx.fillStyle = '#518094'
   ctx.font = '500 18px "Microsoft YaHei", sans-serif'
-  ctx.fillText(`THERMAL CIRCULATION LAB  ·  ${new Date().toLocaleString('zh-CN', { hour12: false })}`, 72, 184)
+  ctx.fillText(`记录生成时间 · ${new Date().toLocaleString('zh-CN', { hour12: false })}`, 72, 184)
 
   const cards = [
     ['当前阶段', currentStage.value.title, '#168db9'],
@@ -500,7 +616,7 @@ async function exportRecordsImage() {
   ctx.fillStyle = '#23627a'; ctx.font = '600 16px "Microsoft YaHei", sans-serif'
   ctx.fillText('观察结论：热源上方空气上升，冷源上方空气下沉；高空与近地面气流方向相反，形成完整热力环流。', 94, 832)
   ctx.fillStyle = '#6c8c99'; ctx.font = '600 12px "Microsoft YaHei", sans-serif'
-  ctx.textAlign = 'right'; ctx.fillText(`模型示意值 · 非箱内实测：A ${lowerHotPressureHpa.value} / B ${lowerColdPressureHpa.value} / C ${upperColdPressureHpa.value} / D ${upperHotPressureHpa.value} hPa · 等压面 860 / 1010 hPa`, 1328, 884)
+  ctx.textAlign = 'right'; ctx.fillText(`模型示意值 · 非箱内实测：A ${lowerHotPressureHpa.value} / B ${lowerColdPressureHpa.value} / C ${upperColdPressureHpa.value} / D ${upperHotPressureHpa.value} hPa · 等压面 500 / 1000 hPa`, 1328, 884)
   ctx.textAlign = 'left'
 
   canvas.toBlob((blob) => {
@@ -521,7 +637,12 @@ const { rootRef: pageRef, layoutMode, draggingSide, viewportResizing, workspaceA
   onResize(payload) { if (payload.phase === 'end' || payload.phase === 'reset') scheduleSceneResize(0) },
 })
 
+const centerStageRef = ref<HTMLElement | null>(null)
 const threeContainerRef = ref<HTMLElement | null>(null)
+const moleculeSceneHostRef = ref<HTMLElement | null>(null)
+const moleculeBoundaryRef = ref<HTMLElement | null>(null)
+const moleculeARef = ref<HTMLElement | null>(null)
+const moleculeBRef = ref<HTMLElement | null>(null)
 const timelineDockRef = ref<HTMLElement | null>(null)
 const hotSourceLabelRef = ref<HTMLElement | null>(null)
 const coldSourceLabelRef = ref<HTMLElement | null>(null)
@@ -529,23 +650,33 @@ const pressureARef = ref<HTMLElement | null>(null)
 const pressureBRef = ref<HTMLElement | null>(null)
 const pressureCRef = ref<HTMLElement | null>(null)
 const pressureDRef = ref<HTMLElement | null>(null)
-const isobar860Ref = ref<HTMLElement | null>(null)
-const isobar1010Ref = ref<HTMLElement | null>(null)
+const isobar500Ref = ref<HTMLElement | null>(null)
+const isobar1000Ref = ref<HTMLElement | null>(null)
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let renderer: THREE.WebGLRenderer | null = null
 let controls: OrbitControls | null = null
 let resizeObserver: ResizeObserver | null = null
+let moleculePanelScene: THREE.Scene | null = null
+let moleculePanelCamera: THREE.PerspectiveCamera | null = null
+let moleculePanelRenderer: THREE.WebGLRenderer | null = null
+let moleculePanelControls: OrbitControls | null = null
+let moleculePanelResizeObserver: ResizeObserver | null = null
 let resizeTimer: ReturnType<typeof setTimeout> | null = null
 let resizeFrame = 0
 let animationFrame = 0
 let lastFrameTime = 0
 let lastWidth = 0
 let lastHeight = 0
+let moleculePanelResizeFrame = 0
+let moleculePanelLastWidth = 0
+let moleculePanelLastHeight = 0
 let recordClock = 0
 let smokeBurst = 0
 let disposed = false
 const rootGroup = new THREE.Group()
+let airMoleculePoints: THREE.Points | null = null
+let airMoleculeMaterial: THREE.ShaderMaterial | null = null
 const smokeRuntimes: SmokeRuntime[] = []
 const idlePlumeMaterials: THREE.ShaderMaterial[] = []
 const materials: THREE.Material[] = []
@@ -553,6 +684,11 @@ const geometries: THREE.BufferGeometry[] = []
 const iceMeshes: THREE.Mesh[] = []
 const isobarLineMeshes: THREE.Line[] = []
 const isobarSurfaceMeshes: THREE.Mesh[] = []
+const moleculePanelMaterials: THREE.Material[] = []
+const moleculePanelGeometries: THREE.BufferGeometry[] = []
+const moleculePanelTextures: THREE.Texture[] = []
+const moleculePanelRuntimes: MoleculeInstanceRuntime[] = []
+const moleculePanelDummy = new THREE.Object3D()
 const isobarSegmentsX = 96
 const isobarSegmentsZ = 24
 const isobarChartSegments = 128
@@ -561,13 +697,19 @@ const isobarMaxX = 7.15
 const isobarMinZ = -2.68
 const isobarMaxZ = 2.48
 const isobarLevels = [
-  { pressure: 860, y: 6.62, tiltFactor: 1 },
-  { pressure: 1010, y: 1.22, tiltFactor: -.42 },
+  { pressure: 500, y: 6.62, tiltFactor: 1 },
+  { pressure: 1000, y: 1.22, tiltFactor: -.42 },
 ] as const
 const sceneIsobarLevels = isobarLevels
 const flowUpAxis = new THREE.Vector3(0, 1, 0)
 let isobarTiltAmount = 0
 const overlayProjection = new THREE.Vector3()
+const moleculeOverlayProjection = new THREE.Vector3()
+const moleculePanelAnchors = {
+  boundary: new THREE.Vector3(2.45, 5.1, .62),
+  pointA: new THREE.Vector3(-2.55, -.1, .62),
+  pointB: new THREE.Vector3(-2.55, 2.37, .62),
+}
 const overlayAnchors = {
   hotSource: new THREE.Vector3(5.15, -0.05, 0.3),
   coldSource: new THREE.Vector3(-5.15, -0.05, 0.3),
@@ -575,8 +717,8 @@ const overlayAnchors = {
   pressureB: new THREE.Vector3(-5.15, 2.05, 2.72),
   pressureC: new THREE.Vector3(-5.15, 5.35, 2.72),
   pressureD: new THREE.Vector3(5.15, 5.35, 2.72),
-  isobar860: new THREE.Vector3(2.4, 6.62, 2.72),
-  isobar1010: new THREE.Vector3(2.4, 1.22, 2.72),
+  isobar500: new THREE.Vector3(2.4, 6.62, 2.72),
+  isobar1000: new THREE.Vector3(2.4, 1.22, 2.72),
 }
 
 function projectOverlayLabel(
@@ -617,8 +759,42 @@ function updateSceneLabels() {
   projectOverlayLabel(pressureBRef.value, overlayAnchors.pressureB, -42, -12)
   projectOverlayLabel(pressureCRef.value, overlayAnchors.pressureC, -34, 12)
   projectOverlayLabel(pressureDRef.value, overlayAnchors.pressureD, 34, -12)
-  projectOverlayLabel(isobar860Ref.value, overlayAnchors.isobar860, 0, -18)
-  projectOverlayLabel(isobar1010Ref.value, overlayAnchors.isobar1010, 0, 16)
+  projectOverlayLabel(isobar500Ref.value, overlayAnchors.isobar500, 0, -18)
+  projectOverlayLabel(isobar1000Ref.value, overlayAnchors.isobar1000, 0, 16)
+}
+
+function projectMoleculePanelLabel(element: HTMLElement | null, worldPosition: THREE.Vector3, offsetX = 0, offsetY = 0) {
+  const host = moleculeSceneHostRef.value
+  if (!element || !host || !moleculePanelCamera || !airColumnVisible.value) return
+  const rect = host.getBoundingClientRect()
+  moleculeOverlayProjection.copy(worldPosition).project(moleculePanelCamera)
+  const visible = moleculeOverlayProjection.z > -1 && moleculeOverlayProjection.z < 1
+  const x = THREE.MathUtils.clamp((moleculeOverlayProjection.x * .5 + .5) * rect.width + offsetX, 22, rect.width - 22)
+  const y = THREE.MathUtils.clamp((-moleculeOverlayProjection.y * .5 + .5) * rect.height + offsetY, 126, rect.height - 210)
+  element.style.left = `${x}px`
+  element.style.top = `${y}px`
+  element.style.opacity = visible ? '1' : '0'
+}
+
+function projectMoleculeBoundaryLabel() {
+  const element = moleculeBoundaryRef.value
+  const host = moleculeSceneHostRef.value
+  if (!element || !host || !moleculePanelCamera || !airColumnVisible.value) return
+  const rect = host.getBoundingClientRect()
+  moleculeOverlayProjection.copy(moleculePanelAnchors.boundary).project(moleculePanelCamera)
+  const visible = moleculeOverlayProjection.z > -1 && moleculeOverlayProjection.z < 1
+  const halfWidth = Math.max(42, element.offsetWidth * .5)
+  const x = THREE.MathUtils.clamp((moleculeOverlayProjection.x * .5 + .5) * rect.width, halfWidth + 12, rect.width - halfWidth - 12)
+  const y = THREE.MathUtils.clamp((-moleculeOverlayProjection.y * .5 + .5) * rect.height, 110, rect.height - 170)
+  element.style.left = `${x}px`
+  element.style.top = `${y}px`
+  element.style.opacity = visible ? '1' : '0'
+}
+
+function updateMoleculePanelLabels() {
+  projectMoleculeBoundaryLabel()
+  projectMoleculePanelLabel(moleculeARef.value, moleculePanelAnchors.pointA, -18, -2)
+  projectMoleculePanelLabel(moleculeBRef.value, moleculePanelAnchors.pointB, -18, 0)
 }
 
 function getIsobarDeformation(x: number, z: number, tiltFactor: number, amount: number) {
@@ -645,7 +821,7 @@ const isobarChartPaths = computed(() => {
 })
 
 function updateIsobarSurfaces(amount: number) {
-  const labelAnchors = [overlayAnchors.isobar860, overlayAnchors.isobar1010]
+  const labelAnchors = [overlayAnchors.isobar500, overlayAnchors.isobar1000]
   sceneIsobarLevels.forEach((level, index) => {
     updateIsobarLine(isobarLineMeshes[index], level.y, level.tiltFactor, amount)
     updateIsobarPlane(isobarSurfaceMeshes[index], level.y, level.tiltFactor, amount)
@@ -680,6 +856,356 @@ function updateIsobarPlane(mesh: THREE.Mesh | undefined, levelY: number, tiltFac
 function registerMaterial<T extends THREE.Material>(material: T) { materials.push(material); return material }
 function registerGeometry<T extends THREE.BufferGeometry>(geometry: T) { geometries.push(geometry); return geometry }
 function seededRandom(seed: number) { const value = Math.sin(seed * 91.731 + 17.113) * 43758.5453; return value - Math.floor(value) }
+
+const airMoleculeSurfaceSamples: Array<{ x: number; z: number; levelIndex: number; offset: number }> = []
+
+function updateAirMoleculeSurfacePositions(amount: number) {
+  if (!airMoleculePoints) return
+  const positions = airMoleculePoints.geometry.getAttribute('position') as THREE.BufferAttribute
+  airMoleculeSurfaceSamples.forEach((sample, index) => {
+    const level = sceneIsobarLevels[sample.levelIndex]!
+    const y = level.y + getIsobarDeformation(sample.x, sample.z, level.tiltFactor, amount) + sample.offset
+    positions.setXYZ(index, sample.x, y, sample.z)
+  })
+  positions.needsUpdate = true
+}
+
+function createAirMolecules() {
+  const levelCounts = [90, 180]
+  const count = levelCounts[0]! + levelCounts[1]!
+  const positions = new Float32Array(count * 3)
+  const phases = new Float32Array(count)
+  const sizes = new Float32Array(count)
+  const colors = new Float32Array(count * 3)
+  const upperColor = new THREE.Color(0x8da0b5)
+  const lowerColor = new THREE.Color(0x6687a1)
+  airMoleculeSurfaceSamples.length = 0
+
+  let particleIndex = 0
+  levelCounts.forEach((levelCount, levelIndex) => {
+    const color = levelIndex === 0 ? upperColor : lowerColor
+    for (let index = 0; index < levelCount; index += 1) {
+      const seed = levelIndex * 1000 + index
+      const x = THREE.MathUtils.lerp(isobarMinX + .18, isobarMaxX - .18, seededRandom(seed + 1200))
+      const z = THREE.MathUtils.lerp(isobarMinZ + .16, isobarMaxZ - .16, seededRandom(seed + 1400))
+      const offset = .035 + seededRandom(seed + 1450) * .025
+      airMoleculeSurfaceSamples.push({ x, z, levelIndex, offset })
+      phases[particleIndex] = seededRandom(seed + 1500) * Math.PI * 2
+      sizes[particleIndex] = THREE.MathUtils.lerp(1.7, 2.65, seededRandom(seed + 1600))
+      colors[particleIndex * 3] = color.r
+      colors[particleIndex * 3 + 1] = color.g
+      colors[particleIndex * 3 + 2] = color.b
+      particleIndex += 1
+    }
+  })
+
+  const geometry = registerGeometry(new THREE.BufferGeometry())
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1))
+  geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1))
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  airMoleculeMaterial = registerMaterial(new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+    vertexShader: /* glsl */ `
+      attribute float aPhase;
+      attribute float aSize;
+      varying vec3 vColor;
+      varying float vAlpha;
+      uniform float uTime;
+      void main() {
+        float altitude = clamp(position.y / 8.4, 0.0, 1.0);
+        vec3 driftedPosition = position;
+        driftedPosition.x += sin(uTime * 0.52 + aPhase) * 0.025;
+        driftedPosition.y += sin(uTime * 0.68 + aPhase * 1.47) * 0.014;
+        driftedPosition.z += cos(uTime * 0.46 + aPhase * 1.21) * 0.018;
+        vec4 mvPosition = modelViewMatrix * vec4(driftedPosition, 1.0);
+        float pulse = 0.92 + sin(uTime * 1.4 + aPhase) * 0.08;
+        gl_PointSize = clamp(aSize * pulse * (42.0 / max(1.0, -mvPosition.z)), 1.5, 4.3);
+        gl_Position = projectionMatrix * mvPosition;
+        vColor = color;
+        vAlpha = mix(0.72, 0.6, altitude);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      varying vec3 vColor;
+      varying float vAlpha;
+      void main() {
+        float distanceToCenter = distance(gl_PointCoord, vec2(0.5));
+        float core = 1.0 - smoothstep(0.08, 0.48, distanceToCenter);
+        float edge = 1.0 - smoothstep(0.38, 0.5, distanceToCenter);
+        if (edge <= 0.01) discard;
+        vec3 color = mix(vColor * 0.92, vec3(1.0), core * 0.58);
+        gl_FragColor = vec4(color, edge * vAlpha);
+      }
+    `,
+  }))
+  airMoleculePoints = new THREE.Points(geometry, airMoleculeMaterial)
+  airMoleculePoints.visible = showAirMolecules.value
+  airMoleculePoints.frustumCulled = false
+  airMoleculePoints.renderOrder = 5
+  rootGroup.add(airMoleculePoints)
+  updateAirMoleculeSurfacePositions(isobarTiltAmount)
+}
+
+function registerMoleculePanelGeometry<T extends THREE.BufferGeometry>(geometry: T) {
+  moleculePanelGeometries.push(geometry)
+  return geometry
+}
+
+function registerMoleculePanelMaterial<T extends THREE.Material>(material: T) {
+  moleculePanelMaterials.push(material)
+  return material
+}
+
+function createPanelColumn(
+  parent: THREE.Group,
+  x: number,
+  bottom: number,
+  top: number,
+  width: number,
+  color: number,
+) {
+  const height = top - bottom
+  const glass = new THREE.Mesh(
+    registerMoleculePanelGeometry(new THREE.BoxGeometry(width, height, width)),
+    registerMoleculePanelMaterial(new THREE.MeshPhysicalMaterial({
+      color, transparent: true, opacity: .11, transmission: .42, roughness: .14,
+      side: THREE.DoubleSide, depthWrite: false,
+    })),
+  )
+  glass.position.set(x, bottom + height * .5, .22)
+  parent.add(glass)
+
+  const edgeGeometry = registerMoleculePanelGeometry(new THREE.EdgesGeometry(glass.geometry))
+  const edge = new THREE.LineSegments(
+    edgeGeometry,
+    registerMoleculePanelMaterial(new THREE.LineBasicMaterial({ color, transparent: true, opacity: .62 })),
+  )
+  edge.position.copy(glass.position)
+  parent.add(edge)
+
+  const plateMaterial = registerMoleculePanelMaterial(new THREE.MeshStandardMaterial({
+    color, transparent: true, opacity: .5, roughness: .28, metalness: .08,
+  }))
+  ;[bottom, top].forEach((y) => {
+    const plate = new THREE.Mesh(
+      registerMoleculePanelGeometry(new THREE.BoxGeometry(width * 1.12, .07, width * 1.12)),
+      plateMaterial,
+    )
+    plate.position.set(x, y, .22)
+    parent.add(plate)
+  })
+}
+
+function createPanelMoleculeColumn(
+  parent: THREE.Group,
+  x: number,
+  bottom: number,
+  top: number,
+  count: number,
+  seed: number,
+  color: number,
+  width: number,
+) {
+  const geometry = registerMoleculePanelGeometry(new THREE.SphereGeometry(.055, 10, 8))
+  const material = registerMoleculePanelMaterial(new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: .14, roughness: .42, metalness: .02,
+    transparent: true, opacity: .58, depthWrite: false,
+  }))
+  const mesh = new THREE.InstancedMesh(geometry, material, count)
+  const bases = new Float32Array(count * 3)
+  const phases = new Float32Array(count)
+  for (let index = 0; index < count; index += 1) {
+    const ratio = Math.pow(seededRandom(seed + index * 3), 1.48)
+    bases[index * 3] = x + (seededRandom(seed + index * 3 + 1) - .5) * width * .76
+    bases[index * 3 + 1] = bottom + .16 + ratio * Math.max(.1, top - bottom - .32)
+    bases[index * 3 + 2] = .22 + (seededRandom(seed + index * 3 + 2) - .5) * width * .72
+    phases[index] = seededRandom(seed + 900 + index) * Math.PI * 2
+    moleculePanelDummy.position.set(bases[index * 3]!, bases[index * 3 + 1]!, bases[index * 3 + 2]!)
+    moleculePanelDummy.updateMatrix()
+    mesh.setMatrixAt(index, moleculePanelDummy.matrix)
+  }
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+  parent.add(mesh)
+  moleculePanelRuntimes.push({ mesh, bases, phases })
+}
+
+function createMountainSilhouetteGeometry() {
+  const shape = new THREE.Shape()
+  shape.moveTo(-.25, 0)
+  shape.bezierCurveTo(.15, .32, .5, 1.28, .82, 2.28)
+  shape.bezierCurveTo(1.02, 2.96, 1.22, 3.55, 1.58, 3.72)
+  shape.bezierCurveTo(1.96, 3.86, 2.18, 3.22, 2.38, 2.62)
+  shape.bezierCurveTo(2.58, 2.08, 2.76, 1.72, 2.95, 2.16)
+  shape.bezierCurveTo(3.15, 2.58, 3.4, 2.48, 3.56, 1.92)
+  shape.bezierCurveTo(3.72, 1.25, 3.98, .48, 4.3, 0)
+  shape.lineTo(-.25, 0)
+  const geometry = registerMoleculePanelGeometry(new THREE.ExtrudeGeometry(shape, {
+    depth: .82,
+    bevelEnabled: true,
+    bevelThickness: .08,
+    bevelSize: .08,
+    bevelSegments: 4,
+    curveSegments: 18,
+  }))
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+function createMountainDotTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 192
+  canvas.height = 192
+  const context = canvas.getContext('2d')!
+  context.fillStyle = '#aeb8ab'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  for (let row = 0; row < 24; row += 1) {
+    for (let column = 0; column < 24; column += 1) {
+      const offset = row % 2 === 0 ? 0 : 4
+      const x = column * 8 + offset
+      const y = row * 8
+      const shade = 72 + Math.round(seededRandom(row * 67 + column * 11) * 28)
+      context.fillStyle = `rgba(${shade - 8}, ${shade + 12}, ${shade}, .66)`
+      context.beginPath()
+      context.arc(x, y, 1.75 + seededRandom(row * 31 + column) * .75, 0, Math.PI * 2)
+      context.fill()
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.repeat.set(1.7, 1.45)
+  texture.anisotropy = Math.min(4, moleculePanelRenderer?.capabilities.getMaxAnisotropy() ?? 1)
+  moleculePanelTextures.push(texture)
+  return texture
+}
+
+function initMoleculePanelScene() {
+  const host = moleculeSceneHostRef.value
+  if (!host || moleculePanelRenderer) return
+  moleculePanelScene = new THREE.Scene()
+  moleculePanelCamera = new THREE.PerspectiveCamera(38, 1, .1, 60)
+  moleculePanelCamera.position.set(.35, 4.75, 12.4)
+  moleculePanelRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
+  moleculePanelRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75))
+  moleculePanelRenderer.outputColorSpace = THREE.SRGBColorSpace
+  moleculePanelRenderer.toneMapping = THREE.ACESFilmicToneMapping
+  moleculePanelRenderer.toneMappingExposure = 1.16
+  moleculePanelRenderer.setClearColor(0x000000, 0)
+  moleculePanelRenderer.domElement.className = 'molecule-three-canvas'
+  moleculePanelRenderer.domElement.style.display = 'block'
+  moleculePanelRenderer.domElement.style.width = '100%'
+  moleculePanelRenderer.domElement.style.height = '100%'
+  host.appendChild(moleculePanelRenderer.domElement)
+
+  moleculePanelControls = new OrbitControls(moleculePanelCamera, moleculePanelRenderer.domElement)
+  moleculePanelControls.enableDamping = true
+  moleculePanelControls.dampingFactor = .08
+  moleculePanelControls.enablePan = false
+  moleculePanelControls.minDistance = 8.5
+  moleculePanelControls.maxDistance = 62
+  moleculePanelControls.minPolarAngle = .62
+  moleculePanelControls.maxPolarAngle = 1.38
+  moleculePanelControls.minAzimuthAngle = -.42
+  moleculePanelControls.maxAzimuthAngle = .42
+  moleculePanelControls.target.set(0, 2.45, 0)
+  moleculePanelControls.update()
+
+  moleculePanelScene.add(new THREE.HemisphereLight(0xf7fdff, 0x7fa2a7, 2.4))
+  const keyLight = new THREE.DirectionalLight(0xffffff, 3.2)
+  keyLight.position.set(-4, 9, 7)
+  moleculePanelScene.add(keyLight)
+  const warmLight = new THREE.DirectionalLight(0xffd49c, 1.25)
+  warmLight.position.set(6, 5, 2)
+  moleculePanelScene.add(warmLight)
+
+  const model = new THREE.Group()
+  model.position.y = -.18
+  moleculePanelScene.add(model)
+
+  const ground = new THREE.Mesh(
+    registerMoleculePanelGeometry(new RoundedBoxGeometry(8.2, .2, 3.3, 5, .1)),
+    registerMoleculePanelMaterial(new THREE.MeshStandardMaterial({ color: 0xd7e5d8, roughness: .82, metalness: .02 })),
+  )
+  ground.position.y = -.12
+  model.add(ground)
+
+  const atmosphere = new THREE.Mesh(
+    registerMoleculePanelGeometry(new THREE.PlaneGeometry(7.7, 5.3)),
+    registerMoleculePanelMaterial(new THREE.MeshBasicMaterial({
+      color: 0xbfeaf4, transparent: true, opacity: .1, side: THREE.DoubleSide, depthWrite: false,
+    })),
+  )
+  atmosphere.position.set(0, 2.58, -1.28)
+  model.add(atmosphere)
+
+  const mountainMaterial = registerMoleculePanelMaterial(new THREE.MeshStandardMaterial({
+    color: 0xb9c0b6, map: createMountainDotTexture(), roughness: .98, metalness: 0,
+  }))
+  const mountain = new THREE.Mesh(createMountainSilhouetteGeometry(), mountainMaterial)
+  mountain.position.set(-.35, .02, -.36)
+  model.add(mountain)
+
+  const boundaryGeometry = registerMoleculePanelGeometry(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-3.85, 5.28, .55), new THREE.Vector3(3.85, 5.28, .55),
+  ]))
+  const boundary = new THREE.Line(
+    boundaryGeometry,
+    registerMoleculePanelMaterial(new THREE.LineDashedMaterial({ color: 0x2b6980, dashSize: .2, gapSize: .13, transparent: true, opacity: .86 })),
+  )
+  boundary.computeLineDistances()
+  model.add(boundary)
+
+  createPanelColumn(model, -2.55, .08, 2.55, 1.12, 0xd8664d)
+  createPanelColumn(model, -2.55, 2.55, 5.28, 1.12, 0x67a957)
+  createPanelMoleculeColumn(model, -2.55, .08, 2.55, 78, 2100, 0x6687a1, 1.12)
+  createPanelMoleculeColumn(model, -2.55, 2.55, 5.28, 34, 2500, 0x8da0b5, 1.12)
+
+  createPanelColumn(model, -.55, .08, 5.28, .46, 0xe4b236)
+  createPanelMoleculeColumn(model, -.55, .08, 5.28, 58, 3100, 0x7d91aa, .46)
+  createPanelColumn(model, 1.23, 3.76, 5.28, .46, 0xe4b236)
+  createPanelMoleculeColumn(model, 1.23, 3.76, 5.28, 12, 3500, 0x9eabc0, .46)
+
+  moleculePanelResizeObserver = new ResizeObserver(scheduleMoleculePanelResize)
+  moleculePanelResizeObserver.observe(host)
+  scheduleMoleculePanelResize()
+}
+
+function scheduleMoleculePanelResize() {
+  if (moleculePanelResizeFrame) return
+  moleculePanelResizeFrame = requestAnimationFrame(() => {
+    moleculePanelResizeFrame = 0
+    resizeMoleculePanelScene()
+  })
+}
+
+function resizeMoleculePanelScene() {
+  const host = moleculeSceneHostRef.value
+  if (!host || !moleculePanelRenderer || !moleculePanelCamera) return
+  const rect = host.getBoundingClientRect()
+  if (rect.width < 2 || rect.height < 2) return
+  const width = Math.round(rect.width)
+  const height = Math.round(rect.height)
+  if (width === moleculePanelLastWidth && height === moleculePanelLastHeight) return
+  moleculePanelLastWidth = width
+  moleculePanelLastHeight = height
+  const aspect = width / height
+  moleculePanelCamera.aspect = aspect
+  if (moleculePanelControls) {
+    const direction = moleculePanelCamera.position.clone().sub(moleculePanelControls.target).normalize()
+    const fittedDistance = THREE.MathUtils.clamp(12.6 * Math.max(1, .9 / aspect), 12.6, 58)
+    moleculePanelCamera.position.copy(moleculePanelControls.target).addScaledVector(direction, fittedDistance)
+  }
+  moleculePanelCamera.updateProjectionMatrix()
+  moleculePanelRenderer.setSize(width, height, false)
+  moleculePanelRenderer.render(moleculePanelScene!, moleculePanelCamera)
+}
+
 function createBox(size: [number, number, number], color: number, position: [number, number, number]) {
   const mesh = new THREE.Mesh(
     registerGeometry(new RoundedBoxGeometry(size[0], size[1], size[2], 4, Math.min(...size) * 0.08)),
@@ -1086,6 +1612,17 @@ function resetCamera() {
   if (!camera || !controls) return
   camera.position.set(0.8, 9.6, 25.5); controls.target.set(0, 3.8, 0); controls.update()
 }
+
+function fitMainCameraToAspect(aspect: number) {
+  if (!camera || !controls) return
+  const safeAspect = Math.max(.42, aspect)
+  const widthCompensation = Math.max(1, 1 + (1.5 / safeAspect - 1) * .58)
+  const fittedDistance = THREE.MathUtils.clamp(25.5 * widthCompensation, 25.5, 54)
+  const direction = camera.position.clone().sub(controls.target).normalize()
+  camera.position.copy(controls.target).addScaledVector(direction, fittedDistance)
+  controls.maxDistance = 58
+  controls.update()
+}
 function initScene() {
   try {
     const host = threeContainerRef.value
@@ -1103,11 +1640,11 @@ function initScene() {
     host.appendChild(renderer.domElement)
     controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true; controls.dampingFactor = 0.075; controls.enablePan = false
-    controls.minDistance = 14; controls.maxDistance = 34
+    controls.minDistance = 14; controls.maxDistance = 58
     controls.minPolarAngle = 0.45; controls.maxPolarAngle = 1.36
     controls.minAzimuthAngle = -0.72; controls.maxAzimuthAngle = 0.72
     resetCamera()
-    scene.add(rootGroup); createLights(); createLaboratory(); createAirflow(); createIdlePlumes(); resizeSceneNow()
+    scene.add(rootGroup); createLights(); createLaboratory(); createAirMolecules(); createAirflow(); createIdlePlumes(); resizeSceneNow()
     resizeObserver = new ResizeObserver(() => scheduleSceneResize(90)); resizeObserver.observe(host)
     requestAnimationFrame(resizeSceneNow); window.setTimeout(() => scheduleSceneResize(0), 180)
     animationFrame = requestAnimationFrame(animateScene)
@@ -1124,7 +1661,9 @@ function resizeSceneNow() {
   const height = Math.max(320, Math.round(rect.height || window.innerHeight * 0.72))
   if (width === lastWidth && height === lastHeight) return
   lastWidth = width; lastHeight = height
-  camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); renderer.render(scene, camera)
+  camera.aspect = width / height
+  fitMainCameraToAspect(camera.aspect)
+  camera.updateProjectionMatrix(); renderer.setSize(width, height, false); renderer.render(scene, camera)
   updateSceneLabels()
 }
 function scheduleSceneResize(delay = 90) {
@@ -1172,6 +1711,9 @@ function animateScene(time: number) {
     isobarChartMorph.value = targetIsobarTilt
   }
   updateIsobarSurfaces(isobarTiltAmount)
+  updateAirMoleculeSurfacePositions(isobarTiltAmount)
+  if (airMoleculePoints) airMoleculePoints.visible = showIsobarSurfaces.value && showAirMolecules.value
+  if (airMoleculeMaterial) airMoleculeMaterial.uniforms.uTime!.value = time / 1000
   smokeBurst = Math.max(0, smokeBurst - delta * 0.7)
   const stage = currentStageIndex.value
   const strength = isRunning.value ? THREE.MathUtils.smoothstep(progress.value, 8, 22) : 0
@@ -1208,24 +1750,58 @@ function animateScene(time: number) {
     material.uniforms.uOpacity!.value = isRunning.value ? 0 : 1
   })
   iceMeshes.forEach((mesh, index) => { mesh.position.y += Math.sin(time / 760 + index * 1.7) * 0.00022 })
+  moleculePanelRuntimes.forEach((runtime) => {
+    for (let index = 0; index < runtime.phases.length; index += 1) {
+      const phase = runtime.phases[index]!
+      moleculePanelDummy.position.set(
+        runtime.bases[index * 3]! + Math.sin(time / 1200 + phase) * .022,
+        runtime.bases[index * 3 + 1]! + Math.cos(time / 1450 + phase * 1.37) * .026,
+        runtime.bases[index * 3 + 2]! + Math.sin(time / 1320 + phase * .82) * .018,
+      )
+      moleculePanelDummy.updateMatrix()
+      runtime.mesh.setMatrixAt(index, moleculePanelDummy.matrix)
+    }
+    runtime.mesh.instanceMatrix.needsUpdate = true
+  })
   controls?.update()
+  moleculePanelControls?.update()
   updateSceneLabels()
+  updateMoleculePanelLabels()
   if (renderer && scene && camera) renderer.render(scene, camera)
+  if (moleculePanelRenderer && moleculePanelScene && moleculePanelCamera && airColumnVisible.value) {
+    moleculePanelRenderer.render(moleculePanelScene, moleculePanelCamera)
+  }
 }
 triggerSmokeBurst = () => { smokeBurst = 1 }
 function disposeScene() {
   disposed = true
   cancelAnimationFrame(animationFrame); cancelAnimationFrame(resizeFrame)
+  cancelAnimationFrame(moleculePanelResizeFrame); cancelAnimationFrame(airColumnResizeFrame)
   if (resizeTimer) clearTimeout(resizeTimer)
-  resizeObserver?.disconnect(); controls?.dispose()
+  resizeObserver?.disconnect(); moleculePanelResizeObserver?.disconnect(); controls?.dispose(); moleculePanelControls?.dispose()
   geometries.forEach((geometry) => geometry.dispose()); materials.forEach((material) => material.dispose())
+  moleculePanelGeometries.forEach((geometry) => geometry.dispose())
+  moleculePanelMaterials.forEach((material) => material.dispose())
+  moleculePanelTextures.forEach((texture) => texture.dispose())
   geometries.length = 0; materials.length = 0; smokeRuntimes.length = 0; idlePlumeMaterials.length = 0
+  moleculePanelGeometries.length = 0; moleculePanelMaterials.length = 0; moleculePanelTextures.length = 0; moleculePanelRuntimes.length = 0
   iceMeshes.length = 0; isobarLineMeshes.length = 0; isobarSurfaceMeshes.length = 0
   rootGroup.clear(); renderer?.dispose()
   if (renderer?.domElement.parentElement) renderer.domElement.parentElement.removeChild(renderer.domElement)
+  moleculePanelRenderer?.dispose()
+  if (moleculePanelRenderer?.domElement.parentElement) moleculePanelRenderer.domElement.parentElement.removeChild(moleculePanelRenderer.domElement)
   renderer = null; scene = null; camera = null; controls = null
+  moleculePanelRenderer = null; moleculePanelScene = null; moleculePanelCamera = null; moleculePanelControls = null
+  airMoleculePoints = null; airMoleculeMaterial = null
+  endAirColumnResize()
 }
-onMounted(async () => { await nextTick(); initScene() })
+watch(airColumnVisible, (visible) => {
+  nextTick(() => {
+    if (visible) resizeMoleculePanelScene()
+    scheduleSceneResize(0)
+  })
+})
+onMounted(async () => { await nextTick(); initScene(); initMoleculePanelScene() })
 onBeforeUnmount(disposeScene)
 </script>
 
@@ -1234,6 +1810,158 @@ onBeforeUnmount(disposeScene)
 .thermal-circulation-laboratory-container .stage-content {
   min-width: 0;
   min-height: 0;
+}
+
+.thermal-circulation-laboratory-container .split-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  background: #edf8fb;
+}
+
+.thermal-circulation-laboratory-container .split-stage.air-column-visible {
+  grid-template-columns: minmax(0, 1fr) 12px minmax(260px, var(--air-column-width));
+}
+
+.circulation-workspace {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  contain: layout paint;
+  container-name: circulation-stage;
+  container-type: inline-size;
+}
+
+.circulation-workspace>.stage-content {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+
+.scene-split-handle {
+  position: relative;
+  z-index: 40;
+  width: 12px;
+  min-width: 12px;
+  height: 100%;
+  padding: 0;
+  cursor: col-resize;
+  border: 0;
+  border-right: 1px solid rgba(44, 126, 152, .2);
+  border-left: 1px solid rgba(44, 126, 152, .2);
+  background: linear-gradient(90deg, rgba(213, 238, 244, .92), rgba(250, 254, 255, .98), rgba(213, 238, 244, .92));
+  box-shadow: 0 0 18px rgba(39, 103, 124, .12);
+}
+
+.scene-split-handle::before,
+.scene-split-handle::after,
+.scene-split-handle i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 24px;
+  content: '';
+  transform: translate(-50%, -50%);
+  border-radius: 99px;
+  background: rgba(31, 126, 157, .55);
+}
+
+.scene-split-handle::before {
+  margin-left: -3px;
+}
+
+.scene-split-handle::after {
+  margin-left: 3px;
+}
+
+.scene-split-handle:hover,
+.scene-split-handle:focus-visible {
+  background: #d7f1f7;
+  outline: none;
+}
+
+.air-column-workspace {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  contain: layout paint;
+  background:
+    linear-gradient(180deg, rgba(246, 252, 253, .98), rgba(224, 242, 247, .96)),
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, .92), transparent 52%);
+}
+
+.air-column-scene-host {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.air-column-scene-host:active {
+  cursor: grabbing;
+}
+
+.air-column-scene-wash {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(244, 252, 254, .38), transparent 20%, transparent 68%, rgba(222, 242, 247, .46)),
+    radial-gradient(circle at 50% 48%, transparent 45%, rgba(215, 238, 244, .26) 100%);
+}
+
+.air-column-overlay {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+}
+
+.air-column-header {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(38, 129, 160, .18);
+  border-radius: 14px;
+  background: rgba(250, 254, 255, .78);
+  box-shadow: 0 12px 30px rgba(42, 102, 122, .1);
+  backdrop-filter: blur(14px);
+}
+
+.air-column-header div {
+  display: grid;
+  gap: 2px;
+}
+
+.air-column-header span {
+  color: #36a9ca;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .19em;
+}
+
+.air-column-header strong {
+  color: #194f66;
+  font-size: 18px;
+}
+
+.air-column-header small {
+  color: rgba(34, 79, 97, .56);
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .thermal-circulation-laboratory-container .stage-content {
@@ -1628,8 +2356,8 @@ onBeforeUnmount(disposeScene)
   filter: drop-shadow(0 1px 1px rgba(83, 54, 44, .1));
 }
 
-.curve-860,
-.curve-1010 {
+.curve-500,
+.curve-1000 {
   stroke: #a85858;
 }
 
@@ -1828,6 +2556,8 @@ onBeforeUnmount(disposeScene)
   display: grid;
   min-width: 238px;
   padding: 10px 15px;
+  justify-items: center;
+  text-align: center;
   pointer-events: none;
   opacity: 0;
   transform: translateX(-50%);
@@ -1842,7 +2572,7 @@ onBeforeUnmount(disposeScene)
 }
 
 .source-label strong {
-  margin-top: 3px;
+  margin-top: 0;
   color: #fff;
   font-size: 13px;
   line-height: 1.35;
@@ -1999,6 +2729,45 @@ onBeforeUnmount(disposeScene)
 
 .timeline-layer-switch.disabled {
   opacity: .5;
+}
+
+@container circulation-stage (max-width: 900px) {
+  .thermal-circulation-laboratory-container .timeline-dock {
+    width: calc(100% - 24px);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: 7px;
+    padding: 9px 11px;
+  }
+
+  .timeline-layer-controls {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 7px 12px;
+    padding-top: 7px;
+    padding-left: 0;
+    border-top: 1px solid rgba(53, 123, 148, .16);
+    border-left: 0;
+  }
+}
+
+@container circulation-stage (max-width: 560px) {
+  .thermal-circulation-laboratory-container .timeline-dock {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .speed-options {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  .timeline-layer-controls {
+    grid-column: 1 / -1;
+  }
+
+  .timeline-layer-switch {
+    font-size: 9px;
+  }
 }
 
 .airflow-legend span {
@@ -2209,8 +2978,15 @@ onBeforeUnmount(disposeScene)
   width: min(580px, calc(100vw - 40px));
 }
 
+.lab-sensor-card.collapsed,
+.lab-stage-card.collapsed,
+.lab-records-card.collapsed {
+  width: 224px;
+}
+
 .sensor-console,
 .lesson-console,
+.molecule-panel,
 .records-panel {
   position: static;
   width: auto;
@@ -2278,14 +3054,147 @@ onBeforeUnmount(disposeScene)
   line-height: 1.5;
 }
 
+.lab-sensor-card :deep(.feature-card-title span),
 .lab-stage-card :deep(.feature-card-title span),
 .lab-records-card :deep(.feature-card-title span) {
   font-size: 16px;
 }
 
+.lab-sensor-card :deep(.feature-card-title strong),
 .lab-stage-card :deep(.feature-card-title strong),
 .lab-records-card :deep(.feature-card-title strong) {
   font-size: 14px;
+}
+
+.molecule-model-shell {
+  position: relative;
+  height: 286px;
+  overflow: hidden;
+  border: 1px solid rgba(35, 137, 170, .18);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(235, 249, 252, .9), rgba(213, 239, 244, .72));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .9), 0 10px 24px rgba(40, 104, 125, .08);
+}
+
+.molecule-scene-host,
+.molecule-three-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.molecule-scene-host {
+  cursor: grab;
+}
+
+.molecule-scene-host:active {
+  cursor: grabbing;
+}
+
+.molecule-boundary-label,
+.molecule-ground-label,
+.molecule-high-label,
+.molecule-drag-tip {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid rgba(34, 125, 156, .16);
+  background: rgba(255, 255, 255, .82);
+  box-shadow: 0 5px 14px rgba(43, 93, 111, .1);
+  backdrop-filter: blur(8px);
+}
+
+.molecule-boundary-label {
+  top: 34%;
+  right: auto;
+  left: 72%;
+  padding: 4px 9px;
+  color: #24677e;
+  font-size: 11px;
+  font-weight: 800;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  transition: opacity 120ms ease;
+}
+
+.molecule-ground-label,
+.molecule-high-label {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 900;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  transition: opacity 120ms ease;
+}
+
+.molecule-ground-label {
+  top: 70%;
+  bottom: auto;
+  left: 24%;
+  color: #137fa7;
+  border-color: rgba(19, 127, 167, .32);
+}
+
+.molecule-high-label {
+  top: 50%;
+  right: auto;
+  left: 24%;
+  color: #b86b2d;
+  border-color: rgba(184, 107, 45, .3);
+}
+
+.molecule-drag-tip {
+  right: 18px;
+  bottom: 192px;
+  padding: 4px 7px;
+  color: rgba(40, 78, 94, .62);
+  font-size: 9px;
+  border-radius: 7px;
+}
+
+.molecule-explanation {
+  position: absolute;
+  right: 18px;
+  bottom: 66px;
+  left: 18px;
+  padding: 11px 12px;
+  border: 1px solid rgba(39, 137, 168, .18);
+  border-left: 3px solid #27a7cb;
+  border-radius: 12px;
+  background: rgba(244, 252, 254, .82);
+  box-shadow: 0 12px 30px rgba(40, 101, 120, .1);
+  backdrop-filter: blur(14px);
+}
+
+.molecule-explanation strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #176b88;
+  font-size: 13px;
+}
+
+.molecule-explanation p,
+.molecule-note {
+  margin: 0;
+  color: rgba(34, 75, 94, .82);
+  font-size: 11.5px;
+  line-height: 1.65;
+}
+
+.molecule-note {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  left: 20px;
+  padding: 0 2px;
+  color: rgba(44, 82, 98, .62);
+  font-size: 10.5px;
 }
 
 .records-panel {
@@ -2464,6 +3373,46 @@ onBeforeUnmount(disposeScene)
 }
 
 @media (max-width: 900px) {
+  .thermal-circulation-laboratory-container .split-stage.air-column-visible {
+    grid-template-columns: minmax(0, 1fr) 10px minmax(230px, var(--air-column-width));
+  }
+
+  .scene-split-handle {
+    width: 10px;
+    min-width: 10px;
+  }
+
+  .air-column-header {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    padding: 10px 11px;
+  }
+
+  .air-column-header strong {
+    font-size: 15px;
+  }
+
+  .air-column-header small {
+    display: none;
+  }
+
+  .molecule-boundary-label {
+    top: 34%;
+  }
+
+  .molecule-explanation {
+    right: 10px;
+    bottom: 58px;
+    left: 10px;
+  }
+
+  .molecule-note {
+    right: 12px;
+    bottom: 14px;
+    left: 12px;
+  }
+
   .experiment-heading {
     top: 12px;
     min-width: 240px;

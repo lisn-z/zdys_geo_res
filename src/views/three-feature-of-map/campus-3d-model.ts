@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { campusLabelAnchor } from './campus-labels'
 import { type CampusLayout, type ProjectedCampusFeature, isCampusBuilding } from './campus-3d-layout'
 import { createRoadMarkingGeometry } from './campus-3d-roads'
 import { createCampusWater } from './campus-3d-water'
@@ -203,7 +204,8 @@ export function buildCampusModel(layout: CampusLayout, options: { includeBase?: 
         pillarBudget--; remainingDetails--
       }
     }
-    label(feature.name, feature.center.x, 4.2, feature.center.z, '#726455', 10)
+    const anchor = campusLabelAnchor(feature)
+    label(feature.name, anchor.x, 4.2, anchor.z, '#726455', 10)
   }
 
   function road(feature: ProjectedCampusFeature) {

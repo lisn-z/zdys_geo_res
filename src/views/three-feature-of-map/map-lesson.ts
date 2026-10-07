@@ -1,3 +1,5 @@
+import { compareLongitudes, geographicMercatorNorthing, hasLocalDirectionFrame } from './map-geography'
+
 export type Coordinate = { lat: number; lng: number }
 export type FeatureKind =
   | 'settlement' | 'peak' | 'railway' | 'road' | 'river' | 'lake'
@@ -89,19 +91,51 @@ export function getLegendGroups(activeSet: LegendSet) {
   ]).filter(group => group.id === activeSet)
 }
 
-export function bearingBetween(a: Coordinate, b: Coordinate) {
+export function bearingBetween(a: Coordinate, b: Coordinate): number | null {
+  // Match the straight A–B line along the shorter longitude arc on the map.
+  // A great-circle departure bearing can point north even when B is below A.
+  if (!hasLocalDirectionFrame(a) || !Number.isFinite(b.lat) || Math.abs(b.lat) > 90 || !Number.isFinite(b.lng)) return null
+  if (Math.abs(b.lat) === 90) return b.lat > 0 ? 0 : 180
   const radians = Math.PI / 180
-  const lat1 = a.lat * radians
-  const lat2 = b.lat * radians
-  const delta = (b.lng - a.lng) * radians
-  const y = Math.sin(delta) * Math.cos(lat2)
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(delta)
-  return (Math.atan2(y, x) / radians + 360) % 360
+  const longitude = compareLongitudes(a.lng, b.lng)
+  if (longitude.direction === 'opposite') return null
+  const east = longitude.shortestDelta * radians
+  const north = geographicMercatorNorthing(b.lat) - geographicMercatorNorthing(a.lat)
+  if (east === 0 && north === 0) return null
+  return (Math.atan2(east, north) / radians + 360) % 360
 }
 
 export function directionName(bearing: number) {
+  if (!Number.isFinite(bearing)) return '未定义'
   const names = ['北', '东北', '东', '东南', '南', '西南', '西', '西北']
   return names[Math.round(((bearing % 360 + 360) % 360) / 45) % 8]!
+}
+
+/** Degree/minute notation, retaining fractional minutes for a close-up grid. */
+export function formatDegreesMinutes(value: number, minuteDigits = 4) {
+  const factor = 10 ** minuteDigits
+  const totalMinutes = Math.round(Math.abs(value) * 60 * factor) / factor
+  const degrees = Math.floor(totalMinutes / 60)
+  const minutes = Number((totalMinutes - degrees * 60).toFixed(minuteDigits))
+  return `${degrees}°${minutes < 10 ? '0' : ''}${minutes}′`
+}
+
+/** Geographical labels stay the same when Leaflet shows a different world copy. */
+export function formatCoordinate(point: Coordinate) {
+  if (!Number.isFinite(point.lat) || Math.abs(point.lat) > 90 || !Number.isFinite(point.lng)) {
+    return { longitude: '—', latitude: '—' }
+  }
+  const longitude = ((point.lng + 180) % 360 + 360) % 360 - 180
+  const longitudeText = formatDegreesMinutes(longitude)
+  const latitudeText = formatDegreesMinutes(point.lat)
+  return {
+    longitude: Math.abs(point.lat) === 90 ? '极点（无唯一经度）'
+      : longitudeText === '0°00′' ? '0°00′（本初子午线）'
+        : longitudeText === '180°00′' ? longitudeText
+          : `${longitude > 0 ? '东经' : '西经'} ${longitudeText}`,
+    latitude: latitudeText === '0°00′' ? '0°00′（赤道）'
+      : `${point.lat > 0 ? '北纬' : '南纬'} ${latitudeText}`,
+  }
 }
 
 export function formatDistance(metres: number) {
