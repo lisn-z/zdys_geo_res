@@ -9,6 +9,10 @@
       <h1 class="page-title">潮汐现象</h1>
 
       <div class="toolbar-actions">
+        <label class="theme-btn toolbar-btn observation-toggle" :class="{ active: observationVisible }">
+          <input v-model="observationVisible" type="checkbox" aria-controls="tidal-observation-pane" />
+          <span>潮汐观察</span>
+        </label>
         <button type="button" class="theme-btn toolbar-btn" @click="focusEarth">
           聚焦地球
         </button>
@@ -20,7 +24,8 @@
       </div>
     </header>
 
-    <main class="workspace">
+    <main ref="splitStageRef" class="workspace tidal-workspace"
+      :class="{ 'is-split': observationVisible, 'is-resizing': splitResizing }">
       <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlPanelCollapsed"
         class="tidal-floating-card control-floating-card" title="模拟控制" subtitle="地月运动 · 潮汐形变 · 辅助图层" variant="control"
         :initial-top="84" :initial-right="18" :bottom-inset="96" :min-width="320" :min-height="260" draggable resizable>
@@ -30,23 +35,32 @@
 
             <div class="switch-row">
               <div class="control-copy">
-                <strong>月球绕地球公转</strong>
-                <span>周期约 27.3 天，与地球自转按同一倍率加速</span>
+                <strong>月球公转与同步自转</strong>
+                <span>周期均约 {{ moonPeriodLabel }}；同一面始终朝向地球</span>
               </div>
-              <el-switch v-model="moonOrbitEnabled" aria-label="月球绕地球公转" />
+              <el-switch v-model="moonOrbitEnabled" aria-label="月球公转与同步自转" />
             </div>
 
             <div class="switch-row">
               <div class="control-copy">
                 <strong>地球自转</strong>
-                <span>观察同一地点依次经过高潮与低潮</span>
+                <span>恒星自转周期约 {{ earthPeriodLabel }}；不同于太阳日的 {{ solarDayLabel }}</span>
               </div>
               <el-switch v-model="earthRotationEnabled" aria-label="地球自转" />
             </div>
+            <p class="motion-scale-note">{{ motionModeLabel }}：{{ timeScaleLabel }}。所有运动使用同一演示倍率，周期比例见“实时数据”。</p>
           </section>
 
           <section class="geo-card control-section">
             <h3 class="section-title">潮汐显示</h3>
+
+            <div class="switch-row">
+              <div class="control-copy">
+                <strong>引力演示箭头</strong>
+                <span>对比月球引力强弱与相对地心的引潮效果</span>
+              </div>
+              <el-switch v-model="showForceVisualization" aria-label="引力演示箭头" />
+            </div>
 
             <div class="switch-row">
               <div class="control-copy">
@@ -100,24 +114,6 @@
           </section>
 
           <section class="geo-card control-section">
-            <div class="section-title-row">
-              <h3 class="section-title">月球位置</h3>
-              <strong class="control-value">{{ Math.round(moonAngleDeg) }}°</strong>
-            </div>
-
-            <el-slider v-model="moonAngleDeg" aria-label="月球位置" :min="0" :max="360" :step="1" :show-tooltip="false"
-              @input="pauseForManualPosition" />
-
-            <div class="position-scale">
-              <span>0°</span>
-              <span>90°</span>
-              <span>180°</span>
-              <span>270°</span>
-              <span>360°</span>
-            </div>
-          </section>
-
-          <section class="geo-card control-section">
             <h3 class="section-title">观察视角</h3>
 
             <div class="option-grid view-option-grid">
@@ -134,18 +130,21 @@
         </div>
       </FloatingFeatureCard>
 
-      <section class="center-stage">
-        <div class="stage-content tide-stage-content">
-
-          <div class="celestial-texture-layer" aria-hidden="true">
-            <div ref="earthTextureOverlayRef" class="celestial-texture-sphere earth-texture-sphere"
-              :style="{ backgroundImage: `url(${EARTH_TEXTURE_IMAGE})` }"></div>
-
-            <div ref="moonTextureOverlayRef" class="celestial-texture-sphere moon-texture-sphere"
-              :style="{ backgroundImage: `url(${MOON_TEXTURE_IMAGE})` }"></div>
-          </div>
-
+      <section id="tidal-orbit-pane" class="center-stage" aria-label="地月潮汐空间视图"
+        :style="{ flexBasis: observationVisible ? `${splitPercent}%` : '100%' }">
+        <div class="stage-content tide-stage-content" :class="{ 'show-forces': showForceVisualization }">
           <div ref="threeContainerRef" class="scene-host three-host tide-three-host"></div>
+
+          <section v-if="showForceVisualization" class="force-toolbar" aria-label="引力演示模式">
+            <div class="force-mode-options">
+              <button type="button" :aria-pressed="forceMode === 'gravity'" @click="forceMode = 'gravity'">月球引力</button>
+              <button type="button" :aria-pressed="forceMode === 'tidal'" @click="forceMode = 'tidal'">引潮效果</button>
+            </div>
+            <p :class="`force-copy-${forceMode}`"><i aria-hidden="true"></i>{{ forceMode === 'gravity'
+              ? '都朝向月球：近侧强，地心居中，背侧弱'
+              : '引潮作用：扣除地心共同加速度后的差值' }}</p>
+            <small>同质量比较 · 箭长差异已放大 · 不是水流</small>
+          </section>
 
           <div class="stage-status-badge">
             <span class="status-dot"></span>
@@ -153,53 +152,24 @@
             <span>{{ tideStatus.subtitle }}</span>
           </div>
 
-          <div class="scene-annotations" aria-hidden="true">
-            <span ref="nearTideLabelRef" class="scene-label high-label">近月侧 · 高潮</span>
-            <span ref="farTideLabelRef" class="scene-label high-label">背月侧 · 高潮</span>
+          <div class="scene-annotations" aria-label="潮汐成因标注">
+            <svg class="cause-leaders" aria-hidden="true">
+              <line ref="nearCauseLeaderRef" />
+              <line ref="farCauseLeaderRef" />
+            </svg>
+            <span ref="nearTideLabelRef" class="scene-label high-label tide-cause-label">
+              <strong>近月侧 · 高潮</strong>
+              <small>月球引力比地心处强<br />相对地心，向月球一侧隆起</small>
+            </span>
+            <span ref="farTideLabelRef" class="scene-label high-label tide-cause-label">
+              <strong>背月侧 · 高潮</strong>
+              <small>月球引力仍朝月球，但比地心处弱<br />相对地心，向背月一侧隆起</small>
+            </span>
             <span ref="lowTideLabelRef" class="scene-label low-label">低潮</span>
             <span ref="oppositeLowTideLabelRef" class="scene-label low-label">低潮</span>
             <span ref="observerLabelRef" class="scene-label observer-label">A</span>
             <span ref="moonLabelRef" class="scene-label moon-label">月球</span>
           </div>
-
-          <aside class="stage-legend" aria-label="潮汐图例">
-            <div class="legend-heading">
-              <h3><span aria-hidden="true">≈</span>潮汐图例</h3>
-              <span class="legend-model-badge">理想模型</span>
-            </div>
-            <div class="legend-tide-pair">
-              <div class="legend-tide-item">
-                <strong><i class="legend-swatch high-tide-swatch"></i>高潮</strong>
-                <span>近月侧、背月侧隆起</span>
-              </div>
-              <div class="legend-tide-item">
-                <strong><i class="legend-swatch low-tide-swatch"></i>低潮</strong>
-                <span>垂直地月连线处降低</span>
-              </div>
-            </div>
-            <div class="legend-reference-list">
-              <div class="legend-reference-row">
-                <i class="legend-line orbit-line-swatch"></i>
-                <strong>月球轨道</strong><span>轨道环与方位刻度</span>
-              </div>
-              <div class="legend-reference-row">
-                <i class="legend-line earth-moon-line-swatch"></i>
-                <strong>地月连线</strong><span>隆起的主轴方向</span>
-              </div>
-              <div class="legend-reference-row">
-                <i class="legend-line mean-sea-swatch"></i>
-                <strong>参考海面</strong><span>未发生形变的海面</span>
-              </div>
-              <div class="legend-reference-row">
-                <i class="legend-observer-swatch">A</i>
-                <strong>观察点 A</strong><span>跟随自转的固定地点</span>
-              </div>
-            </div>
-            <details class="legend-model-note">
-              <summary>教学模型说明<span>形变与距离均非真实比例</span></summary>
-              <p>地球示意假设全球被海洋覆盖、地轴垂直轨道面，未计太阳和海岸地形对潮汐的影响。岸边小岛用于观察水位升降；水层厚度与潮汐形变均已放大，地球和岛体保持固定形状。</p>
-            </details>
-          </aside>
 
         </div>
 
@@ -214,85 +184,94 @@
 
           <div class="timeline-main">
             <div class="timeline-copy">
-              <span>月球位置 · 拖动暂停</span>
+              <span>手动月球位置 · 非时间轴</span>
               <strong>{{ Math.round(moonAngleDeg) }}° · {{ moonQuadrantLabel }}</strong>
             </div>
 
-            <el-slider v-model="moonAngleDeg" aria-label="时间栏月球位置" :min="0" :max="360" :step="1" :show-tooltip="false"
+            <el-slider v-model="moonAngleDeg" aria-label="手动月球位置，拖动暂停" :min="0" :max="360" :step="1" :show-tooltip="false"
               @input="pauseForManualPosition" />
+            <p class="timeline-time-scale">{{ timeScaleLabel }}</p>
           </div>
 
           <div class="speed-options">
             <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
+              :class="{ active: playbackSpeed === item }" :aria-label="`演示倍率 ${item} 倍`"
+              :title="`演示倍率 ${item} 倍，时间加速 ${Math.round(SIMULATION_HOURS_PER_SECOND * 3600 * item)} 倍`"
+              @click="playbackSpeed = item">
               {{ item }}×
             </button>
           </div>
         </div>
       </section>
 
-      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="observerPanelCollapsed"
-        class="tidal-floating-card observer-floating-card" title="潮汐观察" subtitle="观察点 A · 三维小岛与岸滩" variant="track"
-        :initial-top="212" :initial-right="18" :bottom-inset="96" :min-width="360" :min-height="480"
-        :draggable="!observerPanelCollapsed" resizable>
-        <div class="observer-content">
-          <CoastalTideScene class="observer-coast" :height="localTide.height" :playing="isPlaying"
-            :speed="playbackSpeed" :active="panelsVisible && !observerPanelCollapsed" />
-          <div class="observer-details">
-            <div class="observer-heading">
-              <span><i class="observer-dot"></i>A 点潮位 · 与地球同步</span>
-              <strong>{{ localTide.stage === '落潮中' ? '退潮中' : localTide.stage }}</strong>
-            </div>
-            <div class="coast-stage-options" aria-label="查看潮汐阶段">
-              <button v-for="stage in coastStages" :key="stage.key" type="button"
-                :class="{ active: coastStageKey === stage.key }" :aria-pressed="coastStageKey === stage.key"
-                @click="setCoastStage(stage.phase)">{{ stage.label }}</button>
-              <button type="button" class="coast-play" :aria-label="isPlaying ? '暂停潮汐过程' : '播放潮汐过程'"
-                @click="togglePlay">{{ isPlaying ? '暂停' : '播放' }}</button>
-            </div>
-            <svg class="tide-chart" viewBox="0 0 480 106" role="img"
-              :aria-label="`观察点 A 的示意潮位：${localTide.stage}。一个相对周期内有两次高潮、两次低潮。`">
-              <line x1="14" y1="58" x2="466" y2="58" class="chart-reference" />
-              <text x="16" y="52" class="chart-reference-text">参考海面</text>
-              <path :d="tideChartPath" class="chart-curve" />
-              <line :x1="localTideChartPoint.x" y1="16" :x2="localTideChartPoint.x" y2="88" class="chart-cursor" />
-              <circle :cx="localTideChartPoint.x" :cy="localTideChartPoint.y" r="5" class="chart-point" />
-              <text x="127" y="14" class="chart-extreme">高潮</text>
-              <text x="353" y="14" class="chart-extreme">高潮</text>
-              <text x="14" y="100" class="chart-extreme">低潮</text>
-              <text x="240" y="100" class="chart-extreme">低潮</text>
-              <text x="466" y="100" class="chart-extreme">低潮</text>
-            </svg>
-            <div class="coast-reference-legend">
-              <span><i class="coast-reference high-reference"></i>高潮岸线</span>
-              <span><i class="coast-reference low-reference"></i>低潮岸线</span>
-              <span><i class="coast-reference current-reference"></i>当前岸线</span>
-            </div>
-            <p class="coast-process-copy">{{ coastProcessCopy }}</p>
-            <div class="observer-footer">
-              <span>{{ motionPeriodLabel }}</span>
-              <span>{{ isPlaying ? '播放中' : '已暂停' }}</span>
-            </div>
-            <p class="observer-note">虚线保留高低潮岸线作对照；水位升降为教学放大，细小波纹表示海浪。</p>
-          </div>
-        </div>
-      </FloatingFeatureCard>
+      <section v-show="observationVisible" id="tidal-observation-pane" class="observation-stage"
+        aria-label="潮汐观察" :style="{ flexBasis: `${100 - splitPercent}%` }">
+        <TideObservationPane v-if="observationMounted" :tide="localTide" :playing="isPlaying"
+          :speed="playbackSpeed" :active="observationVisible" :motion-period-label="motionPeriodLabel"
+          @select-stage="setCoastStage" @toggle-play="togglePlay" />
+      </section>
+
+      <div v-if="observationVisible" class="view-divider" role="separator" tabindex="0"
+        aria-label="调整地月场景与潮汐观察宽度" aria-orientation="vertical"
+        aria-controls="tidal-orbit-pane tidal-observation-pane" :aria-valuenow="Math.round(splitPercent)"
+        :aria-valuemin="splitMin" :aria-valuemax="100 - splitMin"
+        :aria-valuetext="`地月场景 ${Math.round(splitPercent)}%，潮汐观察 ${Math.round(100 - splitPercent)}%`"
+        :style="{ left: `${splitPercent}%` }" @pointerdown="startSplitResize" @pointermove="resizeSplit"
+        @pointerup="stopSplitResize" @pointercancel="stopSplitResize" @lostpointercapture="stopSplitResize"
+        @keydown="resizeSplitWithKeyboard" @dblclick="splitPercent = 50">
+        <span class="divider-grip" aria-hidden="true"><i></i><i></i></span>
+      </div>
 
       <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="dataPanelCollapsed"
-        class="tidal-floating-card data-floating-card" title="实时数据" subtitle="潮汐位置 · 当前对象 · 判定结果" variant="data"
+        class="tidal-floating-card data-floating-card" title="实时数据" subtitle="潮汐状态 · 运动周期" variant="data"
         :initial-top="148" :initial-right="18" :bottom-inset="96" :min-width="320" :min-height="220" draggable
         resizable>
         <div class="panel-scroll">
-          <div class="data-grid tide-data-grid">
-            <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="[
-              item.className,
-              { 'wide-data-card': item.wide },
-            ]">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.description }}</small>
-            </article>
+          <TideDataPanel :playing="isPlaying" :tide-stage="localTide.stage"
+            :linked-motion="earthRotationEnabled && moonOrbitEnabled" :period-ratio="periodRatio"
+            :angular-speed-ratio="angularSpeedRatio" :metrics="liveDataMetrics" :periods="periodDataMetrics" />
+        </div>
+      </FloatingFeatureCard>
+
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="legendPanelCollapsed"
+        class="tidal-floating-card legend-floating-card" title="潮汐图例" subtitle="高潮 · 低潮 · 参考图层" variant="data"
+        :initial-top="212" :initial-right="18" :bottom-inset="96" :min-width="320" :min-height="300" draggable resizable>
+        <div class="panel-scroll stage-legend" aria-label="潮汐图例说明">
+          <div class="legend-heading"><span class="legend-model-badge">理想模型</span></div>
+          <div class="legend-tide-pair">
+            <div class="legend-tide-item">
+              <strong><i class="legend-swatch high-tide-swatch"></i>高潮</strong>
+              <span>近月侧、背月侧隆起</span>
+            </div>
+            <div class="legend-tide-item">
+              <strong><i class="legend-swatch low-tide-swatch"></i>低潮</strong>
+              <span>垂直地月连线处降低</span>
+            </div>
           </div>
+          <div class="legend-reference-list">
+            <div class="legend-reference-row">
+              <i class="legend-line orbit-line-swatch"></i>
+              <strong>月球轨道</strong><span>轨道环与方位刻度</span>
+            </div>
+            <div class="legend-reference-row">
+              <i class="legend-line earth-moon-line-swatch"></i>
+              <strong>地月连线</strong><span>隆起的主轴方向</span>
+            </div>
+            <div class="legend-reference-row">
+              <i class="legend-line mean-sea-swatch"></i>
+              <strong>参考海面</strong><span>未发生形变的海面</span>
+            </div>
+            <div class="legend-reference-row">
+              <i class="legend-observer-swatch">A</i>
+              <strong>观察点 A</strong><span>跟随自转的固定地点</span>
+            </div>
+          </div>
+          <details class="legend-model-note">
+            <summary>教学模型说明<span>形变与距离均非真实比例</span></summary>
+            <p>地球示意假设全球被海洋覆盖、地轴垂直轨道面，未计太阳和海岸地形对潮汐的影响。岸边小岛用于观察水位升降；水层厚度与潮汐形变均已放大，地球和岛体保持固定形状。</p>
+            <p>采用地心参考系与平均周期的匀速圆轨道，不展示地球绕太阳公转、轨道偏心和摄动。地球自转、月球公转与同步自转共用同一时间倍率；关闭运动开关后属于分项演示。时间统一为时分秒，超过 {{ solarDayLabel }} 的时长仍累计小时。</p>
+            <p>月球也在拉动整个地球。比较同质量物体，近月侧受到的月球引力强于地心处，背月侧弱于地心处；扣除地心的共同加速度后，两侧的差值方向均指向外侧，因此形成两个隆起。背月侧并不是受到月球的排斥。金色箭头表示月球引力，青色箭头表示引潮作用；移动亮点只提示作用方向，不表示海水流向。</p>
+          </details>
         </div>
       </FloatingFeatureCard>
     </main>
@@ -315,8 +294,10 @@ import {
 } from '@element-plus/icons-vue'
 
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
-import CoastalTideScene from './CoastalTideScene.vue'
+import TideObservationPane from './TideObservationPane.vue'
+import TideDataPanel from './TideDataPanel.vue'
 import { SceneStroke, type StrokeStyle } from './scene-stroke'
+import { TidalForceField } from './tidal-forces'
 import { createEarthSurfaceMaterial, createEarthAtmosphereMaterial, type EarthUniforms } from './earth-material'
 
 import '@/styles/geo-page-template.css'
@@ -331,27 +312,20 @@ import {
   EARTH_DEGREES_PER_HOUR,
   EARTH_RADIUS,
   equilibriumHeight,
+  formatDurationHours,
   LUNAR_DAY_HOURS,
   MEAN_SEA_RADIUS,
   MOON_DEGREES_PER_HOUR,
   normalizeDegrees,
   observerTide,
   seaRadius,
+  SIDEREAL_DAY_HOURS,
+  SIDEREAL_MONTH_HOURS,
   SIMULATION_HOURS_PER_SECOND,
+  simulationHoursForElapsedSeconds,
 } from './tide-model'
 
-const IMAGE_BASE_URL =
-  'https://zdys.szjx.ai-study.net/geo-resources-folder/images/'
-
-// 图片地址统一使用 IMAGE_BASE_URL + 文件名，不拼接二级目录。
-const EARTH_TEXTURE_IMAGE = IMAGE_BASE_URL + 'Material.002_diffuse.jpg'
-const MOON_TEXTURE_IMAGE = IMAGE_BASE_URL + 'moon.jpg'
-
-/*
- * 参考“地球运动”页面的同源资源路径。
- * 如果部署环境已经把 /geo-resources-folder 映射到 OSS，
- * 会直接生成真实 WebGL 球体纹理；本地未映射时由 OSS DOM 球面层兜底。
- */
+// 与地球运动页面共用同源贴图路径和 TextureLoader 加载方式。
 const SAME_ORIGIN_TEXTURE_BASE =
   '/geo-resources-folder/images/'
 
@@ -365,22 +339,12 @@ const MOON_SAME_ORIGIN_TEXTURE =
 
 const threeContainerRef = ref<HTMLElement | null>(null)
 
-const earthTextureOverlayRef =
-  ref<HTMLElement | null>(null)
-
-const moonTextureOverlayRef =
-  ref<HTMLElement | null>(null)
-
-const earthDomTextureReady = ref(false)
-const moonDomTextureReady = ref(false)
-
-const earthWebglTextureReady = ref(false)
-const earthNightTextureReady = ref(false)
-const moonWebglTextureReady = ref(false)
 
 const moonOrbitEnabled = ref(true)
 const earthRotationEnabled = ref(true)
 const showTideLayer = ref(true)
+const showForceVisualization = ref(true)
+const forceMode = ref<'gravity' | 'tidal'>('tidal')
 const highlightDeformation = ref(true)
 const deformationStrength = ref(1.2)
 const showBarycenter = ref(false)
@@ -396,10 +360,21 @@ const selectedObject = ref<'earth' | 'moon' | 'tide' | 'barycenter'>('earth')
 const panelsVisible = ref(true)
 const controlPanelCollapsed = ref(true)
 const dataPanelCollapsed = ref(true)
-const observerPanelCollapsed = ref(true)
+const legendPanelCollapsed = ref(true)
+const observationVisible = ref(false)
+// Once opened, keep the coastal scene mounted so toggling preserves its camera.
+const observationMounted = ref(false)
+const splitStageRef = ref<HTMLElement | null>(null)
+const splitPercent = ref(50)
+const splitResizing = ref(false)
+const splitMin = 25
+let splitHandle: HTMLElement | null = null
+let splitPointerId: number | null = null
 
 const nearTideLabelRef = ref<HTMLElement | null>(null)
 const farTideLabelRef = ref<HTMLElement | null>(null)
+const nearCauseLeaderRef = ref<SVGLineElement | null>(null)
+const farCauseLeaderRef = ref<SVGLineElement | null>(null)
 const lowTideLabelRef = ref<HTMLElement | null>(null)
 const oppositeLowTideLabelRef = ref<HTMLElement | null>(null)
 const observerLabelRef = ref<HTMLElement | null>(null)
@@ -408,23 +383,21 @@ const moonLabelRef = ref<HTMLElement | null>(null)
 const localTide = computed(() => observerTide(
   earthRotationDeg.value, moonAngleDeg.value, earthRotationEnabled.value, moonOrbitEnabled.value,
 ))
-const coastStages = [
-  { key: 'low', label: '低潮', phase: 90 },
-  { key: 'rising', label: '涨潮', phase: 135 },
-  { key: 'high', label: '高潮', phase: 180 },
-  { key: 'falling', label: '退潮', phase: 225 },
-]
-const coastStageKey = computed(() => localTide.value.height > 0.995 ? 'high'
-  : localTide.value.height < -0.495 ? 'low'
-    : localTide.value.rate > 0 ? 'rising'
-      : localTide.value.rate < 0 ? 'falling' : '')
-const coastProcessCopy = computed(() => ({
-  low: '低潮：岸滩露出最多，低处石阶露出水面。',
-  rising: '涨潮：水面抬升，岸线向岛内推进，低处石阶逐渐被淹没。',
-  high: '高潮：岸滩露出最少，低处石阶被海水覆盖。',
-  falling: '退潮：水面下降，岸线向海退去，湿润岸滩和石阶逐渐露出。',
-  '': '位置固定：对比当前岸线与高、低潮参考岸线。',
-}[coastStageKey.value]))
+const earthPeriodLabel = formatDurationHours(SIDEREAL_DAY_HOURS)
+const moonPeriodLabel = formatDurationHours(SIDEREAL_MONTH_HOURS)
+const solarDayLabel = formatDurationHours(24)
+const lunarDayLabel = formatDurationHours(LUNAR_DAY_HOURS)
+const highTideIntervalLabel = formatDurationHours(LUNAR_DAY_HOURS / 2)
+const rotationsPerLunarOrbit = (SIDEREAL_MONTH_HOURS / SIDEREAL_DAY_HOURS).toFixed(2)
+// Same order for both: Earth spin, Moon orbit, Moon spin. Periods and angular
+// speeds are reciprocal, not the same ratio.
+const periodRatio = `1 : ${rotationsPerLunarOrbit} : ${rotationsPerLunarOrbit}`
+const angularSpeedRatio = `${rotationsPerLunarOrbit} : 1 : 1`
+const timeScaleLabel = computed(() =>
+  `现实 ${formatDurationHours(1 / 3600)} = 模拟 ${formatDurationHours(SIMULATION_HOURS_PER_SECOND * playbackSpeed.value)}`,
+)
+const motionModeLabel = computed(() => earthRotationEnabled.value && moonOrbitEnabled.value
+  ? '按真实周期比例联动' : '分项演示（不对应真实联动）')
 
 function setCoastStage(phase: number) {
   isPlaying.value = false
@@ -437,19 +410,8 @@ function setCoastStage(phase: number) {
   moonAngleDeg.value = next.moon
 }
 const motionPeriodLabel = computed(() => earthRotationEnabled.value && moonOrbitEnabled.value
-  ? '相邻高潮 ≈ 12 小时 25 分钟'
+  ? `模型相邻高潮 ≈ ${highTideIntervalLabel}`
   : '单独运动演示 · 不对应真实周期')
-const localTideChartPoint = computed(() => ({
-  x: 14 + localTide.value.cycleProgress * 452,
-  y: 58 - localTide.value.height * 36,
-}))
-const tideChartPath = Array.from({ length: 181 }, (_, index) => {
-  const phase = index / 180 * Math.PI * 2 - Math.PI / 2
-  const x = 14 + index / 180 * 452
-  const y = 58 - equilibriumHeight(Math.cos(phase)) * 36
-  return `${index ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)}`
-}).join(' ')
-
 const speedOptions = [0.25, 0.5, 1, 2]
 
 const viewOptions = [
@@ -484,7 +446,7 @@ const tideStatus = computed(() => {
   }
 })
 
-const dataCards = computed(() => {
+const liveDataMetrics = computed(() => {
   const objectInfo = selectedObjectInfo.value
   const primaryMetric = objectInfo.metrics[0]!
 
@@ -493,22 +455,16 @@ const dataCards = computed(() => {
       label: '月球位置角',
       value: `${Math.round(normalizedMoonAngle.value)}°`,
       description: moonQuadrantLabel.value,
-      className: 'cyan-card',
-      wide: false,
     },
     {
       label: '当前选中对象',
       value: `${objectInfo.symbol} ${objectInfo.name}`,
       description: objectInfo.description,
-      className: 'blue-card',
-      wide: false,
     },
     {
       label: primaryMetric.label,
       value: primaryMetric.value,
       description: `${objectInfo.name}的关键数据`,
-      className: 'purple-card',
-      wide: false,
     },
     {
       label: '形变显示倍率',
@@ -520,32 +476,32 @@ const dataCards = computed(() => {
       description: showTideLayer.value
         ? '潮汐隆起采用课堂放大示意'
         : '潮汐形变层当前未显示',
-      className: 'orange-card',
-      wide: false,
     },
     {
-      label: '模拟地月距离',
+      label: '平均地月距离',
       value: '约 38.44 万 km',
       description: '场景距离未按实际比例绘制',
-      className: 'blue-card',
-      wide: false,
-    },
-    {
-      label: '相邻高潮间隔',
-      value: earthRotationEnabled.value && moonOrbitEnabled.value ? '约 12 h 25 min' : '单独运动演示',
-      description: `正常联动下一个太阴日约 ${LUNAR_DAY_HOURS.toFixed(2)} 小时；实际海岸潮时因地而异`,
-      className: 'cyan-card',
-      wide: false,
-    },
-    {
-      label: '观察点 A',
-      value: localTide.value.stage,
-      description: '高潮、低潮表示水位高低；涨潮、落潮表示水位正在上升、下降。',
-      className: 'orange-card tide-status-data-card',
-      wide: true,
     },
   ]
 })
+
+const periodDataMetrics = computed(() => [
+  {
+    label: '地球恒星自转周期',
+    value: `约 ${earthPeriodLabel}`,
+    description: `太阳日为 ${solarDayLabel}；本模型采用相对恒星的自转周期`,
+  },
+  {
+    label: '月球公转／同步自转周期',
+    value: `约 ${moonPeriodLabel}`,
+    description: `公转与自转周期相同；每公转一周，地球约自转 ${rotationsPerLunarOrbit} 周`,
+  },
+  {
+    label: '相邻高潮间隔',
+    value: earthRotationEnabled.value && moonOrbitEnabled.value ? `约 ${highTideIntervalLabel}` : '单独运动演示',
+    description: `按模型平均周期计算，太阴日约 ${lunarDayLabel}；实际海岸潮时因地而异`,
+  },
+])
 
 const selectedObjectInfo = computed(() => {
   if (selectedObject.value === 'moon') {
@@ -556,7 +512,7 @@ const selectedObjectInfo = computed(() => {
       metrics: [
         { label: '平均半径', value: '约 1737 km' },
         { label: '平均距离', value: '约 38.44 万 km' },
-        { label: '公转周期', value: '约 27.3 天' },
+        { label: '公转／同步自转周期', value: `约 ${moonPeriodLabel}` },
       ],
     }
   }
@@ -593,7 +549,7 @@ const selectedObjectInfo = computed(() => {
     description: '地球自转使同一地点周期性通过两个高潮区和两个低潮区。',
     metrics: [
       { label: '平均半径', value: '约 6371 km' },
-      { label: '自转周期', value: '约 23 h 56 min' },
+      { label: '恒星自转周期', value: `约 ${earthPeriodLabel}` },
       { label: '本模型地轴', value: '垂直轨道面' },
     ],
   }
@@ -611,9 +567,7 @@ let camera: THREE.OrthographicCamera | null = null
 let renderer: THREE.WebGLRenderer | null = null
 let controls: OrbitControls | null = null
 let resizeObserver: ResizeObserver | null = null
-let resizeTimer: ReturnType<typeof setTimeout> | null = null
-let resizeFrame = 0
-let resizeSettleFrame = 0
+let sceneResizePending = false
 let sceneAnimationFrameId = 0
 let lastSceneWidth = 0
 let lastSceneHeight = 0
@@ -633,6 +587,7 @@ let observerMarker: THREE.Mesh | null = null
 let observerStem: SceneStroke | null = null
 let tideOutline: SceneStroke | null = null
 let meanSeaLine: SceneStroke | null = null
+let tidalForceField: TidalForceField | null = null
 let tideBaseDirections: Float32Array | null = null
 let lastTideStrength = -1
 let stars: THREE.Points | null = null
@@ -1006,463 +961,44 @@ function configureCelestialTexture(
   }
 
   texture.needsUpdate = true
-  return registerTexture(texture)
-}
-
-const celestialPreloadImages:
-  HTMLImageElement[] = []
-
-const celestialImageBitmaps:
-  ImageBitmap[] = []
-
-function syncCelestialSurfaceMode() {
-  const earthUsesDom =
-    earthDomTextureReady.value &&
-    !earthWebglTextureReady.value
-
-  const moonUsesDom =
-    moonDomTextureReady.value &&
-    !moonWebglTextureReady.value
-
-  earthUniforms.uOpacity.value =
-    earthUsesDom ? 0.20 : 1
-
-  moonUniforms.uOpacity.value =
-    moonUsesDom ? 0.18 : 1
-
-  if (earthTextureOverlayRef.value) {
-    earthTextureOverlayRef.value.style.display =
-      earthUsesDom ? 'block' : 'none'
-  }
-
-  if (moonTextureOverlayRef.value) {
-    moonTextureOverlayRef.value.style.display =
-      moonUsesDom ? 'block' : 'none'
-  }
-}
-
-function preloadDomCelestialTexture(
-  url: string,
-  readyState: typeof earthDomTextureReady,
-) {
-  const image = new Image()
-  image.decoding = 'async'
-
-  image.onload = () => {
-    readyState.value = true
-    syncCelestialSurfaceMode()
-    updateCelestialTextureOverlays()
-  }
-
-  image.onerror = () => {
-    readyState.value = false
-    syncCelestialSurfaceMode()
-  }
-
-  /*
-   * 不设置 crossOrigin。
-   * 图片只作为 DOM/CSS 背景显示，不会被读取进 Canvas 或 WebGL。
-   */
-  image.src = url
-  celestialPreloadImages.push(image)
-}
-
-async function loadSameOriginCelestialTexture(
-  url: string,
-  targetUniform:
-    | typeof earthUniforms.uMap
-    | typeof moonUniforms.uMap,
-  readyState: typeof earthWebglTextureReady,
-) {
-  try {
-    /*
-     * 先用 fetch 检查响应类型，避免 TextureLoader 对 404 HTML
-     * 产生额外的图片解码报错。
-     */
-    const response = await fetch(
-      url,
-      {
-        cache: 'force-cache',
-        credentials: 'same-origin',
-      },
-    )
-
-    const contentType =
-      response.headers.get(
-        'content-type',
-      ) || ''
-
-    if (
-      !response.ok ||
-      !contentType.startsWith('image/')
-    ) {
-      readyState.value = false
-      syncCelestialSurfaceMode()
-      return
-    }
-
-    const blob = await response.blob()
-    /*
-     * 昼夜地球贴图和月球贴图均为北极在上的经纬展开图。
-     * ImageBitmap 上传 WebGL 时不会自动执行 Texture.flipY，
-     * 必须在创建阶段翻转，否则球体会出现南北颠倒。
-     */
-    const bitmap =
-      await createImageBitmap(
-        blob,
-        {
-          imageOrientation: 'flipY',
-          premultiplyAlpha: 'none',
-        },
-      )
-
-    if (!renderer) {
-      bitmap.close()
-      return
-    }
-    celestialImageBitmaps.push(bitmap)
-
-    const texture =
-      new THREE.Texture(bitmap)
-
-    targetUniform.value =
-      configureCelestialTexture(
-        texture,
-      )
-
-    readyState.value = true
-    syncCelestialSurfaceMode()
-  } catch {
-    /*
-     * 同源镜像不可用时保持静默，
-     * 直接使用 OSS DOM 球面贴图，不输出 CORS 或纹理解码警告。
-     */
-    readyState.value = false
-    syncCelestialSurfaceMode()
-  }
+  return texture
 }
 
 function loadCelestialTextures() {
-  /*
-   * OSS 图片始终按用户指定的 IMAGE_BASE_URL + 文件名加载，
-   * 但仅作为浏览器可直接显示的 DOM 图片，不上传到 WebGL。
-   */
-  preloadDomCelestialTexture(
-    EARTH_TEXTURE_IMAGE,
-    earthDomTextureReady,
-  )
+  const activeRenderer = renderer
+  if (!activeRenderer) return
 
-  preloadDomCelestialTexture(
-    MOON_TEXTURE_IMAGE,
-    moonDomTextureReady,
-  )
+  const textureLoader = new THREE.TextureLoader()
 
-  /*
-   * 部署端具备同源映射时自动升级为真正的 WebGL UV 纹理。
-   * 本地开发端没有映射也不会影响 OSS DOM 贴图显示。
-   */
-  void loadSameOriginCelestialTexture(
-    EARTH_SAME_ORIGIN_TEXTURE,
-    earthUniforms.uMap,
-    earthWebglTextureReady,
-  )
+  const loadTexture = (
+    url: string,
+    targetUniform: THREE.IUniform<THREE.Texture>,
+  ) => {
+    // TextureLoader 使用普通图片和默认 flipY，与地球运动页面保持一致。
+    // 加载中的纹理也纳入清理，迟到的回调不能重新绑定已卸载的场景。
+    const texture = textureLoader.load(
+      url,
+      (loadedTexture) => {
+        if (renderer !== activeRenderer) {
+          loadedTexture.dispose()
+          return
+        }
 
-  void loadSameOriginCelestialTexture(
-    EARTH_NIGHT_TEXTURE,
-    earthUniforms.uNightMap,
-    earthNightTextureReady,
-  )
+        targetUniform.value = configureCelestialTexture(loadedTexture)
+      },
+      undefined,
+      (error) => {
+        if (renderer !== activeRenderer) return
 
-  void loadSameOriginCelestialTexture(
-    MOON_SAME_ORIGIN_TEXTURE,
-    moonUniforms.uMap,
-    moonWebglTextureReady,
-  )
-}
-
-const overlayWorldPosition =
-  new THREE.Vector3()
-
-const overlayCameraRight =
-  new THREE.Vector3()
-
-const overlayCenterNdc =
-  new THREE.Vector3()
-
-const overlayEdgeNdc =
-  new THREE.Vector3()
-
-const overlayViewDirection =
-  new THREE.Vector3()
-
-const overlayLocalDirection =
-  new THREE.Vector3()
-
-const overlayWorldQuaternion =
-  new THREE.Quaternion()
-
-let earthOverlayLongitude = 0
-let earthOverlayLongitudeInitialized = false
-
-let moonOverlayLongitude = 0
-let moonOverlayLongitudeInitialized = false
-
-function unwrapLongitude(
-  currentWrapped: number,
-  currentContinuous: number,
-  initialized: boolean,
-) {
-  if (!initialized) {
-    return currentWrapped
+        console.warn('[潮汐现象] 纹理加载失败，保留球面占位材质：', url, error)
+      },
+    )
+    registerTexture(texture)
   }
 
-  const previousWrapped =
-    THREE.MathUtils.euclideanModulo(
-      currentContinuous + 180,
-      360,
-    ) - 180
-
-  let delta =
-    currentWrapped -
-    previousWrapped
-
-  if (delta > 180) {
-    delta -= 360
-  } else if (delta < -180) {
-    delta += 360
-  }
-
-  return currentContinuous + delta
-}
-
-function getSphereWorldRadius(
-  mesh: THREE.Mesh,
-) {
-  const geometry =
-    mesh.geometry as
-    THREE.SphereGeometry
-
-  const baseRadius =
-    geometry.parameters.radius
-
-  const scale =
-    mesh.getWorldScale(
-      new THREE.Vector3(),
-    )
-
-  return (
-    baseRadius *
-    Math.max(
-      scale.x,
-      scale.y,
-      scale.z,
-    )
-  )
-}
-
-function hideCelestialOverlay(
-  element: HTMLElement | null,
-) {
-  if (element) {
-    element.style.display = 'none'
-  }
-}
-
-function positionCelestialTextureOverlay(
-  element: HTMLElement | null,
-  mesh: THREE.Mesh | null,
-  ready: boolean,
-  textureKind: 'earth' | 'moon',
-) {
-  if (
-    !element ||
-    !mesh ||
-    !ready ||
-    !mesh.visible ||
-    !camera ||
-    lastSceneWidth <= 0 ||
-    lastSceneHeight <= 0
-  ) {
-    hideCelestialOverlay(element)
-    return
-  }
-
-  mesh.updateWorldMatrix(
-    true,
-    false,
-  )
-
-  camera.updateMatrixWorld()
-
-  mesh.getWorldPosition(
-    overlayWorldPosition,
-  )
-
-  overlayCenterNdc
-    .copy(overlayWorldPosition)
-    .project(camera)
-
-  overlayCameraRight
-    .set(1, 0, 0)
-    .applyQuaternion(
-      camera.quaternion,
-    )
-    .multiplyScalar(
-      getSphereWorldRadius(mesh),
-    )
-
-  overlayEdgeNdc
-    .copy(overlayWorldPosition)
-    .add(overlayCameraRight)
-    .project(camera)
-
-  const radiusPixels =
-    Math.abs(
-      overlayEdgeNdc.x -
-      overlayCenterNdc.x,
-    ) *
-    lastSceneWidth *
-    0.5
-
-  const centerX =
-    (
-      overlayCenterNdc.x *
-      0.5 +
-      0.5
-    ) *
-    lastSceneWidth
-
-  const centerY =
-    (
-      -overlayCenterNdc.y *
-      0.5 +
-      0.5
-    ) *
-    lastSceneHeight
-
-  if (
-    !Number.isFinite(radiusPixels) ||
-    radiusPixels < 1 ||
-    centerX + radiusPixels < 0 ||
-    centerX - radiusPixels >
-    lastSceneWidth ||
-    centerY + radiusPixels < 0 ||
-    centerY - radiusPixels >
-    lastSceneHeight
-  ) {
-    hideCelestialOverlay(element)
-    return
-  }
-
-  mesh.getWorldQuaternion(
-    overlayWorldQuaternion,
-  )
-
-  overlayViewDirection
-    .copy(camera.position)
-    .sub(overlayWorldPosition)
-    .normalize()
-
-  overlayLocalDirection
-    .copy(overlayViewDirection)
-    .applyQuaternion(
-      overlayWorldQuaternion
-        .clone()
-        .invert(),
-    )
-    .normalize()
-
-  const wrappedLongitude =
-    THREE.MathUtils.radToDeg(
-      Math.atan2(
-        -overlayLocalDirection.z,
-        overlayLocalDirection.x,
-      ),
-    )
-
-  let continuousLongitude =
-    wrappedLongitude
-
-  if (textureKind === 'earth') {
-    continuousLongitude =
-      unwrapLongitude(
-        wrappedLongitude,
-        earthOverlayLongitude,
-        earthOverlayLongitudeInitialized,
-      )
-
-    earthOverlayLongitude =
-      continuousLongitude
-
-    earthOverlayLongitudeInitialized =
-      true
-  } else {
-    continuousLongitude =
-      unwrapLongitude(
-        wrappedLongitude,
-        moonOverlayLongitude,
-        moonOverlayLongitudeInitialized,
-      )
-
-    moonOverlayLongitude =
-      continuousLongitude
-
-    moonOverlayLongitudeInitialized =
-      true
-  }
-
-  const diameter =
-    radiusPixels * 2.015
-
-  const imageWidth =
-    diameter * 2
-
-  /*
-   * 经度展开图宽高约为 2:1。
-   * 将当前视线对应的经度放到圆形球体中央，
-   * repeat-x 保证跨越 180° 经线时连续，不发生闪切。
-   */
-  const sourceU =
-    continuousLongitude / 360 +
-    0.5
-
-  const backgroundLeft =
-    diameter * 0.5 -
-    sourceU * imageWidth
-
-  element.style.display = 'block'
-  element.style.width =
-    `${diameter}px`
-
-  element.style.height =
-    `${diameter}px`
-
-  element.style.transform =
-    `translate3d(${centerX - diameter / 2}px, ${centerY - diameter / 2}px, 0)`
-
-  element.style.backgroundSize =
-    `${imageWidth}px ${diameter}px`
-
-  element.style.backgroundPosition =
-    `${backgroundLeft}px 50%`
-}
-
-function updateCelestialTextureOverlays() {
-  positionCelestialTextureOverlay(
-    earthTextureOverlayRef.value,
-    earthMesh,
-    earthDomTextureReady.value &&
-    !earthWebglTextureReady.value,
-    'earth',
-  )
-
-  positionCelestialTextureOverlay(
-    moonTextureOverlayRef.value,
-    moonMesh,
-    moonDomTextureReady.value &&
-    !moonWebglTextureReady.value,
-    'moon',
-  )
+  loadTexture(EARTH_SAME_ORIGIN_TEXTURE, earthUniforms.uMap)
+  loadTexture(EARTH_NIGHT_TEXTURE, earthUniforms.uNightMap)
+  loadTexture(MOON_SAME_ORIGIN_TEXTURE, moonUniforms.uMap)
 }
 
 const virtualSunPosition =
@@ -1609,6 +1145,71 @@ function updateSeaGeometry(strength: number) {
   tideOutline.setPositions(outline)
 }
 
+function updateTideCauseLabels(width: number, height: number, radius: number) {
+  if (!camera || !nearTideLabelRef.value || !farTideLabelRef.value) return
+  const nearLabel = nearTideLabelRef.value
+  const farLabel = farTideLabelRef.value
+  const visible = showTideLayer.value || showForceVisualization.value
+  for (const element of [nearLabel, farLabel, nearCauseLeaderRef.value, farCauseLeaderRef.value]) {
+    if (element) element.style.display = visible ? 'block' : 'none'
+  }
+  if (!visible) return
+
+  const toScreen = (point: THREE.Vector3) => {
+    point.project(camera!)
+    return { x: (point.x + 1) * width / 2, y: (1 - point.y) * height / 2 }
+  }
+  const center = toScreen(tmpEarthPosition.clone())
+  const near = toScreen(tmpEarthPosition.clone().addScaledVector(tmpDirection, radius))
+  const far = toScreen(tmpEarthPosition.clone().addScaledVector(tmpDirection, -radius))
+  const cameraRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0)
+  const rim = toScreen(tmpEarthPosition.clone().addScaledVector(cameraRight, radius))
+  const screenRadius = Math.hypot(rim.x - center.x, rim.y - center.y)
+  const separation = Math.hypot(near.x - far.x, near.y - far.y)
+  // Looking along the Earth–Moon line projects both sides to nearly the same
+  // point. Separate their callouts instead of hiding either explanation.
+  const dx = separation > 20 ? (near.x - far.x) / separation : 1
+  const dy = separation > 20 ? (near.y - far.y) / separation : 0
+  const nearSize = { width: nearLabel.offsetWidth, height: nearLabel.offsetHeight }
+  const farSize = { width: farLabel.offsetWidth, height: farLabel.offsetHeight }
+  const top = showForceVisualization.value ? 164 : 94
+  const bottom = Math.max(top + Math.max(nearSize.height, farSize.height), height - 126)
+  const clampLabel = (point: { x: number; y: number }, size: typeof nearSize) => ({
+    x: THREE.MathUtils.clamp(point.x, size.width / 2 + 10, width - size.width / 2 - 10),
+    y: THREE.MathUtils.clamp(point.y, top + size.height / 2, bottom - size.height / 2),
+  })
+  const offset = screenRadius + Math.abs(dx) * Math.max(nearSize.width, farSize.width) / 2
+    + Math.abs(dy) * Math.max(nearSize.height, farSize.height) / 2 + 20
+  // Move callouts off the Earth–Moon line so neither covers the Moon or arrows.
+  const normalSign = dx > 0 ? -1 : 1
+  const normalX = -dy * normalSign
+  const normalY = dx * normalSign
+  const normalOffset = Math.abs(normalX) * Math.max(nearSize.width, farSize.width) / 2
+    + Math.abs(normalY) * Math.max(nearSize.height, farSize.height) / 2 + 36
+  let nearPosition = clampLabel({ x: center.x + dx * offset + normalX * normalOffset,
+    y: center.y + dy * offset + normalY * normalOffset }, nearSize)
+  let farPosition = clampLabel({ x: center.x - dx * offset + normalX * normalOffset,
+    y: center.y - dy * offset + normalY * normalOffset }, farSize)
+  const overlaps = Math.abs(nearPosition.x - farPosition.x) < (nearSize.width + farSize.width) / 2 + 12
+    && Math.abs(nearPosition.y - farPosition.y) < (nearSize.height + farSize.height) / 2 + 12
+  if (overlaps) {
+    // Narrow split panes have insufficient horizontal space: stack callouts.
+    nearPosition = clampLabel({ x: width / 2, y: top + nearSize.height / 2 }, nearSize)
+    farPosition = clampLabel({ x: width / 2, y: bottom - farSize.height / 2 }, farSize)
+  }
+  const place = (label: HTMLElement, leader: SVGLineElement | null, position: typeof near, anchor: typeof near) => {
+    label.style.left = `${position.x}px`
+    label.style.top = `${position.y}px`
+    if (!leader) return
+    leader.setAttribute('x1', String(anchor.x))
+    leader.setAttribute('y1', String(anchor.y))
+    leader.setAttribute('x2', String(position.x))
+    leader.setAttribute('y2', String(position.y))
+  }
+  place(nearLabel, nearCauseLeaderRef.value, nearPosition, near)
+  place(farLabel, farCauseLeaderRef.value, farPosition, far)
+}
+
 function updateSceneAnnotations() {
   if (!camera || !threeContainerRef.value) return
   const width = threeContainerRef.value.clientWidth
@@ -1623,8 +1224,7 @@ function updateSceneAnnotations() {
   const direction = tmpDirection.clone()
   const strength = highlightDeformation.value ? deformationStrength.value : 0.45
   const fromAbove = Math.abs(camera.getWorldDirection(new THREE.Vector3()).y) > 0.8
-  project(nearTideLabelRef.value, direction.clone().multiplyScalar(seaRadius(1, strength) + 0.9), showTideLayer.value && fromAbove)
-  project(farTideLabelRef.value, direction.clone().multiplyScalar(-seaRadius(1, strength) - 0.9), showTideLayer.value && fromAbove)
+  updateTideCauseLabels(width, height, showTideLayer.value ? seaRadius(1, strength) : EARTH_RADIUS)
   project(lowTideLabelRef.value, new THREE.Vector3(-direction.z, 0, direction.x).multiplyScalar(seaRadius(0, strength) + 0.55), showTideLayer.value && fromAbove)
   project(oppositeLowTideLabelRef.value, new THREE.Vector3(direction.z, 0, -direction.x).multiplyScalar(seaRadius(0, strength) + 0.55), showTideLayer.value && fromAbove)
   if (observerMarker) {
@@ -1770,8 +1370,10 @@ function createCelestialScene() {
   )
   scene.add(barycenterLine)
 
+  tidalForceField = new TidalForceField()
+  scene.add(tidalForceField)
+
   loadCelestialTextures()
-  syncCelestialSurfaceMode()
 
   updateScenePositions()
   updateLayerVisibility()
@@ -1839,6 +1441,7 @@ function updateScenePositions() {
 }
 
 function updateLayerVisibility() {
+  if (tidalForceField) tidalForceField.visible = showForceVisualization.value
   if (tideMesh) {
     tideMesh.visible = showTideLayer.value
   }
@@ -1930,6 +1533,54 @@ function handleCanvasPointerUp(event: PointerEvent) {
   }
 }
 
+function clampSplit(value: number) {
+  return Math.max(splitMin, Math.min(100 - splitMin, value))
+}
+
+function startSplitResize(event: PointerEvent) {
+  if (event.button !== 0) return
+  event.preventDefault()
+  splitHandle = event.currentTarget as HTMLElement
+  splitPointerId = event.pointerId
+  splitHandle.setPointerCapture(event.pointerId)
+  splitHandle.focus({ preventScroll: true })
+  splitResizing.value = true
+}
+
+function resizeSplit(event: PointerEvent) {
+  if (!splitResizing.value || event.pointerId !== splitPointerId || !splitStageRef.value) return
+  const bounds = splitStageRef.value.getBoundingClientRect()
+  if (bounds.width > 0) {
+    splitPercent.value = clampSplit((event.clientX - bounds.left) / bounds.width * 100)
+  }
+}
+
+function stopSplitResize() {
+  const handle = splitHandle
+  const pointer = splitPointerId
+  splitHandle = null
+  splitPointerId = null
+  splitResizing.value = false
+  if (handle && pointer !== null && handle.hasPointerCapture(pointer)) {
+    handle.releasePointerCapture(pointer)
+  }
+}
+
+function resizeSplitWithKeyboard(event: KeyboardEvent) {
+  const step = event.shiftKey ? 10 : 2
+  const values: Record<string, number> = {
+    ArrowLeft: splitPercent.value - step,
+    ArrowRight: splitPercent.value + step,
+    Home: splitMin,
+    End: 100 - splitMin,
+    Enter: 50,
+  }
+  const value = values[event.key]
+  if (value === undefined) return
+  event.preventDefault()
+  splitPercent.value = clampSplit(value)
+}
+
 function resizeSceneNow() {
   const container = threeContainerRef.value
   if (!container || !renderer || !camera) return
@@ -1945,36 +1596,19 @@ function resizeSceneNow() {
   lastSceneHeight = height
 
   const aspect = width / height
-  camera.left = -ORTHOGRAPHIC_SIZE * aspect
-  camera.right = ORTHOGRAPHIC_SIZE * aspect
-  camera.top = ORTHOGRAPHIC_SIZE
-  camera.bottom = -ORTHOGRAPHIC_SIZE
+  // Fit the orbit to the shorter edge, including narrow tablet split panes.
+  const halfHeight = ORTHOGRAPHIC_SIZE / Math.min(aspect, 1)
+  camera.left = -halfHeight * aspect
+  camera.right = halfHeight * aspect
+  camera.top = halfHeight
+  camera.bottom = -halfHeight
   camera.updateProjectionMatrix()
 
   renderer.setSize(width, height, false)
-
-  updateCelestialTextureOverlays()
-
-  if (scene) {
-    renderer.render(scene, camera)
-  }
 }
 
-function scheduleSceneResize(delay = 110) {
-  if (resizeTimer) {
-    clearTimeout(resizeTimer)
-  }
-  cancelAnimationFrame(resizeFrame)
-  cancelAnimationFrame(resizeSettleFrame)
-
-  resizeTimer = setTimeout(() => {
-    resizeTimer = null
-    resizeFrame = requestAnimationFrame(() => {
-      resizeSettleFrame = requestAnimationFrame(() => {
-        resizeSceneNow()
-      })
-    })
-  }, delay)
+function scheduleSceneResize() {
+  sceneResizePending = true
 }
 
 function animateScene(
@@ -1985,26 +1619,22 @@ function animateScene(
       animateScene,
     )
 
-  const delta =
-    Math.min(
-      Math.max(
-        0,
-        (
-          frameTime -
-          previousSceneFrameTime
-        ) /
-        1000,
-      ),
-      0.05,
-    )
+  // Elapsed time keeps the stated speed on slow devices, not just the ratio.
+  const delta = Math.max(0, (frameTime - previousSceneFrameTime) / 1000)
 
   previousSceneFrameTime =
     frameTime
 
-  if (isPlaying.value) {
+  // Resize immediately before drawing, without clearing the canvas between frames.
+  if (sceneResizePending) {
+    sceneResizePending = false
+    resizeSceneNow()
+  }
+
+  if (isPlaying.value && !document.hidden) {
     const next = advanceAngles(
       earthRotationDeg.value, moonAngleDeg.value,
-      delta * SIMULATION_HOURS_PER_SECOND * playbackSpeed.value,
+      simulationHoursForElapsedSeconds(delta, playbackSpeed.value),
       earthRotationEnabled.value, moonOrbitEnabled.value,
     )
     earthRotationDeg.value = next.earth
@@ -2012,8 +1642,13 @@ function animateScene(
   }
 
   updateScenePositions()
+  if (tidalForceField) {
+    tidalForceField.visible = showForceVisualization.value
+    const strength = highlightDeformation.value ? deformationStrength.value : 0.45
+    tidalForceField.update(tmpDirection, showTideLayer.value ? seaRadius(1, strength) : EARTH_RADIUS,
+      forceMode.value, delta, isPlaying.value && !document.hidden)
+  }
   controls?.update()
-  updateCelestialTextureOverlays()
   updateSceneAnnotations()
 
   if (renderer && scene && camera) {
@@ -2089,7 +1724,7 @@ function initScene() {
   renderer.domElement.addEventListener('pointerup', handleCanvasPointerUp)
 
   resizeObserver = new ResizeObserver(() => {
-    scheduleSceneResize(110)
+    scheduleSceneResize()
   })
   resizeObserver.observe(container)
 
@@ -2109,7 +1744,13 @@ function pauseForManualPosition() {
   isPlaying.value = false
 }
 
+function resetSceneFrameTime() {
+  // Hidden tabs suspend the demonstration; returning must not jump forward.
+  previousSceneFrameTime = performance.now()
+}
+
 function togglePlay() {
+  resetSceneFrameTime()
   isPlaying.value = !isPlaying.value
 }
 
@@ -2117,6 +1758,8 @@ function resetControls() {
   moonOrbitEnabled.value = true
   earthRotationEnabled.value = true
   showTideLayer.value = true
+  showForceVisualization.value = true
+  forceMode.value = 'tidal'
   highlightDeformation.value = true
   deformationStrength.value = 1.2
   showBarycenter.value = false
@@ -2130,18 +1773,13 @@ function resetControls() {
   updateLayerVisibility()
   updateScenePositions()
   setView('top')
-  scheduleSceneResize(90)
+  scheduleSceneResize()
 }
 
 function disposeScene() {
   cancelAnimationFrame(sceneAnimationFrameId)
 
-  if (resizeTimer) {
-    clearTimeout(resizeTimer)
-    resizeTimer = null
-  }
-  cancelAnimationFrame(resizeFrame)
-  cancelAnimationFrame(resizeSettleFrame)
+  sceneResizePending = false
 
   resizeObserver?.disconnect()
   resizeObserver = null
@@ -2152,6 +1790,9 @@ function disposeScene() {
 
   controls?.dispose()
   controls = null
+
+  tidalForceField?.dispose()
+  tidalForceField = null
 
   registeredTextures.forEach((texture) => texture.dispose())
   sceneStrokes.forEach((stroke) => stroke.dispose())
@@ -2192,39 +1833,6 @@ function disposeScene() {
   moonMaterial = null
   tideMaterial = null
 
-  celestialPreloadImages.forEach(
-    (image) => {
-      image.onload = null
-      image.onerror = null
-    },
-  )
-
-  celestialPreloadImages.length = 0
-
-  celestialImageBitmaps.forEach(
-    (bitmap) => bitmap.close(),
-  )
-
-  celestialImageBitmaps.length = 0
-
-  earthDomTextureReady.value = false
-  moonDomTextureReady.value = false
-  earthWebglTextureReady.value = false
-  earthNightTextureReady.value = false
-  moonWebglTextureReady.value = false
-
-  hideCelestialOverlay(
-    earthTextureOverlayRef.value,
-  )
-
-  hideCelestialOverlay(
-    moonTextureOverlayRef.value,
-  )
-
-  earthOverlayLongitude = 0
-  moonOverlayLongitude = 0
-  earthOverlayLongitudeInitialized = false
-  moonOverlayLongitudeInitialized = false
 }
 
 watch(
@@ -2252,17 +1860,156 @@ watch(
   },
 )
 
+watch(observationVisible, (visible) => {
+  if (visible) observationMounted.value = true
+  else stopSplitResize()
+  nextTick(scheduleSceneResize)
+})
+
 onMounted(async () => {
   await nextTick()
+  document.addEventListener('visibilitychange', resetSceneFrameTime)
   initScene()
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', resetSceneFrameTime)
+  stopSplitResize()
   disposeScene()
 })
 </script>
 
 <style scoped>
+.tidal-phenomenon-container .toolbar-actions {
+  max-width: none;
+}
+
+.motion-scale-note,
+.timeline-time-scale {
+  margin: 8px 0 0;
+  color: #a4c4d4;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.timeline-time-scale {
+  margin-top: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-copy {
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.observation-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.observation-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2ec4b6;
+}
+
+.observation-toggle:focus-within {
+  outline: 2px solid #65d6dc;
+  outline-offset: 3px;
+}
+
+.tidal-phenomenon-container .tidal-workspace {
+  display: flex;
+}
+
+.tidal-workspace > .center-stage,
+.observation-stage {
+  position: relative;
+  flex-grow: 0;
+  flex-shrink: 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+.tidal-workspace > .center-stage {
+  width: auto;
+}
+
+.observation-stage {
+  background: #071b2a;
+}
+
+.view-divider {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.view-divider::before {
+  position: absolute;
+  content: '';
+  top: 0;
+  bottom: 0;
+  left: 11px;
+  width: 2px;
+  background: rgba(101, 214, 220, 0.4);
+}
+
+.divider-grip {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 24px;
+  height: 54px;
+  transform: translate(-50%, -50%);
+  border: 1px solid #427d8a;
+  border-radius: 8px;
+  background: #102f40;
+  box-shadow: 0 3px 16px #0006;
+}
+
+.divider-grip i {
+  width: 2px;
+  height: 20px;
+  border-radius: 2px;
+  background: #95cbd6;
+}
+
+.view-divider:focus-visible {
+  outline: none;
+}
+
+.view-divider:hover .divider-grip,
+.view-divider:focus-visible .divider-grip,
+.is-resizing .divider-grip {
+  border-color: #65d6dc;
+  outline: 2px solid #65d6dc;
+  outline-offset: 2px;
+}
+
+.tidal-workspace.is-resizing,
+.tidal-workspace.is-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
 .tide-stage-content {
   position: relative;
   width: 100%;
@@ -2277,12 +2024,91 @@ onBeforeUnmount(() => {
   background-size: cover, cover;
 }
 
+.force-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 26;
+  width: min(290px, calc(100% - 32px));
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid #2c4b5d;
+  border-radius: 10px;
+  background: rgba(5, 22, 34, 0.94);
+  color: #c3d9e4;
+}
+
+.force-mode-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.force-mode-options button {
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #0c2737;
+  color: #a9c3d1;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.force-mode-options button[aria-pressed='true'] {
+  border-color: #68d8ce;
+  background: #173e47;
+  color: #c5fff7;
+}
+
+.force-mode-options button:focus-visible {
+  outline: 2px solid #f6d58b;
+  outline-offset: 2px;
+}
+
+.force-toolbar p {
+  margin: 7px 0 3px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.force-toolbar p i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.force-copy-gravity { color: #f6d58b; }
+.force-copy-tidal { color: #6ee7db; }
+
+.force-toolbar small {
+  color: #93b0c1;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.show-forces .stage-status-badge {
+  top: 120px;
+}
+
 .tidal-floating-card.control-floating-card {
   height: min(58vh, 620px);
 }
 
 .tidal-floating-card.data-floating-card {
-  height: min(42vh, 440px);
+  height: min(62vh, 620px);
+}
+
+.tidal-floating-card.data-floating-card:not(.collapsed) {
+  width: min(380px, calc(100vw - 36px));
+}
+
+.tidal-floating-card.legend-floating-card {
+  height: min(470px, calc(100vh - 170px));
 }
 
 .tidal-floating-card.collapsed {
@@ -2294,83 +2120,11 @@ onBeforeUnmount(() => {
   padding: 12px 12px 6px;
 }
 
-.celestial-texture-layer {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
+.tidal-floating-card.data-floating-card .panel-scroll {
+  padding: 0 0 20px;
+  background: #071924;
 }
 
-.celestial-texture-sphere {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: none;
-  overflow: hidden;
-  pointer-events: none;
-  background-repeat: repeat-x;
-  background-position-y: 50%;
-  border-radius: 50%;
-  transform-origin: 0 0;
-  will-change:
-    width,
-    height,
-    transform,
-    background-position;
-}
-
-.celestial-texture-sphere::before,
-.celestial-texture-sphere::after {
-  position: absolute;
-  content: '';
-  inset: -1px;
-  pointer-events: none;
-  border-radius: 50%;
-}
-
-.celestial-texture-sphere::before {
-  z-index: 1;
-  background:
-    radial-gradient(circle at 29% 24%,
-      rgba(255, 255, 255, 0.22) 0%,
-      rgba(255, 255, 255, 0.08) 22%,
-      rgba(255, 255, 255, 0) 43%,
-      rgba(0, 0, 0, 0.12) 61%,
-      rgba(0, 0, 0, 0.48) 82%,
-      rgba(0, 0, 0, 0.88) 100%);
-}
-
-.celestial-texture-sphere::after {
-  z-index: 2;
-  border:
-    1px solid rgba(210, 236, 255, 0.18);
-  box-shadow:
-    inset -14px -8px 25px rgba(0, 0, 0, 0.28),
-    inset 8px 6px 14px rgba(255, 255, 255, 0.05),
-    0 0 10px rgba(70, 175, 255, 0.12);
-}
-
-.earth-texture-sphere {
-  filter:
-    saturate(1.08) contrast(1.05);
-}
-
-.moon-texture-sphere {
-  filter:
-    grayscale(0.03) contrast(1.11) brightness(0.96);
-}
-
-.moon-texture-sphere::before {
-  background:
-    radial-gradient(circle at 30% 25%,
-      rgba(255, 255, 255, 0.16) 0%,
-      rgba(255, 255, 255, 0.05) 28%,
-      rgba(255, 255, 255, 0) 46%,
-      rgba(0, 0, 0, 0.16) 65%,
-      rgba(0, 0, 0, 0.52) 84%,
-      rgba(0, 0, 0, 0.9) 100%);
-}
 
 .tide-three-host {
   position: absolute;
@@ -2386,14 +2140,6 @@ onBeforeUnmount(() => {
   height: 100% !important;
   background:
     transparent !important;
-}
-
-.position-scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 4px;
-  color: var(--text-tertiary);
-  font-size: clamp(9px, 0.68vw, 11px);
 }
 
 .view-option-grid {
@@ -2440,19 +2186,8 @@ onBeforeUnmount(() => {
 }
 
 .stage-legend {
-  position: absolute;
-  bottom: clamp(124px, 15vh, 176px);
-  left: clamp(16px, 1.6vw, 26px);
-  z-index: 6;
-  width: min(326px, calc(100vw - 32px));
-  padding: 15px;
   color: #dceef5;
   font-size: 11px;
-  background: linear-gradient(145deg, rgba(8, 29, 44, 0.97), rgba(4, 17, 30, 0.94));
-  border: 1px solid rgba(99, 173, 196, 0.3);
-  border-radius: 14px;
-  box-shadow: 0 12px 30px #00000032;
-  pointer-events: auto;
 }
 
 .legend-heading {
@@ -2461,23 +2196,6 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
-}
-
-.legend-heading h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  color: #e3f7fc;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.legend-heading h3>span {
-  color: #61d8cd;
-  font-size: 24px;
-  line-height: 1;
-  font-weight: 400;
 }
 
 .legend-model-badge {
@@ -2638,6 +2356,21 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
+.cause-leaders {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.cause-leaders line {
+  stroke: #9fb8c6;
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  opacity: 0.6;
+}
+
 .scene-label {
   position: absolute;
   display: none;
@@ -2654,6 +2387,31 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -150%);
 }
 
+.tide-cause-label {
+  max-width: 194px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 173, 158, 0.3);
+  border-radius: 9px;
+  background: rgba(5, 20, 33, 0.94);
+  white-space: normal;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.tide-cause-label strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tide-cause-label small {
+  display: block;
+  color: #c3d7e1;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 .low-label {
   color: #69e8d7;
 }
@@ -2666,217 +2424,6 @@ onBeforeUnmount(() => {
 
 .moon-label {
   color: #d5e2f2;
-}
-
-.observer-floating-card.collapsed {
-  top: 212px !important;
-  right: 18px;
-  left: auto !important;
-}
-
-.observer-floating-card:not(.collapsed) {
-  width: min(480px, 42vw);
-  height: min(730px, calc(100vh - 182px));
-}
-
-.observer-floating-card :deep(.feature-card-content) {
-  overflow: auto;
-  scrollbar-gutter: stable;
-  padding-bottom: 24px;
-}
-
-.observer-floating-card.resizing,
-.observer-floating-card.resizing .observer-content,
-.observer-floating-card.resizing .observer-coast {
-  transition: none !important;
-}
-
-.observer-content {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 425px;
-}
-
-.observer-coast {
-  flex: 1 1 auto;
-  min-height: 210px;
-}
-
-.observer-details {
-  flex: 0 0 auto;
-  padding: 9px 12px 8px;
-  background: rgba(3, 18, 31, 0.97);
-}
-
-.coast-stage-options {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 5px;
-  margin: 8px 0 2px;
-}
-
-.coast-stage-options button {
-  padding: 5px 3px;
-  border: 1px solid #375267;
-  border-radius: 6px;
-  background: #122b3c;
-  color: #bcd7e3;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.coast-stage-options button.active {
-  border-color: #59cfc4;
-  background: #174c52;
-  color: #d6fff8;
-}
-
-.coast-stage-options .coast-play {
-  color: #ffe18a;
-  border-color: #746738;
-}
-
-.coast-stage-options button:focus-visible {
-  outline: 2px solid #ffe18a;
-  outline-offset: 2px;
-}
-
-.coast-reference-legend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 10px;
-  color: #c0d3df;
-}
-
-.coast-reference {
-  display: inline-block;
-  width: 15px;
-  margin-right: 4px;
-  vertical-align: middle;
-  border-top: 2px dashed;
-}
-
-.high-reference {
-  border-color: #ffac7f;
-}
-
-.low-reference {
-  border-color: #69dfff;
-}
-
-.current-reference {
-  border-color: #f1fff4;
-  border-top-style: solid;
-}
-
-.coast-process-copy {
-  margin: 6px 0;
-  color: #d8e9ef;
-  font-size: 11px;
-  line-height: 1.5;
-  min-height: 17px;
-}
-
-.observer-heading,
-.observer-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.observer-heading strong {
-  color: #ffe080;
-  white-space: nowrap;
-}
-
-.observer-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: #ffdc55;
-}
-
-.observer-note {
-  margin: 5px 0 0;
-  font-size: 11px;
-  line-height: 1.6;
-  color: #a6bfce;
-}
-
-.observer-footer {
-  color: #c9dbe7;
-  font-size: 11px;
-}
-
-.observer-note {
-  color: #90abba;
-  font-size: 10px;
-}
-
-.tide-chart {
-  display: block;
-  width: 100%;
-  height: 94px;
-  margin: 5px 0;
-  overflow: visible;
-}
-
-.chart-reference {
-  stroke: #899bad;
-  stroke-width: 1;
-  stroke-dasharray: 4 4;
-}
-
-.chart-reference-text {
-  fill: #98afc0;
-  font-size: 12px;
-}
-
-.chart-curve {
-  fill: none;
-  stroke: #65d6dc;
-  stroke-width: 2.5;
-}
-
-.chart-cursor {
-  stroke: #e9c75e;
-  stroke-opacity: 0.35;
-  stroke-dasharray: 3 3;
-}
-
-.chart-point {
-  fill: #ffdc55;
-  stroke: #132433;
-  stroke-width: 2;
-}
-
-.chart-extreme {
-  fill: #b9cbd9;
-  font-size: 12px;
-  text-anchor: middle;
-}
-
-.wide-data-card {
-  grid-column: 1 / -1;
-}
-
-.tide-data-grid .data-card strong {
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-}
-
-.tide-status-data-card strong {
-  font-size: clamp(17px, 1.24vw, 23px);
-  line-height: 1.25;
 }
 
 .tidal-phenomenon-container .workspace.panel-resizing,
@@ -2894,7 +2441,7 @@ onBeforeUnmount(() => {
   }
 
   .tidal-floating-card.data-floating-card {
-    height: min(40vh, 360px);
+    height: min(62vh, 560px);
   }
 
   .stage-status-badge {
@@ -2905,22 +2452,9 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  .observer-floating-card:not(.collapsed) {
-    width: min(410px, calc(100vw - 36px));
-  }
 }
 
 @media (max-width: 700px) {
-  .stage-legend {
-    bottom: 116px;
-    width: min(306px, calc(100vw - 32px));
-    padding: 12px;
-  }
-
-  .observer-floating-card:not(.collapsed) {
-    width: calc(100vw - 36px);
-  }
-
   .scene-label {
     font-size: 10px;
     padding: 3px 5px;
@@ -2934,12 +2468,67 @@ onBeforeUnmount(() => {
 }
 
 @media (max-height: 650px) and (min-width: 701px) {
-  .stage-legend {
-    bottom: 110px;
+  .stage-status-badge {
+    top: 72px;
+  }
+}
+
+@container (max-width: 600px) {
+  .timeline-dock {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .speed-options {
+    grid-column: 1 / -1;
+    justify-content: center;
   }
 
   .stage-status-badge {
-    top: 72px;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100% - 24px);
+  }
+
+  .stage-status-badge > span:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .tidal-phenomenon-container .brand-area {
+    max-width: 160px;
+  }
+
+  .tidal-phenomenon-container .page-title {
+    position: static;
+    transform: none;
+    max-width: none;
+    margin-right: auto;
+    font-size: 17px;
+    flex-shrink: 0;
+  }
+
+  .tidal-phenomenon-container .toolbar-btn {
+    min-width: 0;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 620px) {
+  .tidal-phenomenon-container .brand-area {
+    display: none;
+  }
+
+  .tidal-phenomenon-container .page-title {
+    font-size: 15px;
+  }
+
+  .tidal-phenomenon-container .top-toolbar {
+    padding: 0 8px;
+    gap: 8px;
   }
 }
 </style>

@@ -79,7 +79,6 @@
         <button type="button" class="theme-btn" :aria-label="`同步${station.name}的观测视角`"
           title="左右场景同步观测点" @click="emit('syncView')">同步观测视角</button>
       </div>
-      <p class="station-footnote">{{ observation.aboveHorizon ? '实际可见性还受日光与天气影响。' : '调整地点或时刻，等待月亮升起。' }}</p>
     </div>
   </FloatingFeatureCard>
 </template>
@@ -210,7 +209,6 @@ function compassName(value: number) { return ['北', '东北', '东', '东南', 
 .station-actions { display: flex; flex-direction: column; gap: 5px; margin-top: 15px; }
 .station-actions button { width: 100%; padding: 6px 8px; font-size: 11px; line-height: 1.4; white-space: nowrap; }
 .station-actions button:disabled { cursor: default; opacity: .46; }
-.station-footnote { margin: 11px 0 0; color: var(--text-muted, #7894a8); text-align: center; font-size: 10px; line-height: 1.6; }
 .observation-station :deep(.feature-resize-handle) { width: 33px; height: 33px; bottom: 6px; border: 1px solid var(--station-color); border-radius: 8px; background: #142b3e; box-shadow: 0 2px 12px #0007; opacity: 1; touch-action: none; }
 .observation-station :deep(.feature-resize-handle::before), .observation-station :deep(.feature-resize-handle::after), .observation-station :deep(.feature-resize-handle i) { border-color: var(--station-color); opacity: 1; }
 .observation-station :deep(.feature-resize-handle:hover) { background: #204059; }

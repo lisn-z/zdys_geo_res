@@ -8,6 +8,14 @@ export function createMapScale(map: L.Map): { dispose(): void } {
   container.classList.add('lesson-scale-control')
   container.setAttribute('role', 'img')
   container.title = '局部比例尺，仅适用于地图中心附近，与测距点无关；不同纬度的投影比例不同，不能直接量整条跨区域连线。'
+  // Keep the metric line first among scale lines. Leaflet's :not(:first-child)
+  // rule is for the second (imperial) ruler, not for a ruler after our captions.
+  // Move the original nodes so Leaflet retains its width/label update references.
+  const bars = L.DomUtil.create('div', 'lesson-scale-bars')
+  Array.from(container.children).forEach(child => {
+    if (child.classList.contains('leaflet-control-scale-line')) bars.appendChild(child)
+  })
+  container.appendChild(bars)
   const heading = L.DomUtil.create('div', 'lesson-scale-scope')
   heading.textContent = '局部比例尺'
   const limit = L.DomUtil.create('div', 'lesson-scale-limit')

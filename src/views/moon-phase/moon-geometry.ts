@@ -87,6 +87,16 @@ const normalize = (v: Vec3): Vec3 => {
   const magnitude = length(v)
   return { x: v.x / magnitude, y: v.y / magnitude, z: v.z / magnitude }
 }
+
+/** Topocentric Moon direction; the eye position is expressed in Earth radii. */
+export function getMoonDirection(phase: number, eye: Vec3): Vec3 {
+  const angle = wrap(phase, 360) * DEG
+  return normalize({
+    x: MOON_DISTANCE * Math.cos(angle) - eye.x,
+    y: -eye.y,
+    z: -MOON_DISTANCE * Math.sin(angle) - eye.z,
+  })
+}
 const combine = (a: Vec3, scaleA: number, b: Vec3, scaleB: number): Vec3 => ({
   x: a.x * scaleA + b.x * scaleB,
   y: a.y * scaleA + b.y * scaleB,
@@ -135,7 +145,6 @@ export function getObservation(input: ObservationInput): Observation {
   const frame = getEarthFrame(input.dayOfYear)
   const latitude = clamp(input.latitude, -90, 90) * DEG
   const longitude = wrap(input.longitude + (input.utcHour - 12) * 15, 360) * DEG
-  const phase = wrap(input.phase, 360) * DEG
   const cosLat = Math.cos(latitude)
   const sinLat = Math.sin(latitude)
   const cosLon = Math.cos(longitude)
@@ -144,11 +153,7 @@ export function getObservation(input: ObservationInput): Observation {
   const up = combine(equatorialRadial, cosLat, frame.axis, sinLat)
   const east = combine(frame.equatorialNoon, -sinLon, frame.equatorialEast, cosLon)
   const north = combine(equatorialRadial, -sinLat, frame.axis, cosLat)
-  const moonDirection = normalize({
-    x: MOON_DISTANCE * Math.cos(phase) - up.x,
-    y: -up.y,
-    z: -MOON_DISTANCE * Math.sin(phase) - up.z,
-  })
+  const moonDirection = getMoonDirection(input.phase, up)
   const sunDirection: Vec3 = { x: 1, y: 0, z: 0 }
   const moonEast = dot(moonDirection, east)
   const moonNorth = dot(moonDirection, north)
@@ -200,15 +205,21 @@ export function phaseIllumination(phase: number): number {
   return (1 - Math.cos(wrap(phase, 360) * DEG)) / 2
 }
 
+/** One classification shared by readouts and the timeline; new Moon wraps at 360°. */
+export const PHASE_INTERVALS = [
+  { start: 0, end: 5, name: '新月', principal: true },
+  { start: 5, end: 85, name: '蛾眉月', principal: false },
+  { start: 85, end: 95, name: '上弦月', principal: true },
+  { start: 95, end: 175, name: '盈凸月', principal: false },
+  { start: 175, end: 185, name: '满月', principal: true },
+  { start: 185, end: 265, name: '亏凸月', principal: false },
+  { start: 265, end: 275, name: '下弦月', principal: true },
+  { start: 275, end: 355, name: '残月', principal: false },
+  { start: 355, end: 360, name: '新月', principal: true },
+] as const
+
 /** Principal phases use narrow ±5° windows; intermediate phases retain their shape names. */
 export function phaseName(phase: number): string {
   const angle = wrap(phase, 360)
-  if (angle < 5 || angle >= 355) return '新月'
-  if (angle < 85) return '蛾眉月'
-  if (angle < 95) return '上弦月'
-  if (angle < 175) return '盈凸月'
-  if (angle < 185) return '满月'
-  if (angle < 265) return '亏凸月'
-  if (angle < 275) return '下弦月'
-  return '残月'
+  return PHASE_INTERVALS.find(interval => angle < interval.end)?.name ?? '新月'
 }

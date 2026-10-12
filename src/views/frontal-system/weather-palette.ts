@@ -1,0 +1,26 @@
+/** Teaching symbols, canvas/Three materials and legends share these source colors. */
+export const WEATHER_PALETTE = {
+  coldAir: '#339fff',
+  coldAirLight: '#c1edff',
+  warmAir: '#ff7655',
+  warmAirLight: '#ffd0b8',
+  coldFront: '#2f8cff',
+  warmFront: '#ff5361',
+  stationaryLine: '#d4e5eb',
+  frontSurface: {
+    coldFront: '#8fc9e8',
+    warmFront: '#efad9d',
+    stationaryFront: '#b9a6d8',
+  },
+  cloudLight: '#c4d0d6',
+  cloudShadow: '#687c89',
+  rain: '#65c8ff',
+  lightning: '#f4fbff',
+  lowPressure: '#58d2ff',
+  highPressure: '#ffc76f',
+  cycloneFlow: '#79d8ff',
+  anticycloneFlow: '#ffd18a',
+  eyewallAscent: '#ffd5a0',
+  eyeDescent: '#79cbff',
+  anticycloneDescent: '#d8efff',
+} as const

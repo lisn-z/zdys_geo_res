@@ -2,7 +2,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createEarthSurfaceMaterial, createEarthAtmosphereMaterial, type EarthUniforms } from '../tidal-phenomenon/earth-material'
 import { getObservation, getEarthFrame, phaseElongation } from './moon-geometry'
-import { MOON_SPACE_SCALE, MOON_SPHERE_UV_GLSL } from './moon-texture'
+import { MOON_SPACE_SCALE, MOON_SPHERE_UV_GLSL, MOON_DISC_ANGULAR_RADIUS } from './moon-texture'
+import { getSpaceMoonPresentation } from './moon-view-geometry'
 
 export type SceneMode = 'orbit' | 'observer'
 
@@ -236,7 +237,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   const localMoonMaterial = keepMaterial(new THREE.ShaderMaterial({
     uniforms: {
       moonMap: { value: solidTexture('#b4b1aa') }, sunDirection: { value: new THREE.Vector3(1, 0, 0) }, daylight: { value: 0 },
-      radius: { value: SKY_MOON_DISTANCE * Math.tan(2 * RAD) },
+      radius: { value: SKY_MOON_DISTANCE * Math.sin(MOON_DISC_ANGULAR_RADIUS) },
       discRight: { value: new THREE.Vector3(1, 0, 0) }, discUp: { value: new THREE.Vector3(0, 1, 0) },
       towardEye: { value: new THREE.Vector3(0, 0, 1) }, textureRotation: { value: new THREE.Matrix3() },
     },
@@ -285,7 +286,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   const localMoon = new THREE.Mesh(lunarDiscGeometry, localMoonMaterial)
   // A 4° teaching disc makes the terminator legible while its center, horizon
   // visibility and orientation follow the observer's actual geometry.
-  localMoon.scale.setScalar(SKY_MOON_DISTANCE * Math.tan(2 * RAD))
+  localMoon.scale.setScalar(SKY_MOON_DISTANCE * Math.sin(MOON_DISC_ANGULAR_RADIUS))
   localMoon.renderOrder = 10
   localMoon.frustumCulled = false
   const localMoonOccluder = new THREE.Mesh(lunarDiscGeometry, keepMaterial(new THREE.ShaderMaterial({
@@ -1192,14 +1193,10 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     const up = asVector(observation.up)
     const east = asVector(observation.east)
     const north = asVector(observation.north)
-    const direction = moon.position.clone().addScaledVector(up, -(EARTH_RADIUS + SURFACE_EYE_HEIGHT)).normalize()
-    const eastward = direction.dot(east)
-    const northward = direction.dot(north)
-    const azimuth = Math.hypot(eastward, northward) < 1e-8 ? observation.azimuth : Math.atan2(eastward, northward) / RAD
-    const visualAltitude = Math.asin(THREE.MathUtils.clamp(direction.dot(up), -1, 1)) / RAD
-    // The initial view remains useful when the Moon is below either the actual
-    // local horizon or the illustrative globe's horizon. Free dragging is unchanged.
-    const altitude = !observation.aboveHorizon || visualAltitude < 0 ? 3 : Math.min(visualAltitude, 89.8)
+    // Both cameras track the same topocentric direction. Never aim at the
+    // compressed overview mesh: that introduced up to ~14° of false parallax.
+    const azimuth = observation.azimuth
+    const altitude = THREE.MathUtils.clamp(observation.altitude, 5, 85)
     const viewDirection = east.multiplyScalar(Math.sin(azimuth * RAD) * Math.cos(altitude * RAD))
       .addScaledVector(north, Math.cos(azimuth * RAD) * Math.cos(altitude * RAD))
       .addScaledVector(up, Math.sin(altitude * RAD))
@@ -1361,8 +1358,8 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     }
   }
 
-  /** Move the original orbital camera onto the original Earth. The original
-   * Moon stays in the same space scene and is occluded by Earth geometrically. */
+  /** Move the original orbital camera onto the original Earth. The Moon stays
+   * in this scene, with its rendering projection corrected near the surface. */
   function flyToObserver() {
     if (disposed || state.mode !== 'orbit' || flight) return
     // A changed station starts its transfer in update(), before the surface
@@ -1721,6 +1718,33 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   canvas.addEventListener('wheel', wheel, { passive: false })
   canvas.addEventListener('webglcontextlost', contextLost)
 
+  const overviewMoonPosition = new THREE.Vector3()
+  function renderSpaceScene() {
+    const presentation = getSpaceMoonPresentation(state.phase, orbitCamera.position)
+    const guidesVisible = spaceGuides.visible
+    const angleVisible = orbitAngleGuide.visible
+    overviewMoonPosition.copy(moon.position)
+    moon.position.set(presentation.position.x, presentation.position.y, presentation.position.z)
+    moon.scale.setScalar(presentation.radius)
+    // Share the Moon-center visibility rule with the first-person sky. The
+    // enlarged disk must not rise early from below the geometric horizon.
+    moon.visible = presentation.correction < 1 || (surfaceView ? observation.aboveHorizon : presentation.aboveHorizon)
+    // Compressed guide endpoints belong to the overview, not the near-surface
+    // projection. Keep them hidden until a return flight restores that scale.
+    if (presentation.correction > 0) { spaceGuides.visible = false; orbitAngleGuide.visible = false }
+    try {
+      renderer.render(space, orbitCamera)
+    } finally {
+      // Picking, guide lines and orbital camera targets always retain the
+      // overview coordinates. A render projection must not feed back into them.
+      moon.position.copy(overviewMoonPosition)
+      moon.scale.setScalar(MOON_RADIUS)
+      moon.visible = true
+      spaceGuides.visible = guidesVisible
+      orbitAngleGuide.visible = angleVisible
+    }
+  }
+
   function animate(timestamp: number) {
     frame = 0
     if (disposed || renderingLost || document.hidden || !inViewport || !hasSize) return
@@ -1741,7 +1765,8 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     }
     if (!isSkyView()) updateSpaceLabelScales()
     if (isSkyView()) updateLocalMoonProjection()
-    renderer.render(isSkyView() ? groundScene : space, isSkyView() ? observerCamera : orbitCamera)
+    if (isSkyView()) renderer.render(groundScene, observerCamera)
+    else renderSpaceScene()
     if (firstFrame || (!readyReported && settledTextures.size === 4)) {
       firstFrame = false
       settledAssetsRendered = settledTextures.size === 4

@@ -31,13 +31,44 @@
           </svg><span>重置</span>
         </button>
         <button class="theme-btn quiet-button" type="button" :class="{ active: !panelsVisible }"
-          :aria-pressed="!panelsVisible" @click="panelsVisible = !panelsVisible">
+          :aria-pressed="!panelsVisible" :aria-label="panelsVisible ? '收起面板' : '显示面板'"
+          :title="panelsVisible ? '收起面板' : '显示面板'" @click="panelsVisible = !panelsVisible">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
             <rect x="3" y="4" width="18" height="16" rx="3" />
             <path d="M15 4v16" />
           </svg>
           <span>{{ panelsVisible ? '收起面板' : '显示面板' }}</span>
         </button>
+        <div class="model-info-anchor" @keydown.esc.stop.prevent="closeModelInfo">
+          <ElPopover v-model:visible="modelInfoOpen" trigger="click" placement="bottom-end" :width="380"
+            :offset="12" :teleported="false" :hide-after="0" popper-class="model-info-popover"
+            role="dialog" aria-labelledby="model-info-title">
+            <template #reference>
+              <button ref="modelInfoTrigger" type="button" class="theme-btn quiet-button model-info-toggle"
+                :class="{ active: modelInfoOpen }" :aria-expanded="modelInfoOpen" aria-controls="model-info-content"
+                aria-label="模型说明" title="模型说明">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" /><path d="M12 11v6" />
+                  <circle cx="12" cy="7.5" r=".8" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
+            </template>
+            <section id="model-info-content" class="model-info-content" aria-labelledby="model-info-title">
+              <div class="model-info-heading">
+                <h2 id="model-info-title">模型说明</h2>
+                <button type="button" class="theme-btn model-info-close" aria-label="关闭模型说明" @click="closeModelInfo">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+                </button>
+              </div>
+              <dl class="model-info-list">
+                <div><dt>地月比例</dt><dd>空间总览中的地月大小、距离与辅助线采用示意比例。进入观测点地表视角后，月球高度、方位及地平线上下的判断与同一观测点的第一人称视图、面板读数一致。</dd></div>
+                <div><dt>教学近似</dt><dd>地球与月球按简化的匀速轨道运行，月面适度放大以便观察。当前参数用于教学演示，不自动对应当天的真实天空。</dd></div>
+                <div><dt>统一时刻</dt><dd>UTC 是协调世界时，所有观测点共用这一时刻。当地太阳时按经度换算，可能与当地钟表时间不同。</dd></div>
+                <div><dt>可见性</dt><dd>以月心高于地平线作为可见判断，未计入大气折射。实际能否看清月亮，还受日光、天气和地面遮挡影响。</dd></div>
+              </dl>
+            </section>
+          </ElPopover>
+        </div>
       </div>
     </header>
 
@@ -56,6 +87,14 @@
             '空间视角' : '第一人称' }}</div>
           <p>{{ view.value === 'orbit' ? spaceStation.name : locationLabel }} · 当地太阳时 {{ formatHour(view.value ===
             'orbit' ? spaceObservation.localSolarHour : observation.localSolarHour) }}</p>
+          <div v-if="isGroundView(view.value)" class="observer-visibility"
+            :class="{ 'below-horizon': !observation.aboveHorizon }" aria-label="月球观测状态">
+            <strong><span class="visibility-dot" aria-hidden="true"></span>{{ visibilityTitle }}</strong>
+            <div class="observer-visibility-details">
+              <span>月心高度 {{ signedAngle(observation.altitude) }}</span>
+              <span>方位 {{ observation.azimuth.toFixed(0) }}°</span>
+            </div>
+          </div>
           <div v-if="view.value === 'orbit'" class="space-focus-switch" aria-label="空间视角中心">
             <button type="button" class="theme-btn" :class="{ active: !surfaceView && spaceFocus === 'earth' }"
               :aria-pressed="!surfaceView && spaceFocus === 'earth'" @click="focusSpaceBody('earth')"><svg
@@ -96,33 +135,12 @@
                 <circle cx="10" cy="10" r="1" fill="currentColor" />
               </svg>跟随月亮</button>
           </div>
-          <div v-if="view.value === 'orbit' && surfaceView" class="space-scale-note" role="note" aria-label="空间示意比例说明">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
-              <circle cx="10" cy="10" r="7" />
-              <path d="M10 9v5" />
-              <circle cx="10" cy="6" r=".7" fill="currentColor" stroke="none" />
-            </svg>
-            <div><strong>地月距离为示意比例</strong>
-              <p>距离压缩会使月球高度及升落显示产生偏差，请以同一观测点的第一人称视图与面板读数为准。</p>
-            </div>
-          </div>
           <p v-if="view.value === 'orbit' && surfaceView && !spaceObservation.aboveHorizon" class="space-horizon-note">
             月球在此观测点的地平线以下</p>
           <div v-if="view.value === 'orbit' && !surfaceView && showGuides" class="geometry-legend"><span><i
                 class="sightline-key"></i>观测点—月球</span><span><i class="normal-key"></i>地表法线</span></div>
         </div>
         <div v-if="isGroundView(view.value)" class="observer-footer">
-          <div class="visibility-note" :class="{ 'below-horizon': !observation.aboveHorizon }">
-            <span class="visibility-dot"></span>
-            <div class="visibility-copy"><strong>{{ visibilityTitle }}</strong><span>{{ visibilityDescription }}</span>
-            </div>
-            <div class="visibility-actions">
-              <button type="button" class="theme-btn quiet-button" :disabled="!observation.aboveHorizon"
-                @click="locateMoon(view.value)">定位月亮 <span>↗</span></button>
-              <button type="button" class="theme-btn quiet-button" :aria-label="`同步${locationLabel}的观测视角`"
-                @click="syncStationViews(activeStationId)">同步观测视角</button>
-            </div>
-          </div>
           <div class="observer-hud" aria-label="第一人称视线方位">
             <svg class="heading-dial" viewBox="0 0 44 44" aria-hidden="true">
               <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" stroke-opacity=".3" />
@@ -205,7 +223,7 @@
     </div>
 
     <section ref="timelineRef" v-show="panelsVisible" class="timeline-card" aria-label="月相周期控制">
-      <div v-if="motionPanelOpen" class="earth-motion-panel">
+      <div v-if="motionPanelOpen" id="earth-motion-panel" class="earth-motion-panel">
         <div class="motion-heading"><strong>地球运动</strong><button class="theme-btn" type="button" aria-label="收起地球运动"
             @click="motionPanelOpen = false">×</button></div>
         <div class="annual-position">
@@ -233,11 +251,10 @@
         <div class="season-stops"><button v-for="(season, index) in seasons" :key="season" class="theme-btn"
             type="button" :class="{ active: Math.abs(annualAngle - index * 90) < 1 }"
             @click="setAnnualAngle(index * 90)">{{ season }}</button></div>
-        <div class="motion-clock" aria-describedby="utc-explanation"><span>统一时刻 <strong>{{ formatHour(utcHour) }}
+        <div class="motion-clock"><span>统一时刻 <strong>{{ formatHour(utcHour) }}
               UTC</strong></span><span>年内第 {{ Math.floor(dayOfYear) }} 天</span></div>
         <el-slider :model-value="utcSliderMinutes" :min="0" :max="1439" :step="1" :show-tooltip="false"
           aria-label="统一UTC时刻" @update:model-value="setUtcMinutes" />
-        <p id="utc-explanation" class="utc-explanation">UTC 是协调世界时，所有观测点共用这一时刻。面板中的当地太阳时按经度换算，因此各地读数不同，也可能与当地钟表时间不同。</p>
       </div>
       <div class="timeline-toolbar">
         <div class="timeline-status">
@@ -249,7 +266,11 @@
           <span class="utc-tag" :aria-label="`统一观测时刻 ${formatHour(utcHour)} UTC`"
             title="所有观测点共用的协调世界时"><span>UTC</span><strong>{{ formatHour(utcHour) }}</strong></span>
           <button type="button" class="theme-btn motion-toggle" :class="{ active: motionPanelOpen }"
-            :aria-expanded="motionPanelOpen" @click="motionPanelOpen = !motionPanelOpen">地球运动</button>
+            :aria-expanded="motionPanelOpen" aria-controls="earth-motion-panel"
+            :title="motionPanelOpen ? '收起地球运动' : '展开地球运动'" @click="motionPanelOpen = !motionPanelOpen">
+            <span>地球运动</span><svg class="motion-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+              stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg>
+          </button>
           <button type="button" class="theme-btn" :class="{ active: showOrbitAngle }" :aria-pressed="showOrbitAngle"
             title="以地球为顶点，显示太阳与月球方向之间的较小夹角（0°～180°）" @click="showOrbitAngle = !showOrbitAngle">日地月夹角</button>
           <button type="button" class="theme-btn" :class="{ active: showGuides }" :aria-pressed="showGuides"
@@ -258,26 +279,44 @@
         <div class="playback-tools">
           <button type="button" class="theme-btn speed-button" aria-label="切换播放速度" @click="cycleSpeed">{{ speed
           }}×</button>
-          <button class="theme-btn play-button" :class="{ active: playing }" type="button"
+          <button class="theme-btn active play-button" type="button"
             :aria-label="playing ? '暂停月相动画' : '播放月相动画'" @click="playing = !playing">
-            <svg v-if="!playing" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path d="M6 3.8a.7.7 0 0 1 1.05-.6l9 6.2a.7.7 0 0 1 0 1.2l-9 6.2A.7.7 0 0 1 6 16.2Z" />
-            </svg>
-            <svg v-else viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <rect x="5" y="4" width="3" height="12" rx="1" />
-              <rect x="12" y="4" width="3" height="12" rx="1" />
-            </svg>
+            <svg v-if="!playing" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="m7 4 9 6-9 6Z" /></svg>
+            <svg v-else viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="4" height="12" rx="1" /><rect x="11" y="4" width="4" height="12" rx="1" /></svg>
+            <span>{{ playing ? '暂停' : '播放' }}</span>
           </button>
         </div>
       </div>
-      <el-slider class="phase-range" :model-value="phase" :min="0" :max="360" :step="0.1" :show-tooltip="false"
-        aria-label="月相周期进度" @update:model-value="setPhaseFromSlider" />
-      <div class="phase-stops">
-        <button v-for="stop in phaseStops" :key="stop.angle" type="button" class="theme-btn"
-          :class="{ active: currentPhaseName === stop.name }" :aria-label="`观察${stop.name}`"
-          :aria-pressed="currentPhaseName === stop.name" @click="selectPhase(stop.angle)">
-          <MoonDisc :phase="stop.angle" /><span>{{ stop.name }}</span>
-        </button>
+      <div class="phase-timeline" role="group" aria-label="月相区间时间轴">
+        <div class="phase-milestones" aria-hidden="true">
+          <span v-for="mark in phaseMilestones" :key="mark.angle" :style="{ left: `${mark.angle / 3.6}%` }"
+            :class="{ active: currentPhaseInterval.principal && mark.angle >= currentPhaseInterval.start && mark.angle <= currentPhaseInterval.end, 'at-start': mark.angle === 0, 'at-end': mark.angle === 360 }">{{ mark.name }}</span>
+        </div>
+        <div class="phase-track">
+          <div class="phase-bands" aria-hidden="true">
+            <span v-for="interval in PHASE_INTERVALS" :key="interval.start" class="phase-band"
+              :class="{ active: currentPhaseInterval === interval, principal: interval.principal }"
+              :style="{ left: `${interval.start / 3.6}%`, width: `${(interval.end - interval.start) / 3.6}%` }"></span>
+          </div>
+          <el-slider class="phase-range" :model-value="phase" :min="0" :max="360" :step="0.1" :show-tooltip="false"
+            :format-value-text="formatPhaseProgress" aria-label="月相周期进度" @update:model-value="setPhaseFromSlider" />
+        </div>
+        <div class="phase-interval-labels" aria-hidden="true">
+          <span v-for="interval in intermediatePhaseIntervals" :key="interval.start"
+            :class="{ active: currentPhaseInterval === interval }"
+            :style="{ left: `${(interval.start + interval.end) / 7.2}%` }">{{ interval.name }}</span>
+        </div>
+      </div>
+      <div class="phase-shortcuts" role="group" aria-label="快捷跳转到代表月相">
+        <div class="phase-shortcuts-caption"><strong>快捷跳转</strong><span>代表月相</span></div>
+        <div class="phase-stops">
+          <button v-for="stop in phaseStops" :key="stop.angle" type="button" class="theme-btn"
+            :class="{ active: isRepresentativePhase(stop.angle) }" :aria-label="`跳转至${stop.name}代表位置`"
+            :title="`${stop.name}代表位置 · 周期进度 ${stop.angle}°`"
+            :aria-pressed="isRepresentativePhase(stop.angle)" @click="selectPhase(stop.angle)">
+            <MoonDisc :phase="stop.angle" /><span>{{ stop.name }}</span>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -295,11 +334,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
-import { ElSlider } from 'element-plus'
+import { ElPopover, ElSlider } from 'element-plus'
+import 'element-plus/es/components/popover/style/css'
 import 'element-plus/es/components/slider/style/css'
 import ObservationStation from './ObservationStation.vue'
 import MoonDisc from './MoonDisc.vue'
-import { getMoonLighting, getObservation, phaseIllumination, phaseName, SYNODIC_MONTH, TROPICAL_YEAR, VERNAL_EQUINOX_DAY, getEarthFrame, utcHourFromLocalSolarHour } from './moon-geometry'
+import { getMoonLighting, getObservation, phaseIllumination, phaseName, PHASE_INTERVALS, SYNODIC_MONTH, TROPICAL_YEAR, VERNAL_EQUINOX_DAY, getEarthFrame, utcHourFromLocalSolarHour } from './moon-geometry'
 import { createMoonScene, type SceneMode } from './moon-scene'
 import '@/styles/geo-page-template.css'
 import './moon-phase.css'
@@ -361,6 +401,8 @@ const phaseStops = [
   { angle: 180, name: '满月' }, { angle: 225, name: '亏凸月' },
   { angle: 270, name: '下弦月' }, { angle: 315, name: '残月' },
 ]
+const phaseMilestones = [0, 90, 180, 270, 360].map(angle => ({ angle, name: phaseName(angle) }))
+const intermediatePhaseIntervals = PHASE_INTERVALS.filter(interval => !interval.principal)
 const stageRef = ref<HTMLElement | null>(null)
 const timelineRef = ref<HTMLElement | null>(null)
 const timelineHeight = ref(104)
@@ -399,6 +441,8 @@ const seasonLabel = computed(() => {
 const stationMenuOpen = ref(false)
 const pickingPoint = ref(false)
 const motionPanelOpen = ref(false)
+const modelInfoOpen = ref(false)
+const modelInfoTrigger = ref<HTMLButtonElement | null>(null)
 const playing = ref(false)
 const speed = ref(1)
 const showGuides = ref(true)
@@ -429,11 +473,12 @@ const stationObservations = computed(() => stations.value.map(station => {
   return { station, observation: getObservation(input), lighting: getMoonLighting(input) }
 }))
 const currentPhaseName = computed(() => phaseName(phase.value))
+const currentPhaseInterval = computed(() => PHASE_INTERVALS.find(interval => phase.value >= interval.start
+  && (phase.value < interval.end || interval.end === 360)) ?? PHASE_INTERVALS[0])
 const phaseAge = computed(() => phase.value / 360 * SYNODIC_MONTH)
 const illumination = computed(() => phaseIllumination(phase.value) * 100)
 const locationLabel = computed(() => activeStation.value.name)
 const visibilityTitle = computed(() => !observation.value.aboveHorizon ? '当地不可见 · 月球在地平线以下' : observation.value.altitude < 2 ? '月亮正经过地平线' : illumination.value < 0.1 ? '新月 · 亮面背向我们' : observation.value.sunAltitude > 1 ? '白昼中的月亮' : '月亮在地平线上方')
-const visibilityDescription = computed(() => !observation.value.aboveHorizon ? '调整观测时刻或位置，等待月亮升起。' : observation.value.sunAltitude > 1 ? '白天也可能看到月亮，实际可见性取决于天空亮度。' : `月心高度 ${signedAngle(observation.value.altitude)} · 方位 ${observation.value.azimuth.toFixed(0)}°`)
 
 function stationRight(slot: number) { return compactView.value ? 14 : 24 + (slot % Math.max(1, Math.min(3, Math.floor((window.innerWidth - 48) / 342)))) * 342 }
 function stationTop(slot: number) { return compactView.value ? 164 : 148 + Math.floor(slot / Math.max(1, Math.min(3, Math.floor((window.innerWidth - 48) / 342)))) * 48 }
@@ -525,6 +570,8 @@ function formatHour(value: number) { const minutes = ((Math.round(value * 60) % 
 function signedAngle(value: number) { return `${value > 0 ? '+' : ''}${value.toFixed(1)}°` }
 function compassName(value: number) { return ['北', '东北', '东', '东南', '南', '西南', '西', '西北'][Math.round(((value % 360) + 360) % 360 / 45) % 8] }
 function selectPhase(value: number) { playing.value = false; phase.value = value }
+function isRepresentativePhase(angle: number) { return Math.abs(phase.value % 360 - angle) < 0.001 }
+function formatPhaseProgress(value: number) { return `${phaseName(value)}，周期位置 ${value.toFixed(1)} 度，月龄 ${(value / 360 * SYNODIC_MONTH).toFixed(1)} 天` }
 function setPhaseFromSlider(value: number | number[]) { if (typeof value === 'number') selectPhase(value) }
 function cycleSpeed() { speed.value = speed.value === 4 ? 1 : speed.value * 2 }
 function isGroundView(view: SceneMode) { return view === 'observer' }
@@ -539,7 +586,6 @@ function toggleView(view: SceneMode) {
   } else selectedViews.value = [...selectedViews.value, view]
   stopResize()
 }
-function locateMoon(view: SceneMode = 'observer') { if (observation.value.aboveHorizon) scenes[view]?.lookAtMoon() }
 async function ensureSpaceView() {
   if (!selectedViews.value.includes('orbit')) selectedViews.value = [...selectedViews.value, 'orbit']
   await nextTick()
@@ -638,7 +684,12 @@ function syncViewport() {
   compactView.value = compact
   splitPercent.value = clampSplit(splitPercent.value)
 }
+function closeModelInfo() { modelInfoOpen.value = false; modelInfoTrigger.value?.focus() }
+function onModelInfoKeydown(event: KeyboardEvent) {
+  if (modelInfoOpen.value && event.key === 'Escape') { event.preventDefault(); closeModelInfo() }
+}
 function resetAll() {
+  modelInfoOpen.value = false
   spaceViewRequest++
   playing.value = false; phase.value = 90; utcHour.value = utcHourFromLocalSolarHour(18, 121.47); dayOfYear.value = VERNAL_EQUINOX_DAY
   stations.value = [{ ...places[0]!, id: `station-${++stationSequence}`, color: stationColors[0]!, readonly: true, collapsed: compactView.value, slot: 0, order: ++stationOrder }]
@@ -689,6 +740,7 @@ onMounted(() => {
   if (timelineRef.value) timelineObserver.observe(timelineRef.value)
   animationId = requestAnimationFrame(animate)
   window.addEventListener('resize', syncViewport)
+  document.addEventListener('keydown', onModelInfoKeydown)
 })
-onBeforeUnmount(() => { stopResize(); cancelAnimationFrame(animationId); timelineObserver?.disconnect(); scenes.orbit?.dispose(); scenes.observer?.dispose(); window.removeEventListener('resize', syncViewport) })
+onBeforeUnmount(() => { stopResize(); cancelAnimationFrame(animationId); timelineObserver?.disconnect(); scenes.orbit?.dispose(); scenes.observer?.dispose(); window.removeEventListener('resize', syncViewport); document.removeEventListener('keydown', onModelInfoKeydown) })
 </script>

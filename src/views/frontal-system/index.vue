@@ -1,6 +1,7 @@
 <template>
   <div class="frontal-section-page geo-template-page geo-page theme-dark"
-    :class="{ 'panels-visible': panelsVisible, 'panels-expanded': panelsVisible && (!leftCardCollapsed || !rightCardCollapsed), 'is-anticyclone': currentModel === 'anticyclone', 'is-map-view': displayMode === 'weatherMap' }">
+    :class="{ 'panels-visible': panelsVisible, 'panels-expanded': panelsVisible && (!leftCardCollapsed || !rightCardCollapsed), 'is-anticyclone': currentModel === 'anticyclone', 'is-map-view': displayMode === 'weatherMap' }"
+    :style="sceneLegendStyle">
     <header class="top-toolbar">
       <div class="brand-area">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -85,19 +86,14 @@
                     </strong>
 
                     <span :id="`frontal-layer-description-${item.key}`">
-                      {{ displayMode === 'weatherMap'
-                        ? item.key === 'ground' ? '显示或隐藏地图底图'
-                          : item.key === 'front' ? '锋线、等压线与高低压中心'
-                            : item.key === 'labels' ? '气团、城市与教学注释'
-                              : item.key === 'uplift' ? '仅三维剖面显示垂直运动'
-                                : item.description
-                        : item.description }}
+                      {{ getLayerDescription(item) }}
                     </span>
                   </div>
 
-                  <el-switch v-model="layers[item.key]"
+                  <el-switch :model-value="isLayerUnavailable(item.key) ? false : layers[item.key]"
+                    @update:model-value="setLayerVisibility(item.key, $event)"
                     :aria-label="displayMode === 'weatherMap' && item.key === 'ground' ? '地图底图' : item.label"
-                    :disabled="displayMode === 'weatherMap' && item.key === 'uplift'"
+                    :disabled="isLayerUnavailable(item.key)"
                     :aria-describedby="`frontal-layer-description-${item.key}`" />
                 </div>
               </div>
@@ -170,11 +166,13 @@
 
             <Teleport defer to="#frontal-scene-legend">
               <div v-if="displayMode === 'weatherMap'" class="weather-map-legend">
-                <span><i class="map-legend-isobar"></i>等压线 (hPa)</span>
-                <span><i class="map-legend-cloud"></i>模拟云带</span>
-                <span v-if="isFrontModel"><i class="map-legend-cold-front"></i>冷锋</span>
-                <span v-if="isFrontModel"><i class="map-legend-warm-front"></i>暖锋</span>
-                <span><i class="map-legend-rain"></i>降水区</span>
+                <span v-if="layers.front"><i class="map-legend-isobar"></i>等压线 (hPa)</span>
+                <span v-if="layers.cloud && currentModel !== 'anticyclone'"><i class="map-legend-cloud"></i>模拟云带</span>
+                <span v-if="layers.front && isMovingFrontMap"><i class="legend-front-symbol cold-symbol"></i>冷锋</span>
+                <span v-if="layers.front && isMovingFrontMap"><i class="legend-front-symbol warm-symbol"></i>暖锋</span>
+                <span v-if="layers.front && currentModel === 'stationaryFront'"><i class="legend-front-symbol stationary-symbol"></i>准静止锋</span>
+                <span v-if="layers.air && !isFrontModel"><i class="legend-smoke-stream"></i>{{ currentModel === 'cyclone' ? '近地面辐合' : '近地面辐散' }}</span>
+                <span v-if="layers.rain && currentModel !== 'anticyclone'"><i class="map-legend-rain"></i>降水区</span>
               </div>
             </Teleport>
           </div>
@@ -204,32 +202,37 @@
 
             <Teleport defer to="#frontal-scene-legend">
               <div v-if="displayMode === 'section3d' && isFrontModel" class="scene-legend">
-                <div>
+                <div v-if="layers.air">
                   <span class="legend-airflow cold-airflow"></span>
-                  冷气雾
+                  冷气团（蓝色气雾）
                 </div>
 
-                <div>
+                <div v-if="layers.air">
                   <span class="legend-airflow warm-airflow"></span>
-                  暖气雾
+                  暖气团（橙色气雾）
                 </div>
 
-                <div>
+                <div v-if="layers.front">
                   <span class="legend-front"></span>
-                  锋面
+                  {{ currentModel === 'coldFront' ? '冷锋锋面' : currentModel === 'warmFront' ? '暖锋锋面' : '准静止锋面' }}
                 </div>
 
-                <div>
+                <div v-if="layers.front">
+                  <span class="legend-front-symbol" :class="currentModel === 'coldFront' ? 'cold-symbol' : currentModel === 'warmFront' ? 'warm-symbol' : 'stationary-symbol'"></span>
+                  地面锋线与符号
+                </div>
+
+                <div v-if="layers.cloud">
                   <span class="legend-cloud"></span>
-                  云层
+                  云层（灰白）
                 </div>
 
-                <div>
+                <div v-if="layers.rain">
                   <span class="legend-rain"></span>
                   降水
                 </div>
 
-                <div>
+                <div v-if="layers.rain && currentModel === 'coldFront'">
                   <el-icon class="legend-lightning">
                     <Lightning />
                   </el-icon>
@@ -238,17 +241,17 @@
               </div>
 
               <div v-else-if="displayMode === 'section3d'" class="scene-legend vortex-legend">
-                <div>
+                <div v-if="layers.air">
                   <span class="legend-smoke-stream"></span>
-                  螺旋风带
+                  {{ currentModel === 'cyclone' ? '近地面辐合' : '近地面辐散' }}
                 </div>
 
-                <div v-if="currentModel === 'anticyclone'">
+                <div v-if="layers.uplift && currentModel === 'anticyclone'">
                   <span class="legend-vertical-flow"></span>
                   中心下沉
                 </div>
 
-                <template v-else>
+                <template v-else-if="layers.uplift && currentModel === 'cyclone'">
                   <div>
                     <span class="legend-vertical-flow legend-eyewall-flow"></span>
                     眼墙上升
@@ -259,17 +262,17 @@
                   </div>
                 </template>
 
-                <div>
+                <div v-if="layers.front">
                   <span class="legend-pressure-ring"></span>
-                  等压环 (hPa)
+                  地面等压线 (hPa)
                 </div>
 
-                <div>
+                <div v-if="layers.cloud && currentModel === 'cyclone'">
                   <span class="legend-cloud"></span>
-                  云层
+                  云层（灰白）
                 </div>
 
-                <div>
+                <div v-if="layers.rain && currentModel === 'cyclone'">
                   <span class="legend-rain"></span>
                   降水
                 </div>
@@ -451,6 +454,8 @@ import {
 
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import { fitMapRectangle, mapToScreen, VORTEX_MAP_PROFILE, vortexRadius } from './map-layout'
+import { createFogBillboardBatch, type FogBillboardState } from './fog-billboard-batch'
+import { WEATHER_PALETTE } from './weather-palette'
 import {
   FRONT_BANDS,
   describeFrontalCity,
@@ -658,8 +663,7 @@ interface VolumeCloudHandle {
   basePosition: THREE.Vector3
 }
 
-interface AirMassFogSpriteHandle {
-  sprite: THREE.Sprite
+interface AirMassFogSpriteHandle extends FogBillboardState {
   localX: number
   localY: number
   localZ: number
@@ -669,11 +673,17 @@ interface AirMassFogSpriteHandle {
   opacityScale: number
   baseScaleX: number
   baseScaleY: number
+  boundaryX: number
+  entryT: number
+  flowRate: number
+  outwardJitter: number
+  depthFade: number
 }
 
 interface AirMassVeilHandle {
   mesh: THREE.Group
   sprites: AirMassFogSpriteHandle[]
+  batch: ReturnType<typeof createFogBillboardBatch>
   baseX: number
   baseY: number
   width: number
@@ -965,12 +975,14 @@ const definitions:
     activeAir:
       '冷暖气团势力相当',
     slope:
-      '锋面位置小幅摆动',
+      '缓坡伸向冷空气一侧，位置小幅摆动',
     precipitation:
       '锋区附近持续性降水',
     structure: [
       '冷暖气团势力相当，锋面在一定区域内来回摆动。',
       '地面锋线没有明显的单一推进方向。',
+      '用冷空气侧和暖空气侧区分两侧，不固定标注锋前、锋后。',
+      '剖面采用垂直夸张示意，图示坡度不是实际倾角。',
       '暖湿空气持续沿锋面缓慢抬升。',
     ],
     uplift:
@@ -978,9 +990,9 @@ const definitions:
     cloud:
       '锋区上空形成范围较广、维持时间较长的层状云系。',
     rain:
-      '降水集中在锋区两侧，范围比冷锋宽，且容易形成持续阴雨天气。',
+      '水汽充足时可出现持续性降水；本例雨区位于锋区附近、偏冷空气一侧，实际分布并不固定。',
     passing:
-      '准静止锋控制期间，云量大、日照少，常出现连续性降水或长时间阴雨。',
+      '准静止锋不表示持续向一侧过境；水汽充足时，锋区可长时间阴雨。',
     stages: [
       {
         label:
@@ -1000,7 +1012,7 @@ const definitions:
         summary:
           '锋线在较小范围内往复移动。',
         description:
-          '准静止锋移动很慢或近乎静止；本例用小范围摆动展示冷暖空气势力的变化。',
+          '准静止锋移动很慢或近乎静止；本例小幅往复摆动，不指定统一的锋前、锋后。',
       },
       {
         label:
@@ -1010,7 +1022,7 @@ const definitions:
         summary:
           '暖湿空气沿锋面持续缓慢上升。',
         description:
-          '橙色气雾与箭头沿锋面运动，形成长时间维持的抬升过程。',
+          '暖湿气流沿伸向冷空气一侧的缓坡上滑；剖面做了垂直夸张，不能据图量取真实倾角。',
       },
       {
         label:
@@ -1095,7 +1107,7 @@ const definitions:
 
   anticyclone: {
     title:
-      '高压晴空涡旋与外围云带',
+      '反气旋下沉、辐散与晴朗天气',
     category:
       '气压系统 · 反气旋',
     activeAir:
@@ -1110,11 +1122,11 @@ const definitions:
       '南北半球旋转方向与气旋相反。',
     ],
     uplift:
-      '一条紫白色烟流从高空螺旋下沉，到达近地面后沿多条水平烟流向外围扩散。',
+      '浅蓝色气流从高空螺旋下沉，到达近地面后沿浅黄色气流向外围辐散。气流示踪不代表云。',
     cloud:
-      '中心维持宽阔晴空区，只有外围保留稀薄、断续的螺旋云带。',
+      '下沉增温使相对湿度降低，抑制云的发展；本例采用晴朗少云情景，不绘制外围环状或螺旋云带。',
     rain:
-      '反气旋中心通常没有明显降水，云层主要分散在外围。',
+      '本例无降水。反气旋通常天气稳定，但实际云雨仍受水汽、季节和其他天气系统影响。',
     passing:
       '反气旋控制区一般气流下沉、天气稳定，多晴朗少云天气。',
     stages: [
@@ -1126,7 +1138,7 @@ const definitions:
         summary:
           '中心形成高压，空气开始下沉。',
         description:
-          '中心形成明亮、少云的高压核心，外围出现稀薄环状云带。',
+          '中心气压高于四周；本例以晴朗少云背景突出高压中心及其环流，不把外围云带当作反气旋的固定结构。',
       },
       {
         label:
@@ -1150,13 +1162,13 @@ const definitions:
       },
       {
         label:
-          '晴空与外围云带',
+          '晴朗少云天气',
         short:
           '云量减少',
         summary:
           '下沉增温抑制云层和降水。',
         description:
-          '本例较干燥，中心少云、外围有分散云团；湿冷季节的高压区也可能出现持久低云、雾或毛毛雨。',
+          '下沉增温抑制深厚云的发展，本例晴朗少云、无降水。湿冷季节的高压区也可能出现低云和雾，这不是固定的外围云带。',
       },
     ],
   },
@@ -1415,7 +1427,7 @@ const lifeWeatherDefinitions:
       impact: '持续弱风时污染物可能不易扩散，城市需关注空气质量。',
     },
     {
-      signal: '本例中心少云、外围有少量云团；实际高压区也可能有持续低云、雾或毛毛雨。',
+      signal: '本例下沉增温、近地面辐散，维持晴朗少云天气；实际湿冷条件下也可能有低云和雾。',
       temperature: '晴空时日较差可增大',
       pressure: '缓慢变化',
       wind: '弱风',
@@ -1485,12 +1497,62 @@ const layerOptions: Array<{
       label:
         '教学标签',
       description:
-        '显示气团与锋前锋后',
+        '显示气团、锋区两侧与气压中心',
     },
   ]
 
 const currentModel =
   ref<FrontModel>('coldFront')
+
+const sceneLegendStyle = computed(() => {
+  const model = currentModel.value
+  const anticyclone = model === 'anticyclone'
+  const surface = WEATHER_PALETTE.frontSurface[
+    model === 'warmFront' || model === 'stationaryFront' ? model : 'coldFront'
+  ]
+  return {
+    '--weather-cold-air': WEATHER_PALETTE.coldAir,
+    '--weather-cold-air-light': WEATHER_PALETTE.coldAirLight,
+    '--weather-warm-air': WEATHER_PALETTE.warmAir,
+    '--weather-warm-air-light': WEATHER_PALETTE.warmAirLight,
+    '--weather-cold-front': WEATHER_PALETTE.coldFront,
+    '--weather-warm-front': WEATHER_PALETTE.warmFront,
+    '--weather-front-surface': surface,
+    '--weather-cloud-light': WEATHER_PALETTE.cloudLight,
+    '--weather-cloud-shadow': WEATHER_PALETTE.cloudShadow,
+    '--weather-rain': WEATHER_PALETTE.rain,
+    '--weather-lightning': WEATHER_PALETTE.lightning,
+    '--weather-flow': anticyclone ? WEATHER_PALETTE.anticycloneFlow : WEATHER_PALETTE.cycloneFlow,
+    '--weather-pressure': anticyclone ? WEATHER_PALETTE.highPressure : WEATHER_PALETTE.lowPressure,
+    '--weather-descent': WEATHER_PALETTE.anticycloneDescent,
+    '--weather-eyewall': WEATHER_PALETTE.eyewallAscent,
+    '--weather-eye': WEATHER_PALETTE.eyeDescent,
+  }
+})
+
+function isLayerUnavailable(key: LayerKey) {
+  return (displayMode.value === 'weatherMap' && key === 'uplift') ||
+    (currentModel.value === 'anticyclone' && (key === 'cloud' || key === 'rain'))
+}
+
+function setLayerVisibility(key: LayerKey, value: string | number | boolean) {
+  if (!isLayerUnavailable(key)) layers[key] = Boolean(value)
+}
+
+function getLayerDescription(item: { key: LayerKey; description: string }) {
+  if (currentModel.value === 'anticyclone' && (item.key === 'cloud' || item.key === 'rain')) {
+    return item.key === 'cloud'
+      ? '本例晴朗少云，不绘制固定外围云带；气流示踪不是云'
+      : '本例采用干燥、无降水的反气旋情景'
+  }
+  if (displayMode.value === 'weatherMap') {
+    if (item.key === 'ground') return '显示或隐藏地图底图'
+    if (item.key === 'front') return '锋线、等压线与高低压中心'
+    if (item.key === 'labels') return '气团、城市与教学注释'
+    if (item.key === 'uplift') return '仅三维剖面显示垂直运动'
+  }
+  return item.description
+}
 
 const vortexHemisphere =
   ref<Hemisphere>('north')
@@ -1884,7 +1946,7 @@ function getVortexCityWeather(
       temperature: '较稳定',
       pressure: '偏高且稳定',
       wind: '沿高压外围流动',
-      sky: '少云，偶有外围云带',
+      sky: '本例晴朗少云',
       impact: getCityImpact(city, 'fair'),
     }
   }
@@ -2109,6 +2171,7 @@ let lastSceneDpr = 0
 
 let cameraAnimationToken = 0
 let lastSimulationElapsed = 0
+let lastSceneUpdateSignature = ''
 let cameraUserAdjusted = false
 let lastCameraFitDistance = 0
 const modelCameraBounds = new THREE.Box3()
@@ -2129,16 +2192,16 @@ const transientTextures:
 
 const cloudLightColors:
   Record<FrontalCloudModel, THREE.Color> = {
-  coldFront: new THREE.Color('#c4d0d6'),
-  warmFront: new THREE.Color('#c9ced1'),
-  stationaryFront: new THREE.Color('#b8c2c9'),
+  coldFront: new THREE.Color(WEATHER_PALETTE.cloudLight),
+  warmFront: new THREE.Color(WEATHER_PALETTE.cloudLight),
+  stationaryFront: new THREE.Color(WEATHER_PALETTE.cloudLight),
 }
 
 const cloudStormColors:
   Record<FrontalCloudModel, THREE.Color> = {
-  coldFront: new THREE.Color('#687c89'),
-  warmFront: new THREE.Color('#7b878e'),
-  stationaryFront: new THREE.Color('#68788b'),
+  coldFront: new THREE.Color(WEATHER_PALETTE.cloudShadow),
+  warmFront: new THREE.Color(WEATHER_PALETTE.cloudShadow),
+  stationaryFront: new THREE.Color(WEATHER_PALETTE.cloudShadow),
 }
 
 const airMassVeils:
@@ -2489,8 +2552,8 @@ function drawPressureCenter(
 ) {
   const color =
     kind === 'low'
-      ? '#72dcff'
-      : '#ffcf70'
+      ? WEATHER_PALETTE.lowPressure
+      : WEATHER_PALETTE.highPressure
   const symbolScale = clamp(mapRectangle.value.height / 450, 0.55, 1)
   const radius = 24 * symbolScale
 
@@ -2537,8 +2600,8 @@ function drawPressureField(
   context.save()
   context.strokeStyle =
     kind === 'low'
-      ? 'rgba(147, 230, 255, 0.84)'
-      : 'rgba(255, 220, 139, 0.82)'
+      ? WEATHER_PALETTE.lowPressure
+      : WEATHER_PALETTE.highPressure
 
   context.fillStyle =
     kind === 'low'
@@ -2846,7 +2909,7 @@ function drawVortexMapFlow(
   const spin = getVortexRotationSign(cyclone ? 'cyclone' : 'anticyclone', hemisphere.value)
   const profile = VORTEX_MAP_PROFILE
   context.save()
-  context.strokeStyle = cyclone ? 'rgba(139,225,247,0.78)' : 'rgba(255,214,126,0.78)'
+  context.strokeStyle = cyclone ? WEATHER_PALETTE.cycloneFlow : WEATHER_PALETTE.anticycloneFlow
   context.fillStyle = context.strokeStyle
   context.lineWidth = 1.5
   const arrowCount = height < 260 ? 16 : 32
@@ -2882,9 +2945,9 @@ function drawVortexMapRain(
   const profile = VORTEX_MAP_PROFILE
   const spin = getVortexRotationSign('cyclone', hemisphere.value)
   context.save()
-  context.strokeStyle = 'rgba(73,207,255,0.72)'
+  context.strokeStyle = WEATHER_PALETTE.rain
   context.lineWidth = 1.3
-  context.globalAlpha = strength
+  context.globalAlpha = strength * 0.72
   context.beginPath()
   for (let index = 0; index < 118; index += 1) {
     const fraction = hashRandom(index, 27)
@@ -2938,9 +3001,10 @@ function drawRainAlongPath(
   sideBias = 0
 ) {
   context.save()
-  context.strokeStyle = 'rgba(62, 205, 255, 0.55)'
+  context.strokeStyle = WEATHER_PALETTE.rain
+  context.globalAlpha *= 0.55
   context.lineWidth = 1.25
-  context.shadowColor = '#34d8ff'
+  context.shadowColor = WEATHER_PALETTE.rain
   context.shadowBlur = 3
   context.beginPath()
 
@@ -3007,16 +3071,27 @@ function drawFrontSymbols(
   context.lineCap = 'round'
   context.lineJoin = 'round'
 
-  traceBezierPath(context, points)
-  context.strokeStyle =
-    kind === 'cold'
-      ? '#2f8cff'
-      : kind === 'warm'
-        ? '#ff5361'
-        : 'rgba(236, 243, 248, 0.8)'
-  context.shadowColor = context.strokeStyle
-  context.shadowBlur = 10
-  context.stroke()
+  if (kind === 'stationary') {
+    // Each red/blue segment is centered on its matching opposite-side symbol.
+    for (let segment = 0; segment <= symbolCount; segment += 1) {
+      const start = Math.max(0, (segment - 0.5) / symbolCount)
+      const end = Math.min(1, (segment + 0.5) / symbolCount)
+      context.strokeStyle = segment % 2 === 0 ? WEATHER_PALETTE.coldFront : WEATHER_PALETTE.warmFront
+      context.beginPath()
+      for (let step = 0; step <= 6; step += 1) {
+        const point = getBezierPoint(points, start + (end - start) * step / 6)
+        if (step === 0) context.moveTo(point.x, point.y)
+        else context.lineTo(point.x, point.y)
+      }
+      context.stroke()
+    }
+  } else {
+    traceBezierPath(context, points)
+    context.strokeStyle = kind === 'cold' ? WEATHER_PALETTE.coldFront : WEATHER_PALETTE.warmFront
+    context.shadowColor = context.strokeStyle
+    context.shadowBlur = 10
+    context.stroke()
+  }
   context.shadowBlur = 0
 
   for (
@@ -3055,8 +3130,8 @@ function drawFrontSymbols(
 
     const color =
       actualKind === 'cold'
-        ? '#2f8cff'
-        : '#ff5361'
+        ? WEATHER_PALETTE.coldFront
+        : WEATHER_PALETTE.warmFront
 
     if (actualKind === 'cold') {
       const size = 10
@@ -3265,19 +3340,17 @@ function drawSynopticOverlay(
       )
     }
 
-    if (layers.cloud) {
+    if (layers.cloud && isCyclone) {
       drawCloudSpiral(
         context,
         center,
         width,
         height,
         Math.round(
-          (isCyclone ? 210 : 82) * reveal
+          210 * reveal
         ),
         elapsed,
-        isCyclone
-          ? 'cyclone'
-          : 'anticyclone'
+        'cyclone'
       )
     }
 
@@ -3474,14 +3547,17 @@ function animateWeatherMap() {
   }
 
   const currentTime = performance.now()
+  const mapFrameInterval = 1000 / 30
+  const frameElapsed = currentTime - weatherMapLastDrawTime
 
   if (
-    currentTime - weatherMapLastDrawTime < 50
+    frameElapsed < mapFrameInterval
   ) {
     return
   }
 
-  weatherMapLastDrawTime = currentTime
+  // Carry the fractional remainder so rAF jitter does not lower the intended 30 fps cadence.
+  weatherMapLastDrawTime = currentTime - (frameElapsed % mapFrameInterval)
 
   drawWeatherMap(
     simulationElapsed.value
@@ -3567,6 +3643,7 @@ function disposeObject(
 }
 
 function clearModel() {
+  lastSceneUpdateSignature = ''
   if (
     scene &&
     modelRoot
@@ -4448,33 +4525,17 @@ function createFrontCurve(
     model ===
     'stationaryFront'
   ) {
+    // 宽缓坡面伸向冷侧，而非把准静止锋画成近乎竖直的墙。
+    // 为教学辨认作垂直夸张；准静止指水平移动很慢，不规定固定倾角。
     return new THREE.CatmullRomCurve3(
       [
-        new THREE.Vector3(
-          0,
-          0.14,
-          0
-        ),
-        new THREE.Vector3(
-          -0.24,
-          1.25,
-          0
-        ),
-        new THREE.Vector3(
-          -0.58,
-          2.55,
-          0
-        ),
-        new THREE.Vector3(
-          -0.92,
-          4.10,
-          0
-        ),
-        new THREE.Vector3(
-          -1.18,
-          5.65,
-          0
-        ),
+        new THREE.Vector3(0, 0.14, 0),
+        new THREE.Vector3(-1.50, 0.90, 0),
+        new THREE.Vector3(-3.40, 1.80, 0),
+        new THREE.Vector3(-5.80, 2.80, 0),
+        new THREE.Vector3(-8.10, 3.70, 0),
+        new THREE.Vector3(-10.40, 4.35, 0),
+        new THREE.Vector3(-12.70, 4.65, 0),
       ],
       false,
       'catmullrom',
@@ -4532,6 +4593,29 @@ function createFrontCurve(
 }
 
 
+const frontCurveLookupCache = new WeakMap<THREE.CatmullRomCurve3, Map<number, Float64Array>>()
+const frontEntryCache = new WeakMap<THREE.CatmullRomCurve3, Map<number, number>>()
+
+function getFrontCurveLookup(curve: THREE.CatmullRomCurve3, divisions: number) {
+  let samplesBySize = frontCurveLookupCache.get(curve)
+  if (!samplesBySize) {
+    samplesBySize = new Map()
+    frontCurveLookupCache.set(curve, samplesBySize)
+  }
+  let samples = samplesBySize.get(divisions)
+  if (!samples) {
+    samples = new Float64Array((divisions + 1) * 2)
+    const point = new THREE.Vector3()
+    for (let index = 0; index <= divisions; index += 1) {
+      curve.getPoint(index / divisions, point)
+      samples[index * 2] = point.x
+      samples[index * 2 + 1] = point.y
+    }
+    samplesBySize.set(divisions, samples)
+  }
+  return samples
+}
+
 function getFrontXAtY(
   curve: THREE.CatmullRomCurve3,
   y: number
@@ -4540,19 +4624,15 @@ function getFrontXAtY(
   let nearestDistance =
     Number.POSITIVE_INFINITY
 
+  const samples = getFrontCurveLookup(curve, 90)
   for (
     let index = 0;
     index <= 90;
     index += 1
   ) {
-    const point =
-      curve.getPoint(
-        index / 90
-      )
-
     const distance =
       Math.abs(
-        point.y -
+        samples[index * 2 + 1]! -
         y
       )
 
@@ -4564,7 +4644,7 @@ function getFrontXAtY(
         distance
 
       nearestX =
-        point.x
+        samples[index * 2]!
     }
   }
 
@@ -4576,6 +4656,13 @@ function getFrontTAtY(
   curve: THREE.CatmullRomCurve3,
   y: number
 ) {
+  let entries = frontEntryCache.get(curve)
+  if (!entries) {
+    entries = new Map()
+    frontEntryCache.set(curve, entries)
+  }
+  const cached = entries.get(y)
+  if (cached !== undefined) return cached
   curve.getPoint(0, tempEntryPoint)
   const startY = tempEntryPoint.y
   curve.getPoint(1, tempEntryPoint)
@@ -4602,9 +4689,14 @@ function getFrontTAtY(
     }
   }
 
-  return (low + high) * 0.5
+  const entry = (low + high) * 0.5
+  entries.set(y, entry)
+  return entry
 }
 
+
+const frontTangentStart = new THREE.Vector3()
+const frontTangentEnd = new THREE.Vector3()
 
 function sampleExtendedFrontPath(
   curve: THREE.CatmullRomCurve3,
@@ -4615,7 +4707,10 @@ function sampleExtendedFrontPath(
   const curveT = Math.min(pathT, 1)
 
   curve.getPoint(curveT, point)
-  curve.getTangent(curveT, tangent)
+  // Same finite difference as Curve.getTangent(), without two Vector3 allocations per parcel.
+  curve.getPoint(Math.max(0, curveT - 0.0001), frontTangentStart)
+  curve.getPoint(Math.min(1, curveT + 0.0001), frontTangentEnd)
+  tangent.copy(frontTangentEnd).sub(frontTangentStart).normalize()
 
   if (pathT > 1) {
     point.addScaledVector(
@@ -4634,20 +4729,15 @@ function getFrontYAtX(
   let nearestDistance =
     Number.POSITIVE_INFINITY
 
+  const samples = getFrontCurveLookup(curve, 100)
   for (
     let index = 0;
     index <= 100;
     index += 1
   ) {
-    const point =
-      curve.getPoint(
-        index /
-        100
-      )
-
     const distance =
       Math.abs(
-        point.x -
+        samples[index * 2]! -
         x
       )
 
@@ -4659,7 +4749,7 @@ function getFrontYAtX(
         distance
 
       nearestY =
-        point.y
+        samples[index * 2 + 1]!
     }
   }
 
@@ -4902,8 +4992,8 @@ function createFrontSymbolGroup(
 
         const symbolColor =
           isColdSymbol
-            ? '#258cff'
-            : '#ff5548'
+            ? WEATHER_PALETTE.coldFront
+            : WEATHER_PALETTE.warmFront
 
         const material =
           new THREE.MeshStandardMaterial({
@@ -4984,8 +5074,8 @@ function createFrontSymbolGroup(
   const symbolColor =
     model ===
       'coldFront'
-      ? '#258cff'
-      : '#ff5548'
+      ? WEATHER_PALETTE.coldFront
+      : WEATHER_PALETTE.warmFront
 
   const material =
     new THREE.MeshStandardMaterial({
@@ -5577,20 +5667,9 @@ function createFrontSurface(
       model
     )
 
-  const color =
-    model ===
-      'coldFront'
-      ? new THREE.Color(
-        '#8fc9e8'
-      )
-      : model ===
-        'warmFront'
-        ? new THREE.Color(
-          '#efad9d'
-        )
-        : new THREE.Color(
-          '#b9a6d8'
-        )
+  const color = new THREE.Color(WEATHER_PALETTE.frontSurface[
+    model === 'warmFront' || model === 'stationaryFront' ? model : 'coldFront'
+  ])
 
   const material =
     new THREE.ShaderMaterial({
@@ -5805,16 +5884,13 @@ function createFrontSurface(
   ridge.visible = false
   ridge.renderOrder = 7
 
-  /*
-   * 锋线是锋面和地面的相交线。
-   * 使用独立高对比紫红色，不再与青色锋面混在一起。
-   */
+  // 地面锋线和符号共用配色；准静止锋使用红蓝交替，紫色不代表准静止锋线。
   const groundLineColor =
     model === 'coldFront'
-      ? '#238dff'
+      ? WEATHER_PALETTE.coldFront
       : model === 'warmFront'
-        ? '#ff574c'
-        : '#8a70e8'
+        ? WEATHER_PALETTE.warmFront
+        : '#ffffff'
 
   const groundLinePoints:
     THREE.Vector3[] = []
@@ -5838,9 +5914,7 @@ function createFrontSurface(
     )
   }
 
-  const groundLine =
-    new THREE.Mesh(
-      new THREE.TubeGeometry(
+  const groundLineGeometry = new THREE.TubeGeometry(
         new THREE.CatmullRomCurve3(
           groundLinePoints,
           false,
@@ -5851,13 +5925,31 @@ function createFrontSurface(
         0.075,
         12,
         false
-      ),
+      )
+  if (model === 'stationaryFront') {
+    const positions = groundLineGeometry.getAttribute('position')
+    const colors = new Float32Array(positions.count * 3)
+    const cold = new THREE.Color(WEATHER_PALETTE.coldFront)
+    const warm = new THREE.Color(WEATHER_PALETTE.warmFront)
+    for (let index = 0; index < positions.count; index += 1) {
+      // Segments are centered on the nine existing alternating symbols.
+      const symbolIndex = Math.max(0, Math.min(8, Math.round(positions.getZ(index) / 2.035) + 4))
+      const color = symbolIndex % 2 === 0 ? cold : warm
+      color.toArray(colors, index * 3)
+    }
+    groundLineGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  }
+
+  const groundLine =
+    new THREE.Mesh(
+      groundLineGeometry,
       new THREE.MeshStandardMaterial({
         color:
           groundLineColor,
         emissive:
-          groundLineColor,
+          model === 'stationaryFront' ? '#000000' : groundLineColor,
         emissiveIntensity: 0.42,
+        vertexColors: model === 'stationaryFront',
         roughness: 0.28,
         metalness: 0.10,
         transparent: true,
@@ -5898,6 +5990,7 @@ function createFrontSurface(
 
   groundLineGlow.material.toneMapped =
     false
+  groundLineGlow.visible = model !== 'stationaryFront'
 
   groundLineGlow.position.y =
     0.155
@@ -6680,29 +6773,14 @@ function createAirMassVeil(
     const baseScaleY = 1.08 + hashRandom(index, role === 'warm' ? 626 : 616) * 1.02
     const opacityScale = 0.70 + hashRandom(index, role === 'warm' ? 627 : 617) * 0.54
 
-    const material = new THREE.SpriteMaterial({
-      map: fogTexture,
-      color:
-        role === 'warm'
-          ? index % 5 === 0 ? '#ffd0b8' : '#ff7655'
-          : index % 5 === 0 ? '#c1edff' : '#339fff',
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.NormalBlending,
-    })
-
-    material.toneMapped = false
-
-    const sprite = new THREE.Sprite(material)
-    sprite.position.set(localX, localY, localZ)
-    sprite.scale.set(baseScaleX, baseScaleY, 1)
-    sprite.renderOrder = role === 'warm' ? 3 : 2
-    mesh.add(sprite)
-
     sprites.push({
-      sprite,
+      position: new THREE.Vector3(localX, localY, localZ),
+      scale: new THREE.Vector2(baseScaleX, baseScaleY),
+      rotation: 0,
+      opacity: 0,
+      color: new THREE.Color(role === 'warm'
+        ? index % 5 === 0 ? WEATHER_PALETTE.warmAirLight : WEATHER_PALETTE.warmAir
+        : index % 5 === 0 ? WEATHER_PALETTE.coldAirLight : WEATHER_PALETTE.coldAir),
       localX,
       localY,
       localZ,
@@ -6712,15 +6790,25 @@ function createAirMassVeil(
       opacityScale,
       baseScaleX,
       baseScaleY,
+      // A parcel enters the same immutable curve at its own original height.
+      boundaryX: getFrontXAtY(curve, options.y + localY),
+      entryT: getFrontTAtY(curve, options.y + localY),
+      flowRate: 0.038 + hashRandom(index, 633) * 0.032,
+      outwardJitter: hashRandom(index, 635) * 0.28,
+      depthFade: smoothStep(0, 0.10, 1 - Math.abs(localZ) / 9.55),
     })
   }
 
+  const batch = createFogBillboardBatch(sprites, fogTexture)
+  batch.mesh.renderOrder = role === 'warm' ? 3 : 2
+  mesh.add(batch.mesh)
   mesh.position.set(options.x, options.y, 0)
   airGroup.add(mesh)
 
   const handle: AirMassVeilHandle = {
     mesh,
     sprites,
+    batch,
     baseX: options.x,
     baseY: options.y,
     width: options.width,
@@ -6744,6 +6832,8 @@ function updateAirMassVeils(
   const liftReady = smoothStep(0.02, 0.56, liftProgress)
 
   airMassVeils.forEach((handle) => {
+    handle.mesh.visible = opacity * airVisibility.value > 0.01
+    if (!handle.mesh.visible) return
     handle.mesh.position.x = handle.baseX + offsetX
     const groupWorldX = handle.baseX + offsetX
     const nominalMinX = groupWorldX - handle.width / 2
@@ -6762,7 +6852,7 @@ function updateAirMassVeils(
       const flowDirection = handle.frontEdge === 1 ? 1 : -1
       const flowTravel =
         elapsed *
-        (0.038 + hashRandom(index, 633) * 0.032) *
+        fog.flowRate *
         flowSpeed.value
       const flowU =
         (
@@ -6793,7 +6883,7 @@ function updateAirMassVeils(
         )
       const worldY = handle.baseY + fog.localY
       const boundaryWorldX =
-        offsetX + getFrontXAtY(handle.curve, worldY)
+        offsetX + fog.boundaryX
       const edgeGap = 0.20 + fog.baseScaleX * 0.13
       const nominalFrontWorldX =
         handle.frontEdge === 1
@@ -6847,7 +6937,7 @@ function updateAirMassVeils(
       let rotation = drift * 0.045
 
       if (onFront) {
-        const entryT = getFrontTAtY(handle.curve, worldY)
+        const entryT = fog.entryT
         const availableEnd = THREE.MathUtils.lerp(
           entryT,
           Math.max(frontTravelMax, 1.12),
@@ -6876,7 +6966,7 @@ function updateAirMassVeils(
         const outwardOffset =
           0.24 +
           fog.uY * 0.56 +
-          hashRandom(index, 635) * 0.28 +
+          fog.outwardJitter +
           Math.sin(elapsed * 0.34 + fog.phase) * 0.09
         const curveWorldX =
           offsetX +
@@ -6910,7 +7000,7 @@ function updateAirMassVeils(
         rotation = Math.atan2(tempTangent.y, tempTangent.x) - Math.PI / 2
       }
 
-      fog.sprite.position.set(
+      fog.position.set(
         localX,
         localY,
         fog.localZ +
@@ -6921,12 +7011,11 @@ function updateAirMassVeils(
       const curveExpansion = onFront
         ? 1.18 + curveProgress * 0.42
         : 1
-      fog.sprite.scale.set(
+      fog.scale.set(
         fog.baseScaleX * curveExpansion,
-        fog.baseScaleY * (onFront ? 1.22 + curveProgress * 0.34 : 1),
-        1
+        fog.baseScaleY * (onFront ? 1.22 + curveProgress * 0.34 : 1)
       )
-      fog.sprite.material.rotation = rotation
+      fog.rotation = rotation
 
       const frontDistance = 1 - bodyProgress
       const nearFrontFill =
@@ -6943,15 +7032,11 @@ function updateAirMassVeils(
       const rearRefill = onFront
         ? 1 - smoothStep(0.84, 1, curveProgress)
         : smoothStep(0.01, 0.12, travelPhase)
-      const depthFade = smoothStep(
-        0,
-        0.10,
-        1 - Math.abs(fog.localZ) / 9.55
-      )
+      const depthFade = fog.depthFade
       const breathing =
         0.90 + Math.sin(elapsed * 0.68 + fog.phase) * 0.10
 
-      fog.sprite.material.opacity =
+      fog.opacity =
         opacity *
         airVisibility.value *
         (onFront ? 0.19 : 0.126) *
@@ -6960,8 +7045,8 @@ function updateAirMassVeils(
         rearRefill *
         depthFade *
         breathing
-      fog.sprite.visible = opacity * airVisibility.value > 0.01
     })
+    handle.batch.markDirty()
   })
 }
 
@@ -7106,18 +7191,10 @@ function createVolumeCloudBank(
           value: 0,
         },
         uBaseColor: {
-          value: new THREE.Color(
-            model === 'coldFront'
-              ? '#eef7fb'
-              : '#e8edf2'
-          ),
+          value: new THREE.Color(WEATHER_PALETTE.cloudLight),
         },
         uShadowColor: {
-          value: new THREE.Color(
-            model === 'stationaryFront'
-              ? '#505d77'
-              : '#526676'
-          ),
+          value: new THREE.Color(WEATHER_PALETTE.cloudShadow),
         },
         uModelMatrixInverse: {
           value: new THREE.Matrix4(),
@@ -7378,7 +7455,7 @@ function createCloudBank(
       const t =
         THREE.MathUtils.lerp(
           0.08,
-          0.92,
+          0.64,
           hashRandom(
             index,
             115
@@ -7392,12 +7469,12 @@ function createCloudBank(
         (
           hashRandom(index, 116) -
           0.5
-        ) * 2.4
+        ) * 1.0
 
       localPosition.y +=
         0.30 +
         hashRandom(index, 117) *
-        1.55
+        0.85
 
       localPosition.z =
         (
@@ -7464,8 +7541,8 @@ function createCloudBank(
             hashRandom(index, 114)
           )
           : THREE.MathUtils.lerp(
-            0.95,
-            2.25,
+            0.55,
+            1.15,
             hashRandom(index, 120)
           )
 
@@ -7761,7 +7838,7 @@ function createLightningField(
 
   const mainMaterial =
     new THREE.LineBasicMaterial({
-      color: '#f4fbff',
+      color: WEATHER_PALETTE.lightning,
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -8044,15 +8121,13 @@ function configureRainField(
         )
     } else {
       /*
-       * 准静止锋雨区围绕锋线两侧展开。
+       * 保存锋面路径参数，雨带与层状云共用缓坡位置。
        */
       handle.baseX[index] =
-        -2.45 +
         hashRandom(
           index,
           129
-        ) *
-        4.90
+        )
     }
 
     handle.baseZ[index] =
@@ -8169,6 +8244,12 @@ function updateRainField(
             0.98
           )
         )
+    } else if (model === 'stationaryFront' && curve) {
+      // 本例云雨偏冷侧，在上滑锋面形成的层状云下落雨，
+      // 不能在把坡面放缓后仍保留旧的竖直雨柱。
+      const cloudBase = curve.getPoint(0.08 + handle.baseX[index]! * 0.56, tempPoint)
+      x = offsetX + cloudBase.x
+      top = Math.max(1.0, cloudBase.y + 0.85)
     }
 
     const y =
@@ -8259,8 +8340,8 @@ function createGroundLabels(
 ) {
   createLabelAnchor(
     'rear',
-    '锋后',
-    'ground-label',
+    model === 'stationaryFront' ? '冷空气侧' : '锋后',
+    model === 'stationaryFront' ? 'cold-label' : 'ground-label',
     new THREE.Vector3(
       -4.7,
       0.34,
@@ -8271,8 +8352,8 @@ function createGroundLabels(
 
   createLabelAnchor(
     'front',
-    '锋前',
-    'ground-label',
+    model === 'stationaryFront' ? '暖空气侧' : '锋前',
+    model === 'stationaryFront' ? 'warm-label' : 'ground-label',
     new THREE.Vector3(
       4.8,
       0.34,
@@ -9230,8 +9311,8 @@ function createPressureCenter(
   const color =
     model ===
       'cyclone'
-      ? '#58d2ff'
-      : '#ffc76f'
+      ? WEATHER_PALETTE.lowPressure
+      : WEATHER_PALETTE.highPressure
 
   const radii = [
     1.35,
@@ -9993,8 +10074,8 @@ function buildVortexModel(
       createSmokeTube(
         curve,
         isCyclone
-          ? '#79d8ff'
-          : '#ffd18a',
+          ? WEATHER_PALETTE.cycloneFlow
+          : WEATHER_PALETTE.anticycloneFlow,
         index /
         20,
         airGroup,
@@ -10016,8 +10097,8 @@ function buildVortexModel(
           index /
           20,
           isCyclone
-            ? '#d9f4ff'
-            : '#ffe6b0',
+            ? WEATHER_PALETTE.cycloneFlow
+            : WEATHER_PALETTE.anticycloneFlow,
           airGroup,
           0.038 +
           index %
@@ -10044,7 +10125,7 @@ function buildVortexModel(
     const verticalTube =
       createSmokeTube(
         verticalCurve,
-        isCyclone ? '#ffd5a0' : '#d8efff',
+        isCyclone ? WEATHER_PALETTE.eyewallAscent : WEATHER_PALETTE.anticycloneDescent,
         index / verticalCount,
         upliftGroup,
         isCyclone ? 0.060 : 0.105
@@ -10057,7 +10138,7 @@ function buildVortexModel(
         createVortexArrow(
           verticalCurve,
           0.08 + arrowIndex * 0.29,
-          isCyclone ? '#ffe1b0' : '#e7f6ff',
+          isCyclone ? WEATHER_PALETTE.eyewallAscent : WEATHER_PALETTE.anticycloneDescent,
           upliftGroup,
           0.028 + arrowIndex * 0.002
         )
@@ -10067,12 +10148,12 @@ function buildVortexModel(
 
   if (isCyclone) {
     const eyeCurve = createCycloneEyeDescentCurve(hemisphere.value)
-    const eyeTube = createSmokeTube(eyeCurve, '#79cbff', 0, upliftGroup, 0.085)
+    const eyeTube = createSmokeTube(eyeCurve, WEATHER_PALETTE.eyeDescent, 0, upliftGroup, 0.085)
     eyeTube.material.depthTest = false
     eyeTube.mesh.renderOrder = 13
     verticalTubes.push(eyeTube)
     for (let index = 0; index < 3; index += 1) {
-      const arrow = createVortexArrow(eyeCurve, index / 3, '#71caff', upliftGroup, 0.040)
+      const arrow = createVortexArrow(eyeCurve, index / 3, WEATHER_PALETTE.eyeDescent, upliftGroup, 0.040)
       arrow.cone.scale.setScalar(1.2)
       verticalArrows.push(arrow)
     }
@@ -10092,10 +10173,8 @@ function buildVortexModel(
       airGroup
     )
 
-  const vortexClouds =
-    createVortexCloudDeck(
-      model
-    )
+  // The dry anticyclone lesson has air-flow tracers, not a prescribed cloud ring.
+  const vortexClouds = isCyclone ? createVortexCloudDeck('cyclone') : null
 
   let vortexRain:
     | RainFieldHandle
@@ -10105,7 +10184,7 @@ function buildVortexModel(
     vortexRain =
       createRainField(
         520,
-        '#65c8ff'
+        WEATHER_PALETTE.rain
       )
 
     configureVortexRain(
@@ -10335,22 +10414,14 @@ function buildVortexModel(
 
     if (cloudGroup) {
       cloudGroup.visible =
-        layers.cloud
+        layers.cloud && isCyclone
     }
 
-    updateVortexCloudDeck(
+    if (vortexClouds) updateVortexCloudDeck(
       vortexClouds,
       elapsed,
       layers.cloud
-        ? (
-          isCyclone
-            ? 0.32 +
-            weatherFactor *
-            0.68
-            : 0.08 +
-            weatherFactor *
-            0.34
-        )
+        ? 0.32 + weatherFactor * 0.68
         : 0,
       model
     )
@@ -10460,7 +10531,7 @@ function buildColdFrontModel() {
   const rain =
     createRainField(
       210,
-      '#4bbcff'
+      WEATHER_PALETTE.rain
     )
 
   configureRainField(
@@ -10791,7 +10862,7 @@ function buildWarmFrontModel() {
   const rain =
     createRainField(
       660,
-      '#7cc8ef'
+      WEATHER_PALETTE.rain
     )
 
   configureRainField(
@@ -11095,14 +11166,10 @@ function buildStationaryFrontModel() {
     front.curve
   )
 
-  createLightningField(
-    'stationaryFront'
-  )
-
   const rain =
     createRainField(
       520,
-      '#78c8ee'
+      WEATHER_PALETTE.rain
     )
 
   configureRainField(
@@ -11140,11 +11207,7 @@ function buildStationaryFrontModel() {
     'front-name',
     '准静止锋',
     'front-label stationary-front-label',
-    new THREE.Vector3(
-      -0.8,
-      4.2,
-      0
-    ),
+    front.curve.getPoint(0.62).add(new THREE.Vector3(0.2, 0.32, 0)),
     front.group
   )
 
@@ -11152,11 +11215,7 @@ function buildStationaryFrontModel() {
     'uplift',
     '暖湿空气持续抬升',
     'uplift-label',
-    new THREE.Vector3(
-      -0.45,
-      3.7,
-      0.8
-    ),
+    front.curve.getPoint(0.40).add(new THREE.Vector3(0.5, 0.45, 0.8)),
     front.group
   )
 
@@ -11207,10 +11266,7 @@ function buildStationaryFrontModel() {
      * 主摆动叠加一层较慢的小幅变化，避免机械式匀速平移；
      * 锋面、锋线、符号、气团、云雨和标签都复用同一个偏移量。
      */
-    const wanderingStrength =
-      0.68 +
-      contact *
-      0.32
+    const wanderingStrength = smoothStep(0.18, 0.55, stage)
 
     const frontOffset =
       (
@@ -11218,7 +11274,7 @@ function buildStationaryFrontModel() {
         Math.sin(elapsed * 0.27 + 0.8) *
         0.14
       ) *
-      2.05 *
+      0.62 *
       wanderingStrength
 
     front.group.position.x =
@@ -11314,17 +11370,8 @@ function buildStationaryFrontModel() {
         0.52
         : 0,
       frontOffset,
-      'stationaryFront'
-    )
-
-    updateLightningField(
-      elapsed,
-      frontOffset,
-      layers.cloud &&
-        layers.rain
-        ? rainFactor *
-        0.72
-        : 0
+      'stationaryFront',
+      front.curve
     )
 
     coldLabel.position.x =
@@ -11539,6 +11586,21 @@ function measureModelCameraBounds() {
     activeModelUpdater(sampleProgress / 8, 0, sampleProgress)
     modelRoot.updateMatrixWorld(true)
     modelRoot.traverse((object) => {
+      const fogBillboards = object.userData.fogBillboards as FogBillboardState[] | undefined
+      if (fogBillboards) {
+        object.getWorldScale(scale)
+        for (const fog of fogBillboards) {
+          vertex.copy(fog.position).applyMatrix4(object.matrixWorld)
+          const cosine = Math.abs(Math.cos(fog.rotation))
+          const sine = Math.abs(Math.sin(fog.rotation))
+          const width = Math.abs(fog.scale.x * scale.x)
+          const height = Math.abs(fog.scale.y * scale.y)
+          sprites.push(vertex.x, vertex.y, vertex.z,
+            (width * cosine + height * sine) / 2, (width * sine + height * cosine) / 2)
+          modelCameraBounds.expandByPoint(vertex)
+        }
+        return
+      }
       if (object instanceof THREE.Sprite) {
         object.getWorldPosition(vertex)
         object.getWorldScale(scale)
@@ -12020,19 +12082,15 @@ function animateScene() {
   const delta = isPlaying.value ? Math.max(0, elapsed - lastSimulationElapsed) : 0
   lastSimulationElapsed = elapsed
 
-  if (skyMaterial) {
-    skyMaterial.uniforms
-      .uTime!.value =
-      elapsed
+  const updateSignature = [currentModel.value, hemisphere.value, elapsed, flowSpeed.value,
+    humidity.value, airVisibility.value, cloudAmount.value, ...Object.values(layers)].join('|')
+  // Orbiting may still render a paused scene, but unchanged parcels need no resimulation.
+  if (updateSignature !== lastSceneUpdateSignature) {
+    if (skyMaterial) skyMaterial.uniforms.uTime!.value = elapsed
+    activeModelUpdater?.(elapsed, delta, progress.value)
+    applyLayerVisibility()
+    lastSceneUpdateSignature = updateSignature
   }
-
-  activeModelUpdater?.(
-    elapsed,
-    delta,
-    progress.value
-  )
-
-  applyLayerVisibility()
 
   orbitControls?.update()
 
@@ -13071,29 +13129,17 @@ onBeforeUnmount(
 }
 
 .map-legend-isobar {
-  border-top: 1px dashed #cceef7;
-}
-
-.is-anticyclone .map-legend-isobar {
-  border-top-color: var(--vortex-color);
+  border-top: 1px dashed var(--weather-pressure);
 }
 
 .map-legend-cloud {
-  background: rgba(226, 237, 240, 0.72);
+  background: linear-gradient(180deg, var(--weather-cloud-light), var(--weather-cloud-shadow));
   border-radius: 999px;
   filter: blur(2px);
 }
 
-.map-legend-cold-front {
-  border-top: 3px solid #2f8cff;
-}
-
-.map-legend-warm-front {
-  border-top: 3px solid #ff5361;
-}
-
 .map-legend-rain {
-  background: repeating-linear-gradient(115deg, transparent 0 4px, #39cfff 4px 6px);
+  background: repeating-linear-gradient(115deg, transparent 0 4px, var(--weather-rain) 4px 6px);
 }
 
 .frontal-section-page .workspace {
@@ -13575,36 +13621,85 @@ onBeforeUnmount(
 
 .cold-airflow {
   background:
-    radial-gradient(ellipse at center, #bdeeff 0%, #4aaeff 48%, transparent 76%);
+    radial-gradient(ellipse at center, var(--weather-cold-air-light) 0%, var(--weather-cold-air) 48%, transparent 76%);
   box-shadow:
     0 0 8px rgba(78, 184, 239, 0.64);
 }
 
 .warm-airflow {
   background:
-    radial-gradient(ellipse at center, #ffd4bb 0%, #ff7655 48%, transparent 76%);
+    radial-gradient(ellipse at center, var(--weather-warm-air-light) 0%, var(--weather-warm-air) 48%, transparent 76%);
   box-shadow:
     0 0 8px rgba(239, 118, 75, 0.62);
 }
 
 .legend-front {
   width: 25px;
-  height: 4px;
-  background:
-    linear-gradient(90deg,
-      transparent,
-      #55e9f3,
-      transparent);
-  transform: rotate(-25deg);
+  height: 12px;
+  background: linear-gradient(135deg, transparent, var(--weather-front-surface));
+  border: 1px solid var(--weather-front-surface);
+  border-radius: 3px 9px 3px 3px;
+  transform: skewX(-20deg);
+}
+
+.legend-front-symbol,
+.weather-map-legend .legend-front-symbol {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 18px;
+  background: linear-gradient(var(--weather-cold-front), var(--weather-cold-front)) center / 100% 2px no-repeat;
+}
+
+.legend-front-symbol::before,
+.legend-front-symbol::after {
+  content: '';
+  position: absolute;
+}
+
+.cold-symbol::before,
+.stationary-symbol::before {
+  left: 5px;
+  top: 2px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 7px solid var(--weather-cold-front);
+}
+
+.legend-front-symbol.warm-symbol {
+  background-image: linear-gradient(var(--weather-warm-front), var(--weather-warm-front));
+}
+
+.warm-symbol::after {
+  width: 11px;
+  height: 7px;
+  left: 10px;
+  top: 2px;
+  border-radius: 8px 8px 0 0;
+  background: var(--weather-warm-front);
+}
+
+.legend-front-symbol.stationary-symbol {
+  background-image: linear-gradient(90deg, var(--weather-cold-front) 50%, var(--weather-warm-front) 50%);
+}
+
+.stationary-symbol::after {
+  width: 11px;
+  height: 7px;
+  right: 2px;
+  top: 9px;
+  border-radius: 0 0 8px 8px;
+  background: var(--weather-warm-front);
 }
 
 .legend-cloud {
   width: 25px;
   height: 12px;
-  background: #e7edef;
+  background: linear-gradient(180deg, var(--weather-cloud-light), var(--weather-cloud-shadow));
   border-radius: 999px;
   box-shadow:
-    5px 0 8px rgba(255, 255, 255, 0.58);
+    3px 0 5px rgba(196, 208, 214, 0.28);
 }
 
 .legend-rain {
@@ -13613,11 +13708,11 @@ onBeforeUnmount(
   background:
     repeating-linear-gradient(105deg,
       transparent 0 3px,
-      #61c6fa 3px 5px);
+      var(--weather-rain) 3px 5px);
 }
 
 .legend-lightning {
-  color: #d9f6ff;
+  color: var(--weather-lightning);
   font-size: 18px;
   filter: drop-shadow(0 0 6px rgba(105, 207, 255, 0.78));
 }
@@ -13749,12 +13844,12 @@ onBeforeUnmount(
   height: 8px;
   background:
     linear-gradient(90deg,
-      rgba(var(--vortex-rgb), 0),
-      rgba(var(--vortex-rgb), 0.92),
-      rgba(var(--vortex-rgb), 0));
+      transparent,
+      var(--weather-flow),
+      transparent);
   border-radius: 999px;
   box-shadow:
-    0 0 8px rgba(var(--vortex-rgb), 0.60);
+    0 0 5px var(--weather-flow);
 }
 
 .legend-vertical-flow {
@@ -13762,27 +13857,27 @@ onBeforeUnmount(
   height: 24px;
   background:
     linear-gradient(180deg,
-      rgba(226, 246, 247, 0),
-      rgba(226, 246, 247, 0.90),
-      rgba(226, 246, 247, 0));
+      transparent,
+      var(--weather-descent),
+      transparent);
   border-radius: 999px;
 }
 
 .legend-eyewall-flow {
-  background: linear-gradient(180deg, transparent, #ffb46e, transparent);
+  background: linear-gradient(180deg, transparent, var(--weather-eyewall), transparent);
 }
 
 .legend-eye-flow {
-  background: linear-gradient(180deg, transparent, #92d6ff, transparent);
+  background: linear-gradient(180deg, transparent, var(--weather-eye), transparent);
 }
 
 .legend-pressure-ring {
   width: 20px;
   height: 20px;
-  border: 2px solid var(--vortex-color);
+  border: 2px solid var(--weather-pressure);
   border-radius: 50%;
   box-shadow:
-    0 0 7px rgba(var(--vortex-rgb), 0.55);
+    0 0 5px var(--weather-pressure);
 }
 
 .scene-label.stationary-front-label {

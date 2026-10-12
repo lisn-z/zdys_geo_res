@@ -118,6 +118,12 @@
             <span ref="moleculeBoundaryRef" class="molecule-boundary-label">大气上界</span>
             <span ref="moleculeARef" class="molecule-ground-label">A</span>
             <span ref="moleculeBRef" class="molecule-high-label">B</span>
+            <span ref="moleculeGroundPointRef" class="molecule-observation-label molecule-observation-ground">
+              <i></i><b>近地面</b>
+            </span>
+            <span ref="moleculeMountainPointRef" class="molecule-observation-label molecule-observation-mountain">
+              <i></i><b>山上近地面</b>
+            </span>
             <span class="molecule-drag-tip">拖动模型可旋转观察</span>
             <div class="molecule-explanation">
               <strong>为什么海拔越高，气压越低？</strong>
@@ -643,6 +649,8 @@ const moleculeSceneHostRef = ref<HTMLElement | null>(null)
 const moleculeBoundaryRef = ref<HTMLElement | null>(null)
 const moleculeARef = ref<HTMLElement | null>(null)
 const moleculeBRef = ref<HTMLElement | null>(null)
+const moleculeGroundPointRef = ref<HTMLElement | null>(null)
+const moleculeMountainPointRef = ref<HTMLElement | null>(null)
 const timelineDockRef = ref<HTMLElement | null>(null)
 const hotSourceLabelRef = ref<HTMLElement | null>(null)
 const coldSourceLabelRef = ref<HTMLElement | null>(null)
@@ -661,6 +669,7 @@ let moleculePanelScene: THREE.Scene | null = null
 let moleculePanelCamera: THREE.PerspectiveCamera | null = null
 let moleculePanelRenderer: THREE.WebGLRenderer | null = null
 let moleculePanelControls: OrbitControls | null = null
+let moleculePanelModel: THREE.Group | null = null
 let moleculePanelResizeObserver: ResizeObserver | null = null
 let resizeTimer: ReturnType<typeof setTimeout> | null = null
 let resizeFrame = 0
@@ -709,6 +718,10 @@ const moleculePanelAnchors = {
   boundary: new THREE.Vector3(2.45, 5.1, .62),
   pointA: new THREE.Vector3(-2.55, -.1, .62),
   pointB: new THREE.Vector3(-2.55, 2.37, .62),
+  // Both observation anchors are model-local positions. They are converted to
+  // world space every frame so the marker dot stays attached while orbiting/zooming.
+  groundObservation: new THREE.Vector3(-.58, .02, .48),
+  mountainObservation: new THREE.Vector3(1.23, 3.76, .48),
 }
 const overlayAnchors = {
   hotSource: new THREE.Vector3(5.15, -0.05, 0.3),
@@ -769,8 +782,18 @@ function projectMoleculePanelLabel(element: HTMLElement | null, worldPosition: T
   const rect = host.getBoundingClientRect()
   moleculeOverlayProjection.copy(worldPosition).project(moleculePanelCamera)
   const visible = moleculeOverlayProjection.z > -1 && moleculeOverlayProjection.z < 1
-  const x = THREE.MathUtils.clamp((moleculeOverlayProjection.x * .5 + .5) * rect.width + offsetX, 22, rect.width - 22)
-  const y = THREE.MathUtils.clamp((-moleculeOverlayProjection.y * .5 + .5) * rect.height + offsetY, 126, rect.height - 210)
+  const halfWidth = Math.max(18, element.offsetWidth * .5)
+  const halfHeight = Math.max(16, element.offsetHeight * .5)
+  const x = THREE.MathUtils.clamp(
+    (moleculeOverlayProjection.x * .5 + .5) * rect.width + offsetX,
+    halfWidth + 12,
+    rect.width - halfWidth - 12,
+  )
+  const y = THREE.MathUtils.clamp(
+    (-moleculeOverlayProjection.y * .5 + .5) * rect.height + offsetY,
+    126 + halfHeight,
+    rect.height - 194 - halfHeight,
+  )
   element.style.left = `${x}px`
   element.style.top = `${y}px`
   element.style.opacity = visible ? '1' : '0'
@@ -791,10 +814,28 @@ function projectMoleculeBoundaryLabel() {
   element.style.opacity = visible ? '1' : '0'
 }
 
+function projectMoleculeObservationLabel(element: HTMLElement | null, modelPosition: THREE.Vector3) {
+  const host = moleculeSceneHostRef.value
+  if (!element || !host || !moleculePanelCamera || !moleculePanelModel || !airColumnVisible.value) return
+  const rect = host.getBoundingClientRect()
+  moleculePanelModel.updateWorldMatrix(true, false)
+  moleculeOverlayProjection.copy(modelPosition)
+  moleculePanelModel.localToWorld(moleculeOverlayProjection)
+  moleculeOverlayProjection.project(moleculePanelCamera)
+  const visible = moleculeOverlayProjection.z > -1 && moleculeOverlayProjection.z < 1
+  const x = (moleculeOverlayProjection.x * .5 + .5) * rect.width
+  const y = (-moleculeOverlayProjection.y * .5 + .5) * rect.height
+  element.style.left = `${x}px`
+  element.style.top = `${y}px`
+  element.style.opacity = visible ? '1' : '0'
+}
+
 function updateMoleculePanelLabels() {
   projectMoleculeBoundaryLabel()
   projectMoleculePanelLabel(moleculeARef.value, moleculePanelAnchors.pointA, -18, -2)
   projectMoleculePanelLabel(moleculeBRef.value, moleculePanelAnchors.pointB, -18, 0)
+  projectMoleculeObservationLabel(moleculeGroundPointRef.value, moleculePanelAnchors.groundObservation)
+  projectMoleculeObservationLabel(moleculeMountainPointRef.value, moleculePanelAnchors.mountainObservation)
 }
 
 function getIsobarDeformation(x: number, z: number, tiltFactor: number, amount: number) {
@@ -1010,6 +1051,7 @@ function createPanelMoleculeColumn(
   seed: number,
   color: number,
   width: number,
+  distribution: 'density-gradient' | 'stratified' = 'density-gradient',
 ) {
   const geometry = registerMoleculePanelGeometry(new THREE.SphereGeometry(.055, 10, 8))
   const material = registerMoleculePanelMaterial(new THREE.MeshStandardMaterial({
@@ -1020,7 +1062,10 @@ function createPanelMoleculeColumn(
   const bases = new Float32Array(count * 3)
   const phases = new Float32Array(count)
   for (let index = 0; index < count; index += 1) {
-    const ratio = Math.pow(seededRandom(seed + index * 3), 1.48)
+    const randomRatio = seededRandom(seed + index * 3)
+    const ratio = distribution === 'stratified'
+      ? THREE.MathUtils.clamp((index + .5 + (randomRatio - .5) * .34) / count, .04, .96)
+      : Math.pow(randomRatio, 1.48)
     bases[index * 3] = x + (seededRandom(seed + index * 3 + 1) - .5) * width * .76
     bases[index * 3 + 1] = bottom + .16 + ratio * Math.max(.1, top - bottom - .32)
     bases[index * 3 + 2] = .22 + (seededRandom(seed + index * 3 + 2) - .5) * width * .72
@@ -1126,6 +1171,7 @@ function initMoleculePanelScene() {
 
   const model = new THREE.Group()
   model.position.y = -.18
+  moleculePanelModel = model
   moleculePanelScene.add(model)
 
   const ground = new THREE.Mesh(
@@ -1167,9 +1213,11 @@ function initMoleculePanelScene() {
   createPanelMoleculeColumn(model, -2.55, 2.55, 5.28, 34, 2500, 0x8da0b5, 1.12)
 
   createPanelColumn(model, -.55, .08, 5.28, .46, 0xe4b236)
-  createPanelMoleculeColumn(model, -.55, .08, 5.28, 58, 3100, 0x7d91aa, .46)
+  createPanelMoleculeColumn(model, -.55, .08, 5.28, 38, 3100, 0x7d91aa, .46)
   createPanelColumn(model, 1.23, 3.76, 5.28, .46, 0xe4b236)
-  createPanelMoleculeColumn(model, 1.23, 3.76, 5.28, 12, 3500, 0x9eabc0, .46)
+  // 山顶空气柱更短且位于较高海拔：粒子总数与单位体积密度均低于平地空气柱。
+  // 分层错位采样避免随机粒子局部堆叠，便于观察“高处较疏”的趋势。
+  createPanelMoleculeColumn(model, 1.23, 3.76, 5.28, 6, 3500, 0x9eabc0, .46, 'stratified')
 
   moleculePanelResizeObserver = new ResizeObserver(scheduleMoleculePanelResize)
   moleculePanelResizeObserver.observe(host)
@@ -1791,7 +1839,7 @@ function disposeScene() {
   moleculePanelRenderer?.dispose()
   if (moleculePanelRenderer?.domElement.parentElement) moleculePanelRenderer.domElement.parentElement.removeChild(moleculePanelRenderer.domElement)
   renderer = null; scene = null; camera = null; controls = null
-  moleculePanelRenderer = null; moleculePanelScene = null; moleculePanelCamera = null; moleculePanelControls = null
+  moleculePanelRenderer = null; moleculePanelScene = null; moleculePanelCamera = null; moleculePanelControls = null; moleculePanelModel = null
   airMoleculePoints = null; airMoleculeMaterial = null
   endAirColumnResize()
 }
@@ -3096,6 +3144,7 @@ onBeforeUnmount(disposeScene)
 .molecule-boundary-label,
 .molecule-ground-label,
 .molecule-high-label,
+.molecule-observation-label,
 .molecule-drag-tip {
   position: absolute;
   z-index: 3;
@@ -3147,6 +3196,56 @@ onBeforeUnmount(disposeScene)
   left: 24%;
   color: #b86b2d;
   border-color: rgba(184, 107, 45, .3);
+}
+
+.molecule-observation-label {
+  width: 0;
+  height: 0;
+  min-width: 0;
+  padding: 0;
+  color: #174e63;
+  font-size: 12px;
+  line-height: 1;
+  transform: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  transition: opacity 120ms ease;
+}
+
+.molecule-observation-label i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #20a9d1;
+  box-shadow: 0 0 0 2px rgba(32, 169, 209, .24), 0 3px 8px rgba(31, 113, 139, .2);
+  transform: translate(-50%, -50%);
+}
+
+.molecule-observation-label b {
+  position: absolute;
+  top: 0;
+  left: 11px;
+  padding: 6px 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  border: 1px solid rgba(34, 125, 156, .16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .86);
+  box-shadow: 0 5px 14px rgba(43, 93, 111, .1);
+  backdrop-filter: blur(8px);
+}
+
+.molecule-observation-mountain i {
+  background: #e2a637;
+  box-shadow: 0 0 0 2px rgba(226, 166, 55, .26), 0 3px 8px rgba(131, 91, 24, .18);
 }
 
 .molecule-drag-tip {

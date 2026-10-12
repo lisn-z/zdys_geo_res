@@ -7,7 +7,7 @@
           alt="logo" />
       </div>
 
-      <h1 class="page-title">大气垂直分层（中纬度地区）</h1>
+      <h1 class="page-title">大气垂直分层</h1>
 
       <div class="toolbar-actions">
         <button type="button" class="theme-btn toolbar-btn" @click="resetScene">
@@ -139,7 +139,7 @@
             <h3 class="section-title">快速定位</h3>
 
             <div class="option-grid layer-focus-grid">
-              <button v-for="item in layerOptions" :key="item.key" type="button"
+              <button v-for="item in majorLayerOptions" :key="item.key" type="button"
                 class="theme-btn option-btn layer-focus-btn" :class="{ active: currentLayer === item.key }"
                 @click="selectLayer(item.key, true)">
                 {{ item.shortName }}
@@ -215,11 +215,26 @@
 
           <section class="geo-card layer-selector-card">
             <div class="layer-button-grid">
-              <button v-for="item in layerOptions" :key="item.key" type="button"
+              <button v-for="item in majorLayerOptions" :key="item.key" type="button"
                 class="theme-btn option-btn layer-info-btn" :class="{ active: currentLayer === item.key }"
                 @click="selectLayer(item.key, true)">
                 {{ item.shortName }}
               </button>
+            </div>
+
+            <div class="special-region-block">
+              <div class="special-region-copy">
+                <strong>重叠区域（非独立分层）</strong>
+                <span>臭氧层位于平流层内；电离层横跨中间层和热层等区域。</span>
+              </div>
+
+              <div class="special-region-buttons">
+                <button v-for="item in specialRegionOptions" :key="item.key" type="button"
+                  class="theme-btn option-btn layer-info-btn special-region-btn"
+                  :class="{ active: currentLayer === item.key }" @click="selectLayer(item.key, true)">
+                  {{ item.shortName }}
+                </button>
+              </div>
             </div>
           </section>
 
@@ -227,7 +242,7 @@
             <article class="geo-card data-card cyan-card">
               <span>高度范围</span>
               <strong>{{ currentLayerInfo.altitude }}</strong>
-              <small>中纬度地区典型范围</small>
+              <small>{{ isSpecialRegionSelected ? '跨越基础分层的重叠区域' : '中纬度地区典型范围' }}</small>
             </article>
 
             <article class="geo-card data-card blue-card">
@@ -252,7 +267,9 @@
           <section class="geo-card current-layer-card">
             <div class="layer-detail-head">
               <div>
-                <span class="layer-kicker">CURRENT LAYER</span>
+                <span class="layer-kicker">
+                  {{ isSpecialRegionSelected ? 'OVERLAPPING REGION' : 'CURRENT LAYER' }}
+                </span>
                 <h3>{{ currentLayerInfo.name }}</h3>
               </div>
 
@@ -315,7 +332,7 @@
                   </article>
                   <article>
                     <strong>中间层—热层</strong>
-                    <span>多数流星在中间层附近燃烧；热层可见极光，并分布着部分航天器轨道。</span>
+                    <span>多数流星体在中间层发光、烧蚀；极光主要出现在与热层重叠的电离区域，部分低轨航天器也在热层中运行。</span>
                   </article>
                   <article>
                     <strong>电离层</strong>
@@ -332,7 +349,7 @@
             <el-collapse-item title="3. 逆温层特点与示意图" name="inversion">
               <div class="collapse-content">
                 <p>
-                  正常情况下，对流层气温随高度升高而降低；若某一高度范围内气温反而随高度升高而升高，就形成逆温层。逆温层大气稳定，会抑制垂直对流，使近地面污染物不易扩散。
+                  通常情况下，对流层气温随高度升高而降低；若某一高度范围内气温反而随高度升高而升高，就形成逆温。逆温层结稳定，会抑制空气的垂直运动，使其下方的水汽和污染物不易向上扩散。
                 </p>
 
                 <div class="inversion-chart">
@@ -361,7 +378,7 @@
                 </div>
 
                 <p class="classroom-conclusion">
-                  常见影响：清晨或冬季静稳天气下，城市上空易形成逆温，雾霾和污染物可能在近地面累积。
+                  常见影响：晴朗、风弱的夜间至清晨，近地面易形成辐射逆温；冬季静稳天气下逆温也较常见。逆温持续时，污染物容易在其下方累积。
                 </p>
               </div>
             </el-collapse-item>
@@ -492,7 +509,7 @@ const layerOptions: LayerInfo[] = [
     phenomenon: '臭氧吸收紫外线',
     humanRelation: '空气稳定、能见度较好，有利于高空飞行',
     description:
-      '平流层位于对流层之上，顶部约 50 千米。该层水汽和杂质很少，天气晴朗。臭氧吸收太阳紫外线后增温，使气温总体随高度升高。',
+      '平流层下冷上暖，结构稳定，空气以水平运动为主；臭氧主要集中在这一层。',
     features: [
       '气温随高度增加而上升。',
       '大气以水平运动为主，垂直运动弱。',
@@ -512,17 +529,17 @@ const layerOptions: LayerInfo[] = [
     maxAltitude: 85,
     temperatureTrend: '随高度降低',
     temperatureNote: '中间层顶附近可降至约 -90 ℃',
-    motion: '垂直运动较弱',
-    motionNote: '空气稀薄，向上逐渐过渡到热层',
-    phenomenon: '流星燃烧',
-    humanRelation: '多数流星体在此附近因摩擦与压缩加热而发光',
+    motion: '上部对流明显',
+    motionNote: '气温随高度迅速降低，上部容易发生垂直运动',
+    phenomenon: '流星现象、夜光云',
+    humanRelation: '多数流星体在此发光、烧蚀；中间层顶附近偶见夜光云',
     description:
-      '中间层位于平流层之上，顶部约 80—85 千米。该层气温总体随高度增加而降低，是大气温度最低的区域之一，多数流星在这里发光并烧蚀。',
+      '中间层气温随高度增加而迅速降低，层顶附近是大气温度最低的区域之一；上部对流运动较明显。',
     features: [
       '气温随高度增加而降低。',
       '空气已十分稀薄，水汽和杂质极少。',
-      '多数流星在该高度范围内燃烧。',
-      '上部与热层相接，温度变化方向发生转折。',
+      '多数流星体在该高度范围内发光并烧蚀。',
+      '中间层顶附近在特定条件下可出现夜光云。',
     ],
     color: '#375b9c',
   },
@@ -534,18 +551,18 @@ const layerOptions: LayerInfo[] = [
     minAltitude: 85,
     maxAltitude: 500,
     temperatureTrend: '迅速升高',
-    temperatureNote: '吸收高能太阳辐射，温度可很高',
-    motion: '空气极稀薄',
-    motionNote: '分子运动快，但热量传递能力弱',
-    phenomenon: '极光、电离',
-    humanRelation: '与空间天气、低轨航天器运行密切相关',
+    temperatureNote: '氧、氮等粒子吸收太阳极紫外线和 X 射线',
+    motion: '分子运动很快',
+    motionNote: '空气极稀薄，粒子平均动能大但热量很少',
+    phenomenon: '极光、气辉',
+    humanRelation: '极光多出现在与热层重叠的电离区域；低轨航天器在此运行',
     description:
-      '热层从中间层顶向上延伸，空气极其稀薄。该层吸收太阳短波高能辐射，气温随高度迅速升高。高纬地区的极光常发生在热层范围内。',
+      '热层中的氧、氮等粒子吸收太阳极紫外线和 X 射线，辐射能转化为粒子的动能，因此气温随高度迅速升高。',
     features: [
       '空气密度很小，但分子平均动能较大。',
-      '气温随高度快速上升。',
-      '高纬地区可出现绚丽极光。',
-      '部分低轨航天器在热层中运行。',
+      '吸收太阳极紫外线和 X 射线后气温快速上升。',
+      '高纬上空与电离层重叠的区域可出现极光。',
+      '稀薄气体还会产生微弱的气辉。',
     ],
     color: '#5654ad',
   },
@@ -556,19 +573,19 @@ const layerOptions: LayerInfo[] = [
     altitude: '500—3000 km 以上',
     minAltitude: 500,
     maxAltitude: 3000,
-    temperatureTrend: '高温且变化大',
-    temperatureNote: '粒子稀少，温度概念与近地面不同',
+    temperatureTrend: '随高度变化很小',
+    temperatureNote: '可近似看作等温，具体温度受太阳活动和昼夜影响',
     motion: '粒子可逃逸',
     motionNote: '与外层空间逐渐过渡，没有明确上界',
     phenomenon: '卫星运行',
     humanRelation: '人造卫星、空间探测与近地空间环境研究',
     description:
-      '散逸层是地球大气最外层，空气极端稀薄，气体粒子间碰撞很少，部分高速粒子可以克服地球引力进入太空。它与外层空间之间没有清晰边界。',
+      '散逸层是地球大气最外层，气温随高度变化很小。这里空气极端稀薄，部分高速粒子可克服地球引力进入太空，与外层空间之间没有清晰边界。',
     features: [
+      '气温随高度增加变化很小，可近似看作等温。',
       '空气极端稀薄，粒子平均自由程很长。',
       '轻质气体粒子可能逃逸到外层空间。',
       '大气逐渐过渡到星际空间。',
-      '多种人造卫星在更高轨道运行。',
     ],
     color: '#14264c',
   },
@@ -623,6 +640,14 @@ const layerOptions: LayerInfo[] = [
     diagramAlt: '电离层影响无线电波传播示意图',
   },
 ]
+
+const majorLayerOptions = layerOptions.filter(
+  (item) => item.key !== 'ozone' && item.key !== 'ionosphere',
+)
+
+const specialRegionOptions = layerOptions.filter(
+  (item) => item.key === 'ozone' || item.key === 'ionosphere',
+)
 
 const viewOptions = [
   { label: '整体', value: 'overview' as ViewKey },
@@ -682,6 +707,10 @@ const speedOptions = [0.5, 1, 2]
 const currentLayerInfo = computed(() => {
   return layerOptions.find((item) => item.key === currentLayer.value) || layerOptions[0]
 })
+
+const isSpecialRegionSelected = computed(() => (
+  currentLayer.value === 'ozone' || currentLayer.value === 'ionosphere'
+))
 
 const stageContentStyle = computed(() => {
   if (stageContentHeight.value < 2) {
@@ -2688,13 +2717,13 @@ function handleTimelineChange(value: number | number[]) {
 
 function syncLayerWithProgress(focus = false) {
   const index = Math.min(
-    layerOptions.length - 1,
-    Math.floor((progress.value / 100) * layerOptions.length),
+    majorLayerOptions.length - 1,
+    Math.floor((progress.value / 100) * majorLayerOptions.length),
   )
 
   if (index !== lastTourLayerIndex) {
     lastTourLayerIndex = index
-    const layer = layerOptions[index]
+    const layer = majorLayerOptions[index]
     selectLayer(layer.key, focus || isPlaying.value)
   }
 }
@@ -3519,6 +3548,40 @@ onBeforeUnmount(() => {
   padding: clamp(10px, 0.9vw, 14px);
 }
 
+.special-region-block {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid rgba(120, 218, 255, 0.14);
+}
+
+.special-region-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.special-region-copy strong {
+  color: #8feaff;
+  font-size: 11px;
+}
+
+.special-region-copy span {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.special-region-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.special-region-btn {
+  border-style: dashed;
+}
+
 .layer-data-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -3772,14 +3835,15 @@ onBeforeUnmount(() => {
 
 .inversion-zone {
   position: absolute;
-  right: 52%;
-  bottom: 30px;
+  top: 61%;
+  left: 39%;
   padding: 3px 7px;
   color: #3c5e64;
   font-size: 9px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(31, 105, 118, 0.25);
   border-radius: 5px;
+  transform: translate(8px, -50%);
 }
 
 .chart-x-axis {

@@ -1,10 +1,27 @@
 // Circular, coplanar lunar equilibrium tide. Heights are illustrative, not metres.
+// Mean sidereal periods; do not use the 24-hour solar day or synodic month
+// for rotation in this geocentric, non-rotating reference frame.
+// https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html
+// https://eclipse.gsfc.nasa.gov/SEhelp/moonorbit.html
 export const SIDEREAL_DAY_HOURS = 23.9344696
 export const SIDEREAL_MONTH_HOURS = 27.321661 * 24
 export const EARTH_DEGREES_PER_HOUR = 360 / SIDEREAL_DAY_HOURS
 export const MOON_DEGREES_PER_HOUR = 360 / SIDEREAL_MONTH_HOURS
 export const LUNAR_DAY_HOURS = 360 / (EARTH_DEGREES_PER_HOUR - MOON_DEGREES_PER_HOUR)
-export const SIMULATION_HOURS_PER_SECOND = 0.8
+// All celestial motions use the same scale: 720 times real time at 1×.
+export const SIMULATION_HOURS_PER_SECOND = 0.2
+
+/** Duration, not time of day: preserve hours beyond 24 and round before splitting. */
+export function formatDurationHours(hours: number) {
+  const rawSeconds = Math.max(0, hours * 3600)
+  const seconds = Math.round(rawSeconds + Number.EPSILON * Math.max(1, rawSeconds))
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${pad(Math.floor(seconds / 3600))}时${pad(Math.floor(seconds / 60) % 60)}分${pad(seconds % 60)}秒`
+}
+
+export function simulationHoursForElapsedSeconds(seconds: number, speed: number) {
+  return Math.max(0, seconds) * SIMULATION_HOURS_PER_SECOND * speed
+}
 
 export const EARTH_RADIUS = 2.65
 // The reference water layer is thickened so exaggerated low water stays outside land.

@@ -3,8 +3,11 @@
     <div ref="hostRef" class="coastal-canvas" aria-label="观察点 A 的三维海洋与小岛，海面随潮位升降，岸滩和石阶保持固定"></div>
     <div class="coastal-tools">
       <span>观察点 A · 岸边放大</span>
-      <button type="button" :class="{ active: shoreView }" @click="setView(!shoreView)">{{ shoreView ? '小岛全景' : '靠近岸边'
-        }}</button>
+      <label class="coastal-view-switch">
+        <span>小岛全景</span>
+        <input type="checkbox" role="switch" :checked="!shoreView" @change="setView(!shoreView)" />
+        <i aria-hidden="true"></i>
+      </label>
     </div>
     <div class="coastal-labels" aria-hidden="true">
       <span ref="stepsLabelRef">固定石阶</span>
@@ -28,6 +31,7 @@ const gaugeLabelRef = ref<HTMLElement | null>(null)
 const shoreView = ref(false)
 const sceneError = ref('')
 const WATER_NORMALS_URL = '/geo-resources-folder/images/waternormals.jpg'
+const COAST_FIELD_OF_VIEW = 42
 const SUN = new THREE.Vector3(-12, 18, 7)
 const GAUGE = new THREE.Vector3(5.4, 0, 2.6)
 const STEPS_ANGLE = 1.28
@@ -215,9 +219,21 @@ function updateWaterLevel() {
 function setView(close: boolean) {
   shoreView.value = close
   if (!camera || !controls) return
-  camera.position.set(...(close ? [8.5, 4.8, 9.5] : [9, 8.5, 11]) as [number, number, number])
-  controls.target.set(close ? 0.7 : 0, 0.4, close ? 2 : 0)
+  // Flush residual drag motion before applying an exact preset.
+  const dampingEnabled = controls.enableDamping
+  controls.enableDamping = false
   controls.update()
+  if (close) {
+    const steps = shorelinePoint(STEPS_ANGLE, 0.4)
+    controls.target.set(steps.x, 0.55, steps.z)
+    camera.position.set(steps.x + 2.4, 3.15, steps.z + 5.4)
+  } else {
+    // A high, wide view includes the full low-tide shoreline and the water gauge.
+    controls.target.set(-0.8, 0.4, 0)
+    camera.position.set(13, 16, 19)
+  }
+  controls.update()
+  controls.enableDamping = dampingEnabled
 }
 
 function queueSceneResize() {
@@ -237,6 +253,10 @@ function applyPendingResize() {
   renderedHeight = pendingHeight
   renderer.setSize(renderedWidth, renderedHeight, false)
   camera.aspect = renderedWidth / renderedHeight
+  // Keep the island framed by the shorter edge in a narrow split pane.
+  camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(
+    Math.tan(THREE.MathUtils.degToRad(COAST_FIELD_OF_VIEW) / 2) / Math.min(camera.aspect, 1),
+  ))
   camera.updateProjectionMatrix()
 }
 
@@ -322,11 +342,11 @@ onMounted(() => {
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 0.95
     hostRef.value.appendChild(renderer.domElement)
-    camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2000)
+    camera = new THREE.PerspectiveCamera(COAST_FIELD_OF_VIEW, 1, 0.1, 2000)
     controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.enablePan = false
-    controls.minDistance = 10
+    controls.minDistance = 4.5
     controls.maxDistance = 42
     controls.minPolarAngle = 0.2
     controls.maxPolarAngle = Math.PI * 0.46
@@ -399,8 +419,8 @@ onBeforeUnmount(() => {
   font-size: 11px;
 }
 
-.coastal-tools span,
-.coastal-tools button {
+.coastal-tools > span,
+.coastal-view-switch {
   border: 1px solid #ffffff55;
   border-radius: 6px;
   padding: 5px 8px;
@@ -408,13 +428,56 @@ onBeforeUnmount(() => {
   color: #efffff;
 }
 
-.coastal-tools button {
+.coastal-view-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
   pointer-events: auto;
   cursor: pointer;
 }
 
-.coastal-tools button.active {
+.coastal-view-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.coastal-view-switch i {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  border: 1px solid #7499a5;
+  border-radius: 999px;
+  background: #244353;
+}
+
+.coastal-view-switch i::after {
+  position: absolute;
+  content: '';
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #efffff;
+  transition: transform 0.15s;
+}
+
+.coastal-view-switch input:checked + i {
   background: #236b70;
+  border-color: #73e1d4;
+}
+
+.coastal-view-switch input:checked + i::after {
+  transform: translateX(12px);
+}
+
+.coastal-view-switch:focus-within {
+  outline: 2px solid #73e1d4;
+  outline-offset: 2px;
 }
 
 .coastal-labels {

@@ -161,7 +161,7 @@ export const routes = [
     path: '/earth-evolution',
     name: 'earth-evolution',
     meta: {
-      title: '地球演化',
+      title: '地球的演化',
       tags: ['第二批'],
     },
     component: () =>
@@ -251,7 +251,7 @@ export const routes = [
     path: '/layers-inside-the-earth',
     name: 'layers-inside-the-earth',
     meta: {
-      title: '地球内部圈层',
+      title: '地球内部圈层与地震波',
       tags: ['第二批'],
     },
     component: () =>

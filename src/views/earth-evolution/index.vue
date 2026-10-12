@@ -7,7 +7,7 @@
           alt="logo" />
       </div>
 
-      <h1 class="page-title">地球演化</h1>
+      <h1 class="page-title">地球的演化</h1>
 
       <div class="toolbar-actions">
         <button type="button" class="theme-btn toolbar-btn" @click="resetEvolution">
@@ -25,9 +25,13 @@
               <div class="era-intro-card" :class="'intro-' + currentEra.eon">
                 <div class="era-intro-head">
                   <div class="era-intro-id">
-                    <span class="era-intro-eon">
-                      {{ currentEra.eonLabel }}
-                    </span>
+                    <div class="era-intro-hierarchy">
+                      <span class="era-intro-eon">{{ currentEra.eonLabel }}</span>
+                      <template v-if="currentEra.eon === 'phanerozoic'">
+                        <span aria-hidden="true">·</span>
+                        <span class="era-intro-era">{{ currentEra.eraLabel }}</span>
+                      </template>
+                    </div>
                     <h2>{{ currentEra.name }}</h2>
                     <span class="era-intro-age">
                       {{ currentEra.ageLabel }}
@@ -305,12 +309,12 @@ const eonSegments = computed<EonGroup[]>(() => {
 
       const range =
         era.eon === 'phanerozoic'
-          ? '显生宙 · 0.66亿年前至今'
+          ? '显生宙 · 5.388亿年前至今'
           : era.eon === 'proterozoic'
-            ? '元古宙 · 25~5.41亿年前'
+            ? '元古宙 · 25~5.388亿年前'
             : era.eon === 'archean'
-              ? '太古宙 · 40~25亿年前'
-              : '冥古宙 · 46~40亿年前'
+              ? '太古宙 · 40.31~25亿年前'
+              : '冥古宙 · 45.67~40.31亿年前'
 
       groups.push({
         id: era.eon,
@@ -514,11 +518,7 @@ const scrollEventCells = computed(() =>
 
 const scrollAgeCells = computed(() =>
   eras.map((era, idx) => {
-    const mya = era.ageMya
-    let display = ''
-    if (mya >= 1000) display = String(Math.round(mya))
-    else if (mya >= 10) display = mya % 1 === 0 ? String(mya) : mya.toFixed(1)
-    else display = mya.toFixed(1)
+    const display = String(era.ageMya)
     return {
       text: display,
       width: displayColumnWidths.value[idx]!,
@@ -1125,7 +1125,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.era-main-stage > * {
+.era-main-stage>* {
   min-width: 0;
   min-height: 0;
 }
@@ -1235,7 +1235,10 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.era-intro-eon {
+.era-intro-hierarchy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size:
     clamp(9px, 0.78vw, 12px);
   font-weight: 800;
@@ -1782,9 +1785,7 @@ onBeforeUnmount(() => {
 
 .layout-small .evolution-content {
   padding:
-    clamp(8px, 1.1vw, 12px)
-    clamp(8px, 1.2vw, 14px)
-    clamp(108px, 15vh, 142px);
+    clamp(8px, 1.1vw, 12px) clamp(8px, 1.2vw, 14px) clamp(108px, 15vh, 142px);
   gap:
     clamp(7px, 1vh, 11px);
 }
@@ -1913,8 +1914,7 @@ onBeforeUnmount(() => {
 .scroll-table-viewport {
   scrollbar-width: thin;
   scrollbar-color:
-    rgba(46, 196, 182, 0.82)
-    rgba(116, 234, 229, 0.12);
+    rgba(46, 196, 182, 0.82) rgba(116, 234, 229, 0.12);
 }
 
 .era-intro-card::-webkit-scrollbar {

@@ -151,7 +151,7 @@
             </button>
 
             <div class="seismic-reference-frame">
-              <img class="seismic-reference-image" :src="SEISMIC_REFERENCE_IMAGE" alt="地震波传播速度与地球内部圈层示意图" />
+              <SeismicReferenceDiagram class="seismic-reference-image" />
 
               <section class="seismic-chart-card seismogram-card seismic-overlay-card">
                 <div class="static-card-title">某次地震波谱示意图</div>
@@ -359,6 +359,7 @@ import {
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+import SeismicReferenceDiagram from './SeismicReferenceDiagram.vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
@@ -418,11 +419,6 @@ type SceneBundle = {
   lastHeight: number
 }
 
-const IMAGE_BASE_URL =
-  'https://zdys.szjx.ai-study.net/geo-resources-folder/images/'
-
-const SEISMIC_REFERENCE_IMAGE =
-  IMAGE_BASE_URL + 'layers-inside-earth-seismic-reference-v6.png'
 const EARTH_INTERIOR_BACKGROUND = '/geo-resources-folder/images/earth-interior-background.png'
 const WATER_NORMALS_URL = '/geo-resources-folder/images/waternormals.jpg'
 
@@ -439,7 +435,7 @@ const selectedKnowledge = ref<KnowledgeKey>('crust')
 const showLabels = ref(true)
 const showBoundaries = ref(true)
 const showTerrain = ref(true)
-const autoRotate = ref(true)
+const autoRotate = ref(false)
 const slowTeachingMode = ref(false)
 const waveAmplitude = ref(1)
 const waveFrequency = ref(1)
@@ -506,7 +502,7 @@ const knowledgeMap: Record<KnowledgeKey, KnowledgeItem> = {
       '上层以富含硅、铝的硅铝层为主；下层以富含硅、镁的硅镁层为主。',
       '地壳厚度不均和硅铝层分布不连续，是地壳结构的重要特征。',
     ],
-    averageThickness: '17 km',
+    averageThickness: '约 17 km',
     state: '固态',
     material: '岩石',
   },
@@ -517,9 +513,9 @@ const knowledgeMap: Record<KnowledgeKey, KnowledgeItem> = {
       '地幔位于莫霍面与古登堡面之间，物质基本呈固态，是地球内部体积最大的圈层。',
     points: [
       '地幔可分为上地幔和下地幔，分界大致位于地下约 1 000 km。',
-      '上地幔上部约 50～250（或 400）km 深处存在软流层。',
-      '软流层物质接近熔融状态，通常被认为是岩浆的重要发源地。',
-      '地壳与软流层以上的上地幔顶部共同组成岩石圈。',
+      '软流层位于上地幔上部、岩石圈之下；教材描述其上界约在地下 50～150 km，下界约在 250～400 km。',
+      '软流层通常被认为可能是岩浆的主要发源地。',
+      '地壳与软流层以上的上地幔顶部共同组成岩石圈；软流层不属于岩石圈。',
     ],
     averageThickness: '约 2 883 km',
     state: '固态为主',
@@ -671,7 +667,7 @@ function createSeaAndLandWaterNormals(renderer: THREE.WebGLRenderer) {
   return texture
 }
 
-function createTextSprite(
+function createModelLabel(
   text: string,
   options: {
     color?: string
@@ -691,8 +687,8 @@ function createTextSprite(
 
   const textWidth = Math.ceil(measureCtx.measureText(text).width)
   const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1280, textWidth + 280)
-  canvas.height = 320
+  canvas.width = Math.ceil(textWidth + fontSize * 1.2)
+  canvas.height = Math.ceil(fontSize * 1.8)
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('无法创建文字纹理')
 
@@ -701,7 +697,7 @@ function createTextSprite(
   if (options.background) {
     ctx.fillStyle = options.background
     ctx.beginPath()
-    ctx.roundRect(18, 42, canvas.width - 36, canvas.height - 84, 28)
+    ctx.roundRect(8, 8, canvas.width - 16, canvas.height - 16, 18)
     ctx.fill()
   }
 
@@ -709,29 +705,30 @@ function createTextSprite(
   ctx.textBaseline = 'middle'
   ctx.font = `${fontWeight} ${fontSize}px "Microsoft YaHei", "PingFang SC", sans-serif`
   ctx.lineJoin = 'round'
-  ctx.lineWidth = 8
+  ctx.lineWidth = 6
   ctx.strokeStyle = options.stroke ?? 'rgba(255,255,255,.78)'
-  ctx.strokeText(text, canvas.width / 2, canvas.height / 2 + 5)
+  ctx.strokeText(text, canvas.width / 2, canvas.height / 2)
   ctx.fillStyle = options.color ?? '#111111'
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 5)
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2)
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
   texture.needsUpdate = true
 
-  const material = new THREE.SpriteMaterial({
+  const material = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
-    depthTest: false,
+    depthTest: true,
     depthWrite: false,
+    side: THREE.FrontSide,
   })
-  const sprite = new THREE.Sprite(material)
   const scale = options.scale ?? 1
   const baseHeight = 1.25 * scale
   const aspectRatio = canvas.width / canvas.height
-  sprite.scale.set(baseHeight * aspectRatio, baseHeight, 1)
-  sprite.renderOrder = 30
-  return sprite
+  // 平面文字保留模型坐标与朝向，旋转时不再像 Sprite 一样脱离所属圈层。
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(baseHeight * aspectRatio, baseHeight), material)
+  label.renderOrder = 30
+  return label
 }
 
 function createLayerBand(
@@ -998,12 +995,12 @@ function addWedgeLabels(root: THREE.Group) {
       { text: '海平面', position: [4.35, 4.82, 2.18], scale: 0.62, color: '#0072cc' },
       { text: '莫霍面', position: [-4.56, 3.63, 2.18], scale: 0.56, color: '#0049d8' },
       { text: '平均约17千米', position: [-4.34, 3.94, 2.18], scale: 0.52 },
-      { text: '50千米', position: [-4.05, 3.42, 2.18], scale: 0.52 },
-      { text: '400千米', position: [-3.8, 2.67, 2.18], scale: 0.52 },
-      { text: '1 000千米', position: [-3.3, 1.2, 2.18], scale: 0.56 },
+      { text: '50～150千米', position: [-4.05, 3.32, 2.18], scale: 0.46 },
+      { text: '250～400千米', position: [-3.8, 2.52, 2.18], scale: 0.46 },
+      { text: '1 000千米', position: [-3.3, 1.15, 2.18], scale: 0.56 },
       { text: '古登堡面', position: [-2.68, -1.43, 2.18], scale: 0.56, color: '#0049d8' },
-      { text: '2 900千米', position: [-2.1, -1.06, 2.18], scale: 0.56 },
-      { text: '5 100千米', position: [-0.78, -4.25, 2.18], scale: 0.56 },
+      { text: '2 900千米', position: [-2.1, -0.78, 2.18], scale: 0.56 },
+      { text: '5 100千米', position: [-0.78, -4.0, 2.18], scale: 0.56 },
       { text: '地壳（固态）', position: [1.5, 3.88, 2.2], scale: 0.68 },
       { text: '岩石圈', position: [-0.25, 3.48, 2.2], scale: 0.64 },
       { text: '（地壳与上地幔顶部）', position: [-0.25, 3.1, 2.2], scale: 0.54, fontSize: 70 },
@@ -1017,7 +1014,7 @@ function addWedgeLabels(root: THREE.Group) {
     ]
 
   labelItems.forEach((item) => {
-    const label = createTextSprite(item.text, {
+    const label = createModelLabel(item.text, {
       color: item.color ?? '#17110c',
       fontSize: item.fontSize ?? 84,
       scale: (item.scale ?? 0.55) * 1.42,
@@ -2497,7 +2494,7 @@ function addLithospherePieChart(root: THREE.Group) {
     const isMajor = item.value > 15
     const labelRadius = isMajor ? radius * 0.57 : radius * 1.36
     const decimals = item.value % 1 === 0 ? 1 : 2
-    const label = createTextSprite(`${item.label} ${item.value.toFixed(decimals)}%`, {
+    const label = createModelLabel(`${item.label} ${item.value.toFixed(decimals)}%`, {
       fontSize: isMajor ? 96 : 86,
       scale: isMajor ? 0.66 : 0.5,
       color: '#171717',
@@ -2512,7 +2509,7 @@ function addLithospherePieChart(root: THREE.Group) {
     startAngle = endAngle
   })
 
-  const title = createTextSprite('组成地壳主要化学元素的平均含量', {
+  const title = createModelLabel('组成地壳主要化学元素的平均含量', {
     fontSize: 90,
     scale: 0.82,
     color: '#101820',
@@ -2582,7 +2579,7 @@ function addLithosphereProfile(root: THREE.Group, renderer: THREE.WebGLRenderer)
     ['地幔（密度约3.3 g·cm⁻³）', 1.0, -2.1],
   ] as Array<[string, number, number]>
   labels.forEach(([text, x, y]) => {
-    const label = createTextSprite(text, {
+    const label = createModelLabel(text, {
       fontSize: 94,
       scale: text.length > 8 ? 0.72 : 0.58,
       color: text === '海平面' ? '#086bb6' : '#17120e',
@@ -2607,11 +2604,11 @@ function addLithosphereProfile(root: THREE.Group, renderer: THREE.WebGLRenderer)
         scaleLineMaterial,
       )
       profile.add(tick)
-      const label = createTextSprite(String(text), { fontSize: 84, scale: 0.4, color: '#17212b' })
+      const label = createModelLabel(String(text), { fontSize: 84, scale: 0.4, color: '#17212b' })
       label.position.set(scaleX + 0.42, Number(y), 1.35)
       profile.add(label)
     })
-  const depthLabel = createTextSprite('深度/km', { fontSize: 84, scale: 0.46, color: '#17212b' })
+  const depthLabel = createModelLabel('深度/km', { fontSize: 84, scale: 0.46, color: '#17212b' })
   depthLabel.position.set(6.05, -1.45, 1.35)
   depthLabel.rotation.z = Math.PI / 2
   profile.add(depthLabel)
@@ -2668,13 +2665,13 @@ function initLithosphereScene() {
   earthGroup.add(createAnnularSector(7.18, 5.78, '#ef6f3d', 2.5))
   earthGroup.add(createAnnularSector(5.78, 0, '#f2bd3f', 2.5))
 
-  const crustLabel = createTextSprite('地壳', { fontSize: 102, scale: 0.72, color: '#151515' })
+  const crustLabel = createModelLabel('地壳', { fontSize: 102, scale: 0.72, color: '#151515' })
   crustLabel.position.set(-0.7, 7.55, 1.8)
   earthGroup.add(crustLabel)
-  const mantleLabel = createTextSprite('地幔', { fontSize: 106, scale: 0.84, color: '#151515' })
+  const mantleLabel = createModelLabel('地幔', { fontSize: 106, scale: 0.84, color: '#151515' })
   mantleLabel.position.set(-0.4, 3.5, 1.8)
   earthGroup.add(mantleLabel)
-  const asthenosphereLabel = createTextSprite('软流层', { fontSize: 102, scale: 0.78, color: '#151515' })
+  const asthenosphereLabel = createModelLabel('软流层', { fontSize: 102, scale: 0.78, color: '#151515' })
   asthenosphereLabel.position.set(2.25, 6.2, 1.8)
   earthGroup.add(asthenosphereLabel)
 
@@ -2693,7 +2690,7 @@ function initLithosphereScene() {
     bracketMaterial,
   )
   earthGroup.add(bracket)
-  const lithosphereLabel = createTextSprite('岩石圈', { fontSize: 102, scale: 0.8, color: '#151515' })
+  const lithosphereLabel = createModelLabel('岩石圈', { fontSize: 102, scale: 0.8, color: '#151515' })
   lithosphereLabel.position.set(1.8, 7.72, 1.8)
   earthGroup.add(lithosphereLabel)
 
@@ -3006,7 +3003,7 @@ function resetScene() {
   showLabels.value = true
   showBoundaries.value = true
   showTerrain.value = true
-  autoRotate.value = true
+  autoRotate.value = false
   slowTeachingMode.value = false
   waveAmplitude.value = 1
   waveFrequency.value = 1
@@ -3869,6 +3866,7 @@ onBeforeUnmount(() => {
 
 .knowledge-tab-btn {
   min-width: 0;
+  font-size: 16px !important;
 }
 
 .layer-data-grid {
@@ -3893,7 +3891,7 @@ onBeforeUnmount(() => {
 .knowledge-heading-row h3 {
   margin: 3px 0 0;
   color: var(--text-primary);
-  font-size: clamp(17px, 1.15vw, 23px);
+  font-size: clamp(20px, 1.3vw, 26px);
 }
 
 .knowledge-kicker {
@@ -3907,7 +3905,7 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   padding: 4px 7px;
   color: #ffd47c;
-  font-size: clamp(9px, 0.65vw, 11px);
+  font-size: 15px;
   background: rgba(255, 180, 55, 0.1);
   border: 1px solid rgba(255, 180, 55, 0.24);
   border-radius: 6px;
@@ -3916,8 +3914,8 @@ onBeforeUnmount(() => {
 .current-knowledge-card>p {
   margin: 0;
   color: var(--text-secondary);
-  font-size: clamp(10px, 0.73vw, 12px);
-  line-height: 1.75;
+  font-size: 17px;
+  line-height: 1.65;
 }
 
 .current-knowledge-card ul {
@@ -3927,8 +3925,8 @@ onBeforeUnmount(() => {
   margin: 0;
   padding-left: 18px;
   color: var(--text-secondary);
-  font-size: clamp(10px, 0.72vw, 12px);
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 .current-knowledge-card li::marker {
@@ -3950,7 +3948,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 7px 6px;
   color: var(--text-secondary);
-  font-size: clamp(9px, 0.63vw, 11px);
+  font-size: 15px;
   background: rgba(255, 255, 255, 0.025);
 }
 
@@ -3968,6 +3966,25 @@ onBeforeUnmount(() => {
 
 .boundary-list p {
   margin: 0;
+}
+
+.knowledge-floating-card .section-title,
+.knowledge-floating-card .data-card span {
+  font-size: 17px !important;
+}
+
+.knowledge-floating-card .data-card strong {
+  font-size: 22px !important;
+}
+
+.knowledge-floating-card .data-card small,
+.knowledge-floating-card :deep(.analysis-collapse .el-collapse-item__content) {
+  font-size: 16px !important;
+  line-height: 1.65;
+}
+
+.knowledge-floating-card :deep(.analysis-collapse .el-collapse-item__header) {
+  font-size: 18px !important;
 }
 
 @media (max-width: 1180px) {

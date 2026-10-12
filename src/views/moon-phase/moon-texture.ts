@@ -8,6 +8,9 @@ export const MOON_SPACE_SCALE = {
   surfaceEyeHeight: 0.012,
 } as const
 
+/** Shared apparent radius of the enlarged Moon in both surface views. */
+export const MOON_DISC_ANGULAR_RADIUS = 2 * Math.PI / 180
+
 export const MOON_TEXTURE_URLS = [
   '/geo-resources-folder/images/moon.jpg',
   'https://zdys.szjx.ai-study.net/geo-resources-folder/images/moon.jpg',
@@ -26,11 +29,11 @@ export interface MoonTextureProjection {
   right: Vec3
   up: Vec3
   towardEye: Vec3
-  /** Actual space Moon radius / distance to its surface observer. */
+  /** Apparent sphere radius / distance to the eye. */
   radiusToDistance: number
 }
 
-export type MoonTextureObserver = Pick<Observation, 'up' | 'north'>
+export type MoonTextureObserver = Pick<Observation, 'up' | 'north' | 'moonDirection'>
 export type MoonUv = { u: number; v: number }
 const DEG = Math.PI / 180
 const dot = (a: Vec3, b: Vec3) => a.x * b.x + a.y * b.y + a.z * b.z
@@ -53,8 +56,8 @@ export function moonSphereUv(normal: Vec3, result: MoonUv = { u: 0, v: 0 }): Moo
 }
 
 /**
- * Reproduce the original space-scene surface camera looking at the actual Moon
- * mesh. Its exaggerated distances affect texture parallax and perspective.
+ * Use the shared topocentric direction for station cards, independently of
+ * the compressed orbit in the overview.
  * Moon.rotation.y = phase; transforming this camera basis by the inverse
  * rotation preserves the same lunar longitudes, poles, and visible hemisphere.
  * Lighting intentionally remains separate and uses the true observation model.
@@ -63,15 +66,10 @@ export function getMoonTextureProjection(phase: number, observer?: MoonTextureOb
   const angle = phase * DEG
   const cos = Math.cos(angle)
   const sin = Math.sin(angle)
-  const eyeRadius = observer ? MOON_SPACE_SCALE.earthRadius + MOON_SPACE_SCALE.surfaceEyeHeight : 0
   const vertical = observer?.up ?? { x: 0, y: 1, z: 0 }
-  const toEye: Vec3 = {
-    x: vertical.x * eyeRadius - MOON_SPACE_SCALE.orbitRadius * cos,
-    y: vertical.y * eyeRadius,
-    z: vertical.z * eyeRadius + MOON_SPACE_SCALE.orbitRadius * sin,
-  }
-  const distance = Math.hypot(toEye.x, toEye.y, toEye.z)
-  const towardEye = normalize(toEye)
+  const towardEye: Vec3 = observer
+    ? { x: -observer.moonDirection.x, y: -observer.moonDirection.y, z: -observer.moonDirection.z }
+    : { x: -cos, y: 0, z: sin }
   let right = cross(vertical, towardEye)
   if (dot(right, right) < 1e-12) right = cross(observer?.north ?? { x: 0, y: 0, z: 1 }, towardEye)
   right = normalize(right)
@@ -81,7 +79,7 @@ export function getMoonTextureProjection(phase: number, observer?: MoonTextureOb
     right: toMoonLocal(right),
     up: toMoonLocal(screenUp),
     towardEye: toMoonLocal(towardEye),
-    radiusToDistance: MOON_SPACE_SCALE.moonRadius / distance,
+    radiusToDistance: observer ? Math.sin(MOON_DISC_ANGULAR_RADIUS) : MOON_SPACE_SCALE.moonRadius / MOON_SPACE_SCALE.orbitRadius,
   }
 }
 

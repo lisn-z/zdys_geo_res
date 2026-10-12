@@ -121,11 +121,13 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .interaction-actions { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; margin-left: auto; }
 .notice { bottom: 100px; left: 50%; transform: translateX(-50%); padding: 12px 18px; border-radius: 8px; max-width: 60%; font-size: 14px; z-index: 700; }
 :deep(.leaflet-bottom.leaflet-left) { left: 12px; bottom: 17px; }
-:deep(.leaflet-control-scale-line) { font-size: 13px; padding: 4px 7px 2px; border-color: #edffff; border-style: solid; border-width: 0 2px 2px; margin-top: 0; color: #fff; line-height: 1.3; background: transparent; text-shadow: none; }
-:deep(.lesson-scale-control) { padding: 8px 10px; border: 1px solid #e8bd65; border-radius: 8px; background: #081b2cf2; color: #efffff; box-shadow: 0 2px 12px #0005; }
-:deep(.lesson-scale-scope) { margin-bottom: 3px; color: #ffda85; font: 700 13px/1.4 'Microsoft YaHei', sans-serif; }
-:deep(.lesson-scale-limit) { margin-bottom: 5px; color: #ffe8b5; font: 700 12px/1.5 'Microsoft YaHei', sans-serif; }
-:deep(.lesson-scale-caption) { margin-bottom: 4px; color: #c5ddd9; font: 11px/1.4 'Microsoft YaHei', sans-serif; white-space: nowrap; }
+/* Leaflet creates these nodes outside Vue. Scope via its Vue-owned host and
+   outrank the global page theme regardless of Astro's CSS extraction order. */
+.leaflet-host :deep(.lesson-scale-control .leaflet-control-scale-line) { box-sizing: border-box; font-size: 13px; padding: 4px 7px 2px; border: 2px solid #edffff; border-top: 0; margin: 0; color: #fff; line-height: 1.3; background: transparent; text-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.leaflet-host :deep(.lesson-scale-control) { padding: 8px 10px; border: 1px solid #e8bd65; border-radius: 8px; background: #081b2cf2; color: #efffff; box-shadow: 0 2px 12px #0005; }
+.leaflet-host :deep(.lesson-scale-control .lesson-scale-scope) { margin-bottom: 3px; color: #ffda85; font: 700 13px/1.4 'Microsoft YaHei', sans-serif; }
+.leaflet-host :deep(.lesson-scale-control .lesson-scale-limit) { margin-bottom: 5px; color: #ffe8b5; font: 700 12px/1.5 'Microsoft YaHei', sans-serif; }
+.leaflet-host :deep(.lesson-scale-control .lesson-scale-caption) { margin-bottom: 4px; color: #c5ddd9; font: 11px/1.4 'Microsoft YaHei', sans-serif; white-space: nowrap; }
 :deep(.leaflet-control-zoom) { margin-right: 22px; margin-bottom: 60px; }
 :deep(.leaflet-control-zoom a) { width: 40px; height: 38px; line-height: 38px; }
 :deep(.leaflet-control-attribution) { background: rgba(8, 20, 34, 0.85); color: #c2dce9; font-size: 10px; }

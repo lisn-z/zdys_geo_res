@@ -1,6 +1,6 @@
 <template>
   <div ref="pageRef" class="solar-lunar-eclipse-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode">
+    :class="'layout-' + layoutMode" :style="{ '--timeline-clearance': `${timelineHeight + 40}px` }">
     <Transition name="page-loading-fade">
       <div v-if="pageLoading" class="eclipse-page-loading" role="status" aria-live="polite">
         <div class="loading-celestial-mark" aria-hidden="true">
@@ -29,6 +29,11 @@
       <h1 class="page-title">日食和月食</h1>
 
       <div class="toolbar-actions">
+        <label class="header-observer-switch" title="打开或关闭右侧观测点窗口，不改变左侧机位">
+          <span>观测点窗口</span>
+          <el-switch v-model="observerViewEnabled" aria-label="观测点窗口，打开或关闭右侧第一人称窗口"
+            @change="handleObserverViewToggle" />
+        </label>
         <button type="button" class="theme-btn toolbar-btn eclipse-shortcut-btn solar-shortcut-btn"
           title="月球移至朔与轨道交点，形成日食共线关系" @click="focusEclipseAlignment('solar')">
           一键日食
@@ -49,7 +54,7 @@
     <main class="workspace">
       <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="controlCardCollapsed" class="eclipse-control-card"
         title="食相演示控制台" subtitle="运动 · 图层 · 轨道 · 视角" variant="control" :initial-top="96" :initial-right="18"
-        :bottom-inset="164">
+        :bottom-inset="timelineHeight + 40">
         <div class="panel-scroll eclipse-control-layout">
           <section class="control-overview" :class="eclipseStatusClass">
             <div class="control-overview-topline">
@@ -76,7 +81,7 @@
                   <strong>食相本影</strong>
                   <small>显示锥形影区</small>
                 </span>
-                <el-switch v-model="showUmbra" />
+                <el-switch v-model="showUmbra" size="small" aria-label="显示食相本影" />
               </label>
             </div>
           </section>
@@ -127,9 +132,9 @@
             <div class="parameter-block primary-parameter">
               <div class="parameter-heading">
                 <span>月球公转位置</span>
-                <strong>{{ Math.round(moonLongitude) }}°</strong>
+                <strong>{{ moonLongitude.toFixed(1) }}°</strong>
               </div>
-              <el-slider v-model="moonLongitude" :min="0" :max="360" :step="1" :show-tooltip="false"
+              <el-slider v-model="moonLongitude" :min="0" :max="360" :step="0.1" :show-tooltip="false"
                 @input="handleManualMoonPosition" />
               <div class="phase-scale">
                 <span>朔</span>
@@ -182,7 +187,73 @@
       </FloatingFeatureCard>
 
       <section class="center-stage">
-        <div class="stage-content eclipse-stage-content">
+        <div class="stage-content eclipse-stage-content" :class="{ 'is-split': observerViewEnabled }"
+          :style="{ '--space-share': spaceShare + '%' }">
+          <div class="space-pane">
+          <div class="observer-pane-heading">
+            <strong><i></i>{{ surfaceViewEnabled ? '地球表面 · 第一人称' : '空间全景 · 上帝视角' }}</strong>
+            <span>{{ earthViewSubtitle }} · {{ localDaylightState }}</span>
+            <div class="observation-mode-control" role="group" aria-label="观测设置">
+              <span>观测对象</span>
+              <div class="observation-mode-options" role="group" aria-label="切换观测对象"
+                title="切换各观测视图的目标，不改变天体位置或运动状态">
+                <button type="button" class="theme-btn observation-mode-btn"
+                  :class="{ active: observationMode === 'solar' }" :aria-pressed="observationMode === 'solar'"
+                  @click="observationMode = 'solar'">日食观察</button>
+                <button type="button" class="theme-btn observation-mode-btn"
+                  :class="{ active: observationMode === 'lunar' }" :aria-pressed="observationMode === 'lunar'"
+                  @click="observationMode = 'lunar'">月食观察</button>
+              </div>
+              <el-popover v-model:visible="observerLocationOpen" trigger="click" placement="bottom-end"
+                :width="300" :offset="10" :hide-after="0" :persistent="false" role="dialog"
+                popper-class="eclipse-observer-location-popper" @after-enter="focusObserverLocation">
+                <template #reference>
+                  <button ref="observerLocationTriggerRef" type="button" class="theme-btn observer-location-trigger"
+                    :class="{ active: observerLocationOpen }" :aria-expanded="observerLocationOpen" aria-haspopup="dialog"
+                    aria-label="观测位置，调整经纬度" @keydown.esc.stop.prevent="closeObserverLocation">
+                    <Location class="observer-location-icon" aria-hidden="true" />
+                    <span>观测位置</span>
+                    <ArrowDown class="observer-location-chevron" aria-hidden="true" />
+                  </button>
+                </template>
+                <div class="observer-location-controls" @keydown.esc.stop.prevent="closeObserverLocation">
+                  <div class="observer-control-heading">
+                    <div>
+                      <strong>地面观察点</strong>
+                      <span>调整经纬度，同步各观测视图</span>
+                    </div>
+                    <button ref="observerLocationCloseRef" type="button" class="observer-location-close"
+                      aria-label="关闭观测位置设置" @click="closeObserverLocation">×</button>
+                  </div>
+                  <label class="observer-parameter">
+                    <span>纬度</span>
+                    <strong>{{ observerLatitudeLabel }}</strong>
+                    <el-slider v-model="observerLatitude" :min="-90" :max="90" :step="1" :show-tooltip="false"
+                      aria-label="观察点纬度" />
+                  </label>
+                  <label class="observer-parameter">
+                    <span>经度</span>
+                    <strong>{{ observerLongitudeLabel }}</strong>
+                    <el-slider v-model="observerLongitude" :min="-180" :max="180" :step="1" :show-tooltip="false"
+                      aria-label="观察点经度" />
+                  </label>
+                </div>
+              </el-popover>
+            </div>
+            <label class="left-view-switch">
+              <span :class="{ active: !surfaceViewEnabled }">上帝视角</span>
+              <el-switch v-model="surfaceViewEnabled" aria-label="左侧地表第一人称视角"
+                @change="setLeftSurfaceView(surfaceViewEnabled)" />
+              <span :class="{ active: surfaceViewEnabled }">地表第一人称</span>
+            </label>
+            <div v-if="surfaceViewEnabled" class="observer-view-actions">
+              <button type="button" class="theme-btn" @click="runSurfaceAction('resetView')">恢复地表视线</button>
+              <button type="button" class="theme-btn" :class="{ active: surfaceFollowing }"
+                :aria-pressed="surfaceFollowing" @click="runSurfaceAction('toggleFollow')">跟随天体</button>
+              <button type="button" class="theme-btn" :class="{ active: surfaceCloseUp }"
+                @click="runSurfaceAction('locate')">{{ surfaceCloseUp ? '广角天空' : '近看天体' }}</button>
+            </div>
+          </div>
           <!--
             OSS 图片保持 IMAGE_BASE_URL + 文件名。
             当同源映射不可用时，图片作为普通 DOM 球面显示，不上传到 WebGL；
@@ -195,13 +266,11 @@
             <div ref="earthTextureOverlayRef" class="celestial-texture-overlay earth-texture-surface"
               :style="{ backgroundImage: `url(${EARTH_TEXTURE_IMAGE})` }"></div>
 
-            <div ref="moonTextureOverlayRef" class="celestial-texture-overlay moon-texture-surface"
-              :style="{ backgroundImage: `url(${MOON_TEXTURE_IMAGE})` }"></div>
           </div>
 
           <div ref="threeContainerRef" class="scene-host three-host"></div>
 
-          <div class="scene-title-chip">
+          <div v-show="!observerViewEnabled && !surfaceViewEnabled" class="scene-title-chip">
             <span class="scene-title-dot"></span>
             <strong>{{ currentPhenomenon }}</strong>
             <small>{{ currentPhaseName }}</small>
@@ -210,136 +279,122 @@
             </small>
           </div>
 
+          <div v-if="surfaceViewEnabled && surfaceHorizonPercent !== null" class="view-horizon"
+            :style="{ top: surfaceHorizonPercent + '%' }"><span>几何地平线</span></div>
+          <div v-if="surfaceViewEnabled" class="observer-pane-footer surface-view-note">
+            <span>站在原地球表面 · 日月方向与角尺度已同步</span>
+            <strong>方位 {{ surfaceHeading.toFixed(0) }}° · 仰角 {{ surfacePitch.toFixed(0) }}°</strong>
+            <small>拖动 / 方向键环顾 · 共用几何地平线，未计大气折射</small>
+          </div>
+
+          </div>
+          <section v-show="observerViewEnabled" class="observer-pane" aria-label="第一人称地面天空">
+            <canvas ref="observerCanvasRef" class="observer-scene-canvas" tabindex="0"
+              aria-label="第一人称天空，拖动或使用方向键环顾，滚轮缩放，Home 恢复视线"></canvas>
+            <div class="observer-pane-heading">
+              <strong><i></i>当地天空 · 第一人称</strong>
+              <span>{{ earthViewSubtitle }} · {{ localDaylightState }}</span>
+              <div class="observer-view-actions">
+                <button type="button" class="theme-btn" @click="runObserverAction('resetView')">恢复视线</button>
+                <button type="button" class="theme-btn" :class="{ active: observerFollowing }"
+                  :aria-pressed="observerFollowing" @click="runObserverAction('toggleFollow')">
+                  跟随{{ observationMode === 'solar' ? '太阳' : '月亮' }}
+                </button>
+                <button type="button" class="theme-btn" :class="{ active: observerCloseUp }"
+                  @click="runObserverAction('locate')">{{ observerCloseUp ? '广角天空' : '近看天体' }}</button>
+              </div>
+            </div>
+            <div class="observer-pane-footer">
+              <span>{{ observerGeometry.targetVisible ? localObservationResult : '目标在当地地平线以下' }}</span>
+              <strong>方位 {{ observerHeading.toFixed(0) }}° · 仰角 {{ observerPitch.toFixed(0) }}°</strong>
+              <small>拖动 / 方向键环顾 · 滚轮缩放</small>
+            </div>
+          </section>
+          <div v-if="observerViewEnabled" class="scene-divider" role="separator" tabindex="0"
+            aria-label="调整左右视图宽度" aria-orientation="vertical" :aria-valuenow="spaceShare"
+            :aria-valuemin="30" :aria-valuemax="70"
+            @pointerdown="startSplitResize" @pointermove="resizeSplit" @pointerup="stopSplitResize"
+            @pointercancel="stopSplitResize" @lostpointercapture="stopSplitResize"
+            @keydown.left.prevent="spaceShare = Math.max(30, spaceShare - 2)"
+            @keydown.right.prevent="spaceShare = Math.min(70, spaceShare + 2)">
+            <span></span>
+          </div>
         </div>
 
-        <div class="timeline-dock">
-          <div class="timeline-primary-row">
-            <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
-              :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlayback">
-              <el-icon>
-                <VideoPause v-if="isPlaying" />
-                <VideoPlay v-else />
-              </el-icon>
-            </button>
+        <div ref="timelineDockRef" class="timeline-dock" role="group" aria-label="天体运动控制">
+          <div class="timeline-primary-row" role="group" aria-label="月球运动">
+            <label class="timeline-motion-switch moon-orbit-switch" title="控制月球沿轨道运动；同步自转开启时月面姿态随公转更新">
+              <span><strong>月球公转</strong><small>{{ moonOrbitEnabled ? '正在运行' : '已暂停' }}</small></span>
+              <el-switch v-model="moonOrbitEnabled" aria-label="月球公转" />
+            </label>
 
             <div class="timeline-main">
               <div class="timeline-copy">
-                <span>月球公转进度</span>
+                <span>公转进度 <small>拖动定位</small></span>
                 <strong class="timeline-angle-value">
                   <small>日地月夹角</small>
                   <b>{{ sunEarthMoonAngle.toFixed(1) }}°</b>
-                  <i>· {{ currentPhaseName }}</i>
+                  <i>· {{ currentPhaseName.split('（')[0] }}</i>
                 </strong>
               </div>
 
-              <el-slider v-model="moonLongitude" :min="0" :max="360" :step="1" :show-tooltip="false"
-                @input="handleManualMoonPosition" />
-            </div>
-
-            <div class="speed-options">
-              <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
-                :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
-                {{ item }}×
-              </button>
-            </div>
-
-            <label class="timeline-observer-switch">
-              <span>
-                <strong>观测点视角</strong>
-                <small>地面追踪 · 1.6×</small>
-              </span>
-              <el-switch v-model="observerViewEnabled" @change="handleObserverViewToggle" />
-            </label>
-          </div>
-
-          <div class="timeline-secondary-row">
-            <div class="timeline-season-control">
-              <span>地球公转位置</span>
-              <div class="season-position-options">
-                <button v-for="item in seasonOptions" :key="item.value" type="button"
-                  class="theme-btn season-position-btn" :class="{ active: earthOrbitalPosition === item.value }"
-                  @click="earthOrbitalPosition = item.value">
-                  {{ item.label }}
-                </button>
+              <el-slider v-model="moonLongitude" :min="0" :max="360" :step="0.1" :show-tooltip="false"
+                aria-label="月球公转进度" @input="handleManualMoonPosition" />
+              <div class="timeline-phase-scale" aria-hidden="true">
+                <span>朔</span><span>上弦</span><span>望</span><span>下弦</span><span>朔</span>
               </div>
             </div>
 
-            <label class="timeline-motion-switch">
-              <span>
-                <strong>月球公转 / 自转</strong>
-                <small>同步月相演示</small>
-              </span>
-              <el-switch v-model="moonOrbitEnabled" />
+            <label class="timeline-motion-switch moon-spin-switch" title="默认同步自转：公转一圈自转一圈，同一面朝向地球；关闭后为手动实验">
+              <span><strong>月球自转</strong><small>{{ moonRotationEnabled ? '同步公转' : '手动实验' }}</small></span>
+              <el-switch v-model="moonRotationEnabled" aria-label="月球自转" />
             </label>
 
-            <label class="timeline-motion-switch">
+            <label class="timeline-rotation-control moon-rotation-control">
+              <span>{{ moonRotationEnabled ? '同步自转角' : '月球自转角' }}</span>
+              <strong>{{ moonRotationAngle.toFixed(1) }}°</strong>
+              <el-slider v-model="moonRotationAngle" :min="0" :max="360" :step="1" :show-tooltip="false"
+                aria-label="月球自转角" @input="handleManualMoonRotation" />
+            </label>
+
+            <button type="button" class="timeline-speed-button" @click="cyclePlaybackSpeed"
+              :aria-label="`播放速度 ${playbackSpeed} 倍，点击切换至 ${nextPlaybackSpeed.speed} 倍`"
+              :title="`影响已开启的天体运动；下次 ${nextPlaybackSpeed.speed}×，到达极值后反向切换`">
+              <span>播放速度</span>
+              <strong>{{ playbackSpeed }}× <i aria-hidden="true">{{ nextPlaybackSpeed.speed > playbackSpeed ? '↑' : '↓' }}</i></strong>
+            </button>
+          </div>
+
+          <div class="timeline-secondary-row" role="group" aria-label="地球运动">
+            <label class="timeline-season-control" title="固定季节的圆轨道教学模型；未连续推进地球周年公转">
+              <span>地球公转位置</span>
+              <select v-model.number="earthOrbitalPosition" aria-label="地球公转位置">
+                <option v-for="item in seasonOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+              </select>
+            </label>
+
+            <label class="timeline-motion-switch earth-spin-switch">
               <span>
                 <strong>地球自转</strong>
                 <small>自西向东</small>
               </span>
-              <el-switch v-model="earthRotationEnabled" />
+              <el-switch v-model="earthRotationEnabled" aria-label="地球自转" />
             </label>
 
-            <label class="timeline-rotation-control">
+            <label class="timeline-rotation-control earth-rotation-control">
               <span>地球自转角</span>
               <strong>{{ Math.round(earthRotationAngle) }}°</strong>
-              <el-slider v-model="earthRotationAngle" :min="0" :max="360" :step="1" :show-tooltip="false" />
+              <el-slider v-model="earthRotationAngle" :min="0" :max="360" :step="1" :show-tooltip="false"
+                aria-label="地球自转角" />
             </label>
           </div>
         </div>
       </section>
 
-      <FloatingFeatureCard v-show="panelsVisible && !observerViewEnabled" v-model:collapsed="legendCollapsed"
-        class="eclipse-legend-card" title="场景图例" subtitle="空间关系辅助标记" variant="data" :initial-right="18"
-        :initial-top="282" :bottom-inset="164" :resizable="false">
-        <div class="scene-legend-content">
-          <div class="scene-legend-list">
-            <div class="legend-item">
-              <span class="legend-swatch umbra-swatch"></span>
-              <div>
-                <strong>本影区域</strong>
-                <span>{{ shadowLegendText }}</span>
-              </div>
-            </div>
-
-            <div class="legend-item">
-              <span class="legend-swatch sunlight-swatch"></span>
-              <div>
-                <strong>太阳入射光</strong>
-                <span>红橙至金黄色的光照区域</span>
-              </div>
-            </div>
-
-            <div class="legend-item">
-              <span class="legend-swatch orbit-swatch"></span>
-              <div>
-                <strong>月球轨道</strong>
-                <span>当前倾角约 {{ moonInclination.toFixed(1) }}°</span>
-              </div>
-            </div>
-
-            <div class="legend-item">
-              <span class="node-pair-swatch" aria-hidden="true">
-                <i class="ascending-node-dot"></i>
-                <i class="descending-node-dot"></i>
-              </span>
-              <div>
-                <strong>升交点 / 降交点</strong>
-                <span>月球由南向北 / 由北向南穿越参考面的方位</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="scene-legend-note">
-            <i></i>
-            <span>教学比例 · 半影未单独绘制</span>
-          </div>
-        </div>
-      </FloatingFeatureCard>
 
       <FloatingFeatureCard v-show="panelsVisible && showEarthView" v-model:collapsed="observationCardCollapsed"
-        class="eclipse-observation-card" title="地面食相观察" :subtitle="earthViewSubtitle" variant="data" :initial-top="220"
-        :initial-right="18" :bottom-inset="164">
+        class="eclipse-observation-card" title="地面食相观察" :subtitle="earthViewSubtitle" variant="data" :initial-top="158"
+        :initial-right="18" :bottom-inset="timelineHeight + 40">
         <div class="observation-panel-body">
           <section class="observation-preview-block">
             <div class="observation-preview-heading">
@@ -351,19 +406,9 @@
             </div>
 
             <div ref="earthViewOverlayRef" class="earth-view-overlay">
-              <div ref="previewSunTextureRef" class="preview-texture-surface preview-sun-texture"
-                :style="{ backgroundImage: `url(${SUN_TEXTURE_IMAGE})` }"></div>
-
-              <div ref="previewMoonTextureRef" class="preview-texture-surface preview-moon-texture"
-                :style="{ backgroundImage: `url(${MOON_TEXTURE_IMAGE})` }"></div>
-
-              <div ref="previewLunarMoonTextureRef" class="preview-texture-surface preview-lunar-moon-texture"
-                :style="{ backgroundImage: `url(${MOON_TEXTURE_IMAGE})` }"></div>
-
-              <canvas ref="previewMoonShadeRef" class="preview-moon-shade" aria-hidden="true"></canvas>
-
-              <div ref="previewEarthShadowTextureRef" class="preview-earth-shadow-texture"></div>
-
+              <canvas ref="previewCanvasRef" class="preview-scene-canvas" aria-label="当地太阳和月球实时视图"></canvas>
+              <div v-if="previewHorizonPercent !== null" class="view-horizon preview-horizon"
+                :style="{ top: previewHorizonPercent + '%' }"><span>地平线</span></div>
               <div class="sky-up-indicator">天顶 ↑</div>
               <div v-if="!observerGeometry.targetVisible" class="below-horizon-message">
                 目标天体位于当地地平线以下
@@ -381,59 +426,9 @@
             </div>
           </section>
 
-          <div class="observation-mode-control" role="group" aria-label="副窗口观察模式">
-            <span>切换观测对象</span>
-            <div class="observation-mode-options">
-              <button type="button" class="theme-btn observation-mode-btn"
-                :class="{ active: observationMode === 'solar' }" @click="observationMode = 'solar'">
-                日食观察
-              </button>
-              <button type="button" class="theme-btn observation-mode-btn"
-                :class="{ active: observationMode === 'lunar' }" @click="observationMode = 'lunar'">
-                月食观察
-              </button>
-            </div>
-          </div>
-
-          <div class="observer-location-controls">
-            <div class="observer-control-heading">
-              <strong>地面观察点</strong>
-              <span>经纬度决定地面观测位置</span>
-            </div>
-
-            <label class="observer-parameter">
-              <span>纬度</span>
-              <strong>{{ observerLatitudeLabel }}</strong>
-              <el-slider v-model="observerLatitude" :min="-90" :max="90" :step="1" :show-tooltip="false" />
-            </label>
-
-            <label class="observer-parameter">
-              <span>经度</span>
-              <strong>{{ observerLongitudeLabel }}</strong>
-              <el-slider v-model="observerLongitude" :min="-180" :max="180" :step="1" :show-tooltip="false" />
-            </label>
-
-          </div>
         </div>
       </FloatingFeatureCard>
 
-      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="dataCardCollapsed" class="eclipse-data-card"
-        title="实时数据" subtitle="食相、几何关系和选中天体数据" variant="data" :initial-top="158" :initial-right="18"
-        :bottom-inset="164">
-        <div class="panel-scroll">
-          <div class="data-grid eclipse-data-grid">
-            <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="[
-              item.className,
-              { 'wide-data-card': item.wide },
-            ]">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.description }}</small>
-            </article>
-          </div>
-        </div>
-
-      </FloatingFeatureCard>
     </main>
   </div>
 </template>
@@ -448,12 +443,8 @@ import {
   watch,
 } from 'vue'
 
-import {
-  VideoPause,
-  VideoPlay,
-} from '@element-plus/icons-vue'
-
 import '@/styles/geo-page-template.css'
+import { ArrowDown, Location } from '@element-plus/icons-vue'
 
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
@@ -462,6 +453,17 @@ import {
 } from '@/hooks/useGeoPanelLayout'
 
 import * as THREE from 'three'
+import { calculateMoonPosition, calculateMoonOrientation, calculateSkyUp } from './moonGeometry'
+import { calculateEarthOrientation } from './earthOrientation'
+import { advanceMoonMotion, advanceEarthRotation, stepPlaybackSpeed } from './motionControls'
+import {
+  MOON_DISTANCE_EARTH_RADII, MOON_RADIUS_EARTH_RADII, SUN_DISTANCE_EARTH_RADII, SUN_RADIUS_EARTH_RADII,
+  calculateEclipseGeometry, lunarLightVectors, lunarShadowShader,
+} from './eclipseGeometry'
+import { createObserverScene } from './observerScene'
+import { createSurfaceCamera } from './surfaceCamera'
+import { createSurfaceBodies } from './surfaceBodies'
+import { createHorizonMaterial, updateHorizon, discAboveHorizon, horizonScreenY } from './observerProjection'
 import {
   OrbitControls,
 } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -507,11 +509,6 @@ const TEXTURE_SOURCE_URLS: Record<CelestialTextureKey, string> = {
   sun: SUN_TEXTURE_IMAGE,
 }
 
-const CELESTIAL_FALLBACK_COLORS: Record<CelestialTextureKey, string> = {
-  earth: '#1768a8',
-  moon: '#c8c9cb',
-  sun: '#ffd84d',
-}
 
 // 影锥恢复为原网页使用的黑色；灰色背景下保持清晰可见。
 const EARTH_UMBRA_COLOR = 0x000000
@@ -525,26 +522,14 @@ const SUNLIGHT_END_COLOR = 0xffdc45
 const SUNLIGHT_OPACITY = 0.28
 const SUNLIGHT_CONTEXT_OPACITY = 0.075
 const SUNLIGHT_FADE_SPEED = 7.5
-const EARTH_AXIAL_TILT_DEGREES = 23.5
-const MOON_DISTANCE_EARTH_RADII = 60.27
-const MOON_RADIUS_EARTH_RADII = 0.2724
-const SUN_DISTANCE_EARTH_RADII = 23455
-const SUN_RADIUS_EARTH_RADII = 109.1
-const OBSERVER_VIEW_FOV = 18
-const OBSERVER_BODY_MAGNIFICATION = 1.6
 
 const threeContainerRef = ref<HTMLElement | null>(null)
 const earthViewOverlayRef = ref<HTMLElement | null>(null)
 
 const sunTextureOverlayRef = ref<HTMLElement | null>(null)
 const earthTextureOverlayRef = ref<HTMLElement | null>(null)
-const moonTextureOverlayRef = ref<HTMLElement | null>(null)
 
-const previewSunTextureRef = ref<HTMLElement | null>(null)
-const previewMoonTextureRef = ref<HTMLElement | null>(null)
-const previewLunarMoonTextureRef = ref<HTMLElement | null>(null)
-const previewEarthShadowTextureRef = ref<HTMLElement | null>(null)
-const previewMoonShadeRef = ref<HTMLCanvasElement | null>(null)
+const previewCanvasRef = ref<HTMLCanvasElement | null>(null)
 
 const sunDomTextureReady = ref(false)
 const earthDomTextureReady = ref(false)
@@ -654,6 +639,8 @@ function resetPageLoadingState() {
 }
 
 const moonOrbitEnabled = ref(true)
+const moonRotationEnabled = ref(true)
+const moonRotationAngle = ref(0)
 const earthRotationEnabled = ref(false)
 const showUmbra = ref(true)
 const showEarthView = ref(true)
@@ -664,27 +651,50 @@ const moonLongitude = ref(0)
 const moonInclination = ref(5.1)
 const sarosProgress = ref(90)
 const playbackSpeed = ref(1)
-const isPlaying = ref(true)
+const playbackSpeedDirection = ref<1 | -1>(1)
+const nextPlaybackSpeed = computed(() => stepPlaybackSpeed(playbackSpeed.value, playbackSpeedDirection.value))
+const timelineDockRef = ref<HTMLElement | null>(null)
+const timelineHeight = ref(170)
+let timelineResizeObserver: ResizeObserver | null = null
 const currentView = ref('overview')
 const observerViewEnabled = ref(false)
-const selectedObject = ref<'sun' | 'earth' | 'moon'>('earth')
+const surfaceViewEnabled = ref(false)
+const observerCanvasRef = ref<HTMLCanvasElement | null>(null)
+const observerHeading = ref(180)
+const observerPitch = ref(20)
+const observerFollowing = ref(true)
+const observerCloseUp = ref(false)
+const spaceShare = ref(50)
+let splitPointerId: number | null = null
+let observerScene: ReturnType<typeof createObserverScene> | null = null
+let surfaceCamera: ReturnType<typeof createSurfaceCamera> | null = null
+let surfaceBodies: ReturnType<typeof createSurfaceBodies> | null = null
+const surfaceHeading = ref(180)
+const surfacePitch = ref(20)
+const surfaceFollowing = ref(true)
+const surfaceCloseUp = ref(false)
+const surfaceHorizonPercent = ref<number | null>(null)
+const previewHorizonPercent = ref<number | null>(null)
 const observationMode = ref<'solar' | 'lunar'>('solar')
 const observerLatitude = ref(30)
 const observerLongitude = ref(120)
+const observerLocationOpen = ref(false)
+const observerLocationTriggerRef = ref<HTMLButtonElement | null>(null)
+const observerLocationCloseRef = ref<HTMLButtonElement | null>(null)
+
+function focusObserverLocation() {
+  observerLocationCloseRef.value?.focus({ preventScroll: true })
+}
+
+function closeObserverLocation() {
+  observerLocationOpen.value = false
+  observerLocationTriggerRef.value?.focus({ preventScroll: true })
+}
 const earthRotationAngle = ref(60)
 const earthOrbitalPosition = ref(0)
 const panelsVisible = ref(true)
-const legendCollapsed = ref(true)
 const controlCardCollapsed = ref(true)
-const dataCardCollapsed = ref(true)
 const observationCardCollapsed = ref(true)
-
-const speedOptions = [
-  0.25,
-  0.5,
-  1,
-  2,
-]
 
 const viewOptions = [
   { label: '全景', value: 'overview' },
@@ -699,34 +709,6 @@ const seasonOptions = [
   { label: '秋分', value: 180 },
   { label: '冬至', value: 270 },
 ]
-
-const objectDatabase = {
-  sun: {
-    name: '太阳',
-    symbol: '☉',
-    radius: '约 69.6 万 km',
-    period: '自转约 25～35 日',
-    role: '食现象的光源',
-  },
-  earth: {
-    name: '地球',
-    symbol: '⊕',
-    radius: '约 6371 km',
-    period: '自转约 23 h 56 min',
-    role: '日食的受影天体，月食时形成本影',
-  },
-  moon: {
-    name: '月球',
-    symbol: '☾',
-    radius: '约 1737 km',
-    period: '公转约 27.3 日',
-    role: '日食的遮挡天体，月食时进入地影',
-  },
-} as const
-
-const selectedObjectData = computed(() =>
-  objectDatabase[selectedObject.value]
-)
 
 const phaseAngle = computed(() =>
   normalizeDegrees(moonLongitude.value)
@@ -782,7 +764,7 @@ const alignmentData = computed(() => {
     moonLongitude.value,
     moonInclination.value,
     sarosProgress.value,
-    1
+    MOON_DISTANCE_EARTH_RADII
   )
 
   const moonDirection = moonPosition.clone().normalize()
@@ -796,45 +778,30 @@ const alignmentData = computed(() => {
     moonDirection.angleTo(antiSunDirection)
   )
 
-  const solarThreshold = realScaleMode.value ? 0.9 : 1.7
-  const lunarThreshold = realScaleMode.value ? 0.7 : 1.4
-
-  const solarScore = Math.max(
-    0,
-    1 - solarSeparation / 8
-  )
-  const lunarScore = Math.max(
-    0,
-    1 - lunarSeparation / 8
-  )
-
   return {
+    ...calculateEclipseGeometry(moonPosition),
     solarSeparation,
     lunarSeparation,
-    solarThreshold,
-    lunarThreshold,
-    solarScore,
-    lunarScore,
-    moonHeight: moonPosition.y,
+    moonHeight: moonDirection.y,
   }
 })
 
 const sunEarthMoonAngle = computed(() =>
-  phaseAngle.value <= 180
-    ? phaseAngle.value
-    : 360 - phaseAngle.value
+  alignmentData.value.solarSeparation
 )
 
 const currentPhenomenon = computed(() => {
   const data = alignmentData.value
 
-  if (data.solarSeparation <= data.solarThreshold) {
+  if (data.solarEclipse) {
     return '日食条件成立'
   }
 
-  if (data.lunarSeparation <= data.lunarThreshold) {
+  if (data.lunarKind === 'total' || data.lunarKind === 'partial') {
     return '月食条件成立'
   }
+
+  if (data.lunarKind === 'penumbral') return '半影月食条件成立'
 
   if (data.solarSeparation < 10) {
     return '接近朔，但未形成日食'
@@ -862,20 +829,24 @@ const eclipseStatusClass = computed(() => {
 const currentExplanation = computed(() => {
   const data = alignmentData.value
 
-  if (data.solarSeparation <= data.solarThreshold) {
-    return '月球位于太阳与地球之间，并且接近月球轨道交点，月球本影可以落到地球表面。'
+  if (data.solarEclipse) {
+    return '月球半影与地球相交，地球上部分地区可见日食；全食、环食或偏食取决于当地视线和日月角直径。'
   }
 
-  if (data.lunarSeparation <= data.lunarThreshold) {
-    return '地球位于太阳与月球之间，并且三者接近共线，月球进入地球本影。'
+  if (data.lunarKind === 'total' || data.lunarKind === 'partial') {
+    return data.lunarKind === 'total'
+      ? '整个月球进入地球本影，形成月全食；当地能否看到还取决于月球是否在地平线以上。'
+      : '月球的一部分进入地球本影，形成月偏食；当地能否看到还取决于月球是否在地平线以上。'
   }
+
+  if (data.lunarKind === 'penumbral') return '月球进入地球半影，但尚未接触本影，形成半影月食，月面只会轻微变暗。'
 
   if (data.solarSeparation < 10) {
     return '虽然处于朔附近，但月球轨道高度偏离日地连线，月球影锥从地球上方或下方掠过。'
   }
 
   if (data.lunarSeparation < 10) {
-    return '虽然处于望附近，但月球没有穿过地球本影，因而不会形成月食。'
+    return '虽然处于望附近，但月球没有接触地球本影或半影，因此未形成月食。'
   }
 
   return '当前月球与日地连线夹角较大，主要表现为普通月相变化。'
@@ -955,86 +926,14 @@ const localObservationResult = computed(() => {
     return '当地可见日偏食'
   }
 
-  if (geometry.lunarSeparation > geometry.lunarThreshold) {
-    return '当地未发生本影月食'
-  }
-
-  if (
-    geometry.lunarSeparation <=
-    geometry.umbraAngularRadius - geometry.moonAngularRadius
-  ) {
-    return '当地可见月全食'
-  }
-
-  return '当地可见月偏食'
+  // 月食类型是全球同一事件，观测点只影响地平线遮挡，不改变月球入影程度。
+  const kind = alignmentData.value.lunarKind
+  if (kind === 'total') return '当地可见月全食'
+  if (kind === 'partial') return '当地可见月偏食'
+  if (kind === 'penumbral') return '当地可见半影月食'
+  return '当地未发生月食'
 })
 
-const shadowLegendText = computed(() =>
-  phaseAngle.value > 90 && phaseAngle.value < 270
-    ? '地球本影：月食时月球可能进入的影区'
-    : '月球本影：日食时可能落到地球表面的影区'
-)
-
-const dataCards = computed(() => {
-  return [
-    {
-      label: '当前阶段',
-      value: currentPhaseName.value.split('（')[0],
-      description: '月球当前所处月相阶段',
-      className: 'cyan-card',
-      wide: false,
-    },
-    {
-      label: '月球位置',
-      value: Math.round(moonLongitude.value) + '°',
-      description: '相对朔位置的公转角度',
-      className: 'blue-card',
-      wide: false,
-    },
-    {
-      label: '当前选中天体',
-      value: selectedObjectData.value.symbol + ' ' + selectedObjectData.value.name,
-      description: selectedObjectData.value.role,
-      className: 'cyan-card',
-      wide: false,
-    },
-    {
-      label: '平均半径',
-      value: selectedObjectData.value.radius,
-      description: selectedObjectData.value.name + '的平均半径',
-      className: 'blue-card',
-      wide: false,
-    },
-    {
-      label: '自转 / 公转周期',
-      value: selectedObjectData.value.period,
-      description: selectedObjectData.value.name + '的主要运动周期',
-      className: 'purple-card period-data-card',
-      wide: true,
-    },
-    {
-      label: '日地月夹角',
-      value: sunEarthMoonAngle.value.toFixed(2) + '°',
-      description: '按月相折算：朔为 0°，望为 180°，再回到 0°',
-      className: 'purple-card',
-      wide: false,
-    },
-    {
-      label: '轨道倾角',
-      value: moonInclination.value.toFixed(1) + '°',
-      description: '月球轨道相对地球公转轨道面的夹角',
-      className: 'orange-card',
-      wide: false,
-    },
-    {
-      label: '当前判定',
-      value: currentPhenomenon.value,
-      description: currentExplanation.value,
-      className: eclipseStatusClass.value + '-card',
-      wide: true,
-    },
-  ]
-})
 
 const {
   rootRef: pageRef,
@@ -1099,11 +998,12 @@ let galaxySkyDome: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null
 let galaxySkyboxTexture: THREE.Texture | null = null
 
 let previewScene: THREE.Scene | null = null
-let previewCamera: THREE.OrthographicCamera | null = null
+let previewCamera: THREE.PerspectiveCamera | null = null
+let previewRenderer: THREE.WebGLRenderer | null = null
+let previewWidth = 0
+let previewHeight = 0
 let previewSun: THREE.Mesh | null = null
 let previewMoon: THREE.Mesh | null = null
-let previewLunarMoon: THREE.Mesh | null = null
-let previewEarthShadow: THREE.Mesh | null = null
 
 let threeResizeObserver: ResizeObserver | null = null
 let sceneResizeTimer: ReturnType<typeof setTimeout> | null = null
@@ -1113,33 +1013,7 @@ let sceneAnimationFrameId = 0
 let lastSceneWidth = 0
 let lastSceneHeight = 0
 let lastFrameTime = 0
-let previousSceneView = 'overview'
-let observerBodiesProjected = false
 
-type CameraPose = {
-  position: THREE.Vector3
-  target: THREE.Vector3
-  up: THREE.Vector3
-  fov: number
-  near: number
-}
-
-type CameraFlight = {
-  from: CameraPose
-  to: CameraPose
-  controlPosition: THREE.Vector3
-  startedAt: number
-  duration: number
-  onComplete: () => void
-}
-
-const OBSERVER_CAMERA_FLIGHT_DURATION = 1250
-let observerReturnPose: CameraPose | null = null
-let cameraFlight: CameraFlight | null = null
-
-const raycaster = new THREE.Raycaster()
-const pointer = new THREE.Vector2()
-const clickableObjects: THREE.Object3D[] = []
 const disposableMaterials: THREE.Material[] = []
 const disposableGeometries: THREE.BufferGeometry[] = []
 const disposableTextures: THREE.Texture[] = []
@@ -1179,33 +1053,6 @@ function normalizeDegrees(value: number) {
   return ((value % 360) + 360) % 360
 }
 
-function calculateMoonPosition(
-  longitude: number,
-  inclination: number,
-  nodeProgress: number,
-  distance: number
-) {
-  const angle = THREE.MathUtils.degToRad(longitude + 180)
-  const basePosition = new THREE.Vector3(
-    Math.cos(angle) * distance,
-    0,
-    Math.sin(angle) * distance
-  )
-
-  const nodeAngle = THREE.MathUtils.degToRad(nodeProgress)
-  const tiltAxis = new THREE.Vector3(
-    Math.cos(nodeAngle),
-    0,
-    Math.sin(nodeAngle)
-  ).normalize()
-
-  const tiltQuaternion = new THREE.Quaternion().setFromAxisAngle(
-    tiltAxis,
-    THREE.MathUtils.degToRad(inclination)
-  )
-
-  return basePosition.applyQuaternion(tiltQuaternion)
-}
 
 function calculateAltitudeAndAzimuth(
   direction: THREE.Vector3,
@@ -1279,20 +1126,7 @@ function projectDirectionAroundTarget(
 }
 
 function createEarthOrientationQuaternion() {
-  const orbitalFrame = new THREE.Quaternion().setFromAxisAngle(
-    new THREE.Vector3(0, 1, 0),
-    THREE.MathUtils.degToRad(90 + earthOrbitalPosition.value)
-  )
-  const axialTilt = new THREE.Quaternion().setFromAxisAngle(
-    new THREE.Vector3(0, 0, 1),
-    THREE.MathUtils.degToRad(-EARTH_AXIAL_TILT_DEGREES)
-  )
-  const spin = new THREE.Quaternion().setFromAxisAngle(
-    new THREE.Vector3(0, 1, 0),
-    THREE.MathUtils.degToRad(earthRotationAngle.value)
-  )
-
-  return orbitalFrame.multiply(axialTilt).multiply(spin)
+  return calculateEarthOrientation(earthOrbitalPosition.value, earthRotationAngle.value)
 }
 
 function calculateObserverGeometry() {
@@ -1314,17 +1148,17 @@ function calculateObserverGeometry() {
     .addScaledVector(observerUp, -earthAxis.dot(observerUp))
 
   if (localNorth.lengthSq() < 1e-8) {
-    localNorth.set(0, 0, -1).applyQuaternion(earthOrientation)
+    // 纬度方向的解析切向量在近极点仍正交；极点采用当前经线的极限方向。
+    localNorth.set(
+      -Math.sin(latitude) * Math.cos(longitude),
+      Math.cos(latitude),
+      Math.sin(latitude) * Math.sin(longitude),
+    ).applyQuaternion(earthOrientation)
   }
 
   localNorth.normalize()
-  const localEast = earthAxis.clone().cross(observerUp)
-
-  if (localEast.lengthSq() < 1e-8) {
-    localEast.set(0, 0, -1).applyQuaternion(earthOrientation)
-  }
-
-  localEast.normalize()
+  // 极点也使用同一正交基，保持主视图、天空和方位角的方向一致。
+  const localEast = new THREE.Vector3().crossVectors(localNorth, observerUp).normalize()
   const observerPosition = observerUp.clone()
 
   // 采用真实地月、日地距离比计算地心视差，渲染场景仍保留教学比例。
@@ -1350,35 +1184,10 @@ function calculateObserverGeometry() {
   const sunDirection = sunVector.normalize()
   const moonDirection = moonVector.normalize()
   const earthShadowDirection = earthShadowVector.normalize()
-  let moonScreenUp = observerUp
-    .clone()
-    .addScaledVector(moonDirection, -observerUp.dot(moonDirection))
-
-  if (moonScreenUp.lengthSq() < 1e-8) {
-    moonScreenUp = localNorth
-      .clone()
-      .addScaledVector(moonDirection, -localNorth.dot(moonDirection))
-  }
-
-  moonScreenUp.normalize()
-  const moonScreenRight = moonDirection
-    .clone()
-    .cross(moonScreenUp)
-    .normalize()
-  const moonToObserverDirection = observerPosition
-    .clone()
-    .sub(moonPosition)
-    .normalize()
   const moonToSunDirection = sunPosition
     .clone()
     .sub(moonPosition)
     .normalize()
-  // 月面光线直接投影到地面相机坐标系，避免混用地心夹角与地面方位。
-  const moonLightDirection = new THREE.Vector3(
-    moonToSunDirection.dot(moonScreenRight),
-    moonToSunDirection.dot(moonScreenUp),
-    moonToSunDirection.dot(moonToObserverDirection)
-  ).normalize()
   const sunHorizontal = calculateAltitudeAndAzimuth(
     sunDirection,
     observerUp,
@@ -1400,12 +1209,6 @@ function calculateObserverGeometry() {
   const lunarOffset = projectDirectionAroundTarget(
     moonDirection,
     earthShadowDirection,
-    observerUp,
-    localNorth
-  )
-  const moonToSunOffset = projectDirectionAroundTarget(
-    moonDirection,
-    sunDirection,
     observerUp,
     localNorth
   )
@@ -1440,8 +1243,8 @@ function calculateObserverGeometry() {
     )
   )
   const targetVisible = observationMode.value === 'solar'
-    ? sunHorizontal.altitude >= -0.833
-    : moonHorizontal.altitude >= 0
+    ? discAboveHorizon(sunHorizontal.altitude, sunAngularRadius)
+    : discAboveHorizon(moonHorizontal.altitude, moonAngularRadius)
 
   return {
     observerUp,
@@ -1451,8 +1254,8 @@ function calculateObserverGeometry() {
     earthShadowDirection,
     solarOffset,
     lunarOffset,
-    moonToSunOffset,
-    moonLightDirection,
+    moonPosition,
+    moonToSunDirection,
     solarSeparation,
     lunarSeparation,
     sunAngularRadius,
@@ -1514,6 +1317,9 @@ type CelestialShaderUniforms = {
   uAtmosphereDayColor: { value: THREE.Color }
   uAtmosphereTwilightColor: { value: THREE.Color }
   uNightStrength: { value: number }
+  uLunarShadow: { value: number }
+  uMoonToEarthLocal: { value: THREE.Vector3 }
+  uMoonToSunLocal: { value: THREE.Vector3 }
 }
 
 function createSolidTexture(color: string) {
@@ -1621,6 +1427,9 @@ const celestialUniforms: Record<
     uAtmosphereDayColor: { value: new THREE.Color('#4db2ff') },
     uAtmosphereTwilightColor: { value: new THREE.Color('#bc490b') },
     uNightStrength: { value: 0 },
+    uLunarShadow: { value: 0 },
+    uMoonToEarthLocal: { value: new THREE.Vector3() },
+    uMoonToSunLocal: { value: new THREE.Vector3() },
   },
 
   earth: {
@@ -1653,6 +1462,9 @@ const celestialUniforms: Record<
     uAtmosphereDayColor: { value: new THREE.Color('#4db2ff') },
     uAtmosphereTwilightColor: { value: new THREE.Color('#bc490b') },
     uNightStrength: { value: 0.58 },
+    uLunarShadow: { value: 0 },
+    uMoonToEarthLocal: { value: new THREE.Vector3() },
+    uMoonToSunLocal: { value: new THREE.Vector3() },
   },
 
   moon: {
@@ -1685,14 +1497,16 @@ const celestialUniforms: Record<
     uAtmosphereDayColor: { value: new THREE.Color('#4db2ff') },
     uAtmosphereTwilightColor: { value: new THREE.Color('#bc490b') },
     uNightStrength: { value: 0 },
+    uLunarShadow: { value: 0 },
+    uMoonToEarthLocal: { value: new THREE.Vector3() },
+    uMoonToSunLocal: { value: new THREE.Vector3() },
   },
 }
 
 function createBodyMaterial(
   textureKey: CelestialTextureKey,
+  uniforms: CelestialShaderUniforms = celestialUniforms[textureKey],
 ) {
-  const uniforms =
-    celestialUniforms[textureKey]
 
   return registerMaterial(
     new THREE.ShaderMaterial({
@@ -1700,11 +1514,13 @@ function createBodyMaterial(
 
       vertexShader: `
         varying vec2 vUv;
+        varying vec3 vBodyNormal;
         varying vec3 vWorldNormal;
         varying vec3 vWorldPosition;
 
         void main() {
           vUv = uv;
+          vBodyNormal = normal;
 
           vec4 worldPosition =
             modelMatrix *
@@ -1727,6 +1543,7 @@ function createBodyMaterial(
       `,
 
       fragmentShader: `
+        ${lunarShadowShader}
         uniform sampler2D uMap;
         uniform sampler2D uNightMap;
         uniform vec3 uLightDirection;
@@ -1869,6 +1686,13 @@ function createBodyMaterial(
             * uEarthSurface;
           shadedColor = mix(shadedColor, innerAtmosphereColor, innerAtmosphere);
 
+          if (uLunarShadow > 0.5) {
+            float sunlight = lunarSunVisibility();
+            // 半影只逐渐变暗；本影内保留少量红色大气散射示意。
+            vec3 umbraColor = surfaceColor * vec3(0.11, 0.023, 0.012);
+            shadedColor = shadedColor * sunlight + umbraColor * (1.0 - sunlight);
+          }
+
           gl_FragColor =
             vec4(
               shadedColor,
@@ -1887,18 +1711,6 @@ function createBodyMaterial(
   )
 }
 
-function createPreviewBodyMaterial(
-  textureKey: CelestialTextureKey,
-) {
-  return registerMaterial(
-    new THREE.MeshBasicMaterial({
-      color:
-        CELESTIAL_FALLBACK_COLORS[
-        textureKey
-        ],
-    }),
-  )
-}
 
 function createEarthAtmosphere(radius: number) {
   const material = registerMaterial(
@@ -2153,7 +1965,7 @@ function getMainTextureOverlay(
     return earthTextureOverlayRef.value
   }
 
-  return moonTextureOverlayRef.value
+  return null
 }
 
 function syncCelestialSurfaceMode() {
@@ -2175,7 +1987,7 @@ function syncCelestialSurfaceMode() {
       ).value
 
     const usesDom =
-      domReady &&
+      textureKey !== 'moon' && domReady &&
       !webglReady
 
     celestialUniforms[
@@ -2240,76 +2052,37 @@ async function loadSameOriginCelestialTexture(
   textureKey: CelestialTextureKey,
   url: string,
 ) {
-  const readyState =
-    getWebglTextureReadyState(
-      textureKey,
-    )
+  const readyState = getWebglTextureReadyState(textureKey)
+  const urls = textureKey === 'moon' ? [url, TEXTURE_SOURCE_URLS.moon] : [url]
 
-  try {
-    const response =
-      await fetch(
-        url,
-        {
-          cache: 'force-cache',
-          credentials: 'same-origin',
-        },
-      )
+  for (const sourceUrl of urls) {
+    try {
+      const response = await fetch(sourceUrl, {
+        cache: 'force-cache',
+        credentials: 'same-origin',
+      })
+      if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) continue
 
-    const contentType =
-      response.headers.get(
-        'content-type',
-      ) || ''
-
-    if (
-      !response.ok ||
-      !contentType.startsWith(
-        'image/',
-      )
-    ) {
-      readyState.value = false
+      const bitmap = await createImageBitmap(await response.blob(), { imageOrientation: 'flipY' })
+      if (!scene || !renderer) {
+        bitmap.close()
+        return
+      }
+      celestialImageBitmaps.push(bitmap)
+      celestialUniforms[textureKey].uMap.value = configureCelestialTexture(new THREE.Texture(bitmap))
+      readyState.value = true
       syncCelestialSurfaceMode()
-      markCelestialLoadAttempt(textureKey, 'webgl', false)
+      markCelestialLoadAttempt(textureKey, 'webgl', true)
       return
+    } catch {
+      // 同源映射失败后尝试现有远端贴图（需允许 CORS）；最终共用备用球面材质。
     }
-
-    const blob =
-      await response.blob()
-
-    const bitmap =
-      await createImageBitmap(
-        blob,
-        {
-          // ImageBitmap 不响应 THREE.Texture.flipY，需在解码阶段校正 UV 方向。
-          imageOrientation: 'flipY',
-        },
-      )
-
-    celestialImageBitmaps.push(
-      bitmap,
-    )
-
-    const texture =
-      new THREE.Texture(bitmap)
-
-    celestialUniforms[
-      textureKey
-    ].uMap.value =
-      configureCelestialTexture(
-        texture,
-      )
-
-    readyState.value = true
-    syncCelestialSurfaceMode()
-    markCelestialLoadAttempt(textureKey, 'webgl', true)
-  } catch {
-    /*
-     * 同源映射不存在时保持静默，
-     * 继续使用 OSS DOM 球面。
-     */
-    readyState.value = false
-    syncCelestialSurfaceMode()
-    markCelestialLoadAttempt(textureKey, 'webgl', false)
   }
+
+  if (!scene) return
+  readyState.value = false
+  syncCelestialSurfaceMode()
+  markCelestialLoadAttempt(textureKey, 'webgl', false)
 }
 
 function loadCelestialTextures() {
@@ -2320,7 +2093,11 @@ function loadCelestialTextures() {
       'moon',
     ] as CelestialTextureKey[]
   ).forEach(
-    preloadDomCelestialTexture,
+    (textureKey) => {
+      // 月球必须使用可上传到 WebGL 的球面贴图，两个视图共用同一个资源。
+      if (textureKey === 'moon') markCelestialLoadAttempt(textureKey, 'dom', false)
+      else preloadDomCelestialTexture(textureKey)
+    },
   )
 
   void loadSameOriginCelestialTexture(
@@ -2347,17 +2124,9 @@ const celestialLightSunPosition =
 const celestialLightBodyPosition =
   new THREE.Vector3()
 const moonNormalTint = new THREE.Color('#eeeeee')
-const moonEclipseTint = new THREE.Color('#8f3828')
 
 function getLunarEclipseVisualStrength() {
-  const data = alignmentData.value
-  const outerShadowLimit = Math.max(data.lunarThreshold * 1.35, 0.001)
-
-  return THREE.MathUtils.clamp(
-    1 - data.lunarSeparation / outerShadowLimit,
-    0,
-    1
-  )
+  return alignmentData.value.lunarStrength
 }
 
 function updateCelestialLightUniforms() {
@@ -2396,40 +2165,14 @@ function updateCelestialLightUniforms() {
       .moon
       .uLightDirection
       .value
-      .copy(
-        celestialLightSunPosition,
-      )
-      .sub(
-        celestialLightBodyPosition,
-      )
-      .normalize()
+      .copy(observerGeometry.value.moonToSunDirection)
 
-    const eclipseStrength = getLunarEclipseVisualStrength()
     const moonUniforms = celestialUniforms.moon
-
-    moonUniforms.uTint.value
-      .copy(moonNormalTint)
-      .lerp(moonEclipseTint, eclipseStrength)
-    moonUniforms.uAmbient.value = THREE.MathUtils.lerp(
-      0.018,
-      0.006,
-      eclipseStrength
-    )
-    moonUniforms.uDiffuse.value = THREE.MathUtils.lerp(
-      1.18,
-      0.3,
-      eclipseStrength
-    )
-    moonUniforms.uSpecular.value = THREE.MathUtils.lerp(
-      0.05,
-      0.012,
-      eclipseStrength
-    )
-    moonUniforms.uRimStrength.value = THREE.MathUtils.lerp(
-      0.035,
-      0.012,
-      eclipseStrength
-    )
+    const light = lunarLightVectors(observerGeometry.value.moonPosition, moonMesh.quaternion)
+    moonUniforms.uMoonToEarthLocal.value.copy(light.earth)
+    moonUniforms.uMoonToSunLocal.value.copy(light.sun)
+    moonUniforms.uLunarShadow.value = getLunarEclipseVisualStrength() > 0 ? 1 : 0
+    moonUniforms.uTint.value.copy(moonNormalTint)
   }
 }
 
@@ -2572,6 +2315,7 @@ function positionTextureOverlay(
   textureKey: CelestialTextureKey,
 ) {
   const usesDom =
+    textureKey !== 'moon' &&
     getDomTextureReadyState(
       textureKey,
     ).value &&
@@ -2773,25 +2517,7 @@ function positionTextureOverlay(
   element.style.backgroundPosition =
     `${backgroundLeft}px 50%`
 
-  if (textureKey === 'moon') {
-    const lunarDarkening = getLunarEclipseVisualStrength()
-
-    const brightness =
-      THREE.MathUtils.lerp(
-        1,
-        0.24,
-        lunarDarkening,
-      )
-    const sepia = THREE.MathUtils.lerp(0, 0.92, lunarDarkening)
-    const saturation = THREE.MathUtils.lerp(1, 2.25, lunarDarkening)
-    const hueRotation = THREE.MathUtils.lerp(0, -18, lunarDarkening)
-
-    element.style.filter =
-      `brightness(${brightness.toFixed(3)}) sepia(${sepia.toFixed(3)}) ` +
-      `saturate(${saturation.toFixed(3)}) hue-rotate(${hueRotation.toFixed(1)}deg) contrast(1.12)`
-  } else if (
-    textureKey === 'earth'
-  ) {
+  if (textureKey === 'earth') {
     element.style.filter =
       'saturate(1.08) contrast(1.05)'
   } else {
@@ -2813,162 +2539,8 @@ function updateMainTextureOverlays() {
     'earth',
   )
 
-  positionTextureOverlay(
-    moonTextureOverlayRef.value,
-    moonMesh,
-    'moon',
-  )
 }
 
-function setPreviewSurfacePosition(
-  element: HTMLElement | null,
-  object: THREE.Object3D | null,
-  radius: number,
-  visible: boolean
-) {
-  if (!element || !object || !visible) {
-    hideTextureOverlay(element)
-    return
-  }
-
-  const left = (object.position.x + 1) * 50
-  const top = (1 - object.position.y) * 50
-  const diameter = radius * 100
-
-  element.style.display = 'block'
-  element.style.left = `${left}%`
-  element.style.top = `${top}%`
-  element.style.width = `${diameter}%`
-  element.style.height = `${diameter}%`
-  element.style.transform =
-    'translate(-50%, -50%)'
-  element.style.borderRadius = '50%'
-}
-
-let lastPreviewShadeSignature = ''
-
-function updatePreviewMoonPhaseShade() {
-  const canvas = previewMoonShadeRef.value
-
-  if (!canvas) {
-    return
-  }
-
-  const lightDirection = observerGeometry.value.moonLightDirection
-  const lightX = lightDirection.x
-  const lightY = lightDirection.y
-  const lightZ = lightDirection.z
-  const signature = [lightX, lightY, lightZ]
-    .map(value => Math.round(value * 320))
-    .join(':')
-
-  if (signature === lastPreviewShadeSignature) {
-    return
-  }
-  lastPreviewShadeSignature = signature
-
-  const size = 160
-  if (canvas.width !== size || canvas.height !== size) {
-    canvas.width = size
-    canvas.height = size
-  }
-
-  const context = canvas.getContext('2d')
-  if (!context) {
-    return
-  }
-
-  const imageData = context.createImageData(size, size)
-  const pixels = imageData.data
-
-  for (let y = 0; y < size; y += 1) {
-    const normalY = -((y + 0.5) / size * 2 - 1)
-
-    for (let x = 0; x < size; x += 1) {
-      const normalX = (x + 0.5) / size * 2 - 1
-      const radiusSquared = normalX ** 2 + normalY ** 2
-      const index = (y * size + x) * 4
-
-      if (radiusSquared > 1) {
-        pixels[index + 3] = 0
-        continue
-      }
-
-      const normalZ = Math.sqrt(Math.max(0, 1 - radiusSquared))
-      const illumination =
-        normalX * lightX +
-        normalY * lightY +
-        normalZ * lightZ
-      const transition = THREE.MathUtils.smoothstep(illumination, -0.035, 0.035)
-      const shadow = 1 - transition
-      const limbFade = THREE.MathUtils.smoothstep(1 - radiusSquared, 0, 0.045)
-
-      pixels[index] = 1
-      pixels[index + 1] = 5
-      pixels[index + 2] = 10
-      pixels[index + 3] = Math.round(228 * shadow * limbFade)
-    }
-  }
-
-  context.putImageData(imageData, 0, 0)
-}
-
-function updatePreviewTextureOverlays() {
-  const isSolarObservation = observationMode.value === 'solar'
-  const targetVisible = observerGeometry.value.targetVisible
-
-  setPreviewSurfacePosition(
-    previewSunTextureRef.value,
-    previewSun,
-    0.55,
-    showEarthView.value && isSolarObservation && targetVisible
-  )
-  setPreviewSurfacePosition(
-    previewMoonTextureRef.value,
-    previewMoon,
-    0.57,
-    showEarthView.value && isSolarObservation && targetVisible
-  )
-  setPreviewSurfacePosition(
-    previewLunarMoonTextureRef.value,
-    previewLunarMoon,
-    0.55,
-    showEarthView.value && !isSolarObservation && targetVisible
-  )
-  setPreviewSurfacePosition(
-    previewEarthShadowTextureRef.value,
-    previewEarthShadow,
-    1.45,
-    showEarthView.value && !isSolarObservation && targetVisible
-  )
-
-  setPreviewSurfacePosition(
-    previewMoonShadeRef.value,
-    isSolarObservation ? previewMoon : previewLunarMoon,
-    isSolarObservation ? 0.57 : 0.55,
-    showEarthView.value && targetVisible
-  )
-  updatePreviewMoonPhaseShade()
-
-  if (previewMoonTextureRef.value) {
-    previewMoonTextureRef.value.style.filter =
-      'grayscale(0.18) brightness(0.92) contrast(1.12)'
-  }
-
-  if (previewLunarMoonTextureRef.value) {
-    const eclipseStrength = THREE.MathUtils.clamp(
-      1 -
-      observerGeometry.value.lunarSeparation /
-      observerGeometry.value.lunarThreshold,
-      0,
-      1
-    )
-    const brightness = THREE.MathUtils.lerp(1, 0.46, eclipseStrength)
-    const sepia = THREE.MathUtils.lerp(0, 0.78, eclipseStrength)
-    previewLunarMoonTextureRef.value.style.filter =
-      `brightness(${brightness.toFixed(3)}) sepia(${sepia.toFixed(3)}) saturate(1.35)`
-  }
-}
 
 function createOrbitLine() {
   const points: THREE.Vector3[] = []
@@ -2998,7 +2570,7 @@ function createOrbitLine() {
 
   moonOrbitLine = new THREE.Line(geometry, material)
   moonOrbitLine.visible =
-    showMoonOrbit.value && currentView.value !== 'observer'
+    showMoonOrbit.value
   scene?.add(moonOrbitLine)
 }
 
@@ -3091,9 +2663,9 @@ function updateMoonNodeHelpers() {
     Math.sin(nodeAngle)
   ).normalize()
 
-  // calculateMoonPosition 中的旋转约定决定：+axis 为降交点，-axis 为升交点。
-  const descendingPosition = nodeAxis.clone().multiplyScalar(scale.moonDistance)
-  const ascendingPosition = nodeAxis.clone().multiplyScalar(-scale.moonDistance)
+  // 月球按自西向东运行时，沿 +axis 穿越轨道面向北，因此为升交点。
+  const ascendingPosition = nodeAxis.clone().multiplyScalar(scale.moonDistance)
+  const descendingPosition = nodeAxis.clone().multiplyScalar(-scale.moonDistance)
   const lineExtent = scale.moonDistance * 1.12
 
   descendingNodeMarker.position.copy(descendingPosition)
@@ -3119,7 +2691,7 @@ function updateMoonNodeHelpers() {
   oldGeometry.dispose()
 
   moonNodeGroup.visible =
-    showMoonOrbit.value && currentView.value !== 'observer'
+    showMoonOrbit.value
 }
 
 function createMoonNodeHelpers() {
@@ -3199,7 +2771,7 @@ function updateObserverMarker(delta = 0) {
     surfaceNormal
   )
   observerMarkerGroup.visible =
-    showEarthView.value && currentView.value !== 'observer'
+    showEarthView.value
 
   // 球心略低于地表切平面，让标记呈现“嵌入地表”的视觉关系。
   observerSurfaceMarker.position.set(0, 0, -0.1 * visualScale)
@@ -3636,6 +3208,7 @@ function updateCelestialGeometry() {
 }
 
 function updateMoonTransform() {
+  syncMoonRotation()
   if (!moonMesh) {
     return
   }
@@ -3649,6 +3222,11 @@ function updateMoonTransform() {
   )
 
   moonMesh.position.copy(position)
+  moonMesh.quaternion.copy(calculateMoonOrientation(
+    moonRotationAngle.value,
+    moonInclination.value,
+    sarosProgress.value,
+  ))
 
   if (moonUmbra && sunMesh) {
     const awayFromSun = moonMesh.position
@@ -3674,7 +3252,7 @@ function updateMoonTransform() {
 
   const isSolarHalf =
     phaseAngle.value < 90 || phaseAngle.value > 270
-  const teachingLayersVisible = currentView.value !== 'observer'
+  const teachingLayersVisible = !surfaceCamera?.active
 
   if (moonUmbra) {
     moonUmbra.visible =
@@ -3695,113 +3273,65 @@ function updateMoonTransform() {
 }
 
 function createPreviewScene() {
+  if (!previewCanvasRef.value || !moonMesh || !sunMesh || !renderer) return
+
+  // 面板使用自己的画布，滚动、拖动、展开时不会被主场景或面板背景遮住。
+  previewRenderer = new THREE.WebGLRenderer({
+    canvas: previewCanvasRef.value,
+    antialias: true,
+    alpha: false,
+  })
+  previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  previewRenderer.outputColorSpace = renderer.outputColorSpace
+  previewRenderer.toneMapping = renderer.toneMapping
+  previewRenderer.toneMappingExposure = renderer.toneMappingExposure
+
   previewScene = new THREE.Scene()
   previewScene.background = new THREE.Color(0x000000)
-
-  previewCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 20)
-  previewCamera.position.set(0, 0, 5)
-
-  const sunMaterial =
-    createPreviewBodyMaterial(
-      'sun',
-    )
-
-  const moonMaterial =
-    createPreviewBodyMaterial(
-      'moon',
-    )
-
-  const lunarMoonMaterial =
-    createPreviewBodyMaterial(
-      'moon',
-    )
+  previewCamera = new THREE.PerspectiveCamera(1, 1, 0.01, SUN_DISTANCE_EARTH_RADII * 2)
 
   previewSun = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(0.55, 64, 40)),
-    sunMaterial
+    registerGeometry(new THREE.SphereGeometry(SUN_RADIUS_EARTH_RADII, 96, 64)),
+    registerMaterial(createHorizonMaterial(sunMesh.material as THREE.ShaderMaterial)),
   )
-  previewSun.position.z = 0
-
+  // 共用月面纹理和受光状态，仅增加当地地平线裁切。
   previewMoon = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(0.57, 64, 40)),
-    moonMaterial
+    registerGeometry(new THREE.SphereGeometry(MOON_RADIUS_EARTH_RADII, 96, 64)),
+    registerMaterial(createHorizonMaterial(moonMesh.material as THREE.ShaderMaterial)),
   )
-  previewMoon.position.z = 1
-
-  previewLunarMoon = new THREE.Mesh(
-    registerGeometry(new THREE.SphereGeometry(0.55, 64, 40)),
-    lunarMoonMaterial
-  )
-  previewLunarMoon.position.z = 0
-
-  previewEarthShadow = new THREE.Mesh(
-    // 月球距离处地球本影的直径通常约为月球直径的 2.7 倍。
-    registerGeometry(new THREE.CircleGeometry(1.45, 96)),
-    registerMaterial(
-      new THREE.MeshBasicMaterial({
-        color: 0x1d0808,
-        transparent: true,
-        opacity: 0.86,
-      })
-    )
-  )
-  previewEarthShadow.position.z = 1
-
-  previewScene.add(
-    previewSun,
-    previewMoon,
-    previewLunarMoon,
-    previewEarthShadow
-  )
-
+  previewScene.add(previewSun, previewMoon)
   updatePreviewObjects()
 }
 
 function updatePreviewObjects() {
-  if (
-    !previewSun ||
-    !previewMoon ||
-    !previewLunarMoon ||
-    !previewEarthShadow
-  ) {
-    return
-  }
+  if (!previewSun || !previewMoon || !previewCamera || !moonMesh) return
 
-  const isSolarObservation = observationMode.value === 'solar'
   const geometry = observerGeometry.value
-  const targetVisible = geometry.targetVisible
+  const isSolarObservation = observationMode.value === 'solar'
+  const targetDirection = isSolarObservation ? geometry.sunDirection : geometry.moonDirection
+  const angularRadius = isSolarObservation ? geometry.sunAngularRadius : geometry.moonAngularRadius
 
-  previewSun.visible = isSolarObservation && targetVisible
-  previewMoon.visible = isSolarObservation && targetVisible
-  previewLunarMoon.visible = !isSolarObservation && targetVisible
-  previewEarthShadow.visible = !isSolarObservation && targetVisible
+  // 在真实地月日距离中从同一个地面观察点取景，只放大视野，不改变球面 UV。
+  previewSun.position.set(-SUN_DISTANCE_EARTH_RADII, 0, 0)
+  previewMoon.position.copy(geometry.moonPosition)
+  previewMoon.quaternion.copy(moonMesh.quaternion)
+  if (sunMesh) previewSun.quaternion.copy(sunMesh.quaternion)
+  previewSun.visible = discAboveHorizon(geometry.sunAltitude, geometry.sunAngularRadius)
+  previewMoon.visible = discAboveHorizon(geometry.moonAltitude, geometry.moonAngularRadius)
 
-  // 0.55 个场景单位对应约 0.266° 的月球视半径。
-  const apparentAngleScale = 0.55 / 0.266
-  previewSun.position.set(0, 0, 0)
-  previewMoon.position.set(
-    geometry.solarOffset.x * apparentAngleScale,
-    geometry.solarOffset.y * apparentAngleScale,
-    1
+  previewCamera.position.copy(geometry.observerUp)
+  updateHorizon(previewSun.material as THREE.ShaderMaterial, previewCamera.position, geometry.observerUp)
+  updateHorizon(previewMoon.material as THREE.ShaderMaterial, previewCamera.position, geometry.observerUp)
+  previewCamera.up.copy(calculateSkyUp(targetDirection, geometry.observerUp, geometry.localNorth))
+  previewCamera.lookAt(previewCamera.position.clone().add(targetDirection))
+  // 目标占窗口短边的 55%，面板缩放后保持相同构图。
+  previewCamera.fov = THREE.MathUtils.radToDeg(
+    2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(angularRadius)) /
+      (0.55 * Math.min(1, previewCamera.aspect))),
   )
-  previewLunarMoon.position.set(0, 0, 0)
-  previewEarthShadow.position.set(
-    geometry.lunarOffset.x * apparentAngleScale,
-    geometry.lunarOffset.y * apparentAngleScale,
-    1
-  )
-
-  const eclipseSolar =
-    geometry.solarSeparation <= geometry.solarThreshold && targetVisible
-  const eclipseLunar =
-    geometry.lunarSeparation <= geometry.lunarThreshold && targetVisible
-
-    ; (previewMoon.material as THREE.MeshBasicMaterial).color.set(
-      eclipseSolar ? 0x262626 : 0x666666
-    )
-    ; (previewEarthShadow.material as THREE.MeshBasicMaterial).color.set(
-      eclipseLunar ? 0x3d0a0a : 0x050505
-    )
+  previewCamera.updateProjectionMatrix()
+  const horizonY = horizonScreenY(isSolarObservation ? geometry.sunAltitude : geometry.moonAltitude, previewCamera.fov)
+  previewHorizonPercent.value = horizonY > 0 && horizonY < 1 ? horizonY * 100 : null
 }
 
 function createCelestialScene() {
@@ -3861,7 +3391,6 @@ function createCelestialScene() {
   moonMesh.name = 'moon'
   moonMesh.renderOrder = 1
 
-  clickableObjects.push(sunMesh, earthMesh, moonMesh)
   scene.add(sunMesh, earthMesh, moonMesh)
 
   createObserverMarker()
@@ -3964,41 +3493,23 @@ function scheduleSceneResize(delay = 110) {
 
 function renderPreviewInset() {
   if (
-    !renderer ||
-    !previewScene ||
-    !previewCamera ||
-    !earthViewOverlayRef.value ||
-    !showEarthView.value ||
-    !panelsVisible.value ||
-    observationCardCollapsed.value
-  ) {
-    return
+    !previewRenderer || !previewScene || !previewCamera || !previewCanvasRef.value ||
+    !showEarthView.value || !panelsVisible.value || observationCardCollapsed.value
+  ) return
+
+  const rect = previewCanvasRef.value.getBoundingClientRect()
+  const width = Math.round(rect.width)
+  const height = Math.round(rect.height)
+  if (width < 1 || height < 1) return
+
+  if (width !== previewWidth || height !== previewHeight) {
+    previewWidth = width
+    previewHeight = height
+    previewRenderer.setSize(width, height, false)
+    previewCamera.aspect = width / height
   }
-
-  const canvasRect = renderer.domElement.getBoundingClientRect()
-  const overlayRect = earthViewOverlayRef.value.getBoundingClientRect()
-
-  const left = Math.round(overlayRect.left - canvasRect.left)
-  const bottom = Math.round(canvasRect.bottom - overlayRect.bottom)
-  const width = Math.max(1, Math.round(overlayRect.width))
-  const height = Math.max(1, Math.round(overlayRect.height))
-
-  if (
-    left < 0 ||
-    bottom < 0 ||
-    left + width > canvasRect.width + 2 ||
-    bottom + height > canvasRect.height + 2
-  ) {
-    return
-  }
-
-  renderer.setScissorTest(true)
-  renderer.setViewport(left, bottom, width, height)
-  renderer.setScissor(left, bottom, width, height)
-  renderer.clearDepth()
-  renderer.render(previewScene, previewCamera)
-  renderer.setScissorTest(false)
-  renderer.setViewport(0, 0, lastSceneWidth, lastSceneHeight)
+  updatePreviewObjects()
+  previewRenderer.render(previewScene, previewCamera)
 }
 
 function renderScene() {
@@ -4006,13 +3517,28 @@ function renderScene() {
     return
   }
 
+  surfaceCamera?.update(getSurfaceState(), performance.now())
+  if (sunMesh && moonMesh && earthMesh) {
+    if (!surfaceBodies) surfaceBodies = createSurfaceBodies(scene, sunMesh, moonMesh, earthMesh)
+    const scale = getCurrentScale()
+    surfaceBodies.update(camera.position, observerGeometry.value, surfaceCamera?.skyBlend ?? 0, scale.sunRadius, scale.moonRadius)
+  }
+  syncSurfaceLayers()
+  if (!surfaceCamera?.active) {
+    // 窄分屏保留水平视野，不把原全景裁掉一半；机位和焦点不变。
+    const overviewFov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(45) / 2) / Math.min(1, camera.aspect)))
+    if (Math.abs(camera.fov - overviewFov) > 0.01) {
+      camera.fov = overviewFov
+      camera.updateProjectionMatrix()
+    }
+  }
   renderer.setViewport(0, 0, lastSceneWidth, lastSceneHeight)
   renderer.setScissorTest(false)
   renderer.render(scene, camera)
   renderPreviewInset()
 
   updateMainTextureOverlays()
-  updatePreviewTextureOverlays()
+  renderObserverScene()
 }
 
 function animateScene(time: number) {
@@ -4023,36 +3549,17 @@ function animateScene(time: number) {
     : 0
   lastFrameTime = time
 
-  if (isPlaying.value && moonOrbitEnabled.value) {
-    moonLongitude.value = normalizeDegrees(
-      moonLongitude.value + delta * 7.2 * playbackSpeed.value
-    )
-  }
+  const motion = advanceMoonMotion(moonLongitude.value, moonRotationAngle.value, delta, playbackSpeed.value,
+    moonOrbitEnabled.value, moonRotationEnabled.value)
+  moonLongitude.value = motion.orbit
+  moonRotationAngle.value = motion.spin
 
-  if (sunMesh) {
-    sunMesh.rotation.y +=
-      delta *
-      0.09 *
-      playbackSpeed.value
-  }
-
-  if (
-    moonOrbitEnabled.value &&
-    moonMesh
-  ) {
-    moonMesh.rotation.y +=
-      delta *
-      0.2 *
-      playbackSpeed.value
-  }
+  // 教学简化：太阳纹理保持固定姿态，不演示太阳自转；光照与食相几何不变。
 
   if (
     earthRotationEnabled.value
   ) {
-    earthRotationAngle.value = normalizeDegrees(
-      earthRotationAngle.value +
-      THREE.MathUtils.radToDeg(delta * 0.72 * playbackSpeed.value)
-    )
+    earthRotationAngle.value = advanceEarthRotation(earthRotationAngle.value, delta, playbackSpeed.value)
   }
 
   if (earthMesh) {
@@ -4065,15 +3572,9 @@ function animateScene(time: number) {
     starField.rotation.y += delta * 0.002
   }
 
-  restoreObserverViewBodies()
   updateSunlightBeamEmphasis(delta)
-  if (!cameraFlight) {
-    orbitControls?.update()
-  }
+  if (orbitControls?.enabled) orbitControls.update()
   updateMoonTransform()
-  updateObserverCamera()
-  updateCameraFlight(time)
-  projectObserverViewBodies()
   renderScene()
 }
 
@@ -4122,6 +3623,15 @@ function initScene() {
   orbitControls.target.set(0, 0, 0)
   orbitControls.update()
 
+  surfaceCamera = createSurfaceCamera(camera, orbitControls, renderer.domElement, (heading, pitch, following, closeUp) => {
+    surfaceHeading.value = heading
+    surfacePitch.value = pitch
+    surfaceFollowing.value = following
+    surfaceCloseUp.value = closeUp
+    const horizonY = horizonScreenY(pitch, camera!.fov)
+    surfaceHorizonPercent.value = horizonY > 0 && horizonY < 1 ? horizonY * 100 : null
+  })
+
   ambientLight = new THREE.AmbientLight(0x31445a, 0.12)
   scene.add(ambientLight)
 
@@ -4134,8 +3644,6 @@ function initScene() {
   loadCelestialTextures()
   syncCelestialSurfaceMode()
   setCameraView(currentView.value)
-
-  renderer.domElement.addEventListener('pointerdown', handleScenePointerDown)
 
   resizeThreeSceneNow()
 
@@ -4154,392 +3662,126 @@ function initScene() {
   sceneAnimationFrameId = requestAnimationFrame(animateScene)
 }
 
-function handleScenePointerDown(event: PointerEvent) {
-  if (!renderer || !camera) {
-    return
-  }
-
-  const rect = renderer.domElement.getBoundingClientRect()
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-
-  raycaster.setFromCamera(pointer, camera)
-  const intersects = raycaster.intersectObjects(clickableObjects, false)
-
-  const firstIntersection = intersects[0]
-
-  if (!firstIntersection) {
-    return
-  }
-
-  const name = firstIntersection.object.name
-
-  if (name === 'sun' || name === 'earth' || name === 'moon') {
-    selectedObject.value = name
-  }
-}
-
 function handleManualMoonPosition() {
-  isPlaying.value = false
+  // 手动定位只暂停公转，自转开关保持用户选择。
+  moonOrbitEnabled.value = false
   updateMoonTransform()
 }
 
-function togglePlayback() {
-  isPlaying.value = !isPlaying.value
-  moonOrbitEnabled.value = true
+function syncMoonRotation() {
+  if (moonRotationEnabled.value) moonRotationAngle.value = normalizeDegrees(moonLongitude.value)
 }
 
-function restoreObserverViewBodies() {
-  if (!observerBodiesProjected) {
-    return
-  }
+function handleManualMoonRotation() {
+  moonRotationEnabled.value = false
+  updateMoonTransform()
+}
 
-  const scale = getCurrentScale()
+function cyclePlaybackSpeed() {
+  const next = nextPlaybackSpeed.value
+  playbackSpeed.value = next.speed
+  playbackSpeedDirection.value = next.direction
+}
 
-  if (sunMesh) {
-    sunMesh.position.set(-scale.sunDistance, 0, 0)
-    sunMesh.scale.setScalar(1)
-    sunMesh.visible = true
-  }
-
-  if (moonMesh) {
-    moonMesh.position.copy(
-      calculateMoonPosition(
-        moonLongitude.value,
-        moonInclination.value,
-        sarosProgress.value,
-        scale.moonDistance
-      )
+function renderObserverScene() {
+  if (!observerViewEnabled.value || !observerCanvasRef.value || !moonMesh || !sunMesh) return
+  if (!observerScene) {
+    observerScene = createObserverScene(
+      observerCanvasRef.value,
+      moonMesh.material as THREE.ShaderMaterial,
+      sunMesh.material as THREE.ShaderMaterial,
+      (heading, pitch, following, closeUp) => {
+        observerHeading.value = heading
+        observerPitch.value = pitch
+        observerFollowing.value = following
+        observerCloseUp.value = closeUp
+      },
     )
-    moonMesh.scale.setScalar(1)
-    moonMesh.visible = true
   }
-
-  observerBodiesProjected = false
+  observerScene.render({
+    ...observerGeometry.value,
+    mode: observationMode.value,
+    moonOrientation: moonMesh.quaternion,
+    sunOrientation: sunMesh.quaternion,
+    skyTexture: galaxySkyboxTexture,
+  }, performance.now())
 }
 
-function projectObserverViewBodies() {
-  if (
-    currentView.value !== 'observer' ||
-    cameraFlight ||
-    !camera ||
-    !sunMesh ||
-    !moonMesh
-  ) {
-    return
-  }
+function handleObserverViewToggle() {
+  // 顶部开关只控制右侧天空；左侧可独立选择全景或地表机位。
+  nextTick(() => {
+    resizeThreeSceneNow()
+    renderScene()
+  })
+}
 
-  const scale = getCurrentScale()
+function setLeftSurfaceView(enabled: boolean) {
+  surfaceViewEnabled.value = enabled
+  surfaceCamera?.setEnabled(enabled, getSurfaceState())
+  nextTick(renderScene)
+}
+
+function runSurfaceAction(action: 'resetView' | 'toggleFollow' | 'locate') {
+  surfaceCamera?.[action]()
+}
+
+function runObserverAction(action: 'resetView' | 'toggleFollow' | 'locate') {
+  observerScene?.[action]()
+}
+
+function getSurfaceState() {
   const geometry = observerGeometry.value
-  const sunRenderDistance = 120
-  const moonRenderDistance = 80
-  const sunRenderRadius =
-    Math.tan(THREE.MathUtils.degToRad(geometry.sunAngularRadius)) *
-    sunRenderDistance *
-    OBSERVER_BODY_MAGNIFICATION
-  const moonRenderRadius =
-    Math.tan(THREE.MathUtils.degToRad(geometry.moonAngularRadius)) *
-    moonRenderDistance *
-    OBSERVER_BODY_MAGNIFICATION
+  return {
+    up: geometry.observerUp,
+    north: geometry.localNorth,
+    targetDirection: observationMode.value === 'solar' ? geometry.sunDirection : geometry.moonDirection,
+    radius: getCurrentScale().earthRadius,
+  }
+}
 
-  sunMesh.position
-    .copy(camera.position)
-    .addScaledVector(geometry.sunDirection, sunRenderDistance)
-  moonMesh.position
-    .copy(camera.position)
-    .addScaledVector(geometry.moonDirection, moonRenderDistance)
-  sunMesh.scale.setScalar(sunRenderRadius / scale.sunRadius)
-  moonMesh.scale.setScalar(moonRenderRadius / scale.moonRadius)
-  sunMesh.visible = geometry.sunAltitude >= -0.833
-  moonMesh.visible = geometry.moonAltitude >= 0
-  observerBodiesProjected = true
+function syncSurfaceLayers() {
+  const localView = !!surfaceCamera?.active
+  if (earthAtmosphere && camera) earthAtmosphere.visible = !localView || camera.position.length() > getCurrentScale().earthRadius * 1.08
+  if (moonOrbitLine) moonOrbitLine.visible = showMoonOrbit.value && !localView
+  if (moonNodeGroup) moonNodeGroup.visible = showMoonOrbit.value && !localView
+  if (observerMarkerGroup) observerMarkerGroup.visible = showEarthView.value && !localView
+}
+
+function startSplitResize(event: PointerEvent) {
+  if (event.button !== 0 || splitPointerId !== null) return
+  splitPointerId = event.pointerId
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function resizeSplit(event: PointerEvent) {
+  if (splitPointerId !== event.pointerId) return
+  const rect = (event.currentTarget as HTMLElement).parentElement!.getBoundingClientRect()
+  spaceShare.value = Math.round(THREE.MathUtils.clamp((event.clientX - rect.left) / rect.width * 100, 30, 70))
+}
+
+function stopSplitResize(event: PointerEvent) {
+  if (splitPointerId !== event.pointerId) return
+  splitPointerId = null
+  const handle = event.currentTarget as HTMLElement
+  if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId)
 }
 
 function syncObserverViewLayers() {
-  const teachingLayersVisible = currentView.value !== 'observer'
-
-  /*
-   * earthAtmosphere 是供太空机位观看的背面球壳光晕，不是体积大气。
-   * 地面相机位于地表上方、球壳内部；若继续渲染会把整个画面染成蓝色。
-   */
-  if (earthAtmosphere) {
-    earthAtmosphere.visible = teachingLayersVisible
-  }
-
-  if (moonOrbitLine) {
-    moonOrbitLine.visible = showMoonOrbit.value && teachingLayersVisible
-  }
-
-  if (moonNodeGroup) {
-    moonNodeGroup.visible = showMoonOrbit.value && teachingLayersVisible
-  }
-
-  if (observerMarkerGroup) {
-    observerMarkerGroup.visible =
-      showEarthView.value && teachingLayersVisible
-  }
-
+  syncSurfaceLayers()
   updateMoonTransform()
 }
 
-function createObserverCameraPose(): CameraPose | null {
-  if (!camera) {
-    return null
-  }
-
-  const scale = getCurrentScale()
-  const geometry = observerGeometry.value
-  const observerUp = geometry.observerUp
-  const targetDirection = observationMode.value === 'solar'
-    ? geometry.sunDirection
-    : geometry.moonDirection
-  const horizontalForward = targetDirection
-    .clone()
-    .addScaledVector(observerUp, -targetDirection.dot(observerUp))
-
-  // 天体接近天顶或天底时方位方向退化，默认朝向当地北方平视。
-  if (horizontalForward.lengthSq() < 1e-8) {
-    horizontalForward.copy(geometry.localNorth)
-  }
-
-  horizontalForward.normalize()
-  const viewingDirection = geometry.targetVisible
-    ? targetDirection
-    : horizontalForward
-  // 教学视角略高于真实站立高度，保留地表参照并让地平线更清楚。
-  const eyeHeight = Math.max(0.06, scale.earthRadius * 0.025)
-  const position = observerUp
-    .clone()
-    .multiplyScalar(scale.earthRadius + eyeHeight)
-
-  return {
-    position,
-    target: position.clone().addScaledVector(viewingDirection, 8),
-    up: observerUp.clone(),
-    fov: OBSERVER_VIEW_FOV,
-    near: 0.001,
-  }
-}
-
-function captureCameraPose(): CameraPose | null {
-  if (!camera || !orbitControls) {
-    return null
-  }
-
-  return {
-    position: camera.position.clone(),
-    target: orbitControls.target.clone(),
-    up: camera.up.clone(),
-    fov: camera.fov,
-    near: camera.near,
-  }
-}
-
-function applyCameraPose(pose: CameraPose) {
-  if (!camera || !orbitControls) {
-    return
-  }
-
-  camera.position.copy(pose.position)
-  camera.up.copy(pose.up).normalize()
-  camera.fov = pose.fov
-  camera.near = pose.near
-  camera.updateProjectionMatrix()
-  orbitControls.target.copy(pose.target)
-  camera.lookAt(pose.target)
-
-  if (orbitControls.enabled) {
-    orbitControls.update()
-  }
-}
-
-function createCameraFlightControlPoint(from: CameraPose, to: CameraPose) {
-  const fromDirection = from.position.clone().normalize()
-  const toDirection = to.position.clone().normalize()
-  const middleDirection = fromDirection.clone().add(toDirection)
-
-  // 起点与终点位于地球两侧时，用垂直方向绕开地球，避免直线穿球。
-  if (middleDirection.lengthSq() < 1e-5) {
-    middleDirection.copy(fromDirection).cross(new THREE.Vector3(0, 1, 0))
-    if (middleDirection.lengthSq() < 1e-5) {
-      middleDirection.copy(fromDirection).cross(new THREE.Vector3(1, 0, 0))
-    }
-  }
-
-  const scale = getCurrentScale()
-  const flightRadius = Math.max(
-    from.position.length(),
-    to.position.length(),
-    scale.earthRadius * 4.5
-  )
-
-  return middleDirection.normalize().multiplyScalar(flightRadius)
-}
-
-function startCameraFlight(to: CameraPose, onComplete: () => void) {
-  if (!camera || !orbitControls) {
-    return
-  }
-
-  const from = captureCameraPose()
-  if (!from) {
-    return
-  }
-
-  orbitControls.enabled = false
-  // 飞近地表的整个过程都使用较小近裁面，防止地球表面被截断。
-  camera.near = Math.min(from.near, to.near)
-  camera.updateProjectionMatrix()
-  cameraFlight = {
-    from,
-    to,
-    controlPosition: createCameraFlightControlPoint(from, to),
-    startedAt: performance.now(),
-    duration: OBSERVER_CAMERA_FLIGHT_DURATION,
-    onComplete,
-  }
-}
-
-function updateCameraFlight(time: number) {
-  if (!cameraFlight || !camera || !orbitControls) {
-    return
-  }
-
-  const flight = cameraFlight
-  const progress = THREE.MathUtils.clamp(
-    (time - flight.startedAt) / flight.duration,
-    0,
-    1
-  )
-  const eased = progress < 0.5
-    ? 4 * progress ** 3
-    : 1 - (-2 * progress + 2) ** 3 / 2
-  const inverse = 1 - eased
-
-  camera.position
-    .copy(flight.from.position)
-    .multiplyScalar(inverse * inverse)
-    .addScaledVector(flight.controlPosition, 2 * inverse * eased)
-    .addScaledVector(flight.to.position, eased * eased)
-  camera.up
-    .lerpVectors(flight.from.up, flight.to.up, eased)
-    .normalize()
-  camera.fov = THREE.MathUtils.lerp(flight.from.fov, flight.to.fov, eased)
-  camera.near = Math.min(flight.from.near, flight.to.near)
-  camera.updateProjectionMatrix()
-  orbitControls.target.lerpVectors(flight.from.target, flight.to.target, eased)
-  camera.lookAt(orbitControls.target)
-
-  if (progress < 1) {
-    return
-  }
-
-  cameraFlight = null
-  applyCameraPose(flight.to)
-  flight.onComplete()
-}
-
-function flyToObserverView() {
-  if (!camera || !orbitControls) {
-    setCameraView('observer')
-    return
-  }
-
-  if (currentView.value !== 'observer') {
-    previousSceneView = currentView.value
-    observerReturnPose = captureCameraPose()
-  }
-
-  const targetPose = createObserverCameraPose()
-  if (!targetPose) {
-    return
-  }
-
-  restoreObserverViewBodies()
-  currentView.value = 'observer'
-  syncObserverViewLayers()
-  startCameraFlight(targetPose, () => {
-    updateObserverCamera()
-    projectObserverViewBodies()
-    renderScene()
-  })
-}
-
-function flyFromObserverView() {
-  if (!camera || !orbitControls || !observerReturnPose) {
-    setCameraView(previousSceneView)
-    return
-  }
-
-  restoreObserverViewBodies()
-  const targetPose = observerReturnPose
-
-  startCameraFlight(targetPose, () => {
-    currentView.value = previousSceneView
-    observerReturnPose = null
-    orbitControls!.enabled = true
-    syncObserverViewLayers()
-    renderScene()
-  })
-}
-
-function handleObserverViewToggle(value: boolean | string | number) {
-  if (Boolean(value)) {
-    flyToObserverView()
-    return
-  }
-
-  if (currentView.value === 'observer') {
-    flyFromObserverView()
-  }
-}
-
-function updateObserverCamera() {
-  if (
-    currentView.value !== 'observer' ||
-    cameraFlight ||
-    !camera ||
-    !orbitControls
-  ) {
-    return
-  }
-
-  const pose = createObserverCameraPose()
-  if (!pose) {
-    return
-  }
-
-  applyCameraPose(pose)
-}
-
 function setCameraView(view: string) {
-  restoreObserverViewBodies()
-  cameraFlight = null
   currentView.value = view
-
-  if (view !== 'observer') {
-    observerViewEnabled.value = false
-    observerReturnPose = null
-  }
-
-  if (!camera || !orbitControls) {
-    return
-  }
+  if (!camera || !orbitControls) return
+  surfaceViewEnabled.value = false
+  surfaceCamera?.cancel()
 
   const scale = getCurrentScale()
-
-  camera.fov = view === 'observer' ? OBSERVER_VIEW_FOV : 45
-  camera.near = view === 'observer' ? 0.001 : 0.1
+  camera.fov = 45
+  camera.near = 0.1
   camera.updateProjectionMatrix()
-  orbitControls.enabled = view !== 'observer'
-
-  if (view === 'observer') {
-    syncObserverViewLayers()
-    updateObserverCamera()
-    projectObserverViewBodies()
-    renderScene()
-    return
-  }
+  orbitControls.enabled = true
 
   camera.up.set(0, 1, 0)
 
@@ -4629,15 +3871,11 @@ function placeObserverOnEclipseAxis(mode: 'solar' | 'lunar') {
 }
 
 function focusEclipseAlignment(mode: 'solar' | 'lunar') {
-  // 快捷预设必须先彻底退出地面相机，否则投影天体会留在观察者视野坐标中。
-  cameraFlight = null
-  observerViewEnabled.value = false
-  observerReturnPose = null
-  restoreObserverViewBodies()
   observationMode.value = mode
+  moonRotationEnabled.value = true
   moonLongitude.value = mode === 'solar' ? 0 : 180
   sarosProgress.value = 0
-  isPlaying.value = false
+  moonOrbitEnabled.value = false
   showUmbra.value = true
   showEarthView.value = true
   placeObserverOnEclipseAxis(mode)
@@ -4647,13 +3885,20 @@ function focusEclipseAlignment(mode: 'solar' | 'lunar') {
   }
 
   updateObserverMarker()
-  setCameraView('alignment')
   updateMoonTransform()
+  if (surfaceViewEnabled.value) {
+    surfaceCamera?.resetView()
+  } else {
+    setCameraView('alignment')
+  }
+  observerScene?.resetView()
   renderScene()
 }
 
 function resetControls() {
   moonOrbitEnabled.value = true
+  moonRotationEnabled.value = true
+  moonRotationAngle.value = 0
   earthRotationEnabled.value = false
   showUmbra.value = true
   showEarthView.value = true
@@ -4663,15 +3908,14 @@ function resetControls() {
   moonInclination.value = 5.1
   sarosProgress.value = 90
   playbackSpeed.value = 1
-  isPlaying.value = true
-  selectedObject.value = 'earth'
+  playbackSpeedDirection.value = 1
   observationMode.value = 'solar'
   observerLatitude.value = 30
   observerLongitude.value = 120
   earthRotationAngle.value = 60
   earthOrbitalPosition.value = 0
   observerViewEnabled.value = false
-  previousSceneView = 'overview'
+  surfaceViewEnabled.value = false
   currentView.value = 'overview'
 
   setCameraView('overview')
@@ -4680,7 +3924,7 @@ function resetControls() {
 }
 
 watch(
-  moonLongitude,
+  [moonLongitude, moonRotationEnabled],
   () => {
     updateMoonTransform()
   }
@@ -4704,7 +3948,7 @@ watch(
   (value) => {
     if (observerMarkerGroup) {
       observerMarkerGroup.visible =
-        value && currentView.value !== 'observer'
+        value
     }
     nextTick(() => {
       renderScene()
@@ -4725,12 +3969,12 @@ watch(
   (value) => {
     if (moonOrbitLine) {
       moonOrbitLine.visible =
-        value && currentView.value !== 'observer'
+        value
     }
 
     if (moonNodeGroup) {
       moonNodeGroup.visible =
-        value && currentView.value !== 'observer'
+        value
     }
   }
 )
@@ -4739,7 +3983,7 @@ watch(
   realScaleMode,
   () => {
     rebuildUmbraMeshes()
-    setCameraView(currentView.value)
+    if (!surfaceCamera?.active) setCameraView(currentView.value)
   }
 )
 
@@ -4766,10 +4010,6 @@ function disposeScene() {
 
   threeResizeObserver?.disconnect()
   threeResizeObserver = null
-
-  if (renderer?.domElement) {
-    renderer.domElement.removeEventListener('pointerdown', handleScenePointerDown)
-  }
 
   orbitControls?.dispose()
   orbitControls = null
@@ -4805,13 +4045,22 @@ function disposeScene() {
 
   celestialImageBitmaps.length = 0
 
+  observerScene?.dispose()
+  observerScene = null
+  surfaceCamera?.dispose()
+  surfaceCamera = null
+  surfaceBodies?.dispose()
+  surfaceBodies = null
+  previewRenderer?.dispose()
+  previewRenderer = null
+  previewWidth = 0
+  previewHeight = 0
   renderer?.dispose()
 
   if (renderer?.domElement.parentElement) {
     renderer.domElement.parentElement.removeChild(renderer.domElement)
   }
 
-  clickableObjects.length = 0
   disposableMaterials.length = 0
   disposableGeometries.length = 0
   disposableTextures.length = 0
@@ -4832,14 +4081,7 @@ function disposeScene() {
     earthTextureOverlayRef.value,
   )
 
-  hideTextureOverlay(
-    moonTextureOverlayRef.value,
-  )
 
-  hideTextureOverlay(
-    previewMoonShadeRef.value,
-  )
-  lastPreviewShadeSignature = ''
 
     ; (
       [
@@ -4877,9 +4119,6 @@ function disposeScene() {
   observerMarkerLabel = null
   observerRipplePhase = 0
   observerRipples.length = 0
-  observerBodiesProjected = false
-  cameraFlight = null
-  observerReturnPose = null
   earthUmbra = null
   moonUmbra = null
   earthSunlightBeam = null
@@ -4894,12 +4133,14 @@ function disposeScene() {
   previewCamera = null
   previewSun = null
   previewMoon = null
-  previewLunarMoon = null
-  previewEarthShadow = null
 }
 
 onMounted(async () => {
   await nextTick()
+  timelineResizeObserver = new ResizeObserver(([entry]) => {
+    if (entry) timelineHeight.value = entry.target.getBoundingClientRect().height
+  })
+  if (timelineDockRef.value) timelineResizeObserver.observe(timelineDockRef.value)
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -4910,6 +4151,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  timelineResizeObserver?.disconnect()
   disposeScene()
 })
 </script>
@@ -5137,6 +4379,7 @@ onBeforeUnmount(() => {
 }
 
 .eclipse-stage-content {
+  display: flex;
   position: relative;
   width: 100%;
   height: 100%;
@@ -5147,14 +4390,50 @@ onBeforeUnmount(() => {
   background: #020713;
 }
 
+.space-pane {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.is-split .space-pane { width: var(--space-share, 50%); flex: 0 0 var(--space-share, 50%); }
+.observer-pane { position: relative; flex: 1; min-width: 0; height: 100%; overflow: hidden; background: #06101c; }
+.observer-scene-canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: none; cursor: grab; }
+.observer-scene-canvas:active { cursor: grabbing; }
+.observer-scene-canvas:focus-visible { outline: 2px solid #59d8d8; outline-offset: -3px; }
+.space-pane-caption, .observer-pane-heading { position: absolute; top: 22px; left: 22px; z-index: 4; color: #d9edf4; }
+.space-pane-caption { font-size: 12px; letter-spacing: 0.15em; pointer-events: none; }
+.observer-pane-heading { display: grid; gap: 7px; max-width: calc(100% - 40px); pointer-events: none; }
+.observer-pane-heading > strong { display: flex; align-items: center; gap: 8px; font-size: 13px; letter-spacing: 0.12em; }
+.observer-pane-heading i { width: 6px; height: 6px; border-radius: 50%; background: #65dbce; box-shadow: 0 0 12px #65dbce77; }
+.observer-pane-heading > span { color: #b2c7d3; font-size: 11px; }
+.observer-view-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; pointer-events: auto; }
+.observer-view-actions .theme-btn { padding: 6px 10px; font-size: 11px; background: rgba(8, 24, 37, 0.72); }
+.observer-view-actions .theme-btn.active { background: rgba(33, 132, 152, 0.8); border-color: #59d8d880; }
+.observer-pane-footer { position: absolute; left: 22px; bottom: var(--timeline-clearance, 210px); z-index: 3; display: grid; gap: 5px; max-width: calc(100% - 44px); pointer-events: none; text-shadow: 0 1px 6px #000; }
+.observer-pane-footer > span { color: #a8d5d0; font-size: 12px; }
+.observer-pane-footer > strong { color: #e3f2f6; font-size: 12px; }
+.observer-pane-footer > small { color: #91a9b8; font-size: 10px; }
+.view-horizon { position: absolute; left: 0; right: 0; z-index: 3; height: 0; border-top: 1px dashed #b9d6d24d; pointer-events: none; }
+.view-horizon > span { position: absolute; right: 10px; bottom: 5px; padding: 2px 5px; border-radius: 4px; color: #b2cdce; background: #061019b3; font-size: 10px; }
+.preview-horizon { border-top-color: #9ee4d68c; }
+.scene-divider { position: absolute; left: var(--space-share, 50%); top: 0; bottom: 0; z-index: 5; width: 12px; transform: translateX(-50%); cursor: col-resize; touch-action: none; }
+.scene-divider::before { position: absolute; left: 5px; inset-block: 0; width: 1px; content: ''; background: #8dbfdb40; }
+.scene-divider > span { position: absolute; top: 48%; left: 1px; width: 10px; height: 48px; border: 1px solid #88bdd754; border-radius: 8px; background: #0c2639; }
+.scene-divider:hover > span, .scene-divider:focus-visible > span { background: #25758d; }
+.is-split .scene-title-chip { max-width: calc(100% - 24px); flex-wrap: wrap; justify-content: center; white-space: normal; }
+
+@media (max-width: 760px) {
+  .observer-pane-heading, .space-pane-caption { top: 16px; left: 12px; }
+  .observer-pane-footer { left: 12px; }
+  .observer-view-actions .theme-btn { padding: 5px 6px; font-size: 10px; }
+}
+
 .eclipse-control-card {
   width: clamp(370px, 24vw, 440px);
   height: min(760px, calc(100vh - 172px));
-}
-
-.eclipse-data-card {
-  width: clamp(350px, 21vw, 440px);
-  height: min(620px, calc(100vh - 172px));
 }
 
 .eclipse-observation-card {
@@ -5163,13 +4442,11 @@ onBeforeUnmount(() => {
 }
 
 .eclipse-control-card.collapsed,
-.eclipse-data-card.collapsed,
 .eclipse-observation-card.collapsed {
   height: auto;
 }
 
 .eclipse-control-card :deep(.feature-card-content),
-.eclipse-data-card :deep(.feature-card-content),
 .eclipse-observation-card :deep(.feature-card-content) {
   padding-bottom: 0;
 }
@@ -5315,16 +4592,13 @@ onBeforeUnmount(() => {
 }
 
 .movement-toggle-grid .toggle-tile {
-  display: grid;
-  min-height: 82px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  align-items: start;
+  min-height: 48px;
+  align-items: center;
+  padding: 7px 10px;
 }
 
 .movement-toggle-grid .toggle-copy {
-  grid-column: 1 / -1;
-  grid-row: 1;
+  align-self: center;
 }
 
 .movement-toggle-grid .toggle-copy strong,
@@ -5332,10 +4606,8 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.movement-toggle-grid :deep(.el-switch) {
-  grid-column: 2;
-  grid-row: 2;
-  justify-self: end;
+.movement-toggle-grid .toggle-tile :deep(.el-switch) {
+  transform: none;
 }
 
 .layer-toggle-grid {
@@ -5616,103 +4888,13 @@ onBeforeUnmount(() => {
 }
 
 
-.preview-texture-surface,
-.preview-earth-shadow-texture,
-.preview-moon-shade {
+.preview-scene-canvas {
   position: absolute;
-  display: none;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  transform:
-    translate(-50%, -50%);
-  transform-origin:
-    center center;
-  border-radius: 50%;
-}
-
-.preview-texture-surface {
-  overflow: hidden;
-  background-repeat:
-    repeat-x;
-  background-position:
-    50% 50%;
-  background-size:
-    200% 100%;
-  will-change:
-    left,
-    top,
-    width,
-    height,
-    filter;
-}
-
-.preview-texture-surface::before,
-.preview-texture-surface::after {
-  position: absolute;
-  content: '';
-  inset: -1px;
-  pointer-events: none;
-  border-radius: 50%;
-}
-
-.preview-texture-surface::before {
-  z-index: 1;
-  border:
-    1px solid rgba(255, 255, 255, 0.14);
-}
-
-.preview-texture-surface::after {
-  z-index: 2;
-  background:
-    radial-gradient(circle at 31% 28%,
-      rgba(255, 255, 255, 0.13) 0%,
-      rgba(255, 255, 255, 0.02) 35%,
-      rgba(0, 0, 0, 0.13) 61%,
-      rgba(0, 0, 0, 0.72) 100%);
-}
-
-.preview-sun-texture {
-  z-index: 1;
-  box-shadow:
-    0 0 22px rgba(255, 174, 43, 0.42),
-    0 0 42px rgba(255, 121, 22, 0.2);
-}
-
-.preview-sun-texture::after {
-  background:
-    radial-gradient(circle at 38% 34%,
-      rgba(255, 255, 255, 0.2) 0%,
-      rgba(255, 207, 76, 0.03) 47%,
-      rgba(111, 29, 0, 0.2) 100%);
-}
-
-.preview-moon-texture,
-.preview-lunar-moon-texture {
-  z-index: 2;
-  box-shadow:
-    inset -9px -5px 17px rgba(0, 0, 0, 0.32);
-}
-
-.preview-moon-texture::after,
-.preview-lunar-moon-texture::after {
-  background:
-    radial-gradient(circle at 30% 27%,
-      rgba(255, 255, 255, 0.11) 0%,
-      rgba(255, 255, 255, 0.02) 35%,
-      rgba(0, 0, 0, 0.16) 63%,
-      rgba(0, 0, 0, 0.76) 100%);
-}
-
-.preview-earth-shadow-texture {
-  z-index: 4;
-  background:
-    rgba(25, 3, 4, 0.72);
-  box-shadow:
-    inset 10px 0 18px rgba(134, 28, 18, 0.24);
-}
-
-.preview-moon-shade {
-  z-index: 3;
-  overflow: hidden;
 }
 
 .scene-title-chip {
@@ -5819,32 +5001,68 @@ onBeforeUnmount(() => {
   border-radius: 6px;
 }
 
+:global(.el-popper.eclipse-observer-location-popper) {
+  --el-bg-color-overlay: #081b2b;
+  --el-border-color-light: #306073;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 14px;
+  background: #081b2b;
+  border: 1px solid #306073;
+  border-radius: 14px;
+  box-shadow: 0 14px 38px #0008;
+}
+
+:global(.eclipse-observer-location-popper .el-popper__arrow::before) {
+  background: #081b2b;
+  border-color: #306073;
+}
+
 .observer-location-controls {
   display: grid;
-  gap: 5px;
-  padding: 9px;
-  background: rgba(111, 158, 194, 0.055);
-  border: 1px solid rgba(141, 191, 230, 0.12);
-  border-radius: 10px;
+  gap: 12px;
 }
 
 .observer-control-heading {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 1px;
 }
 
+.observer-control-heading>div {
+  display: grid;
+  gap: 4px;
+}
+
 .observer-control-heading strong {
-  color: var(--text-secondary);
-  font-size: 12px;
+  color: #d6eef4;
+  font-size: 13px;
 }
 
 .observer-control-heading span {
-  color: var(--text-muted);
-  font-size: 9px;
-  text-align: right;
+  color: #91adbe;
+  font-size: 11px;
+}
+
+.observer-location-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: #abc9d5;
+  font-size: 20px;
+  background: #123042;
+  border: 1px solid #305165;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.observer-location-close:hover {
+  color: #e8ffff;
+  border-color: #59bfb8;
 }
 
 .season-position-control {
@@ -5888,22 +5106,22 @@ onBeforeUnmount(() => {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   column-gap: 8px;
-  color: var(--text-secondary);
-  font-size: 11px;
+  color: #bdd2df;
+  font-size: 12px;
 }
 
 .observer-parameter>strong {
   grid-column: 3;
   min-width: 52px;
   color: #96f5eb;
-  font-size: 11px;
+  font-size: 12px;
   text-align: right;
 }
 
 .observer-parameter :deep(.el-slider) {
   grid-column: 1 / -1;
   width: 100%;
-  height: 22px;
+  height: 28px;
   --el-slider-main-bg-color: #2ec4b6;
   --el-slider-runway-bg-color: rgba(131, 168, 197, 0.2);
 }
@@ -6050,142 +5268,6 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%);
 }
 
-.eclipse-legend-card {
-  width: clamp(245px, 20vw, 324px);
-  height: auto;
-}
-
-.eclipse-legend-card.collapsed {
-  width: 178px;
-}
-
-.eclipse-legend-card :deep(.feature-card-content) {
-  padding-bottom: 0;
-}
-
-.scene-legend-content {
-  padding: 12px 13px 13px;
-}
-
-.scene-legend-list {
-  display: grid;
-  gap: 6px;
-}
-
-.scene-legend-content .legend-item {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-  padding: 7px 8px;
-  background: rgba(113, 162, 198, 0.045);
-  border: 1px solid rgba(141, 191, 230, 0.075);
-  border-radius: 11px 5px 11px 5px;
-}
-
-.scene-legend-content .legend-item>div {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-
-.scene-legend-content .legend-item strong {
-  color: rgba(231, 248, 255, 0.92);
-  font-size: clamp(9px, 0.68vw, 11px);
-  line-height: 1.3;
-}
-
-.scene-legend-content .legend-item>div>span {
-  color: var(--text-muted);
-  font-size: clamp(8px, 0.6vw, 10px);
-  line-height: 1.4;
-}
-
-.legend-swatch {
-  position: relative;
-  display: block;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  border-radius: 9px 4px 9px 4px;
-}
-
-.umbra-swatch {
-  background:
-    radial-gradient(circle at 42% 42%, #020203 0 42%, #222c3a 45% 51%, #07111d 54%);
-  border: 1px solid rgba(171, 196, 216, 0.22);
-}
-
-.sunlight-swatch {
-  background:
-    radial-gradient(circle at 32% 35%, #fff0a7 0 13%, #ffba3d 18% 37%, #d94b16 67%, #40110d 100%);
-  box-shadow: inset 0 0 8px rgba(255, 224, 105, 0.32);
-}
-
-.orbit-swatch {
-  overflow: hidden;
-  background: rgba(57, 124, 158, 0.12);
-  border: 1px solid rgba(169, 234, 255, 0.16);
-}
-
-.orbit-swatch::after {
-  position: absolute;
-  width: 34px;
-  height: 12px;
-  content: '';
-  top: 7px;
-  left: -4px;
-  border: 1.5px solid #d9f7ff;
-  border-radius: 50%;
-  transform: rotate(-18deg);
-  box-shadow: 0 0 6px rgba(217, 247, 255, 0.4);
-}
-
-.node-pair-swatch {
-  display: flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: space-around;
-  background: rgba(57, 124, 158, 0.1);
-  border: 1px solid rgba(169, 234, 255, 0.13);
-  border-radius: 9px 4px 9px 4px;
-}
-
-.node-pair-swatch i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.ascending-node-dot {
-  background: #51f0c8;
-  box-shadow: 0 0 7px rgba(81, 240, 200, 0.9);
-}
-
-.descending-node-dot {
-  background: #ff8a65;
-  box-shadow: 0 0 7px rgba(255, 138, 101, 0.9);
-}
-
-.scene-legend-note {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 10px;
-  padding: 0 3px;
-  color: var(--text-muted);
-  font-size: clamp(8px, 0.6vw, 10px);
-}
-
-.scene-legend-note i {
-  width: 5px;
-  height: 5px;
-  flex: 0 0 auto;
-  background: #51f0c8;
-  border-radius: 50%;
-  box-shadow: 0 0 7px rgba(81, 240, 200, 0.72);
-}
 
 .phase-scale {
   display: flex;
@@ -6197,19 +5279,55 @@ onBeforeUnmount(() => {
 
 .solar-lunar-eclipse-container .timeline-dock {
   display: flex;
-  width: min(1240px, calc(100% - 28px));
+  width: calc(100% - 40px);
   flex-direction: column;
-  gap: 7px;
-  padding: 9px 11px;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid rgba(92, 182, 201, 0.25);
+  border-radius: 18px;
+  background: rgba(5, 21, 33, 0.94);
+  box-shadow: 0 12px 36px #0005;
+  backdrop-filter: blur(18px);
 }
 
 .timeline-primary-row {
   display: grid;
   width: 100%;
   min-width: 0;
-  grid-template-columns: auto minmax(220px, 1fr) auto auto;
+  grid-template-columns: 145px minmax(240px, 1fr) 145px minmax(160px, 0.5fr) 100px;
   align-items: center;
-  gap: 10px;
+  gap: 18px;
+}
+
+.timeline-dock .timeline-copy {
+  margin: 0;
+  gap: 12px;
+  color: #c5dce8;
+  font-size: 13px;
+}
+
+.timeline-copy > span {
+  white-space: nowrap;
+}
+
+.timeline-copy > span small {
+  margin-left: 8px;
+  color: #819baa;
+  font-size: 11px;
+}
+
+.timeline-dock :deep(.el-slider) {
+  --el-slider-height: 6px;
+  --el-slider-button-size: 14px;
+  height: 30px;
+}
+
+.timeline-phase-scale {
+  display: flex;
+  justify-content: space-between;
+  color: #839eae;
+  font-size: 11px;
+  line-height: 1;
 }
 
 .timeline-angle-value {
@@ -6224,7 +5342,7 @@ onBeforeUnmount(() => {
 .timeline-angle-value small {
   padding: 2px 6px;
   color: #84ece4;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1.25;
   white-space: nowrap;
@@ -6251,12 +5369,14 @@ onBeforeUnmount(() => {
 
 .timeline-secondary-row {
   display: grid;
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  grid-template-columns: minmax(310px, 1.2fr) auto auto minmax(210px, 0.8fr);
+  grid-template-columns: 236px 145px minmax(150px, 1fr);
   align-items: center;
-  gap: 8px;
-  padding-top: 7px;
+  gap: 22px;
+  padding-top: 12px;
+  padding-right: 64px;
   border-top: 1px solid rgba(141, 191, 230, 0.12);
 }
 
@@ -6264,33 +5384,47 @@ onBeforeUnmount(() => {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 9px;
+  gap: 12px;
 }
 
 .timeline-season-control>span {
   flex: 0 0 auto;
   color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
-.timeline-season-control .season-position-options {
+.timeline-season-control select {
   min-width: 0;
   flex: 1 1 auto;
+  height: 40px;
+  padding: 0 12px;
+  color: #d7edf6;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  color-scheme: dark;
+  background: #0c2535;
+  border: 1px solid #285064;
+  border-radius: 9px;
 }
 
-.timeline-season-control .season-position-btn {
-  padding: 5px 8px;
+.timeline-season-control select:focus-visible,
+.timeline-speed-button:focus-visible {
+  outline: 2px solid #7ce7e1;
+  outline-offset: 3px;
 }
 
 .timeline-motion-switch {
   display: flex;
-  min-width: 126px;
+  min-width: 0;
+  min-height: 52px;
+  box-sizing: border-box;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 5px 8px;
+  padding: 7px 10px;
   cursor: pointer;
   background: rgba(46, 196, 182, 0.045);
   border: 1px solid rgba(82, 220, 207, 0.14);
@@ -6299,19 +5433,19 @@ onBeforeUnmount(() => {
 
 .timeline-motion-switch>span {
   display: grid;
-  gap: 1px;
+  gap: 3px;
 }
 
 .timeline-motion-switch strong,
 .timeline-rotation-control>span {
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
 .timeline-motion-switch small {
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
@@ -6328,134 +5462,168 @@ onBeforeUnmount(() => {
   grid-template-columns: auto auto;
   align-items: center;
   column-gap: 8px;
-  padding: 3px 8px 0;
+  padding: 0 4px;
 }
 
 .timeline-rotation-control>strong {
   color: #96f5eb;
-  font-size: 10px;
+  font-size: 13px;
   text-align: right;
 }
 
 .timeline-rotation-control :deep(.el-slider) {
   grid-column: 1 / -1;
-  height: 18px;
+  height: 30px;
 }
 
-.timeline-observer-switch {
-  display: flex;
-  min-width: 132px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 9px;
-  padding: 6px 9px;
+.timeline-speed-button {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 8px 12px;
+  color: #b8d4e2;
   cursor: pointer;
-  background: rgba(46, 196, 182, 0.055);
+  background: #0c2b3c;
+  border: 1px solid #306073;
+  border-radius: 10px;
+  transition: border-color 150ms, background 150ms;
+}
+
+.timeline-speed-button:hover {
+  background: #123a4b;
+  border-color: #57b9bc;
+}
+
+.timeline-speed-button > span {
+  font-size: 11px;
+}
+
+.timeline-speed-button strong {
+  color: #88e9e4;
+  font-size: 17px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-speed-button i {
+  font-size: 14px;
+  font-style: normal;
+}
+
+.header-observer-switch, .left-view-switch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 10px;
+  cursor: pointer;
+  background: rgba(8, 24, 37, 0.78);
   border: 1px solid rgba(82, 220, 207, 0.16);
   border-radius: 9px;
+  pointer-events: auto;
+  width: fit-content;
 }
 
-.timeline-observer-switch>span {
-  display: grid;
-  gap: 1px;
-}
-
-.timeline-observer-switch strong {
+.header-observer-switch>span, .left-view-switch>span {
   color: var(--text-secondary);
   font-size: 11px;
   white-space: nowrap;
 }
 
-.timeline-observer-switch small {
-  color: var(--text-muted);
-  font-size: 9px;
-  white-space: nowrap;
+.left-view-switch {
+  margin-top: 5px;
 }
 
-.timeline-observer-switch :deep(.el-switch) {
+.left-view-switch>span.active {
+  color: #96f5eb;
+  font-weight: 700;
+}
+
+.header-observer-switch :deep(.el-switch), .left-view-switch :deep(.el-switch) {
   --el-switch-on-color: #2ec4b6;
   --el-switch-off-color: rgba(98, 126, 151, 0.42);
   flex: 0 0 auto;
 }
 
 .observation-mode-control {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
-  padding: 8px 9px;
-  background: rgba(111, 158, 194, 0.045);
-  border: 1px solid rgba(141, 191, 230, 0.1);
-  border-radius: 9px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 6px 5px 10px;
+  background: rgba(5, 20, 32, 0.9);
+  border: 1px solid rgba(91, 205, 214, 0.25);
+  border-radius: 12px;
+  pointer-events: auto;
 }
 
 .observation-mode-control>span {
   color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .observation-mode-options {
   display: flex;
-  gap: 7px;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .observation-mode-btn {
   min-width: 0;
   flex: 1 1 0;
-  padding: 8px 10px;
-  font-size: 11px;
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
   white-space: nowrap;
   cursor: pointer;
 }
 
+.observer-location-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 9px;
+  font-size: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.observer-location-trigger>.observer-location-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: #7be2d6;
+}
+
+.observer-location-chevron {
+  display: block;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  transition: transform 150ms;
+}
+
+.observer-location-trigger.active .observer-location-chevron {
+  transform: rotate(180deg);
+}
+
+.observation-mode-btn:focus-visible,
+.observer-location-trigger:focus-visible,
+.observer-location-close:focus-visible {
+  outline: 2px solid #a1fff3;
+  outline-offset: 2px;
+}
+
 .view-option-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.eclipse-data-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.wide-data-card {
-  grid-column: 1 / -1;
-}
-
-.wide-data-card strong {
-  font-size: clamp(16px, 1.12vw, 21px);
-}
-
-.wide-data-card small {
-  line-height: 1.65;
-}
-
-/*
- * 公共 data-card 默认会对较长数值做单行省略。
- * 天体运动周期需要完整显示，因此允许在本业务数据区正常换行。
- */
-.eclipse-data-grid .data-card strong {
-  max-width: 100%;
-  overflow: visible;
-  line-height: 1.35;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-}
-
-.period-data-card strong {
-  font-size: clamp(15px, 1.04vw, 20px);
-}
-
-.solar-status-card {
-  border-color: rgba(255, 213, 74, 0.28);
-}
-
-.lunar-status-card {
-  border-color: rgba(255, 107, 107, 0.28);
-}
-
-.normal-status-card {
-  border-color: rgba(46, 196, 182, 0.28);
 }
 
 .solar-lunar-eclipse-container .workspace.panel-resizing,
@@ -6481,53 +5649,115 @@ onBeforeUnmount(() => {
     width: min(340px, calc(100vw - 24px));
   }
 
-  .eclipse-legend-card {
-    width: clamp(210px, 24vw, 270px);
-  }
 
   .observation-mode-btn {
     padding-inline: 6px;
   }
 
-  .timeline-secondary-row {
-    grid-template-columns: minmax(300px, 1fr) auto auto;
+  .timeline-primary-row, .timeline-secondary-row {
+    gap: 14px;
   }
 
-  .timeline-rotation-control {
-    grid-column: 1 / -1;
+  .timeline-secondary-row {
+    grid-template-columns: 210px 145px minmax(110px, 1fr);
+  }
+
+  .timeline-primary-row {
+    grid-template-columns: 145px minmax(0, 1fr) 100px;
+  }
+
+  .timeline-primary-row .timeline-speed-button {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .timeline-primary-row .moon-spin-switch {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .timeline-primary-row .moon-rotation-control {
+    grid-column: 2 / -1;
+    grid-row: 2;
   }
 }
 
 @media (max-width: 760px) {
-  .timeline-primary-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+  .solar-lunar-eclipse-container .timeline-dock {
+    width: calc(100% - 20px);
+    padding: 12px;
   }
 
-  .timeline-observer-switch {
+  .timeline-primary-row {
+    grid-template-columns: minmax(135px, 0.7fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .timeline-primary-row .timeline-main {
     grid-column: 1 / -1;
-    justify-self: stretch;
+    grid-row: 2;
+    padding: 0 5px;
+  }
+
+  .timeline-primary-row .moon-orbit-switch {
+    justify-content: flex-start;
+    gap: 20px;
+  }
+
+  .timeline-primary-row .timeline-speed-button {
+    grid-column: 2;
+    justify-self: end;
+    min-width: 100px;
+  }
+
+  .timeline-primary-row .moon-spin-switch {
+    grid-row: 3;
+  }
+
+  .timeline-primary-row .moon-rotation-control {
+    grid-row: 3;
   }
 
   .timeline-secondary-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .timeline-season-control,
-  .timeline-rotation-control {
+  .timeline-secondary-row {
+    gap: 10px;
+  }
+
+  .timeline-secondary-row .earth-rotation-control {
     grid-column: 1 / -1;
   }
 
   .timeline-season-control {
-    align-items: flex-start;
-    flex-direction: column;
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
-  .timeline-season-control .season-position-options {
-    width: 100%;
+  .timeline-season-control > span {
+    font-size: 11px;
   }
 
-  .timeline-motion-switch {
-    min-width: 0;
+  .timeline-season-control select {
+    height: 34px;
+  }
+
+  .timeline-copy > span small {
+    display: none;
+  }
+
+  .timeline-angle-value {
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .timeline-angle-value small {
+    padding: 1px 4px;
+  }
+
+  .timeline-angle-value i {
+    display: none;
   }
 }
 </style>
