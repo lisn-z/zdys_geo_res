@@ -60,7 +60,6 @@ const COPY_WHITELIST = [
  * 将排除 soil-erosion、earth-motion 对应的 .astro 页面与 geo 组件。
  */
 const COPY_BLACKLIST = [
-  'flying-into-space'
   // 示例：取消注释即可排除这几项
   /*   'soil-erosion',
     'earth-motion', */
