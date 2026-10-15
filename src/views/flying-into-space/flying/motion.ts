@@ -188,6 +188,26 @@ export function launchState(kind: string, local: number, armed = true): LaunchSt
   };
 }
 
+/** Viking's scoop is a sampler, not a fourth landing foot. Deployment follows
+ * touchdown; a short sample collection is shown after the landing time cut. */
+export function vikingSamplerState(time:number) {
+  const t=Number.isFinite(time)?Math.max(0,time):0;
+  const deploy=span(t,22.5,24.5),lower=span(t,24.5,26),scrape=span(t,26.3,28.2);
+  const lift=span(t,28.2,30.5),retract=span(t,31,34);
+  return {scoopY:mix(1.10,.015,lower)+.82*lift,
+    scoopZ:1.75+1.80*deploy-.26*scrape-1.20*retract,
+    collecting:t>=26&&t<28.2,soil:t>=26.6,phase:t<22.5?'stowed':t<26?'deploy':t<28.2?'sample':t<31?'lift':'return'};
+}
+/** Shenzhou 5: orbital module first, service-module braking while still joined
+ * to the return capsule, then service separation. Times are illustrative. */
+export function shenzhouReturnState(time:number) {
+  const t=Number.isFinite(time)?Math.max(0,time):0;
+  return {orbitalGap:6*span(t,19.2,21)+Math.max(0,t-21)*1.25,
+    serviceGap:6*span(t,25,27),returnTurn:Math.PI*span(t,21,22.2),
+    brakingPower:span(t,22.2,22.4)*(1-span(t,24.1,24.4)),
+    phase:t<19.2?'orbit':t<21?'orbital':t<22.2?'turn':t<24.4?'braking':t<25?'coast':t<27?'service':'capsule'};
+}
+
 /** Unit impulse with a sin-squared acceleration envelope. Integrate twice so
  * engine cutoff preserves velocity instead of stopping/reversing an animation. */
 function falconBurnIntegral(t:number,start:number,end:number) {

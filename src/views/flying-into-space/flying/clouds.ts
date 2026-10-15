@@ -53,6 +53,7 @@ export class AscentCloudPass {
   private prepared: Promise<void> | null = null;
   private dead = false;
   private active = false;
+  private disabledReason: string | null = null;
   constructor(private quality:'balanced'|'high', type:THREE.TextureDataType=THREE.HalfFloatType) {
     this.volumeTarget=new THREE.WebGLRenderTarget(1,1,{type,depthBuffer:false,stencilBuffer:false});
     this.resultTarget=new THREE.WebGLRenderTarget(1,1,{type,depthBuffer:false,stencilBuffer:false});
@@ -79,8 +80,21 @@ export class AscentCloudPass {
   }
   /** Generated once while the page Loading remains visible. No new cloud image or OSS path is required. */
   prepare(renderer:THREE.WebGLRenderer):Promise<void> {
+    if(this.dead)return Promise.resolve();
     if(this.prepared)return this.prepared;
-    this.prepared=this.generate(renderer).catch(error=>{this.prepared=null;throw error;});return this.prepared;
+    this.prepared=this.generate(renderer).catch(error=>{
+      this.releaseDensity();
+      if(this.dead)return;
+      // Volume clouds are optional scenery. Keep the base scene usable if the
+      // device cannot upload/compile this effect, but never conceal a lost GPU.
+      if(renderer.getContext().isContextLost()){
+        this.prepared=null;
+        throw new Error('云层初始化时图形上下文已丢失');
+      }
+      this.disabledReason=error instanceof Error?error.message:String(error);
+      this.volumeTarget.dispose();this.resultTarget.dispose();
+      console.warn('[FlyingIntoSpace] 体积云已停用，继续显示基础场景：',this.disabledReason);
+    });return this.prepared;
   }
   private async generate(renderer:THREE.WebGLRenderer) {
     const size=this.quality==='high'?128:80,data=new Uint8Array(size*size*size),missionData=new Uint8Array(size*size*size),noise=new ImprovedNoise();
@@ -126,18 +140,43 @@ export class AscentCloudPass {
     // seam or another large texture. Three spatial scales break up repetition.
     missionTexture.wrapS=missionTexture.wrapT=missionTexture.wrapR=THREE.MirroredRepeatWrapping;
     missionTexture.generateMipmaps=false;missionTexture.needsUpdate=true;
-    const gl=renderer.getContext();for(let n=0;n<16&&gl.getError()!==gl.NO_ERROR;n++){if(gl.isContextLost())throw new Error('云层初始化时图形上下文已丢失');}
+    // Own both textures before touching the GPU so every upload/compile error
+    // can release them through prepare(), including exceptions in initTexture.
+    this.density=texture;this.missionDensity=missionTexture;
+    const gl=renderer.getContext();
+    if(gl.isContextLost())throw new Error('云层初始化时图形上下文已丢失');
+    for(let n=0;n<16&&gl.getError()!==gl.NO_ERROR;n++){
+      if(gl.isContextLost())throw new Error('云层初始化时图形上下文已丢失');
+    }
     renderer.initTexture(texture);renderer.initTexture(missionTexture);
     const error=gl.getError();
-    if(error!==gl.NO_ERROR){texture.dispose();missionTexture.dispose();throw new Error(`三维云纹理上传失败（${error}）`);}
+    if(error!==gl.NO_ERROR)throw new Error(`三维云纹理上传失败（${error}）`);
     this.density=texture;this.volumeMaterial.uniforms.densityMap!.value=texture;
     this.missionDensity=missionTexture;this.volumeMaterial.uniforms.missionDensityMap!.value=missionTexture;
-    this.quad.material=this.volumeMaterial;await renderer.compileAsync(this.scene,this.camera);
+    // This Three.js version's compileAsync owns an uncancellable polling timer.
+    // Disposing either the material or renderer during a quality switch clears
+    // currentProgram, making that timer throw outside its Promise. These two
+    // optional materials use compile(), with cancellable yield points between
+    // them, so disposal cannot interleave with a compiler polling callback.
+    this.quad.material=this.volumeMaterial;renderer.compile(this.scene,this.camera);
+    await new Promise<void>(resolve=>setTimeout(resolve,0));
     if(this.dead)return;
-    this.quad.material=this.composeMaterial;await renderer.compileAsync(this.scene,this.camera);
-    if(!this.dead)this.quad.material=this.volumeMaterial;
+    if(gl.isContextLost())throw new Error('云层初始化时图形上下文已丢失');
+    this.quad.material=this.composeMaterial;renderer.compile(this.scene,this.camera);
+    await new Promise<void>(resolve=>setTimeout(resolve,0));
+    if(this.dead)return;
+    if(gl.isContextLost())throw new Error('云层初始化时图形上下文已丢失');
+    this.quad.material=this.volumeMaterial;
+  }
+  private releaseDensity() {
+    this.active=false;
+    this.density?.dispose();this.missionDensity?.dispose();
+    this.density=null;this.missionDensity=null;
+    this.volumeMaterial.uniforms.densityMap!.value=null;
+    this.volumeMaterial.uniforms.missionDensityMap!.value=null;
   }
   resize(w:number,h:number) {
+    if(this.dead||this.disabledReason!==null)return;
     this.resultTarget.setSize(w,h);
     const limit=this.quality==='high'?1050:760;
     const scale=Math.min(.68,limit/Math.max(w,h));
@@ -199,6 +238,6 @@ export class AscentCloudPass {
     this.quad.material=this.composeMaterial;renderer.setRenderTarget(this.resultTarget);renderer.render(this.scene,this.camera);
     renderer.setRenderTarget(oldTarget);this.active=true;return this.resultTarget;
   }
-  diagnostics(){return {active:this.active,densitySize:this.density?.image.width||0,width:this.volumeTarget.width,height:this.volumeTarget.height,steps:this.volumeMaterial.uniforms.marchSteps!.value};}
-  dispose(){this.dead=true;this.density?.dispose();this.missionDensity?.dispose();this.volumeTarget.dispose();this.resultTarget.dispose();this.volumeMaterial.dispose();this.composeMaterial.dispose();this.quad.geometry.dispose();this.scene.clear();}
+  diagnostics(){return {active:this.active,disabled:this.disabledReason!==null,disabledReason:this.disabledReason,densitySize:this.density?.image.width||0,width:this.volumeTarget.width,height:this.volumeTarget.height,steps:this.volumeMaterial.uniforms.marchSteps!.value};}
+  dispose(){this.dead=true;this.releaseDensity();this.volumeTarget.dispose();this.resultTarget.dispose();this.volumeMaterial.dispose();this.composeMaterial.dispose();this.quad.geometry.dispose();this.scene.clear();}
 }

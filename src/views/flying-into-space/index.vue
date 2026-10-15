@@ -45,6 +45,7 @@
     </Transition>
 
     <div v-if="!isMission && player.started && !drawer && !infoOpen" class="fs-scene-caption">
+      <span class="fs-scene-model-note">模型与场景经过简化，并非 1:1 还原。</span>
       <button v-if="!isCabin" @click="toggleObserve">{{ observing ? '返回探索之旅' : '自由观察' }} <span>{{ observing ? '↩' : '↗' }}</span></button>
       <span v-else class="fs-cabin-tip">拖动视线，向窗外看</span>
     </div>
@@ -125,7 +126,19 @@
       <div v-if="!pageReady" class="fs-loading" role="dialog" aria-modal="true" aria-label="准备太空旅程">
         <img :src="logoUrl" class="fs-loading-logo" alt="Logo" />
         <div class="fs-loading-body">
-          <div class="fs-loading-orbit" :class="{ failed: !!loadingError }" aria-hidden="true"><span /></div>
+          <div class="fs-loading-rocket" :class="{ failed: !!loadingError }" aria-hidden="true">
+            <span class="fs-rocket-trail trail-left" /><span class="fs-rocket-trail trail-right" />
+            <svg viewBox="0 0 100 112" fill="none">
+              <g class="fs-rocket-ship">
+                <path class="fs-rocket-flame" d="M43 77Q39 89 50 106Q61 89 57 77" fill="#79dccc" />
+                <path d="M39 52 29 64 28 80 42 73M61 52 71 64 72 80 58 73" fill="#69aebd" stroke="#b7e6e8" stroke-width="1.5" stroke-linejoin="round" />
+                <path d="M50 10C34 25 33 48 39 71L44 80H56L61 71C67 48 66 25 50 10Z" fill="#d4f0ec" stroke="#f0fff9" stroke-width="1.5" />
+                <path d="M50 10C43 17 39 25 37 33H63C61 25 57 17 50 10Z" fill="#8bbfca" />
+                <circle cx="50" cy="46" r="8" fill="#15394d" stroke="#fff" stroke-width="2.5" />
+                <path d="M44 71H56" stroke="#4d8b9a" stroke-width="2" stroke-linecap="round" />
+              </g>
+            </svg>
+          </div>
           <p class="fs-overline">飞向太空 · 准备启程</p>
           <h2>{{ loadingError ? '启程遇到了一点小问题' : '下一站，浩瀚星空' }}</h2>
           <p class="fs-loading-message" role="status" aria-live="polite">{{ loadingError || loadingStage }}</p>
@@ -159,6 +172,7 @@
           <h4>观看设置</h4>
           <label class="fs-setting"><span>旁白字幕</span><input v-model="captionsEnabled" type="checkbox" /></label>
           <label class="fs-setting"><span>画面效果</span><select v-model="quality" @change="changeQuality"><option value="balanced">流畅</option><option value="high">精细</option></select></label>
+          <div v-if="assets.degraded.length" class="fs-simplified-note"><p>部分画面暂用简化效果，正在后台补充。</p><button class="fs-text-btn" @click="retryBackgroundTextures">立即重试 ↻</button></div>
           <template v-if="backgroundMusic.ready && !isMission">
             <label class="fs-setting"><span>背景音乐</span><input v-model="musicEnabled" type="checkbox" /></label>
             <label v-if="musicEnabled" class="fs-setting fs-music-volume"><span>音乐音量</span><input v-model.number="musicVolume" type="range" min="0" max="100" step="1" /><output>{{ musicVolume }}%</output></label>
@@ -190,6 +204,7 @@ import { BackgroundMusic, type BackgroundTrack } from './flying/background-music
 import { EXPLORATION_MUSIC } from './flying/music-sources';
 import { DEFAULT_IMAGE_BASE, ORIGINAL_LOGO, emptyAssetState, type AssetState } from './flying/assets';
 import { formatTime } from './flying/math';
+import { initialDisplayQuality } from './flying/display-preferences';
 const props = withDefaults(defineProps<{
     imageBase?: string;
     logoUrl?: string;
@@ -486,6 +501,7 @@ function keyup(e: KeyboardEvent) {
 function clearInput() { player.thrust = false; mission.releaseAll(); missionPointer = null; flight.value = mission.snapshot(); lastStamp = 0; }
 function visibility() {
     pageVisible.value = !document.hidden;
+
     clearInput();
     if (isMission.value) return;
     if (document.hidden) {
@@ -563,6 +579,7 @@ async function finishPreloading(retry = false) {
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
         if (dead || generation !== loadGeneration) return;
         pageReady.value = true; player.playing = loadResume; lastStamp = 0;
+        owner.startBackgroundRecovery();
         raf = requestAnimationFrame(frame);
     } catch (e) {
         if (!dead && generation === loadGeneration) {
@@ -583,6 +600,7 @@ async function initialize() {
         await finishPreloading();
     } catch (e) { console.error('[FlyingIntoSpace] Initialization failed:', e); error.value = e instanceof Error ? e.message : String(e); }
 }
+function retryBackgroundTextures() { director?.retryTexturesInBackground(); }
 async function retryTextures() { if (director) await finishPreloading(true); else await reinitialize(); }
 async function reinitialize() {
     loadResume = player.playing; player.playing = false; pageReady.value = false; loadGeneration++;
@@ -592,6 +610,7 @@ async function reinitialize() {
 async function changeQuality() { player.quality = quality.value; await reinitialize(); }
 defineExpose({ seek: (time: number) => { requestSeek(time, player.playing); }, reset: resetJourney, player, diagnostics: () => director?.getDiagnostics() });
 onMounted(() => {
+    quality.value = initialDisplayQuality(window.innerWidth, window.innerHeight, navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches);
     pageVisible.value = !document.hidden;
     player.quality = quality.value;
     void initialize();
@@ -621,7 +640,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.fs-music-volume { gap: 12px; }
+.fs-simplified-note { margin:10px 0; padding:10px 12px; border-radius:8px; background:#8fd8cf10; }.fs-simplified-note p { margin:0; font-size:12px; }.fs-simplified-note button { padding:9px 0 0; font-size:12px; }.fs-music-volume { gap: 12px; }
 .fs-music-volume input[type="range"] { width: 120px; margin-left: auto; accent-color: var(--fs-accent); }
 .fs-music-volume output { min-width: 3em; text-align: right; font-size: 12px; color: var(--fs-muted); }
 /* Keep the resource library's navigation clear of the playback controls. */
@@ -2015,9 +2034,16 @@ onBeforeUnmount(() => {
 .fs-load-item.ready b { color:#8fd8cf; }.fs-load-item.error{color:#f4ab9a;}.fs-load-item code { grid-column:1/-1;font-size:11px;white-space:normal;word-break:break-all; }
 .fs-loading-foot { font-size:12px;color:#7e98aa;line-height:1.8;max-width:460px;margin:16px auto 0; }
 .fs-loading-body>.fs-primary { margin:10px auto; }
-.fs-loading-orbit { width:60px; height:60px; border:1px solid #8fd8cf40; border-radius:50%; margin:0 auto; position:relative; animation:fs-orbit 2s linear infinite; }
-.fs-loading-orbit:before { content:'';position:absolute;inset:12px;border:1px solid #77a7ba55;border-radius:50%; }.fs-loading-orbit span { position:absolute;top:-4px;left:26px;width:8px;height:8px;border-radius:50%;background:#b4f2e7;box-shadow:0 0 18px #8fd8cf; }
-.fs-loading-orbit.failed { animation-play-state:paused; }
+.fs-loading-rocket { width:94px; height:108px; margin:0 auto; position:relative; }
+.fs-loading-rocket svg { width:100%; height:100%; overflow:visible; filter:drop-shadow(0 0 13px #8fd8cf30); }
+.fs-rocket-ship { animation:fs-rocket-float 2.4s ease-in-out infinite; }
+.fs-rocket-flame { transform-box:fill-box; transform-origin:50% 0; animation:fs-rocket-fire .4s ease-in-out infinite alternate; }
+.fs-rocket-trail { position:absolute; width:1px; height:24px; top:30px; background:linear-gradient(transparent,#a8e6df99,transparent); animation:fs-rocket-travel 1.6s linear infinite; }
+.fs-rocket-trail.trail-left { left:8px; }.fs-rocket-trail.trail-right { right:8px; height:15px; animation-delay:-.7s; }
+.fs-loading-rocket.failed * { animation-play-state:paused; }
+@keyframes fs-rocket-float { 0%,100%{transform:translateY(2px);}50%{transform:translateY(-4px);} }
+@keyframes fs-rocket-fire { from{transform:scaleY(.72);opacity:.7;}to{transform:scaleY(1);opacity:1;} }
+@keyframes fs-rocket-travel { from{transform:translateY(-22px);opacity:0;}30%{opacity:1;}to{transform:translateY(55px);opacity:0;} }
 .fs-error { z-index:120; }
 .fs-asset-detail { display:grid; gap:3px; padding:10px 0;border-bottom:1px solid #91a3b222; }.fs-asset-detail span{font-size:12px;color:#b2c9d6;}.fs-asset-detail code{font-size:11px;word-break:break-all;color:#8fa8bc;}
 .fs-mission-wait { border-color:#8fd8cf60; box-shadow:0 12px 70px #0008,0 0 28px #2ec4b612; }
@@ -2026,8 +2052,8 @@ onBeforeUnmount(() => {
 .fs-launch-ripple:before,.fs-launch-ripple:after { content:''; position:absolute; inset:-3px;border:2px solid currentColor;border-radius:50%;pointer-events:none;animation:fs-launch-pulse 2s ease-out infinite; }
 .fs-launch-ripple:after { animation-delay:1s; }
 @keyframes fs-launch-pulse { 0%{transform:scale(.8);opacity:.7;}100%{transform:scale(1.9);opacity:0;} }
-@keyframes fs-orbit { to{transform:rotate(360deg);} }
-@media(prefers-reduced-motion:reduce) { .fs-loading-orbit,.fs-launch-ripple:before,.fs-launch-ripple:after{animation:none;} .fs-launch-ripple{outline:3px solid #2a7e74;} }
+
+@media(prefers-reduced-motion:reduce) { .fs-loading-rocket *,.fs-launch-ripple:before,.fs-launch-ripple:after{animation:none;} .fs-launch-ripple{outline:3px solid #2a7e74;} }
 @media(max-width:700px) { .fs-loading{padding:88px 17px 20px;} .fs-loading-logo{height:56px;left:18px;top:18px;} .fs-loading-body{padding:0;}.fs-loading h2{font-size:23px;}.fs-load-item{grid-template-columns:76px 1fr 65px;} .fs-load-list{max-height:34vh;} .fs-brand{min-width:76px;} }
 @media(max-width:420px) { .fs-header{padding:12px 9px;gap:7px;} .fs-logo{height:40px;max-width:96px;} .fs-chapter-trigger .fs-menu-symbol{display:none;} .fs-experience button{padding:5px 9px;}.fs-chapter-trigger{padding:0 8px;}.fs-tools{gap:3px;} }
 .fs-history-quiz { max-height:calc(100% - 280px); overflow:auto; }
@@ -2111,4 +2137,15 @@ onBeforeUnmount(() => {
   .fs-launch-core { inset:17px; font-size:20px; }
 }
 @media(prefers-reduced-motion:reduce) { .fs-launch-core,.fs-launch-orbit { animation:none; } }
+/* Keep the teaching model note readable beside the observation control. */
+.fs-scene-caption { max-width:calc(100% - 48px); }
+.fs-scene-model-note { padding:7px 11px; border:1px solid #c6eee442; border-radius:9px; background:#071723d9; color:#d6eee9; font-size:12px; line-height:1.5; letter-spacing:.2px; }
+.fs-scene-caption button { flex-shrink:0; margin-left:0; min-height:34px; }
+.is-cabin .fs-scene-caption { opacity:1; }
+@media(max-width:700px) {
+  .fs-scene-caption { left:16px; right:16px; max-width:none; gap:7px; }
+  .fs-scene-model-note { font-size:11px; padding:5px 8px; }
+  .fs-scene-caption button { font-size:11px; }
+  .fs-scene-caption button span { padding-left:5px; }
+}
 </style>

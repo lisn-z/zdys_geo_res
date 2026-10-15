@@ -3,7 +3,7 @@ export const DEFAULT_IMAGE_BASE = '/geo-resources-folder/images/';
 export const ORIGINAL_LOGO = 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png';
 export { ASSET_FILES, ASSET_KEYS, emptyAssetState } from './resources';
 export type { PlanetKind, AssetKey, AssetState } from './resources';
-import { ASSET_FILES, ASSET_KEYS, ResourceLedger, fitTextureDimensions, type PlanetKind, type AssetKey, type AssetState } from './resources';
+import { ASSET_FILES, ASSET_LOAD_ORDER, ResourceLedger, fitTextureDimensions, resourceTextureLimit, type PlanetKind, type AssetKey, type AssetState } from './resources';
 export const SUN_DIRECTION = new THREE.Vector3(-.65, .75, .7).normalize();
 export function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, data = false) {
     const el = document.createElement('canvas');
@@ -16,6 +16,42 @@ export function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingCon
     const tex = new THREE.CanvasTexture(el);
     tex.colorSpace = data ? THREE.NoColorSpace : THREE.SRGBColorSpace;
     return tex;
+}
+/** Even a browser decoder that stalls after onload must respect cancellation. */
+function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(new Error('加载超时或已取消'));
+    if (signal.aborted) { abort(); void work.catch(() => {}); return; }
+    signal.addEventListener('abort', abort, { once: true });
+    work.then(value => { signal.removeEventListener('abort', abort); resolve(value); }, error => { signal.removeEventListener('abort', abort); reject(error); });
+  });
+}
+/** Conservative illustrations: no invented continents, geography or city lights. */
+export function createFallbackTexture(key: AssetKey): THREE.DataTexture {
+  const colors: Record<AssetKey, readonly [number, number, number]> = {
+    earthDay: [54, 103, 142], earthNight: [0, 0, 0], galaxy: [0, 0, 0],
+    moon: [150, 150, 146], mars: [164, 94, 65], sun: [255, 195, 91],
+    waterNormals: [128, 128, 255], mercury: [144, 135, 124], venus: [191, 161, 112],
+    jupiter: [181, 157, 123], saturn: [195, 176, 135], uranus: [119, 183, 190], neptune: [52, 87, 173],
+  };
+  const width = key === 'galaxy' ? 2048 : 2, height = key === 'galaxy' ? 1024 : 2;
+  const data = new Uint8Array(width * height * 4), color = colors[key];
+  for (let p = 0; p < data.length; p += 4) { data[p] = color[0]; data[p + 1] = color[1]; data[p + 2] = color[2]; data[p + 3] = 255; }
+  if (key === 'galaxy') {
+    let seed = 52173;
+    const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let i = 0; i < 2400; i++) {
+      const x = Math.floor(random() * width), y = Math.floor(Math.acos(1 - 2 * random()) / Math.PI * height);
+      const p = (Math.min(height - 1, y) * width + x) * 4, light = 90 + Math.floor(random() * 165);
+      data[p] = light; data[p + 1] = light; data[p + 2] = Math.min(255, light + 12);
+    }
+  }
+  const texture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
+  texture.name = key; texture.colorSpace = key === 'waterNormals' ? THREE.NoColorSpace : THREE.SRGBColorSpace;
+  texture.wrapS = key === 'galaxy' || key === 'waterNormals' ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
+  texture.wrapT = key === 'waterNormals' ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
+  texture.generateMipmaps = false; texture.minFilter = texture.magFilter = THREE.LinearFilter;
+  texture.needsUpdate = true; return texture;
 }
 /** Decode the original image; hardware-limit adaptation happens before GPU upload. */
 async function decodeResource(blob: Blob, signal: AbortSignal): Promise<HTMLImageElement> {
@@ -36,7 +72,7 @@ async function decodeResource(blob: Blob, signal: AbortSignal): Promise<HTMLImag
       image.src = url;
       if (signal.aborted) abort();
     });
-    if (typeof image.decode === 'function') await image.decode();
+    if (typeof image.decode === 'function') await abortable(image.decode(), signal);
     if (signal.aborted) throw new Error('已取消加载');
     return image;
   } finally { URL.revokeObjectURL(url); }
@@ -51,7 +87,21 @@ export class TextureBank {
   private jobs = new Map<AssetKey, { promise: Promise<void>; run: () => Promise<void>; reject: (reason: Error) => void }>();
   private queue: AssetKey[] = [];
   private active = 0;
-  constructor(public base: string, private update: (s: AssetState) => void, private anisotropy = 4) {
+  private preloadDeadline: number | null = null;
+  private recoveryUpload: ((texture: THREE.Texture) => void) | null = null;
+  private recoveryMaxTextureSize = 0;
+  private recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  private recoveryController: AbortController | null = null;
+  private recoveryBusy = false;
+  private recoveryPaused = false;
+  private recoveryListening = false;
+  private readonly recoveryEnvironmentChanged = () => {
+    if (this.recoveryBlocked()) { this.clearRecoveryTimer(); this.recoveryController?.abort(); }
+    else this.scheduleRecovery();
+  };
+  constructor(public base: string, private update: (s: AssetState) => void, private anisotropy = 4,
+    private quality: 'balanced' | 'high' = 'high',
+    private onReplace?: (oldTexture: THREE.Texture, newTexture: THREE.Texture, key: AssetKey) => void) {
     this.ledger = new ResourceLedger(base); this.emit();
   }
   get state(): AssetState { return this.ledger.snapshot(); }
@@ -59,17 +109,19 @@ export class TextureBank {
   hasReady(keys: readonly AssetKey[]): boolean {
     return keys.every(key => this.textures.has(key) && this.ledger.records.get(key)?.gpuReady === true);
   }
-  /** Only returns the real, decoded and uploaded Texture. Using it too early is a visible error. */
+  /** Returns an uploaded source image or a usable illustration during recovery. */
   get(key: AssetKey): THREE.Texture {
     const texture = this.textures.get(key);
     if (!texture || this.ledger.records.get(key)?.phase !== 'ready') throw new Error(`纹理尚未就绪：${ASSET_FILES[key]}`);
     return texture;
   }
   preloadAll(upload: (texture: THREE.Texture) => void, maxTextureSize: number, retry = false): Promise<void> {
-    return this.preloadKeys(ASSET_KEYS, upload, maxTextureSize, retry);
+    // Bound the initial wait. Every unfinished image gets a usable fallback;
+    // background recovery later replaces it with a separately uploaded texture.
+    if (this.preloadDeadline === null) this.preloadDeadline = Date.now() + (this.quality === 'balanced' ? 8000 : 12000);
+    return this.preloadKeys(ASSET_LOAD_ORDER, upload, maxTextureSize, retry);
   }
-  /** All callers share three workers and one job per texture. A manual chapter
-   * change moves its waiting files ahead of speculative future-scene work. */
+  /** All callers share a bounded worker pool and one initial job per texture. */
   async preloadKeys(keys: readonly AssetKey[], upload: (texture: THREE.Texture) => void, maxTextureSize: number, retry = false, priority = true): Promise<void> {
     if (this.dead) throw new Error('资源管理器已释放');
     const promises: Promise<void>[] = [];
@@ -100,33 +152,39 @@ export class TextureBank {
     if (errors.length) throw new Error(`${errors.length} 项纹理未就绪，请查看失败文件并重试。`);
   }
   private pump() {
-    while (!this.dead && this.active < 3 && this.queue.length) {
+    while (!this.dead && this.active < (this.quality === 'balanced' ? 2 : 3) && this.queue.length) {
       const key = this.queue.shift()!, job = this.jobs.get(key)!;
       this.active++;
       void job.run();
     }
+    this.scheduleRecovery();
   }
-  private async load(key: AssetKey, upload: (texture: THREE.Texture) => void, maxTextureSize: number, retry: boolean) {
-    if (this.dead) throw new Error('资源管理器已释放');
-    const entry = this.ledger.records.get(key)!, controller = new AbortController();
-    this.controllers.add(controller);
-    const timer = setTimeout(() => controller.abort(), 45000);
+  private get requestTimeout() { return this.quality === 'balanced' ? 6000 : 8000; }
+  // Recovery runs during the lesson: allow slow large downloads to finish.
+  private get recoveryRequestTimeout() { return 30000; }
+  /** The caller owns the returned texture. A failed candidate never replaces
+   * the live texture or changes its immutable GPU storage. */
+  private async originalTexture(key: AssetKey, upload: (texture: THREE.Texture) => void, maxTextureSize: number,
+    controller: AbortController, retry: boolean, initial: boolean): Promise<THREE.Texture> {
+    const entry = this.ledger.records.get(key)!;
     let texture: THREE.Texture | null = null;
-    this.ledger.set(key, {phase:'downloading', error:'', gpuReady:false}); this.emit();
+    const progress = (values: Parameters<ResourceLedger['set']>[1]) => {
+      if (initial && !this.dead) { this.ledger.set(key, values); this.emit(); }
+    };
     try {
-      const response = await fetch(entry.url, { signal:controller.signal, mode:'cors', cache:retry?'reload':'default' });
+      const response = await abortable(fetch(entry.url, { signal:controller.signal, mode:'cors', cache:retry?'reload':'default' }), controller.signal);
       if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
       const contentType = (response.headers.get('content-type') || '').toLowerCase();
       if (contentType.includes('text/html') || contentType.includes('xml') || contentType.includes('json')) {
         throw new Error(`返回了 ${contentType}，并非图片；可能是资源代理或路径回退到首页`);
       }
-      const blob = await response.blob();
+      const blob = await abortable(response.blob(), controller.signal);
       if (!blob.size) throw new Error('图片响应为空');
-      this.ledger.set(key, {phase:'decoding', bytes:blob.size}); this.emit();
+      progress({phase:'decoding', bytes:blob.size});
       const image = await decodeResource(blob, controller.signal);
       const width = image.naturalWidth || image.width, height = image.naturalHeight || image.height;
-      this.ledger.set(key, {width, height});
-      const fitted = fitTextureDimensions(width, height, maxTextureSize);
+      progress({width, height});
+      const fitted = fitTextureDimensions(width, height, resourceTextureLimit(key, maxTextureSize, this.quality));
       if (this.dead || controller.signal.aborted) throw new Error('已取消加载');
       let textureImage: HTMLImageElement | HTMLCanvasElement = image;
       if (fitted.resized) {
@@ -137,8 +195,6 @@ export class TextureBank {
         context.drawImage(image, 0, 0, fitted.width, fitted.height);
         textureImage = canvas;
       }
-      // v5 FIX: create a fresh Texture at the FINAL dimensions, before its first GPU use.
-      // Updating the image of an already uploaded 1024x512 placeholder cannot resize immutable GL storage.
       texture = new THREE.Texture(textureImage);
       texture.name = key;
       texture.colorSpace = key === 'waterNormals' ? THREE.NoColorSpace : THREE.SRGBColorSpace;
@@ -150,25 +206,144 @@ export class TextureBank {
       texture.magFilter = key === 'galaxy' ? THREE.NearestFilter : THREE.LinearFilter;
       if (key === 'galaxy') texture.anisotropy = Math.max(texture.anisotropy, 8);
       texture.userData = {assetKey:key, originalUrl:entry.url, originalWidth:width, originalHeight:height,
-        gpuWidth:fitted.width, gpuHeight:fitted.height, resized:fitted.resized, fallback:false};
+        bytes:blob.size, gpuWidth:fitted.width, gpuHeight:fitted.height, resized:fitted.resized, fallback:false};
       texture.needsUpdate = true;
-      this.ledger.set(key, {phase:'uploading', textureId:texture.uuid, gpuWidth:fitted.width, gpuHeight:fitted.height, resized:fitted.resized}); this.emit();
-      upload(texture); // renderer.initTexture + gl.getError: completion is NOT merely HTTP 200.
-      if (this.dead) throw new Error('已取消加载');
+      progress({phase:'uploading', textureId:texture.uuid, gpuWidth:fitted.width, gpuHeight:fitted.height, resized:fitted.resized});
+      upload(texture);
+      if (this.dead || controller.signal.aborted) throw new Error('已取消加载');
       texture.userData.gpuReady = true;
+      return texture;
+    } catch (error) { texture?.dispose(); throw error; }
+  }
+  private async load(key: AssetKey, upload: (texture: THREE.Texture) => void, maxTextureSize: number, retry: boolean) {
+    if (this.dead) throw new Error('资源管理器已释放');
+    const entry = this.ledger.records.get(key)!, controller = new AbortController();
+    this.controllers.add(controller);
+    const remaining = this.preloadDeadline === null ? this.requestTimeout : this.preloadDeadline - Date.now();
+    const timer = setTimeout(() => controller.abort(), Math.max(0, Math.min(this.requestTimeout, remaining)));
+    this.ledger.set(key, {phase:'downloading', error:'', gpuReady:false}); this.emit();
+    try {
+      if (remaining <= 0) throw new Error('本次资源准备等待超时');
+      this.ledger.set(key, {attempts:entry.attempts + 1});
+      const texture = await this.originalTexture(key, upload, maxTextureSize, controller, retry, true);
       this.textures.set(key, texture);
-      this.ledger.set(key, {phase:'ready', gpuReady:true}); this.emit();
-    } catch (e) {
-      texture?.dispose();
-      const message = controller.signal.aborted ? '加载超时或已取消（45秒），请检查资源服务后重试' : e instanceof Error ? e.message : String(e);
-      if (!this.dead) { this.ledger.set(key, {phase:'error', error:message, gpuReady:false}); this.emit(); console.error(`[飞向太空] ${entry.url}: ${message}`); }
-      throw new Error(`${entry.file}: ${message}`);
+      this.ledger.set(key, {phase:'ready', gpuReady:true, fallback:false, error:'', retrying:false, nextRetryAt:0}); this.emit();
+    } catch (error) {
+      const message = controller.signal.aborted ? '资源等待超时或已取消' : error instanceof Error ? error.message : String(error);
+      if (this.dead) throw new Error('资源管理器已释放');
+      const simplified = createFallbackTexture(key);
+      try {
+        simplified.userData = { assetKey:key, originalUrl:entry.url, originalWidth:entry.width, originalHeight:entry.height,
+          gpuWidth:simplified.image.width, gpuHeight:simplified.image.height, fallback:true, fallbackReason:message };
+        upload(simplified);
+        if (this.dead) throw new Error('资源管理器已释放');
+        simplified.userData.gpuReady = true; this.textures.set(key, simplified);
+        this.ledger.set(key, { phase:'ready', gpuReady:true, fallback:true, error:message, lastError:message,
+          textureId:simplified.uuid, gpuWidth:simplified.image.width, gpuHeight:simplified.image.height, resized:false,
+          nextRetryAt:this.recoveryUpload?Date.now()+3000:0 });
+        this.emit(); console.warn(`[飞向太空] ${entry.file} 暂用简化画面：${message}`);
+      } catch (fallbackError) {
+        simplified.dispose();
+        const detail = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        if (!this.dead) { this.ledger.set(key, { phase:'error', error:detail, lastError:detail, gpuReady:false }); this.emit(); }
+        throw new Error(`${entry.file}: ${detail}`);
+      }
     } finally { clearTimeout(timer); this.controllers.delete(controller); }
+  }
+  /** Start only after the lesson has entered. One recovery request at a time;
+   * offscreen/offline work stops until the browser becomes available again. */
+  startBackgroundRecovery(upload: (texture: THREE.Texture) => void, maxTextureSize: number) {
+    if (this.dead) return;
+    this.recoveryUpload = upload; this.recoveryMaxTextureSize = maxTextureSize;
+    if (!this.recoveryListening) {
+      if (typeof window !== 'undefined') { window.addEventListener('online', this.recoveryEnvironmentChanged); window.addEventListener('offline', this.recoveryEnvironmentChanged); }
+      if (typeof document !== 'undefined') document.addEventListener?.('visibilitychange', this.recoveryEnvironmentChanged);
+      this.recoveryListening = true;
+    }
+    const firstRetry = Date.now() + 3000;
+    for (const entry of this.ledger.records.values()) if (entry.fallback && entry.gpuReady && !entry.nextRetryAt && !entry.retrying) entry.nextRetryAt = firstRetry;
+    this.emit(); this.scheduleRecovery();
+  }
+  retryDegradedNow() {
+    if (this.dead) return;
+    const now = Date.now();
+    for (const entry of this.ledger.records.values()) if (entry.fallback && entry.gpuReady && !entry.retrying) entry.nextRetryAt = now;
+    this.emit(); this.scheduleRecovery();
+  }
+  setRecoveryPaused(paused: boolean) { this.recoveryPaused = paused; this.recoveryEnvironmentChanged(); }
+  private recoveryBlocked() {
+    return this.dead || this.recoveryPaused || (typeof navigator !== 'undefined' && navigator.onLine === false)
+      || (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+  }
+  private clearRecoveryTimer() { if (this.recoveryTimer !== null) clearTimeout(this.recoveryTimer); this.recoveryTimer = null; }
+  private scheduleRecovery() {
+    this.clearRecoveryTimer();
+    if (!this.recoveryUpload || this.recoveryBusy || this.recoveryBlocked() || this.active || this.queue.length) return;
+    // Oldest due time wins; importance only breaks ties. A broken priority
+    // image therefore cannot starve the rest of the failed images.
+    const candidates = ASSET_LOAD_ORDER.filter(key => {
+      const entry = this.ledger.records.get(key)!;
+      return entry.fallback && entry.gpuReady && !entry.retrying;
+    }).sort((a,b) => this.ledger.records.get(a)!.nextRetryAt - this.ledger.records.get(b)!.nextRetryAt);
+    const key = candidates[0];
+    if (!key) return;
+    const delay = Math.max(0, this.ledger.records.get(key)!.nextRetryAt - Date.now());
+    this.recoveryTimer = setTimeout(() => {
+      this.recoveryTimer = null;
+      if (this.recoveryBlocked() || this.active || this.queue.length) { this.scheduleRecovery(); return; }
+      void this.recover(key).catch(error => console.warn('[飞向太空] 后台资源恢复未完成：', error));
+    }, delay);
+  }
+  private async recover(key: AssetKey) {
+    const entry = this.ledger.records.get(key)!, oldTexture = this.textures.get(key), upload = this.recoveryUpload;
+    if (!upload || !oldTexture || !entry.fallback || this.recoveryBusy || this.recoveryBlocked()) return;
+    this.recoveryBusy = true;
+    const controller = new AbortController(); this.recoveryController = controller; this.controllers.add(controller);
+    const timer = setTimeout(() => controller.abort(), this.recoveryRequestTimeout);
+    this.ledger.set(key, {retrying:true, attempts:entry.attempts + 1, recoveryAttempts:entry.recoveryAttempts + 1, nextRetryAt:0}); this.emit();
+    let candidate: THREE.Texture | null = null;
+    try {
+      candidate = await this.originalTexture(key, upload, this.recoveryMaxTextureSize, controller, true, false);
+      if (this.dead || controller.signal.aborted) throw new Error('已取消加载');
+      try { this.onReplace?.(oldTexture, candidate, key); }
+      catch (error) {
+        // Let a binding updater roll back a partially completed swap. The bank
+        // keeps the old texture until all consumers have accepted the new one.
+        try { this.onReplace?.(candidate, oldTexture, key); } catch { /* retain the live fallback and report the original failure */ }
+        throw error;
+      }
+      this.textures.set(key, candidate);
+      const details = candidate.userData;
+      this.ledger.set(key, {phase:'ready', gpuReady:true, fallback:false, retrying:false, error:'', nextRetryAt:0,
+        textureId:candidate.uuid, width:details.originalWidth, height:details.originalHeight, bytes:details.bytes,
+        gpuWidth:details.gpuWidth, gpuHeight:details.gpuHeight, resized:details.resized});
+      candidate = null; oldTexture.dispose(); this.emit();
+    } catch (error) {
+      candidate?.dispose();
+      if (!this.dead) {
+        const paused = controller.signal.aborted && this.recoveryBlocked();
+        const message = controller.signal.aborted ? '后台资源等待超时' : error instanceof Error ? error.message : String(error);
+        const delay = Math.min(60000, 5000 * 2 ** Math.min(4, entry.recoveryAttempts - 1));
+        this.ledger.set(key, {retrying:false, nextRetryAt:Date.now() + (paused ? 0 : delay),
+          ...(paused ? {} : {error:message, lastError:message})});
+        this.emit();
+      }
+    } finally {
+      clearTimeout(timer); this.controllers.delete(controller); this.recoveryController = null; this.recoveryBusy = false;
+      this.scheduleRecovery();
+    }
   }
   own<T extends THREE.Texture>(t: T): T { this.extra.add(t); return t; }
   private emit() { if (!this.dead) this.update(this.state); }
   dispose() {
-    this.dead = true; this.controllers.forEach(c => c.abort()); this.controllers.clear();
+    this.dead = true; this.clearRecoveryTimer();
+    for (const entry of this.ledger.records.values()) { entry.retrying = false; entry.nextRetryAt = 0; }
+    if (this.recoveryListening) {
+      if (typeof window !== 'undefined') { window.removeEventListener('online', this.recoveryEnvironmentChanged); window.removeEventListener('offline', this.recoveryEnvironmentChanged); }
+      if (typeof document !== 'undefined') document.removeEventListener?.('visibilitychange', this.recoveryEnvironmentChanged);
+      this.recoveryListening = false;
+    }
+    this.controllers.forEach(c => c.abort()); this.controllers.clear(); this.recoveryUpload = null;
     for (const key of this.queue) { this.jobs.get(key)?.reject(new Error('资源管理器已释放')); this.jobs.delete(key); }
     this.queue = [];
     this.textures.forEach(t => t.dispose()); this.extra.forEach(t => t.dispose());

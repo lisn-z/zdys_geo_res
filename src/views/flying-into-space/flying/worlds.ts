@@ -4,10 +4,10 @@ import { configureSkyRadiance } from './sky-compat';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { SURFACE, GROUND_CAMERA_FAR, DAY_SKY_RADIANCE, landscapeHeight, coastlineX, coastalHeight, groundGridAxis, groundSurfaceHeight, sampledGroundHeight } from './scenery';
 import { TextureBank, SUN_DIRECTION, makePlanet, makeStarfield, makeSmoke, makeFlame, canvasTexture, type PlanetKind } from './assets';
-import { ModelMaterials, mBox, mCyl, mBall, meshOf, rod, torus, makeRocket, setFalconRecoveryConfiguration, makeFlyer, makeGoddard, makeSatellite, makeVostok, makeShenzhou, makeLander, makeApollo, makeRover, makeStation, makeHuman, makeCabin, annotate, makeFootprint, poseApolloAstronaut, type CraftModel } from './models';
+import { ModelMaterials, mBox, mCyl, mBall, meshOf, rod, torus, makeRocket, setFalconRecoveryConfiguration, makeFlyer, makeGoddard, makeSatellite, makeVostok, makeShenzhou, poseShenzhouReturn, poseVikingSampler, makeLander, makeApollo, makeRover, makeStation, makeHuman, makeCabin, annotate, makeFootprint, poseApolloAstronaut, type CraftModel } from './models';
 import { span, mix, seeded, clamp01, solveOrbit, circularSpeed, EARTH_KM, ORBIT_ALTITUDE, segmentClear, type Vec3T, type LandingState } from './math';
 import type { StoryChapter, StoryShot, ShotPose } from './story';
-import { APOLLO_CONTACTS, deliveryState, roverDeliveryPose, DELIVERY, recoveryState, launchState } from './motion';
+import { APOLLO_CONTACTS, deliveryState, roverDeliveryPose, DELIVERY, recoveryState, launchState, shenzhouReturnState } from './motion';
 import { createCosmicFinale } from './cosmic-finale';
 export interface VisualState {
     speed: number;
@@ -626,8 +626,16 @@ export function createWorld(key: string, bank: TextureBank, m: ModelMaterials, e
     const focus = new THREE.Vector3(), follow = new THREE.Vector3(), updates: ((f: WorldFrame) => void)[] = [];
     const ground = ['camp', 'campEnd', 'dune', 'field', 'pad', 'coast', 'lunar', 'mars', 'return', 'recovery'].includes(type);
     const sun = addLights(scene, type === 'mars', type === 'camp' || type === 'campEnd');
-    if (!ground || type === 'lunar' || type === 'camp' || type === 'campEnd')
-        scene.add(makeStarfield(bank, type === 'camp' || type === 'campEnd'));
+    if (!ground || type === 'lunar' || type === 'camp' || type === 'campEnd') {
+        const stars=makeStarfield(bank,type==='camp'||type==='campEnd');
+        // Expose the near-Earth recovery scene for the illuminated vehicle and
+        // Earth, not a bright long-exposure Milky Way backdrop.
+        if(type==='earth'&&kind==='falcon')stars.traverse(object=>{
+            if(object instanceof THREE.Mesh&&object.material instanceof THREE.ShaderMaterial&&object.material.uniforms.strength)
+                object.material.uniforms.strength.value=.014;
+        });
+        scene.add(stars);
+    }
     let craft: CraftModel | null = null, planet: THREE.Group | null = null, sky: Sky | null = null, water: Water | null = null;
     // Only the displayed subject contributes to framing. Terrain, sky, labels
     // and exhaust have unrelated scales and must never enlarge these bounds.
@@ -806,6 +814,8 @@ export function createWorld(key: string, bank: TextureBank, m: ModelMaterials, e
         if (type === 'lunar' || type === 'mars') {
             craft=makeLander(kind==='zhurong'?'tianwen':kind,m);
             scene.add(craft.root);
+            const sampleDate=kind==='viking'?textSprite('7月28日 · 采集火星土壤',bank,'#e9dfca',6.0):null;
+            if(sampleDate){sampleDate.position.set(0,3.35,0);sampleDate.visible=false;scene.add(sampleDate);}
             const delivery=kind==='change'||kind==='zhurong';
             let rover:CraftModel|null=null;
             if(delivery){
@@ -842,6 +852,8 @@ export function createWorld(key: string, bank: TextureBank, m: ModelMaterials, e
               else if(delivery)clearance=deliveryState(kind as 'change'|'zhurong',f.local).clearance;
               clearance=Math.max(0,clearance);
               craft!.root.position.y=clearance;
+              if(kind==='viking')poseVikingSampler(craft!,f.local);
+              if(sampleDate)sampleDate.visible=f.local>=23&&f.local<31;
               const flame=craft!.parts.flame as THREE.Mesh<THREE.BufferGeometry,THREE.ShaderMaterial>;
               flame.visible=clearance>.045;
               flame.material.uniforms.time!.value=f.global+f.interactionTime;
@@ -1057,13 +1069,21 @@ export function createWorld(key: string, bank: TextureBank, m: ModelMaterials, e
     }
     else if (type === 'earth' || type === 'moonOrbit' || type === 'marsOrbit') {
         const planetType = type === 'moonOrbit' ? 'moon' : type === 'marsOrbit' ? 'mars' : 'earth';
-        planet = makePlanet(bank, planetType, type === 'earth' ? 52 : 36);
+        const planetRadius=type==='earth'?(kind==='falcon'?420:52):36;
+        planet = makePlanet(bank, planetType, planetRadius);
         planet.position.set(0, type === 'earth' ? -48 : -31, type === 'earth' ? -44 : -29);
+        if(type==='earth'&&kind==='falcon'){
+            // A near-Earth limb remains in the frame as the booster coasts and
+            // turns back. Stage one never enters a closed orbit around Earth.
+            planet.position.set(0,-390,-135);
+            (planet.userData.shell as THREE.Mesh).scale.setScalar(1.012/1.055);
+            planet.userData.flightContext='一级亚轨道返回';
+        }
         // Place the Florida coast in the visible limb of the recovery shot.
         // This is a geographic viewing orientation, not a telemetry attitude.
         if (type === 'earth' && kind === 'falcon') planet.rotation.x = -.95;
         scene.add(planet);
-        observationPlanets.push({ object: planet, radius: type === 'earth' ? 52 : 36 });
+        observationPlanets.push({ object: planet, radius: planetRadius });
         if (kind === 'sputnik' || kind === 'dfh' || kind === 'generic')
             craft = makeSatellite(kind, m);
         else if (kind === 'vostok') {
@@ -1092,13 +1112,23 @@ export function createWorld(key: string, bank: TextureBank, m: ModelMaterials, e
         else
             craft = makeSatellite('generic', m);
         scene.add(craft.root);
+        const shenzhouLabels:Record<string,THREE.Sprite>={};
+        if(kind==='shenzhou'){
+            for(const [phase,label] of Object.entries({orbital:'轨道舱先分离',turn:'返回舱与推进舱一起调姿',braking:'推进舱制动 · 返回舱仍相连',coast:'制动结束 · 惯性滑行',service:'推进舱随后分离',capsule:'返回舱独自返回'})){
+                const sprite=textSprite(label,bank,'#dce8e9',7.0);
+                // Stage captions are an overlay: the spacecraft must not occlude them.
+                sprite.material.depthTest=false;
+                sprite.renderOrder=1000;
+                sprite.visible=false;sprite.position.set(0,-4.4,0);scene.add(sprite);shenzhouLabels[phase]=sprite;
+            }
+        }
         const falconLabels:Record<string,THREE.Sprite>={};
         if(kind==='falcon'){
             const upperFlame=makeFlame();upperFlame.position.set(0,-.54,0);upperFlame.scale.set(.64,.75,.64);
             craft.parts.upper!.add(upperFlame);craft.parts.upperFlame=upperFlame;
             const upperLabel=textSprite('二级 · 继续运送载荷',bank,'#dce8e9',5.0);upperLabel.position.set(3,3,0);craft.parts.upper!.add(upperLabel);
             craft.parts.upperLabel=upperLabel;
-            for(const [phase,label] of Object.entries({separation:'主机关机 · 两级分离',flip:'一级翻转',boostback:'一级返程点火',coast:'一级 · 熄火滑行'})){
+            for(const [phase,label] of Object.entries({ascent:'地球上空 · 一级尚未入轨',separation:'主机关机 · 两级分离',flip:'一级 · 调整返程姿态',boostback:'一级返程点火',coast:'一级 · 沿返回弧线下落'})){
                 const sprite=textSprite(label,bank,'#dce8e9',5.0);sprite.visible=false;scene.add(sprite);falconLabels[phase]=sprite;
             }
         }
@@ -1125,10 +1155,9 @@ export function createWorld(key: string, bank: TextureBank, m: ModelMaterials, e
                 craft!.parts.csm!.position.x = -3 - separate * 2;
             }
             if (kind === 'shenzhou') {
-                const s = span(f.local, 21, 28);
-                craft!.parts.orbital!.position.y = 2.65 + s * 4;
-                craft!.parts.service!.position.y = -2.25 - s * 4;
-                craft!.root.rotation.z = -Math.PI / 2 + s * .2;
+                poseShenzhouReturn(craft!,f.local);
+                const state=shenzhouReturnState(f.local);
+                for(const [phase,label] of Object.entries(shenzhouLabels))label.visible=phase===state.phase;
             }
             if (kind === 'falcon' || kind === 'launcher') {
                 const p = kind === 'falcon' ? span(f.local, 8, 21) : span(f.local, 41, 51);

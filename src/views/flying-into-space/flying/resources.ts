@@ -1,4 +1,4 @@
-/** Resource manifest and renderer-independent preload bookkeeping. No placeholder assets. */
+/** Resource manifest and renderer-independent bookkeeping for originals and intentional simplified imagery. */
 export type PlanetKind = 'earth' | 'moon' | 'mars' | 'sun' | 'mercury' | 'venus' | 'jupiter' | 'saturn' | 'uranus' | 'neptune';
 export type AssetKey = Exclude<PlanetKind, 'earth'> | 'earthDay' | 'earthNight' | 'galaxy' | 'waterNormals';
 export const ASSET_FILES: Record<AssetKey, string> = {
@@ -7,6 +7,14 @@ export const ASSET_FILES: Record<AssetKey, string> = {
   mercury: 'mercury.jpg', venus: 'venus.jpg', jupiter: 'jupiter.jpg', saturn: 'saturn.jpg', uranus: 'uranus.jpg', neptune: 'neptune.jpg',
 };
 export const ASSET_KEYS = Object.keys(ASSET_FILES) as AssetKey[];
+/** Give the landscapes used throughout the story the earliest network slots. */
+export const ASSET_LOAD_ORDER: readonly AssetKey[] = ['galaxy', 'earthDay', 'moon', 'mars', 'waterNormals', 'earthNight', 'sun', 'mercury', 'venus', 'jupiter', 'saturn', 'uranus', 'neptune'];
+export function resourceTextureLimit(key: AssetKey, hardwareLimit: number, quality: 'balanced' | 'high'): number {
+  if (quality === 'high') return hardwareLimit;
+  // A tablet-sized viewport benefits most from the Earth and sky; small planets
+  // need less residency. This limits GPU memory without modifying the OSS files.
+  return Math.min(hardwareLimit, key === 'earthDay' || key === 'galaxy' ? 4096 : 2048);
+}
 /** External textures used while constructing each scene. Procedural terrain and
  * vehicle materials need no downloads. Keep this aligned with createWorld. */
 export function worldAssetKeys(key: string): readonly AssetKey[] {
@@ -34,10 +42,12 @@ export interface AssetRecord {
   key: AssetKey; file: string; label: string; url: string; phase: AssetPhase;
   width: number; height: number; bytes: number; error: string; textureId: string; gpuReady: boolean;
   /** Original dimensions remain in width/height; these describe the device-ready image. */
-  gpuWidth?: number; gpuHeight?: number; resized?: boolean;
+  gpuWidth?: number; gpuHeight?: number; resized?: boolean; fallback?: boolean;
+  /** Recovery never takes a usable fallback out of the ready state. */
+  attempts: number; recoveryAttempts: number; retrying: boolean; nextRetryAt: number; lastError: string;
 }
 export interface AssetState {
-  requested: number; completed: number; ready: number; failed: string[]; pending: string[]; items: AssetRecord[];
+  requested: number; completed: number; ready: number; failed: string[]; pending: string[]; items: AssetRecord[]; degraded: string[];
 }
 export class ResourceLedger {
   records: Map<AssetKey, AssetRecord>;
@@ -46,6 +56,7 @@ export class ResourceLedger {
     this.records = new Map(ASSET_KEYS.map(key => [key, {
       key, file: ASSET_FILES[key], label: ASSET_LABELS[key], url: prefix + ASSET_FILES[key],
       phase:'queued', width:0, height:0, bytes:0, error:'', textureId:'', gpuReady:false,
+      attempts:0, recoveryAttempts:0, retrying:false, nextRetryAt:0, lastError:'',
     }]));
   }
   set(key: AssetKey, values: Partial<AssetRecord>) { Object.assign(this.records.get(key)!, values); }
@@ -56,6 +67,7 @@ export class ResourceLedger {
       completed: items.filter(r => r.phase === 'ready' || r.phase === 'error').length,
       ready: items.filter(r => r.phase === 'ready' && r.gpuReady).length,
       failed: items.filter(r => r.phase === 'error').map(r => r.file),
+      degraded: items.filter(r => r.fallback && r.gpuReady).map(r => r.file),
       pending: items.filter(r => r.phase !== 'ready' && r.phase !== 'error').map(r => r.file), items,
     };
   }

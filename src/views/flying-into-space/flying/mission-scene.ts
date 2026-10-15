@@ -72,6 +72,7 @@ export class MissionScene {
   private readonly scorch: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
   private readonly trenchMaterial = new THREE.MeshStandardMaterial({ color: '#3e4240', metalness: .14, roughness: .88, emissive: '#ff731c', emissiveIntensity: 0 });
   private seaNormal: THREE.Texture | null = null;
+  private seaMaterial: THREE.MeshStandardMaterial | null = null;
   private lastState: MissionFlightState | null = null;
   private failureStart: { height: number; velocity: number; time: number } | null = null;
   private cameraInitialized = false;
@@ -221,7 +222,7 @@ export class MissionScene {
     this.seaNormal.repeat.set(260, 260);
     this.seaNormal.needsUpdate = true;
     this.ownedTextures.add(this.seaNormal);
-    const seaMaterial = new THREE.MeshStandardMaterial({
+    const seaMaterial = this.seaMaterial = new THREE.MeshStandardMaterial({
       color: '#416776', roughness: .19, metalness: .50, envMap: environment, envMapIntensity: 1.15,
       normalMap: this.seaNormal, normalScale: new THREE.Vector2(.42, .42),
     });
@@ -737,6 +738,23 @@ export class MissionScene {
       if (Math.abs(dx * contact.xx + dz * contact.xz) <= contact.halfX && Math.abs(dx * contact.zx + dz * contact.zz) <= contact.halfZ) height = Math.max(height, contact.top);
     }
     return height;
+  }
+
+  /** Keep the scrolling water sampler independent from the bank's shared source. */
+  replaceWaterTexture(previous: THREE.Texture, next: THREE.Texture, upload: (texture: THREE.Texture) => void): void {
+    const old = this.seaNormal;
+    if (!old || !this.seaMaterial || old.source !== previous.source) return;
+    const replacement = next.clone();
+    replacement.wrapS = old.wrapS; replacement.wrapT = old.wrapT;
+    replacement.repeat.copy(old.repeat); replacement.offset.copy(old.offset);
+    replacement.center.copy(old.center); replacement.rotation = old.rotation;
+    replacement.matrixAutoUpdate = old.matrixAutoUpdate; replacement.matrix.copy(old.matrix);
+    replacement.needsUpdate = true;
+    try { upload(replacement); } catch (error) { replacement.dispose(); throw error; }
+    this.seaNormal = replacement;
+    this.seaMaterial.normalMap = replacement;
+    this.ownedTextures.add(replacement); this.ownedTextures.delete(old);
+    old.dispose();
   }
 
   dispose() {

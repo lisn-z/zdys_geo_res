@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TextureBank, makeEnvironment, type AssetState } from './assets';
-import { worldAssetKeys } from './resources';
+import { worldAssetKeys, type AssetKey } from './resources';
+import { replaceSceneTexture } from './texture-bindings';
 import { ModelMaterials } from './models';
 import { AscentCloudPass } from './clouds';
 import { SoftSmokeDepthPass } from './smoke-depth';
@@ -190,7 +191,7 @@ export class SpaceDirector {
         this.controls.maxPolarAngle = Math.PI - .04;
         this.controls.minDistance = 2;
         this.controls.maxDistance = 150;
-        this.bank = new TextureBank(options.imageBase, options.onAssets, Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
+        this.bank = new TextureBank(options.imageBase, options.onAssets, Math.min(8, this.renderer.capabilities.getMaxAnisotropy()), options.quality, this.replaceRecoveredTexture);
         this.materials = new ModelMaterials(this.bank);
         this.environment = makeEnvironment(this.bank);
         const target = () => { const t = new THREE.WebGLRenderTarget(1, 1, { type: this.renderer.extensions.has('EXT_color_buffer_float') ? THREE.HalfFloatType : THREE.UnsignedByteType, depthBuffer: true }); t.texture.colorSpace = THREE.LinearSRGBColorSpace; return t; };
@@ -233,14 +234,26 @@ export class SpaceDirector {
         el.addEventListener('webglcontextrestored', this.contextRestored);
     }
     async prepareAssets(retry = false, onStage?: (message:string)=>void) {
-        // Prepare every original texture, including GPU upload, before opening
-        // the journey so chapter changes never need another resource wait.
+        // Prioritize essential landscapes, then prepare all remaining textures. A
+        // failed image becomes a safe illustration, so later chapters stay usable.
         onStage?.('正在准备整段星空旅程');
         await Promise.all([
             this.bank.preloadAll(this.uploadTexture, this.renderer.capabilities.maxTextureSize, retry),
             this.cloudPass.prepare(this.renderer),
         ]);
     }
+    startBackgroundRecovery(): void {
+        if (!this.disposed) this.bank.startBackgroundRecovery(this.uploadTexture, this.renderer.capabilities.maxTextureSize);
+    }
+    retryTexturesInBackground(): void { if (!this.disposed) this.bank.retryDegradedNow(); }
+    private replaceRecoveredTexture = (previous: THREE.Texture, next: THREE.Texture, key: AssetKey): void => {
+        if (this.disposed) throw new Error('场景已关闭');
+        // Upload the mission's independently animated sampler before committing
+        // any scene references, so a failed upload leaves the old picture intact.
+        if (key === 'waterNormals') this.missionScene?.replaceWaterTexture(previous, next, this.uploadTexture);
+        for (const world of this.worlds.values()) replaceSceneTexture(world.scene, previous, next);
+        if (this.missionScene) replaceSceneTexture(this.missionScene.scene, previous, next);
+    };
     isWorldReady(worldKey: string): boolean { return this.bank.hasReady(worldAssetKeys(worldKey)); }
     private uploadTexture = (texture: THREE.Texture) => {
             const gl = this.renderer.getContext();
@@ -251,8 +264,8 @@ export class SpaceDirector {
             const code = gl.getError();
             if (code !== gl.NO_ERROR) throw new Error(`GPU 纹理上传失败（WebGL ${code}）`);
     };
-    private contextLost = (e: Event) => { e.preventDefault(); this.options.onError('图形上下文暂时丢失，请重新初始化场景。'); };
-    private contextRestored = () => { this.hasFrame = false; this.currentKey = ''; this.forceTransition = true; };
+    private contextLost = (e: Event) => { e.preventDefault(); this.bank.setRecoveryPaused(true); this.options.onError('图形上下文暂时丢失，请重新初始化场景。'); };
+    private contextRestored = () => { this.bank.setRecoveryPaused(false); this.hasFrame = false; this.currentKey = ''; this.forceTransition = true; };
     resize() {
         if (this.disposed)
             return;

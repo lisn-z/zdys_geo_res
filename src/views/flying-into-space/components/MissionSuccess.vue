@@ -83,7 +83,8 @@ const flightAltitude = computed(() => Math.round(Number.isFinite(props.altitude)
   box-sizing: border-box;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 100px 28px 42px;
+  padding: max(100px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  container: mission-result / size;
   color: var(--mission-ink);
   background: transparent;
   pointer-events: auto;
@@ -92,9 +93,31 @@ const flightAltitude = computed(() => Math.round(Number.isFinite(props.altitude)
   -webkit-overflow-scrolling: touch;
 }
 .mission-success *, .mission-success *::before, .mission-success *::after { box-sizing: border-box; }
-.mission-success .mission-success__content { width: min(100%, 680px); margin: auto; text-align: center; }
+.mission-success .mission-success__content {
+  --result-columns: minmax(0, 1fr);
+  --result-areas: "hero" "milestones" "record" "discovery" "actions";
+  --result-width: 680px;
+  --result-gap: 24px;
+  --result-emblem-height: 130px;
+  --result-title-size: clamp(40px, 4.5vw, 54px);
+  --result-action-direction: row;
+  display: grid;
+  grid-template-columns: var(--result-columns);
+  grid-template-areas: var(--result-areas);
+  gap: var(--result-gap) clamp(28px, 5vw, 64px);
+  align-items: center;
+  width: min(100%, var(--result-width));
+  min-width: 0;
+  margin: auto;
+  text-align: center;
+}
+.mission-success .mission-success__hero { grid-area: hero; min-width: 0; }
+.mission-success .mission-success__milestones { grid-area: milestones; }
+.mission-success .mission-success__record { grid-area: record; }
+.mission-success .mission-success__discovery { grid-area: discovery; }
+.mission-success .mission-success__actions { grid-area: actions; }
 .mission-success .mission-success__hero { animation: mission-success-appear .8s both; }
-.mission-success .mission-success__emblem { width: 340px; max-width: 100%; height: 150px; margin: 0 auto 17px; }
+.mission-success .mission-success__emblem { width: 340px; max-width: 100%; height: var(--result-emblem-height); margin: 0 auto 14px; }
 .mission-success .mission-success__emblem > svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .mission-success .mission-success__orbit { stroke: #d0e4df; stroke-width: 1; }
 .mission-success .mission-success__orbit--fine { stroke: #e1eeeb; stroke-dasharray: 2 6; }
@@ -110,10 +133,10 @@ const flightAltitude = computed(() => Math.round(Number.isFinite(props.altitude)
 .mission-success .mission-success__badge { fill: #fff; stroke: #e7f0ed; }
 .mission-success .mission-success__eyebrow { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 0 0 17px; color: var(--mission-teal); font-size: 12px; font-weight: 500; letter-spacing: .18em; }
 .mission-success .mission-success__eyebrow > span { width: 5px; height: 5px; border-radius: 50%; background: #79ad9b; box-shadow: 0 0 0 4px #e8f3ee; }
-.mission-success h1 { margin: 0; color: var(--mission-ink); font-size: clamp(40px, 4.5vw, 58px); font-weight: 500; line-height: 1.23; letter-spacing: .025em; }
+.mission-success h1 { margin: 0; color: var(--mission-ink); font-size: var(--result-title-size); font-weight: 500; line-height: 1.23; letter-spacing: .025em; }
 .mission-success h1 > span { color: #38857c; }
 .mission-success .mission-success__intro { margin: 22px 0 0; color: var(--mission-muted); font-size: 14px; font-weight: 400; line-height: 1.85; letter-spacing: .03em; }
-.mission-success .mission-success__milestones { display: grid; grid-template-columns: repeat(3, 1fr); width: min(100%, 470px); margin: 35px auto 0; padding: 0; list-style: none; }
+.mission-success .mission-success__milestones { display: grid; grid-template-columns: repeat(3, 1fr); width: min(100%, 470px); margin: 0 auto; padding: 0; list-style: none; }
 .mission-success .mission-success__milestones > li { position: relative; display: flex; align-items: center; justify-content: center; gap: 11px; animation: mission-success-appear .55s var(--step-delay, .45s) both; }
 .mission-success .mission-success__milestones > li + li::before { content: ''; position: absolute; top: 50%; left: -8px; width: 16px; height: 1px; background: #d9e8e3; }
 .mission-success .mission-success__step-mark { display: grid; place-items: center; flex: 0 0 25px; height: 25px; border: 1px solid #c0d8cf; border-radius: 50%; background: #f7fbf8; }
@@ -121,7 +144,7 @@ const flightAltitude = computed(() => Math.round(Number.isFinite(props.altitude)
 .mission-success .mission-success__milestones li > div { text-align: left; }
 .mission-success .mission-success__milestones strong { display: block; color: #3a5f59; font-size: 14px; font-weight: 500; letter-spacing: .08em; }
 .mission-success .mission-success__milestones li div > span { display: block; margin-top: 5px; color: #7e9490; font-size: 11px; letter-spacing: .04em; }
-.mission-success .mission-success__record { width: min(100%, 470px); margin: 30px auto 0; padding-top: 21px; border-top: 1px solid #e3ece8; animation: mission-success-appear .65s .7s both; }
+.mission-success .mission-success__record { width: min(100%, 470px); margin: 0 auto; padding-top: 21px; border-top: 1px solid #e3ece8; animation: mission-success-appear .65s .7s both; }
 .mission-success .mission-success__record > dl { display: flex; align-items: center; justify-content: center; gap: 27px; margin: 0; }
 .mission-success .mission-success__record dl > div { display: flex; align-items: baseline; gap: 11px; }
 .mission-success .mission-success__record dl > div + div { padding-left: 27px; border-left: 1px solid #dae6e0; }
@@ -130,11 +153,11 @@ const flightAltitude = computed(() => Math.round(Number.isFinite(props.altitude)
 .mission-success .mission-success__record dd > span { margin-left: 5px; color: #8aa19a; font-size: 11px; }
 .mission-success .mission-success__record > p { margin: 10px 0 0; color: #92a49e; font-size: 10px; letter-spacing: .075em; }
 .mission-success .mission-success__record > p > span { padding: 0 5px; }
-.mission-success .mission-success__discovery { margin: 34px 0 0; animation: mission-success-appear .65s .9s both; }
+.mission-success .mission-success__discovery { margin: 0; animation: mission-success-appear .65s .9s both; }
 .mission-success .mission-success__discovery > p { margin: 0; color: #4b7168; font-size: 14px; line-height: 1.8; letter-spacing: .02em; }
 .mission-success .mission-success__discovery > span { display: block; margin-top: 6px; color: #81968f; font-size: 12px; line-height: 1.9; }
 .mission-success .mission-success__mobile-break { display: none; }
-.mission-success .mission-success__actions { display: flex; align-items: center; justify-content: center; gap: 22px; margin-top: 32px; animation: mission-success-appear .65s 1s both; }
+.mission-success .mission-success__actions { display: flex; align-items: center; justify-content: center; gap: 12px 22px; flex-direction: var(--result-action-direction); flex-wrap: wrap; margin: 0; animation: mission-success-appear .65s 1s both; }
 .mission-success button.mission-success__button { display: inline-flex; align-items: center; justify-content: center; gap: 14px; min-height: 45px; margin: 0; padding: 0 22px; border: 1px solid transparent; border-radius: 4px; box-shadow: none; font: inherit; font-size: 13px; font-weight: 500; line-height: 1.4; letter-spacing: .035em; text-decoration: none; cursor: pointer; transition: background .2s, border-color .2s, color .2s, transform .2s; -webkit-tap-highlight-color: transparent; }
 .mission-success button.mission-success__primary { color: #fff; background: #377c70; border-color: #377c70; }
 .mission-success button.mission-success__primary:hover { color: #fff; background: #28695e; border-color: #28695e; transform: translateY(-1px); }
@@ -147,58 +170,63 @@ const flightAltitude = computed(() => Math.round(Number.isFinite(props.altitude)
 @keyframes mission-success-draw { to { stroke-dashoffset: 0; } }
 @keyframes mission-success-node { from { opacity: 0; } to { opacity: 1; } }
 @keyframes mission-success-glimmer { 0%, 100% { opacity: .2; } 50% { opacity: .85; } }
-@media (max-height: 790px) and (min-width: 601px) {
-  .mission-success { padding-top: 86px; padding-bottom: 23px; }
-  .mission-success .mission-success__emblem { width: 235px; height: 91px; margin-bottom: 7px; }
-  .mission-success .mission-success__eyebrow { margin-bottom: 10px; font-size: 11px; }
-  .mission-success h1 { font-size: 42px; line-height: 1.18; }
-  .mission-success .mission-success__intro { margin-top: 13px; font-size: 12px; }
-  .mission-success .mission-success__milestones { margin-top: 22px; }
-  .mission-success .mission-success__record { margin-top: 20px; padding-top: 15px; }
-  .mission-success .mission-success__record > p { margin-top: 7px; }
-  .mission-success .mission-success__discovery { margin-top: 20px; }
-  .mission-success .mission-success__discovery > p { font-size: 13px; }
-  .mission-success .mission-success__discovery > span { margin-top: 3px; font-size: 11px; }
-  .mission-success .mission-success__actions { margin-top: 21px; }
-  .mission-success button.mission-success__button { min-height: 41px; }
+/* Compact landscape panels put the celebration beside the flight record.
+   Container queries use the actual embedded courseware area, not the device screen. */
+@media (min-width: 760px) and (max-height: 880px) and (orientation: landscape) {
+  .mission-success .mission-success__content {
+    --result-columns: minmax(0, 1fr) minmax(0, 1fr);
+    --result-areas: "hero milestones" "hero record" "hero discovery" "hero actions";
+    --result-width: 1000px;
+    --result-gap: 18px;
+    --result-emblem-height: 120px;
+    --result-title-size: 44px;
+    --result-action-direction: column;
+  }
 }
-@media (max-width: 600px) {
-  .mission-success { padding: 85px 22px 30px; }
-  .mission-success .mission-success__emblem { width: 280px; height: 116px; margin-bottom: 12px; }
-  .mission-success .mission-success__eyebrow { margin-bottom: 15px; font-size: 10px; }
-  .mission-success h1 { font-size: clamp(37px, 10vw, 46px); }
-  .mission-success .mission-success__intro { margin-top: 17px; font-size: 12px; }
+@container mission-result (min-width: 700px) and (max-height: 760px) {
+  .mission-success .mission-success__content {
+    --result-columns: minmax(0, 1fr) minmax(0, 1fr);
+    --result-areas: "hero milestones" "hero record" "hero discovery" "hero actions";
+    --result-width: 1000px;
+    --result-gap: 18px;
+    --result-emblem-height: 120px;
+    --result-title-size: 44px;
+    --result-action-direction: column;
+  }
+}
+@media (max-width: 759px) {
+  .mission-success { padding: max(84px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+  .mission-success .mission-success__content { --result-gap: 20px; --result-emblem-height: 108px; --result-title-size: clamp(36px, 8vw, 46px); }
+  .mission-success .mission-success__emblem { width: 280px; margin-bottom: 12px; }
+  .mission-success .mission-success__eyebrow { margin-bottom: 12px; font-size: 12px; }
+  .mission-success .mission-success__intro { margin-top: 16px; font-size: 13px; }
   .mission-success .mission-success__intro > span { display: block; }
-  .mission-success .mission-success__milestones { margin-top: 25px; }
   .mission-success .mission-success__milestones > li { gap: 7px; }
   .mission-success .mission-success__milestones > li + li::before { left: -3px; width: 6px; }
-  .mission-success .mission-success__step-mark { flex-basis: 21px; height: 21px; }
+  .mission-success .mission-success__step-mark { flex-basis: 23px; height: 23px; }
   .mission-success .mission-success__milestones strong { font-size: 13px; }
-  .mission-success .mission-success__milestones li div > span { font-size: 10px; }
-  .mission-success .mission-success__record { margin-top: 25px; padding-top: 18px; }
-  .mission-success .mission-success__record > dl { gap: 17px; }
-  .mission-success .mission-success__record dl > div { gap: 7px; }
-  .mission-success .mission-success__record dl > div + div { padding-left: 17px; }
-  .mission-success .mission-success__record dt { font-size: 10px; }
-  .mission-success .mission-success__record dd { font-size: 21px; }
-  .mission-success .mission-success__discovery { margin-top: 25px; }
-  .mission-success .mission-success__discovery > p { font-size: 12px; }
-  .mission-success .mission-success__discovery > span { font-size: 11px; }
+  .mission-success .mission-success__milestones li div > span { font-size: 11px; }
+  .mission-success .mission-success__record { padding-top: 16px; }
+  .mission-success .mission-success__record > dl { gap: 15px; }
+  .mission-success .mission-success__record dl > div { gap: 6px; }
+  .mission-success .mission-success__record dl > div + div { padding-left: 15px; }
+  .mission-success .mission-success__record dd { font-size: 22px; }
+  .mission-success .mission-success__discovery > p { font-size: 13px; }
+  .mission-success .mission-success__discovery > span { font-size: 12px; }
   .mission-success .mission-success__mobile-break { display: inline; }
-  .mission-success .mission-success__actions { gap: 14px; margin-top: 27px; }
-  .mission-success button.mission-success__button { padding-inline: 15px; font-size: 12px; gap: 9px; }
-  .mission-success button.mission-success__secondary { padding-inline: 2px; }
+  .mission-success .mission-success__actions { gap: 8px 14px; }
+  .mission-success button.mission-success__button { min-height: 46px; padding-inline: 15px; font-size: 13px; gap: 9px; }
+  .mission-success button.mission-success__secondary { padding-inline: 5px; }
 }
-@media (max-width: 600px) and (max-height: 740px) {
-  .mission-success { padding-top: 73px; padding-bottom: 22px; }
-  .mission-success .mission-success__emblem { height: 84px; margin-bottom: 8px; }
-  .mission-success .mission-success__eyebrow { margin-bottom: 12px; }
-  .mission-success h1 { font-size: 36px; line-height: 1.2; }
-  .mission-success .mission-success__intro { margin-top: 13px; }
-  .mission-success .mission-success__milestones { margin-top: 21px; }
-  .mission-success .mission-success__record { margin-top: 20px; }
-  .mission-success .mission-success__discovery { margin-top: 20px; }
-  .mission-success .mission-success__actions { margin-top: 22px; }
+@media (max-width: 759px) and (max-height: 760px) {
+  .mission-success .mission-success__content { --result-gap: 15px; --result-emblem-height: 76px; --result-title-size: 36px; }
+  .mission-success .mission-success__emblem { margin-bottom: 8px; }
+  .mission-success .mission-success__intro { margin-top: 12px; }
+}
+@container mission-result (max-width: 699px) and (max-height: 650px) {
+  .mission-success .mission-success__content { --result-gap: 15px; --result-emblem-height: 76px; --result-title-size: 36px; }
+  .mission-success .mission-success__emblem { margin-bottom: 8px; }
+  .mission-success .mission-success__intro { margin-top: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mission-success .mission-success__hero,

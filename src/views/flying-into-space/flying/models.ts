@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { stationElement, assignStationElementNames, corePanelDeployment } from './station-tools';
 import { canvasTexture, makeFlame, type TextureBank } from './assets';
 import { seeded, span, mix, clamp01, type Vec3T } from './math';
-import { DELIVERY, dfhPanelVertices, apolloFeet, apolloStage, apolloRigPose, APOLLO_ASTRONAUT_SCALE, STATION_LAYOUT } from './motion';
+import { DELIVERY, dfhPanelVertices, apolloFeet, apolloStage, apolloRigPose, APOLLO_ASTRONAUT_SCALE, STATION_LAYOUT, vikingSamplerState, shenzhouReturnState } from './motion';
 export interface CraftModel {
     root: THREE.Group;
     parts: Record<string, THREE.Object3D>;
@@ -596,9 +596,39 @@ export function makeShenzhou(m: ModelMaterials): CraftModel {
         service.add(makeArray(side, 4.0, 1.82, 4, 1.18));
         orbital.add(makeArray(side, 1.72, 1.12, 2, 1.03));
     }
-    root.add(annotate(orbital, '轨道舱'), annotate(capsule, '返回舱'), annotate(service, '推进舱'));
+    const returnStack=new THREE.Group();returnStack.name='返回舱与推进舱 · 制动前保持连接';
+    returnStack.add(annotate(capsule,'返回舱'),annotate(service,'推进舱'));
+    const deorbitFlames=new THREE.Group();deorbitFlames.name='推进舱 · 返回制动发动机';
+    for(const i of [0,2]){
+        const a=Math.PI/4+i*Math.PI/2,jet=makeFlame();
+        jet.position.set(Math.cos(a)*.57,-1.47,Math.sin(a)*.57);jet.scale.set(.09,.19,.09);deorbitFlames.add(jet);
+    }
+    deorbitFlames.visible=false;service.add(deorbitFlames);
+    root.add(annotate(orbital, '轨道舱'),returnStack);
     root.rotation.z = -Math.PI / 2;
-    return { root, parts: { orbital, capsule, service } };
+    return { root, parts: { orbital, capsule, service, returnStack, deorbitFlames } };
+}
+export function poseShenzhouReturn(craft:CraftModel,time:number):void {
+    const state=shenzhouReturnState(time);
+    craft.parts.orbital!.position.set(0,2.65+state.orbitalGap,0);
+    craft.parts.service!.position.set(0,-2.25-state.serviceGap,0);
+    craft.parts.returnStack!.rotation.z=state.returnTurn;
+    const jets=craft.parts.deorbitFlames!;jets.visible=state.brakingPower>.001;
+    jets.children.forEach(object=>{const jet=object as THREE.Mesh<THREE.BufferGeometry,THREE.ShaderMaterial>;
+        jet.material.uniforms.time!.value=time;jet.material.uniforms.power!.value=.68*state.brakingPower;
+    });
+}
+export function poseVikingSampler(craft:CraftModel,time:number):void {
+    const state=vikingSamplerState(time),scoop=craft.parts.samplerScoop!;
+    scoop.position.set(0,state.scoopY,state.scoopZ);
+    const a=new THREE.Vector3(0,1.27,1.03),b=new THREE.Vector3(0,state.scoopY+.14,state.scoopZ-.20);
+    const setBeam=(part:THREE.Object3D,start:number,end:number)=>{
+        const from=a.clone().lerp(b,start),to=a.clone().lerp(b,end),direction=to.clone().sub(from);
+        part.position.copy(from).add(to).multiplyScalar(.5);part.scale.y=direction.length();
+        part.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());
+    };
+    setBeam(craft.parts.samplerOuter!,0,.60);setBeam(craft.parts.samplerInner!,.52,1);
+    craft.parts.samplerSoil!.visible=state.soil;
 }
 export function makeLander(kind: string, m: ModelMaterials): CraftModel {
     if(kind === 'change' || kind === 'tianwen') return makeDeliveryLander(kind, m);
@@ -624,8 +654,13 @@ export function makeLander(kind: string, m: ModelMaterials): CraftModel {
     for (let j = 0; j < n; j++) {
         const a = j * Math.PI * 2 / n + (viking ? -Math.PI/2 : 0), ca = Math.cos(a), sa = Math.sin(a);
         const foot:Vec3T=[ca*2.7,.18,sa*2.7];
-        body.add(rod([ca*1.38,viking?1.04:1.96,sa*1.38],foot,.072,viking?m.white:m.gold),mCyl(viking?.29:.43,viking?.33:.43,.16,viking?m.white:m.gold,[ca*2.7,.08,sa*2.7]));
-        for(const side of [-1,1])body.add(rod([ca*.98-sa*side*.50,viking?.76:1.19,sa*.98+ca*side*.50],[ca*2.40,.44,sa*2.40],.036,m.metal));
+        const footpad=mCyl(viking?.29:.43,viking?.33:.43,.16,viking?m.white:m.gold,[ca*2.7,.08,sa*2.7]);
+        footpad.name=(viking?'海盗一号':'登月舱')+' · 着陆脚垫 '+(j+1);parts['footpad'+j]=footpad;
+        const mount=viking?1.10:1.38;
+        if(viking)annotate(footpad,'承重支腿与着陆脚垫');
+        body.add(rod([ca*mount,viking?1.04:1.96,sa*mount],foot,.072,viking?m.white:m.gold),footpad);
+        const braceBase=viking?.80:.98,braceWidth=viking?.34:.50;
+        for(const side of [-1,1])body.add(rod([ca*braceBase-sa*side*braceWidth,viking?.76:1.19,sa*braceBase+ca*side*braceWidth],[ca*2.40,.44,sa*2.40],.036,m.metal));
         body.add(mBall(.10,m.metal,[ca*2.7,.20,sa*2.7]));
     }
     const upper = new THREE.Group();
@@ -687,7 +722,18 @@ export function makeLander(kind: string, m: ModelMaterials): CraftModel {
         antenna.add(meshOf(new THREE.LatheGeometry(curve,40),dishMat),rod([0,0,0],[0,.59,0],.027,m.metal),mBall(.075,m.dark,[0,.59,0]));
         upper.add(rod([.37,0,-.77],[.37,.95,-.77],.043,m.white),antenna);
         upper.add(rod([-.70,.08,-.72],[-.70,1.74,-.72],.022,m.metal));
-        body.add(rod([0,1.27,1.03],[0,1.34,2.10],.075,m.white),rod([0,1.34,2.10],[.17,.34,2.85],.047,m.metal),mBox(.30,.15,.40,m.white,[.17,.27,2.88]));
+        // A telescoping surface-sampler boom with an open scoop, separate
+        // from the three round load-bearing footpads. The scoop hinge touches
+        // the boom endpoint; its open mouth and sidewalls make its role clear.
+        const samplerOuter=rod([0,0,0],[0,1,0],.073,m.white),samplerInner=rod([0,0,0],[0,1,0],.043,m.metal);
+        samplerOuter.name='海盗一号 · 伸缩取样臂外筒';samplerInner.name='海盗一号 · 伸缩取样臂内杆';
+        const samplerScoop=annotate(new THREE.Group(),'取样臂末端的采样铲');samplerScoop.name='海盗一号 · 开口取样铲';
+        samplerScoop.add(mBox(.34,.025,.40,m.metal,[0,.0125,0]),mBox(.34,.14,.025,m.white,[0,.0825,-.1875]));
+        for(const side of [-1,1])samplerScoop.add(mBox(.025,.14,.40,m.white,[side*.1575,.0825,0]));
+        samplerScoop.add(rod([-.11,.14,-.20],[.11,.14,-.20],.035,m.metal));
+        const samplerSoil=mBox(.24,.035,.25,m.std('#9b6241',0,.98),[0,.043,.015]);samplerSoil.visible=false;samplerScoop.add(samplerSoil);
+        body.add(mBox(.27,.20,.38,m.white,[0,1.27,1.02]),samplerOuter,samplerInner,samplerScoop);
+        Object.assign(parts,{samplerOuter,samplerInner,samplerScoop,samplerSoil});
         body.add(rod([-1.10,1.14,.64],[-2.13,1.65,.91],.022,m.metal),mBox(.25,.08,.18,m.white,[-2.13,1.65,.91]));
     } else {
         upper.add(mBox(.8,.4,.7,m.white),rod([.5,0,0],[.5,1.4,0],.04,m.metal));
@@ -697,7 +743,8 @@ export function makeLander(kind: string, m: ModelMaterials): CraftModel {
     flame.scale.set(.45, .45, .45);
     root.add(flame);
     parts.flame = flame;
-    return { root, parts };
+    const craft={root,parts};if(viking)poseVikingSampler(craft,0);
+    return craft;
 }
 export function makeApollo(m: ModelMaterials): CraftModel {
     const root = new THREE.Group(), csm = new THREE.Group(), lm = makeLander('apollo', m), orbitalLM=new THREE.Group();
