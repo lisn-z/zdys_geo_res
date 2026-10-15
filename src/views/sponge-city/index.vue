@@ -80,6 +80,14 @@
 
             <div class="switch-row">
               <div class="control-copy">
+                <strong>锁定模型视角</strong>
+                <span>默认防止示意图被误旋转或缩放，设施仍可点击</span>
+              </div>
+              <el-switch v-model="sceneInteractionLocked" />
+            </div>
+
+            <div class="switch-row">
+              <div class="control-copy">
                 <strong>场景自动切换</strong>
                 <span>当前过程演示结束后自动切换到下一场景</span>
               </div>
@@ -116,20 +124,24 @@
 
           <div class="stage-legend">
             <div class="legend-item">
-              <i class="legend-dot rain-dot"></i>
-              <span>降雨</span>
+              <i class="legend-swatch rain-swatch"></i>
+              <span>降雨水滴</span>
             </div>
             <div class="legend-item">
-              <i class="legend-dot flow-dot"></i>
-              <span>雨水路径</span>
+              <i class="legend-swatch flow-swatch"></i>
+              <span>动态水流</span>
             </div>
             <div class="legend-item">
-              <i class="legend-dot sponge-dot"></i>
-              <span>海绵设施</span>
+              <i class="legend-swatch green-swatch"></i>
+              <span>植被 / 渗滞区</span>
             </div>
             <div class="legend-item">
-              <i class="legend-dot storage-dot"></i>
+              <i class="legend-swatch storage-swatch"></i>
               <span>调蓄水体</span>
+            </div>
+            <div class="legend-item">
+              <i class="legend-swatch pipe-swatch"></i>
+              <span>地下管网</span>
             </div>
           </div>
         </div>
@@ -170,6 +182,23 @@
         variant="data" :initial-top="144" :initial-right="18" :draggable="true" :resizable="true"
         class="sponge-floating-card data-floating-card">
         <div class="panel-scroll">
+          <section class="geo-card scene-data-context">
+            <div class="scene-data-heading">
+              <div>
+                <span>当前模型场景</span>
+                <h3>{{ currentScene.label }}</h3>
+              </div>
+              <strong>{{ currentScene.primaryStrategy }}</strong>
+            </div>
+            <p>{{ currentScene.shortDescription }}</p>
+            <div class="scene-data-parameters">
+              <span>汇水面积 {{ currentMetrics.areaM2.toLocaleString() }} m²</span>
+              <span>产流系数 φ = {{ currentMetrics.coefficient.toFixed(2) }}</span>
+              <span>截蓄率 {{ Math.round(currentMetrics.captureRate * 100) }}%</span>
+              <span>当前阶段 {{ currentPhase.label }} · {{ Math.round(progress) }}%</span>
+            </div>
+          </section>
+
           <div class="data-grid">
             <article class="geo-card data-card cyan-card">
               <span>降雨强度</span>
@@ -177,19 +206,19 @@
               <small>当前输入雨强</small>
             </article>
             <article class="geo-card data-card blue-card">
-              <span>综合雨量径流系数</span>
-              <strong>φ = {{ currentMetrics.coefficient.toFixed(2) }}</strong>
-              <small>按当前场景下垫面参数</small>
+              <span>当前过程产流</span>
+              <strong>{{ currentMetrics.currentRunoffM3.toFixed(1) }} m³</strong>
+              <small>1 h 预计 {{ currentMetrics.hourlyRunoffM3.toFixed(1) }} m³</small>
             </article>
             <article class="geo-card data-card purple-card">
-              <span>1 h 径流体积</span>
-              <strong>{{ currentMetrics.hourlyRunoffM3.toFixed(1) }} m³</strong>
-              <small>V = i × A × φ / 1000</small>
+              <span>已截蓄 / 调蓄</span>
+              <strong>{{ currentMetrics.currentCapturedM3.toFixed(1) }} m³</strong>
+              <small>随模型过程同步累计</small>
             </article>
             <article class="geo-card data-card orange-card">
-              <span>汇水面积</span>
-              <strong>{{ currentMetrics.areaM2.toLocaleString() }} m²</strong>
-              <small>当前模型场景参数</small>
+              <span>已安全外排</span>
+              <strong>{{ currentMetrics.currentDischargedM3.toFixed(1) }} m³</strong>
+              <small>随模型过程同步累计</small>
             </article>
           </div>
 
@@ -214,7 +243,10 @@
                 <div class="strategy-grid">
                   <div v-for="item in strategyItems" :key="item.key" class="strategy-item">
                     <strong>{{ item.key }}</strong>
-                    <span>{{ item.text }}</span>
+                    <div>
+                      <b>{{ item.goal }}</b>
+                      <span>{{ item.measures }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -271,6 +303,8 @@ type SceneConfig = {
   shortDescription: string
   catchmentAreaM2: number
   runoffCoefficient: number
+  captureRate: number
+  primaryStrategy: string
   defaultFacility: string
 }
 
@@ -297,6 +331,7 @@ const rainfallIntensity = ref(50)
 const showFlowPath = ref(true)
 const showLabels = ref(true)
 const showUnderground = ref(true)
+const sceneInteractionLocked = ref(true)
 const sequencePlayback = ref(false)
 const progress = ref(0)
 const playbackSpeed = ref(1)
@@ -348,12 +383,36 @@ const processPhases = [
 ]
 
 const strategyItems = [
-  { key: '渗', text: '透水铺装、土壤下渗' },
-  { key: '滞', text: '树池、绿地延缓径流' },
-  { key: '蓄', text: '蓄渗模块、调蓄水体' },
-  { key: '净', text: '植物与土壤过滤净化' },
-  { key: '用', text: '绿化、冲洗、景观补水' },
-  { key: '排', text: '管网与深层通道安全排放' },
+  {
+    key: '渗',
+    goal: '促进就地下渗',
+    measures: '透水砖、透水沥青、渗井渗渠、土壤改良、地下蓄渗模块',
+  },
+  {
+    key: '滞',
+    goal: '延缓峰值形成',
+    measures: '生态树池、植草沟、雨水花园、下沉绿地、生态护坡',
+  },
+  {
+    key: '蓄',
+    goal: '错峰暂存雨水',
+    measures: '绿色屋顶、雨水罐、蓄水池、下沉广场、景观水体、深层隧道',
+  },
+  {
+    key: '净',
+    goal: '削减面源污染',
+    measures: '植被缓冲带、基质过滤、沉淀池、人工湿地、初期雨水净化',
+  },
+  {
+    key: '用',
+    goal: '雨水资源回用',
+    measures: '绿化浇灌、道路冲洗、车辆冲洗、景观补水、冷却补水',
+  },
+  {
+    key: '排',
+    goal: '保障超标安全',
+    measures: '溢流口、雨水口、管渠、泵站、行泄通道、河道与深层排放',
+  },
 ]
 
 const sceneOptions: SceneConfig[] = [
@@ -364,6 +423,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '生态树池、透水铺装、地下蓄渗模块、检查井与雨水管网协同',
     catchmentAreaM2: 3600,
     runoffCoefficient: 0.65,
+    captureRate: 0.46,
+    primaryStrategy: '渗 · 滞 · 蓄',
     defaultFacility: 'road-storage',
   },
   {
@@ -373,6 +434,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '桥面汇水、桥缘收集管、竖向落水管、桥下蓄渗设施与地下管网',
     catchmentAreaM2: 4200,
     runoffCoefficient: 0.70,
+    captureRate: 0.38,
+    primaryStrategy: '蓄 · 排',
     defaultFacility: 'viaduct-collector',
   },
   {
@@ -382,6 +445,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '道路侧绿化缓坡承接径流，植被截留、土壤入渗后向河道缓释',
     catchmentAreaM2: 3200,
     runoffCoefficient: 0.25,
+    captureRate: 0.62,
+    primaryStrategy: '滞 · 渗 · 净',
     defaultFacility: 'slope-green',
   },
   {
@@ -391,6 +456,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '植被层、种植基质、排蓄水层、落水管与建筑雨水收集装置',
     catchmentAreaM2: 2600,
     runoffCoefficient: 0.50,
+    captureRate: 0.55,
+    primaryStrategy: '滞 · 蓄 · 用',
     defaultFacility: 'roof-green',
   },
   {
@@ -400,6 +467,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '道路、建筑、绿色屋顶、下沉绿地、景观水体、调蓄广场、河道与高架系统协同',
     catchmentAreaM2: 20000,
     runoffCoefficient: 0.40,
+    captureRate: 0.52,
+    primaryStrategy: '六字协同',
     defaultFacility: 'overview-green',
   },
   {
@@ -409,6 +478,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '小区道路、休闲广场和停车场采用不同形式的透水铺装',
     catchmentAreaM2: 3600,
     runoffCoefficient: 0.40,
+    captureRate: 0.48,
+    primaryStrategy: '渗 · 滞',
     defaultFacility: 'permeable-road',
   },
   {
@@ -418,6 +489,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '低于周边硬化面的下凹绿地承接径流，并通过土壤持续入渗',
     catchmentAreaM2: 3000,
     runoffCoefficient: 0.20,
+    captureRate: 0.68,
+    primaryStrategy: '滞 · 渗 · 净',
     defaultFacility: 'green-space',
   },
   {
@@ -427,6 +500,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '圆形活动广场在强降雨时临时蓄水，雨后逐步退水恢复使用',
     catchmentAreaM2: 4800,
     runoffCoefficient: 0.45,
+    captureRate: 0.64,
+    primaryStrategy: '蓄 · 排',
     defaultFacility: 'plaza-basin',
   },
   {
@@ -436,6 +511,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '屋面落水管接入地下模块化雨水调蓄设施，并用于绿化和冲洗回用',
     catchmentAreaM2: 3500,
     runoffCoefficient: 0.40,
+    captureRate: 0.60,
+    primaryStrategy: '蓄 · 用',
     defaultFacility: 'building-tank',
   },
   {
@@ -445,6 +522,8 @@ const sceneOptions: SceneConfig[] = [
     shortDescription: '河道与排水系统的超量雨水经竖向跌落井进入深层调蓄隧道',
     catchmentAreaM2: 9000,
     runoffCoefficient: 0.50,
+    captureRate: 0.35,
+    primaryStrategy: '蓄 · 排',
     defaultFacility: 'river-drop-well',
   },
 ]
@@ -590,16 +669,18 @@ const facilityMap: Record<string, FacilityInfo> = {
   },
 }
 
-const currentScene = computed(() =>
-  sceneOptions.find((item) => item.value === selectedScene.value) || sceneOptions[0]
+const currentScene = computed<SceneConfig>(() =>
+  sceneOptions.find((item) => item.value === selectedScene.value) ?? sceneOptions[0]!
 )
 
 const currentPhase = computed(() =>
-  processPhases.find((item) => progress.value >= item.min && progress.value < item.max) || processPhases[0]
+  processPhases.find((item) => progress.value >= item.min && progress.value < item.max) ?? processPhases[0]!
 )
 
 const selectedFacility = computed<FacilityInfo>(() =>
-  facilityMap[selectedFacilityKey.value] || facilityMap[currentScene.value.defaultFacility]
+  facilityMap[selectedFacilityKey.value]
+  ?? facilityMap[currentScene.value.defaultFacility]
+  ?? facilityMap['road-storage']!
 )
 
 const currentMetrics = computed(() => {
@@ -608,18 +689,28 @@ const currentMetrics = computed(() => {
    * 1) 综合雨量径流系数 φ 作为当前模型场景的汇水参数；
    * 2) 1 h 径流体积 V = i × A × φ / 1000
    *    其中 i 为 mm/h，A 为 m²，结果为 m³/h；
-   * 3) φ 与汇水面积是当前课堂场景的示例参数，可按当地规范或实测资料替换；
+   * 3) 截蓄、调蓄与外排量随下方过程进度同步累计；
+   * 4) φ、截蓄率与汇水面积是当前课堂场景的示例参数，可按当地规范或实测资料替换；
    *    本页不把演示参数冒充为具体工程项目的设计结果。
    */
   const effectiveRainfall = rainfallEnabled.value ? rainfallIntensity.value : 0
   const areaM2 = currentScene.value.catchmentAreaM2
   const coefficient = currentScene.value.runoffCoefficient
+  const captureRate = currentScene.value.captureRate
   const hourlyRunoffM3 = effectiveRainfall * areaM2 * coefficient / 1000
+  const processRatio = THREE.MathUtils.clamp(progress.value / 100, 0, 1)
+  const currentRunoffM3 = hourlyRunoffM3 * processRatio
+  const currentCapturedM3 = currentRunoffM3 * captureRate
+  const currentDischargedM3 = Math.max(0, currentRunoffM3 - currentCapturedM3)
 
   return {
     coefficient,
+    captureRate,
     areaM2,
     hourlyRunoffM3,
+    currentRunoffM3,
+    currentCapturedM3,
+    currentDischargedM3,
   }
 })
 
@@ -631,6 +722,7 @@ let modelRoot: THREE.Group | null = null
 let undergroundGroup: THREE.Group | null = null
 let flowGroup: THREE.Group | null = null
 let labelGroup: THREE.Group | null = null
+let facilityHighlight: THREE.Box3Helper | null = null
 let rainMesh: THREE.InstancedMesh<THREE.LatheGeometry, THREE.MeshPhysicalMaterial> | null = null
 let rainDropGeometry: THREE.LatheGeometry | null = null
 let rainDropMaterial: THREE.MeshPhysicalMaterial | null = null
@@ -824,7 +916,7 @@ function createPipeBetween(
 ) {
   const direction = new THREE.Vector3().subVectors(end, start)
   const length = direction.length()
-  const geometry = new THREE.CylinderGeometry(radius, radius, length, 18)
+  const geometry = new THREE.CylinderGeometry(radius, radius, length, 28)
   const material = makeMaterial(color, { roughness: 0.35, metalness: 0.08 })
   const mesh = new THREE.Mesh(geometry, material)
   mesh.position.copy(start).add(end).multiplyScalar(0.5)
@@ -869,14 +961,24 @@ function addRoadMarkings(
 
 function createTree(parent: THREE.Object3D, x: number, z: number, scale = 1, y = 0) {
   addBox(parent, [0.16 * scale, 1.15 * scale, 0.16 * scale], [x, y + 0.58 * scale, z], makeMaterial(0x684734))
-  const crown = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(0.65 * scale, 1),
-    makeMaterial(0x3e7f40, { roughness: 0.96 })
-  )
-  crown.position.set(x, y + 1.5 * scale, z)
-  crown.scale.y = 1.16
-  crown.castShadow = true
-  parent.add(crown)
+  const crownMaterial = makeMaterial(0x3e7f40, { roughness: 0.92 })
+  const crownParts: Array<{ offset: [number, number, number]; radius: number }> = [
+    { offset: [0, 1.52, 0], radius: 0.55 },
+    { offset: [-0.34, 1.42, 0.06], radius: 0.40 },
+    { offset: [0.33, 1.43, -0.04], radius: 0.42 },
+    { offset: [0.02, 1.72, 0.03], radius: 0.38 },
+  ]
+  crownParts.forEach(({ offset, radius }) => {
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(radius * scale, 18, 12),
+      crownMaterial
+    )
+    crown.position.set(x + offset[0] * scale, y + offset[1] * scale, z + offset[2] * scale)
+    crown.scale.y = 1.08
+    crown.castShadow = true
+    crown.receiveShadow = true
+    parent.add(crown)
+  })
 }
 
 function createStreetLight(parent: THREE.Object3D, x: number, z: number, height = 2.8) {
@@ -933,13 +1035,13 @@ function addFlowPath(points: [number, number, number][], speed = 0.11, radius = 
   if (!flowGroup || points.length < 2) return
   const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)))
   const tube = new THREE.Mesh(
-    new THREE.TubeGeometry(curve, 70, radius, 8, false),
+    new THREE.TubeGeometry(curve, 96, radius, 12, false),
     new THREE.MeshBasicMaterial({ color: 0x35d3ff, transparent: true, opacity: 0.72 })
   )
   flowGroup.add(tube)
   for (let i = 0; i < 3; i += 1) {
     const marker = new THREE.Mesh(
-      new THREE.SphereGeometry(radius * 2.2, 12, 10),
+      new THREE.SphereGeometry(radius * 2.2, 18, 12),
       new THREE.MeshBasicMaterial({ color: 0xc8f7ff })
     )
     flowGroup.add(marker)
@@ -1036,6 +1138,11 @@ function clearModelRoot() {
       object.material.map?.dispose()
       object.material.dispose()
     }
+    if (object instanceof THREE.LineSegments) {
+      object.geometry.dispose()
+      const materials = Array.isArray(object.material) ? object.material : [object.material]
+      materials.forEach((material) => material.dispose())
+    }
   })
   scene?.remove(modelRoot)
   generatedTextures.forEach((texture) => texture.dispose())
@@ -1044,6 +1151,7 @@ function clearModelRoot() {
   undergroundGroup = null
   flowGroup = null
   labelGroup = null
+  facilityHighlight = null
 }
 
 function createSoilMaterial() {
@@ -2108,6 +2216,7 @@ function buildOverviewScene() {
 function buildPermeableScene() {
   const root = createBaseGroups()
   if (!root || !undergroundGroup) return
+  const underground = undergroundGroup
 
   addCutawaySoil(root, 25, 16, 3.0)
 
@@ -2196,14 +2305,14 @@ function buildPermeableScene() {
   const keys = ['permeable-road', 'permeable-plaza', 'permeable-parking']
   panelCenters.forEach((cx, index) => {
     addBox(
-      undergroundGroup,
+      underground,
       [7.0, 0.46, 13.0],
       [cx, -0.28, -0.2],
       makeMaterial(0xb8a27c),
       keys[index]
     )
     addBox(
-      undergroundGroup,
+      underground,
       [7.0, 0.72, 13.0],
       [cx, -0.89, -0.2],
       makeMaterial(0x8f7b61),
@@ -2665,10 +2774,48 @@ function buildCurrentScene() {
   setCameraView(currentView.value, true)
 }
 
+function updateFacilityHighlight() {
+  if (!modelRoot) return
+
+  if (facilityHighlight) {
+    modelRoot.remove(facilityHighlight)
+    facilityHighlight.geometry.dispose()
+    const oldMaterials = Array.isArray(facilityHighlight.material)
+      ? facilityHighlight.material
+      : [facilityHighlight.material]
+    oldMaterials.forEach((material) => material.dispose())
+    facilityHighlight = null
+  }
+
+  const selectedObjects = clickableMeshes.filter((object) => {
+    if (object.userData.facilityKey !== selectedFacilityKey.value) return false
+    let ancestor: THREE.Object3D | null = object
+    while (ancestor && ancestor !== modelRoot) {
+      if (!ancestor.visible) return false
+      ancestor = ancestor.parent
+    }
+    return true
+  })
+  if (!selectedObjects.length) return
+
+  const bounds = new THREE.Box3()
+  selectedObjects.forEach((object) => bounds.expandByObject(object))
+  if (bounds.isEmpty()) return
+
+  facilityHighlight = new THREE.Box3Helper(bounds, 0xffd166)
+  facilityHighlight.renderOrder = 80
+  const highlightMaterial = facilityHighlight.material as THREE.LineBasicMaterial
+  highlightMaterial.transparent = true
+  highlightMaterial.opacity = 0.92
+  highlightMaterial.depthTest = false
+  modelRoot.add(facilityHighlight)
+}
+
 function updateLayerVisibility() {
   if (undergroundGroup) undergroundGroup.visible = showUnderground.value
   if (flowGroup) flowGroup.visible = showFlowPath.value
   if (labelGroup) labelGroup.visible = showLabels.value
+  updateFacilityHighlight()
 }
 
 function createRainSystem() {
@@ -2685,7 +2832,7 @@ function createRainSystem() {
     new THREE.Vector2(0.0, -0.18),
   ]
 
-  rainDropGeometry = new THREE.LatheGeometry(dropProfile, 10)
+  rainDropGeometry = new THREE.LatheGeometry(dropProfile, 16)
   rainDropGeometry.computeVertexNormals()
   rainDropMaterial = new THREE.MeshPhysicalMaterial({
     color: 0x8fdcff,
@@ -2914,7 +3061,7 @@ function advanceSequence() {
     isPlaying.value = false
     return
   }
-  const nextScene = sceneOptions[index + 1]
+  const nextScene = sceneOptions[index + 1]!
   progress.value = 0
   currentView.value = getDefaultViewForScene(nextScene.value)
   selectedScene.value = nextScene.value
@@ -2931,6 +3078,7 @@ function resetControls() {
   showFlowPath.value = true
   showLabels.value = true
   showUnderground.value = true
+  sceneInteractionLocked.value = true
   sequencePlayback.value = false
   progress.value = 0
   playbackSpeed.value = 1
@@ -2940,6 +3088,21 @@ function resetControls() {
   selectedFacilityKey.value = 'road-storage'
   activePanels.value = ['strategy']
   scheduleSceneResize(80)
+}
+
+function updateSceneInteractionLock() {
+  if (!orbitControls || !renderer) return
+  const interactive = !sceneInteractionLocked.value
+  orbitControls.enableRotate = interactive
+  orbitControls.enableZoom = interactive
+  orbitControls.enablePan = false
+  renderer.domElement.classList.toggle('view-locked', sceneInteractionLocked.value)
+  renderer.domElement.setAttribute(
+    'aria-label',
+    sceneInteractionLocked.value
+      ? '海绵城市设施模型，视角已锁定，可点击设施查看说明'
+      : '海绵城市设施模型，可拖动旋转并滚轮缩放'
+  )
 }
 
 function resizeThreeSceneNow(force = false) {
@@ -3099,7 +3262,7 @@ function initScene() {
     renderer.setSize(2, 2, false)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.shadowMap.enabled = true
-    renderer.shadowMap.type = THREE.PCFShadowMap
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.16
@@ -3121,6 +3284,7 @@ function initScene() {
     orbitControls.maxDistance = 38
     orbitControls.maxPolarAngle = Math.PI * 0.495
     orbitControls.target.set(0, 0, 0)
+    updateSceneInteractionLock()
 
     const hemi = new THREE.HemisphereLight(0xf1f8fb, 0x57463a, 1.75)
     scene.add(hemi)
@@ -3227,6 +3391,8 @@ watch(selectedScene, () => {
 
 watch([showFlowPath, showLabels, showUnderground], updateLayerVisibility)
 watch([rainfallEnabled, rainfallIntensity], updateRainVisual)
+watch(sceneInteractionLocked, updateSceneInteractionLock)
+watch(selectedFacilityKey, updateFacilityHighlight)
 
 onMounted(async () => {
   await nextTick()
@@ -3274,7 +3440,7 @@ onBeforeUnmount(() => {
 }
 
 .data-floating-card:not(.collapsed) {
-  height: min(34vh, 380px);
+  height: min(54vh, 600px);
 }
 
 .sponge-floating-card.collapsed {
@@ -3404,26 +3570,52 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.legend-dot {
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  box-shadow: 0 0 7px currentColor;
+}
+
+.rain-swatch {
   width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.rain-dot {
+  height: 11px;
   background: #c5e8ff;
+  border-radius: 70% 45% 65% 45%;
+  color: #8fdcff;
+  transform: rotate(45deg);
 }
 
-.flow-dot {
+.flow-swatch {
+  width: 14px;
+  height: 4px;
   background: #35d3ff;
+  border-radius: 999px;
+  color: #35d3ff;
 }
 
-.sponge-dot {
-  background: #7fcf54;
+.green-swatch {
+  background: #69a63f;
+  border: 1px solid #a9dc71;
+  border-radius: 3px;
+  color: #69a63f;
 }
 
-.storage-dot {
+.storage-swatch {
   background: #2baee5;
+  border: 1px solid #8cddff;
+  border-radius: 50%;
+  color: #2baee5;
+}
+
+.pipe-swatch {
+  width: 13px;
+  height: 7px;
+  background: #39bce8;
+  border: 2px solid #d0f5ff;
+  border-radius: 999px;
+  color: #39bce8;
 }
 
 .scene-error-card {
@@ -3476,6 +3668,66 @@ onBeforeUnmount(() => {
 
 .facility-focus-card {
   margin-top: clamp(10px, 1vw, 14px);
+}
+
+.scene-data-context {
+  margin-bottom: clamp(10px, 1vw, 14px);
+  border-color: rgba(53, 211, 255, 0.24);
+  background:
+    linear-gradient(135deg, rgba(53, 211, 255, 0.10), transparent 62%),
+    rgba(7, 30, 44, 0.86);
+}
+
+.scene-data-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.scene-data-heading span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-secondary);
+  font-size: clamp(9px, 0.68vw, 11px);
+}
+
+.scene-data-heading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(15px, 1vw, 18px);
+}
+
+.scene-data-heading>strong {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  color: #bff8ef;
+  font-size: clamp(9px, 0.68vw, 11px);
+  background: rgba(46, 196, 182, 0.12);
+  border: 1px solid rgba(46, 196, 182, 0.22);
+  border-radius: 999px;
+}
+
+.scene-data-context>p {
+  margin: 9px 0;
+  color: var(--text-secondary);
+  font-size: clamp(10px, 0.72vw, 12px);
+  line-height: 1.58;
+}
+
+.scene-data-parameters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.scene-data-parameters span {
+  padding: 3px 6px;
+  color: rgba(229, 248, 255, 0.84);
+  font-size: clamp(9px, 0.64vw, 11px);
+  background: rgba(6, 25, 38, 0.42);
+  border: 1px solid rgba(126, 231, 222, 0.14);
+  border-radius: 6px;
 }
 
 .facility-focus-head {
@@ -3544,11 +3796,15 @@ onBeforeUnmount(() => {
 .strategy-item {
   display: flex;
   min-width: 0;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  padding: 7px;
+  background: rgba(14, 44, 55, 0.24);
+  border: 1px solid rgba(126, 231, 222, 0.10);
+  border-radius: 9px;
 }
 
-.strategy-item strong {
+.strategy-item>strong {
   display: grid;
   width: 28px;
   height: 28px;
@@ -3558,6 +3814,19 @@ onBeforeUnmount(() => {
   background: rgba(46, 196, 182, 0.12);
   border: 1px solid rgba(46, 196, 182, 0.24);
   border-radius: 8px;
+}
+
+.strategy-item>div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.strategy-item b {
+  color: var(--text-primary);
+  font-size: clamp(10px, 0.72vw, 12px);
+  line-height: 1.35;
 }
 
 .strategy-item span {
@@ -3575,6 +3844,11 @@ onBeforeUnmount(() => {
   width: 100% !important;
   height: 100% !important;
   cursor: grab;
+}
+
+.sponge-city-container .sponge-three-canvas.view-locked,
+.sponge-city-container .sponge-three-canvas.view-locked:active {
+  cursor: pointer;
 }
 
 .sponge-city-container .sponge-three-canvas:active {

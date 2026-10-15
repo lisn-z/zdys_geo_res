@@ -102,9 +102,7 @@ function createAstroContent(folderName, title = '地震') {
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content="Astro" />
     <link href="/sty/quill.snow.css" rel="stylesheet" />
-    <link rel="stylesheet" href="/cesium/Widgets/widgets.css" />
     <script is:inline src="/purify.min.js"></script>
-    <script is:inline src="/cesium/Cesium.js"></script>
     <title>${title}</title>
     <style>
      * {

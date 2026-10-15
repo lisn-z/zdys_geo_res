@@ -27,6 +27,7 @@
             :points="points" :graticule="graticuleVisible" @metrics="equalDistanceMetrics = $event" />
           <CampusBuilder v-if="campusBuilderVisited" v-show="lesson === 'practice'" ref="campusBuilderRef"
             :active="lesson === 'practice'" :center="campusBuilderCenter" />
+          <div class="lesson-overlay" :class="{ 'is-collapsed': !guideOpen }">
           <div class="lesson-navigation geo-card">
             <nav class="lesson-tabs" aria-label="教学环节">
               <button v-for="(item, index) in lessons" :key="item.id" type="button"
@@ -35,12 +36,6 @@
                   }}</span>{{ item.label }}</button>
             </nav>
             <span class="lesson-context">{{ lesson === 'practice' ? '用方位、距离与比例尺，建设校园' : '从一张影像，读懂一幅地图' }}</span>
-          </div>
-          <div v-if="lesson !== 'practice'" class="map-actions">
-            <button type="button" class="theme-btn option-btn graticule-toggle" role="switch" :aria-checked="graticuleVisible"
-              :class="{ active: graticuleVisible }" title="显示经纬网；赤道红色实线，回归线黄色虚线（23°26′），极圈青紫色虚线（66°34′）" @click="graticuleVisible = !graticuleVisible"><span class="graticule-switch" aria-hidden="true"></span>经纬网</button>
-            <button type="button" class="theme-btn option-btn" :class="{ active: locationOpen }"
-              :aria-expanded="locationOpen" @click="toggleLocationPanel">定位校园</button>
           </div>
           <aside v-if="lesson !== 'practice'" class="lesson-card geo-card" :class="{ 'is-collapsed': !guideOpen, 'has-pair': points.length > 0 && (lesson === 'direction' || lesson === 'scale') }" aria-label="教学提示与操作">
             <div class="lesson-heading">
@@ -143,18 +138,15 @@
               </template>
             </div>
           </aside>
-          <form v-if="locationOpen && lesson !== 'practice'" class="location-card geo-card" @submit.prevent="locateCampus">
-            <div class="section-title-row"><strong>定位到你的校园</strong><button type="button" class="theme-btn option-btn"
-                aria-label="关闭校园定位" @click="locationOpen = false">关闭</button></div>
-            <p class="muted">输入经纬度（十进制度，WGS84），定位后自动拉近到校园。</p>
-            <label>经度<input v-model="longitudeInput" inputmode="decimal"
-                placeholder="例如 121.33632" /></label><label>纬度<input v-model="latitudeInput" inputmode="decimal"
-                placeholder="例如 31.19787" /></label>
-            <p v-if="locationError" role="alert" class="form-error">{{ locationError }}</p>
-            <div class="button-row"><button type="submit" class="theme-btn option-btn" :disabled="transitioning">前往校园</button><button
-                type="button" class="theme-btn option-btn" :disabled="transitioning" @click="goToExample">虹桥机场视图</button></div>
-            <p class="muted">已有绘制保留在原位置；复位视图回到当前校园。</p>
-          </form>
+          </div>
+          <div v-if="lesson !== 'practice'" class="map-actions">
+            <button type="button" class="theme-btn option-btn graticule-toggle" role="switch" :aria-checked="graticuleVisible"
+              :class="{ active: graticuleVisible }" title="显示经纬网；赤道红色实线，回归线黄色虚线（23°26′），极圈青紫色虚线（66°34′）" @click="graticuleVisible = !graticuleVisible"><span class="graticule-switch" aria-hidden="true"></span>经纬网</button>
+            <button type="button" class="theme-btn option-btn" :class="{ active: locationOpen }"
+              :aria-expanded="locationOpen" @click="toggleLocationPanel">搜索地址</button>
+          </div>
+          <AddressSearch v-if="locationOpen && lesson !== 'practice'" :api-key="tiandituKey" :disabled="transitioning"
+            @close="locationOpen = false" @select="locateAddress" @example="goToExample" />
           <div v-if="lesson !== 'practice' && !globeShown && !equalDistanceShown" class="compass geo-card" role="img" aria-label="八方位指向标：正北朝上，北、东北、东、东南、南、西南、西、西北">
             <svg viewBox="0 0 160 160" aria-hidden="true">
               <circle cx="80" cy="80" r="43" class="compass-ring" />
@@ -232,6 +224,8 @@ import { GLOBE_ENTRY_ZOOM, GLOBE_EXIT_ZOOM, GLOBE_MIN_ZOOM } from './map-view-co
 import { createGlobeBoundaryInput } from './map-globe-input'
 import { compareLongitudes, hasLocalDirectionFrame, mapReferencePath } from './map-geography'
 import { visibleWorldOffsets } from './map-pair-layout'
+import AddressSearch from './AddressSearch.vue'
+import type { AddressSearchResult } from './tianditu-search'
 
 const CampusBuilder = defineAsyncComponent(() => import('./CampusBuilder.vue'))
 const EqualDistanceView = defineAsyncComponent(() => import('./EqualDistanceView.vue'))
@@ -257,11 +251,8 @@ const lessonBodyRef = ref<HTMLElement | null>(null)
 const tiandituKey = String(import.meta.env.VITE_TIANDITU_KEY || (import.meta.env.DEV ? developmentTiandituKey : suppliedTiandituKey)).trim()
 const locationOpen = ref(false)
 const graticuleVisible = ref(false)
-const locationError = ref('')
 const exampleCenter: L.LatLngTuple = [31.19787, 121.33632]
 const globeCenter = ref<Coordinate>({ lat: exampleCenter[0], lng: exampleCenter[1] })
-const longitudeInput = ref(String(exampleCenter[1]))
-const latitudeInput = ref(String(exampleCenter[0]))
 const minMapZoom = 0
 const initialZoom = 15
 const campusZoom = 17
@@ -350,6 +341,7 @@ let interactionEpoch = 0
 let boundaryInput: ReturnType<typeof createGlobeBoundaryInput> | null = null
 let beforeZoomCenter: Coordinate | null = null
 let leafletMap: L.Map | null = null
+let addressMarker: L.Marker | null = null
 let tileLayer: L.TileLayer | null = null
 let graticule: ReturnType<typeof createMapGraticule> | null = null
 let localScale: ReturnType<typeof createMapScale> | null = null
@@ -694,18 +686,27 @@ async function resetView() {
 }
 function goToExample() {
   if (transitioning.value) return
+  addressMarker?.remove(); addressMarker = null
   campusCenter = [...exampleCenter]; resetZoom = initialZoom; campusName.value = '默认视图 · 虹桥机场'
-  longitudeInput.value = String(exampleCenter[1]); latitudeInput.value = String(exampleCenter[0])
-  locationError.value = ''; locationOpen.value = false; cancelInteraction(); resetView()
+  locationOpen.value = false; cancelInteraction(); resetView()
 }
-function locateCampus() {
+function locateAddress(result: AddressSearchResult) {
   if (transitioning.value) return
-  const lng = Number(longitudeInput.value); const lat = Number(latitudeInput.value)
-  if (!longitudeInput.value.trim() || !latitudeInput.value.trim() || !Number.isFinite(lng) || !Number.isFinite(lat) || lng < -180 || lng > 180 || lat < -85 || lat > 85) {
-    locationError.value = '请输入有效经纬度：经度 −180～180，纬度 −85～85。'; return
+  campusCenter = [result.lat, result.lng]; resetZoom = campusZoom; campusName.value = result.name
+  addressMarker?.remove()
+  if (leafletMap) {
+    const label = document.createElement('span')
+    label.textContent = result.name
+    addressMarker = L.marker(campusCenter, {
+      title: `搜索地点：${result.name}`, keyboard: false, interactive: false,
+      icon: L.divIcon({
+        className: 'address-location-icon', iconSize: [34, 42], iconAnchor: [17, 42],
+        html: '<svg width="34" height="42" viewBox="0 0 34 42" aria-hidden="true"><path d="M17 40C13 34 2 24 2 17a15 15 0 1 1 30 0c0 7-11 17-15 23Z" fill="#9858e8" stroke="#fff" stroke-width="2.5"/><circle cx="17" cy="17" r="5.5" fill="#fff"/></svg>',
+      }),
+    }).addTo(leafletMap).bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -42], className: 'address-location-label' })
   }
-  campusCenter = [lat, lng]; resetZoom = campusZoom; campusName.value = `自选校园 · ${lng.toFixed(4)}°, ${lat.toFixed(4)}°`
-  locationError.value = ''; locationOpen.value = false; cancelInteraction(); resetView()
+  locationOpen.value = false; cancelInteraction(); void resetView()
+  announce(`已定位：${result.name}`)
 }
 async function toggleLocationPanel() {
   const epoch = interactionEpoch
@@ -814,7 +815,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreen); document.removeEventListener('keydown', onKeyDown)
   graticule?.dispose(); graticule = null; localScale?.dispose(); localScale = null
   // Let Leaflet remove layers and detach their map events before releasing references.
-  leafletMap?.remove(); leafletMap = null; tileLayer = null; pairLayer = featureLayer = draftLayer = null
+  leafletMap?.remove(); leafletMap = null; addressMarker = null; tileLayer = null; pairLayer = featureLayer = draftLayer = null
 })
 </script>
 

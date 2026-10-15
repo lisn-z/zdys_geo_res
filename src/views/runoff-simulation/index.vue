@@ -168,28 +168,33 @@
             <img v-show="showRain && waterBalance.precipitation > 0"
               class="runoff-effect-image effect-precipitation-image" :src="EFFECT_PRECIPITATION_IMAGE"
               :style="effectVisuals.precipitation" alt="" draggable="false" />
-            <img v-show="showFlowDirections && waterBalance.evapotranspiration > 0"
-              class="runoff-effect-image effect-evapotranspiration-image" :src="EFFECT_EVAPOTRANSPIRATION_IMAGE"
-              :style="effectVisuals.evapotranspiration" alt="" draggable="false" />
-            <span v-show="showFlowDirections && waterBalance.evapotranspiration > 0"
-              class="flow-arrow-label evapotranspiration-arrow-label"
-              :style="{ opacity: effectVisuals.evapotranspiration.opacity }">
-              蒸散
-            </span>
-            <img v-show="showFlowDirections && waterBalance.runoff > 0" class="runoff-effect-image effect-runoff-image"
-              :src="EFFECT_RUNOFF_IMAGE" :style="effectVisuals.runoff" alt="" draggable="false" />
-            <span v-show="showFlowDirections && waterBalance.runoff > 0" class="flow-arrow-label runoff-arrow-label"
-              :style="{ opacity: effectVisuals.runoff.opacity }">
-              径流
-            </span>
-            <img v-show="showFlowDirections && waterBalance.infiltration > 0"
-              class="runoff-effect-image effect-infiltration-image" :src="EFFECT_INFILTRATION_IMAGE"
-              :style="effectVisuals.infiltration" alt="" draggable="false" />
-            <span v-show="showFlowDirections && waterBalance.infiltration > 0"
-              class="flow-arrow-label infiltration-arrow-label"
-              :style="{ opacity: effectVisuals.infiltration.opacity }">
-              下渗
-            </span>
+            <div v-show="showFlowDirections && waterBalance.evapotranspiration > 0"
+              class="runoff-effect-node evapotranspiration-effect-node">
+              <img class="runoff-effect-image" :src="EFFECT_EVAPOTRANSPIRATION_IMAGE"
+                :style="effectVisuals.evapotranspiration" alt="" draggable="false" />
+              <span class="flow-arrow-label evapotranspiration-arrow-label"
+                :style="{ opacity: effectVisuals.evapotranspiration.opacity }">
+                蒸散
+              </span>
+            </div>
+            <div v-show="showFlowDirections && waterBalance.runoff > 0"
+              class="runoff-effect-node surface-runoff-effect-node">
+              <img class="runoff-effect-image" :src="EFFECT_RUNOFF_IMAGE" :style="effectVisuals.runoff" alt=""
+                draggable="false" />
+              <span class="flow-arrow-label runoff-arrow-label"
+                :style="{ opacity: effectVisuals.runoff.opacity }">
+                径流
+              </span>
+            </div>
+            <div v-show="showFlowDirections && waterBalance.infiltration > 0"
+              class="runoff-effect-node infiltration-effect-node">
+              <img class="runoff-effect-image" :src="EFFECT_INFILTRATION_IMAGE"
+                :style="effectVisuals.infiltration" alt="" draggable="false" />
+              <span class="flow-arrow-label infiltration-arrow-label"
+                :style="{ opacity: effectVisuals.infiltration.opacity }">
+                下渗
+              </span>
+            </div>
           </div>
 
           <div class="scene-title-chip">
@@ -356,6 +361,9 @@
                 <strong>{{ waterBalance.infiltration.toFixed(1) }}</strong>
                 <small>cm</small>
               </div>
+              <p class="model-source-note">
+                数据来源：Model My Watershed 径流模拟原始 model.csv；按“24 小时降水量 × 地表覆盖 × 水文土壤组”检索，页面按源模型规则显示至 0.1 cm。
+              </p>
             </div>
 
             <div class="balance-divider"></div>
@@ -961,11 +969,11 @@ const playbackSpeed = ref(1)
 const currentView = ref<CameraView>('overview')
 
 const currentLandCover = computed(() => {
-  return landCoverOptions.find((item) => item.value === selectedLandCover.value) || landCoverOptions[2]
+  return landCoverOptions.find((item) => item.value === selectedLandCover.value) || landCoverOptions[2]!
 })
 
 const currentSoilGroup = computed(() => {
-  return soilGroupOptions.find((item) => item.value === selectedSoilGroup.value) || soilGroupOptions[0]
+  return soilGroupOptions.find((item) => item.value === selectedSoilGroup.value) || soilGroupOptions[0]!
 })
 
 function clamp(value: number, min: number, max: number) {
@@ -990,12 +998,19 @@ function selectRainLevel(value: number) {
   precipitationIndex.value = index >= 0 ? index : 2
 }
 
+function getModelTuple(precipitation: number, landModelKey: string, soilIndex: number): ModelTuple {
+  return MODEL_DATA[`${precipitation}|${landModelKey}|${soilIndex}`] || ([0, 0, 0] as const)
+}
+
+function modelTuplesMatch(left: ModelTuple, right: ModelTuple) {
+  return left.every((value, index) => value === right[index])
+}
+
 const waterBalance = computed(() => {
   const precipitation = precipitationCm.value
   const land = currentLandCover.value
   const soil = currentSoilGroup.value
-  const key = `${precipitation}|${land.modelKey}|${soil.modelIndex}`
-  const tuple = MODEL_DATA[key] || ([0, 0, 0] as const)
+  const tuple = getModelTuple(precipitation, land.modelKey, soil.modelIndex)
   const evapotranspiration = tuple[0]
   const infiltration = tuple[1]
   const runoff = tuple[2]
@@ -1017,6 +1032,21 @@ const waterBalance = computed(() => {
       infiltration: clamp((infiltration / safeAllocationTotal) * 100, 0, 100),
     },
   }
+})
+
+const matchingSoilGroupCodes = computed(() => {
+  const currentTuple = getModelTuple(
+    precipitationCm.value,
+    currentLandCover.value.modelKey,
+    currentSoilGroup.value.modelIndex,
+  )
+
+  return soilGroupOptions
+    .filter((soil) => modelTuplesMatch(
+      currentTuple,
+      getModelTuple(precipitationCm.value, currentLandCover.value.modelKey, soil.modelIndex),
+    ))
+    .map((soil) => soil.code)
 })
 
 const balanceSymbol = computed(() =>
@@ -1061,7 +1091,7 @@ const dominantProcess = computed(() => {
     },
   ]
 
-  return items.sort((a, b) => b.value - a.value)[0]
+  return items.sort((a, b) => b.value - a.value)[0]!
 })
 
 const processPhase = computed(() => {
@@ -1094,20 +1124,33 @@ const currentJudgement = computed(() => {
   const infiltrationPercent = waterBalance.value.percentages.infiltration
   const land = currentLandCover.value.label
   const soil = currentSoilGroup.value.code
+  const balance = waterBalance.value
+
+  const soilInterpretations: Record<SoilGroupValue, string> = {
+    a: 'A 组代表高下渗能力、低径流潜势。',
+    b: 'B 组代表中等下渗能力、中低径流潜势。',
+    c: 'C 组下渗较慢，径流潜势较高。',
+    d: 'D 组下渗很慢，径流潜势最高。',
+  }
 
   if (precipitationCm.value <= 0) {
     return '当前没有降水输入，蒸散、径流和下渗量均为 0。'
   }
 
+  const allocation = `当前分配为：蒸散 ${balance.evapotranspiration.toFixed(1)} cm、地表径流 ${balance.runoff.toFixed(1)} cm、下渗 ${balance.infiltration.toFixed(1)} cm。`
+  const sameValueNote = matchingSoilGroupCodes.value.length > 1
+    ? `源表保留到 0.1 cm 后，${matchingSoilGroupCodes.value.join('、')} 组在此降水和地表覆盖组合下记录相同，因此切换这些组时显示值不会变化。`
+    : ''
+
   if (runoffPercent >= 60) {
-    return `在“${land} + ${soil} 组土壤”情景下，地表径流占比很高。硬化地表、弱下渗土壤或强降水共同提高了快速汇流和积水风险。`
+    return `在“${land} + ${soil} 组土壤”情景下，${allocation}地表径流占比达 ${runoffPercent.toFixed(1)}%，快速汇流和积水风险较高。${soilInterpretations[selectedSoilGroup.value]}${sameValueNote}`
   }
 
   if (infiltrationPercent >= 60) {
-    return `在“${land} + ${soil} 组土壤”情景下，下渗是主要水分去向。植被覆盖和较强土壤渗透性有利于补给土壤水与地下水。`
+    return `在“${land} + ${soil} 组土壤”情景下，${allocation}下渗占比达 ${infiltrationPercent.toFixed(1)}%，是主要水分去向。${soilInterpretations[selectedSoilGroup.value]}${sameValueNote}`
   }
 
-  return `在“${land} + ${soil} 组土壤”情景下，原始模型结果显示径流、下渗与蒸散共同分配降水，当前没有单一过程绝对占优。`
+  return `在“${land} + ${soil} 组土壤”情景下，${allocation}径流、下渗与蒸散共同分配降水，没有单一过程占比超过 60%。${soilInterpretations[selectedSoilGroup.value]}${sameValueNote}`
 })
 
 const selectedObjectDetails = computed(() => {
@@ -1850,6 +1893,11 @@ onBeforeUnmount(() => {
   width: clamp(320px, 22vw, 440px);
 }
 
+.runoff-data-card:not(.collapsed) {
+  height: min(720px, calc(100vh - 156px));
+  min-height: 260px;
+}
+
 .runoff-oss-surface {
   display: block;
   background-repeat: no-repeat;
@@ -2189,22 +2237,34 @@ onBeforeUnmount(() => {
   -webkit-user-drag: none;
 }
 
+.runoff-effect-node {
+  position: absolute;
+  width: clamp(64px, 7.6vw, 124px);
+  height: clamp(64px, 7.6vw, 124px);
+}
+
+.runoff-effect-node .runoff-effect-image {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .effect-precipitation-image {
   top: 13%;
   left: 28%;
 }
 
-.effect-evapotranspiration-image {
+.evapotranspiration-effect-node {
   top: 24%;
   right: 20%;
 }
 
-.effect-runoff-image {
+.surface-runoff-effect-node {
   bottom: 23%;
   left: 19%;
 }
 
-.effect-infiltration-image {
+.infiltration-effect-node {
   right: 20%;
   bottom: 18%;
 }
@@ -2232,24 +2292,47 @@ onBeforeUnmount(() => {
 }
 
 .evapotranspiration-arrow-label {
-  top: 29%;
-  right: 11%;
+  top: 44%;
+  left: calc(100% + 8px);
   color: #82c9ff;
   border-color: rgba(45, 139, 255, 0.5);
+  transform: translateY(-50%);
 }
 
 .runoff-arrow-label {
-  bottom: 29%;
-  left: 10%;
+  top: 50%;
+  right: calc(100% + 8px);
   color: #ff8585;
   border-color: rgba(237, 59, 59, 0.5);
+  transform: translateY(-50%);
 }
 
 .infiltration-arrow-label {
-  right: 11%;
-  bottom: 22%;
+  top: 56%;
+  left: calc(100% + 8px);
   color: #ffe36f;
   border-color: rgba(242, 207, 70, 0.5);
+  transform: translateY(-50%);
+}
+
+.evapotranspiration-arrow-label::before,
+.infiltration-arrow-label::before,
+.runoff-arrow-label::before {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  border-top: 1px solid currentColor;
+  content: '';
+  opacity: 0.72;
+}
+
+.evapotranspiration-arrow-label::before,
+.infiltration-arrow-label::before {
+  right: 100%;
+}
+
+.runoff-arrow-label::before {
+  left: 100%;
 }
 
 .scene-title-chip {
@@ -2609,6 +2692,15 @@ onBeforeUnmount(() => {
   line-height: 1.5;
 }
 
+.model-source-note {
+  margin: 11px 0 0;
+  padding-top: 10px;
+  color: var(--text-tertiary);
+  font-size: clamp(10px, 0.7vw, 12px);
+  line-height: 1.65;
+  border-top: 1px solid var(--inactive-border);
+}
+
 .balance-divider {
   height: 1px;
   margin: 2px 0;
@@ -2651,6 +2743,7 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   font-size: clamp(13px, 0.9vw, 15px);
   line-height: 1.8;
+  overflow-wrap: anywhere;
 }
 
 .selected-object-tags {

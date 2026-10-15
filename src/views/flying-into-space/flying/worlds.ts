@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { configureSkyRadiance } from './sky-compat';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { SURFACE, GROUND_CAMERA_FAR, DAY_SKY_RADIANCE, landscapeHeight, coastlineX, coastalHeight, groundGridAxis, groundSurfaceHeight, sampledGroundHeight } from './scenery';
 import { TextureBank, SUN_DIRECTION, makePlanet, makeStarfield, makeSmoke, makeFlame, canvasTexture, type PlanetKind } from './assets';
@@ -658,11 +659,7 @@ export function createWorld(key: string, bank: TextureBank, m: ModelMaterials, e
             if(u.cloudCoverage)u.cloudCoverage.value=.16;
             if(u.cloudDensity)u.cloudDensity.value=.24;
             if(u.cloudElevation)u.cloudElevation.value=.32;
-            u.sceneSkyRadiance={value:DAY_SKY_RADIANCE};
-            const fragment=sky.material.fragmentShader;
-            const output=/gl_FragColor\s*=\s*vec4\(\s*texColor\s*,\s*1\.0\s*\)\s*;/;
-            if(!output.test(fragment))throw new Error('Sky 插件版本与工程锁定的 three@0.184.0 不一致');
-            sky.material.fragmentShader='uniform float sceneSkyRadiance;\n'+fragment.replace(output,'gl_FragColor = vec4(texColor * sceneSkyRadiance, 1.0);');
+            configureSkyRadiance(sky.material,DAY_SKY_RADIANCE);
             sky.material.depthWrite=false;sky.material.needsUpdate=true;
             const dome=sky,eye=new THREE.Vector3();
             dome.onBeforeRender=(_r,_s,camera)=>{camera.getWorldPosition(eye);dome.position.copy(eye);dome.updateMatrixWorld();};

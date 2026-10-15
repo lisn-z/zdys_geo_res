@@ -224,7 +224,6 @@ let terrainGroup: THREE.Group | null = null
 let resizeObserver: ResizeObserver | null = null
 let animationFrameId = 0
 let disposed = false
-let isFeatureLabelHovered = false
 let lastWidth = 0
 let lastHeight = 0
 
@@ -232,7 +231,12 @@ const sceneMaterials = new Set<THREE.Material>()
 const sceneGeometries = new Set<THREE.BufferGeometry>()
 const sceneTextures = new Set<THREE.Texture>()
 const modelFeatureLabels: CSS2DObject[] = []
-const clock = new THREE.Clock()
+// The GLB's cutaway face is authored about 5° off the world Z axis.
+// Compensate here so its geological section is square to the camera.
+const MODEL_FRONT_YAW = THREE.MathUtils.degToRad(5)
+// The rendered base rises roughly 3.8° toward the right in the source model.
+// Apply the inverse screen roll so the section base reads as horizontal.
+const MODEL_LEVEL_ROLL = THREE.MathUtils.degToRad(-3.8)
 
 function selectKarstFeature(featureId: string | null) {
   activeFeatureId.value = featureId
@@ -292,10 +296,6 @@ function buildFeatureLabels(model: THREE.Object3D) {
       <strong>${feature.name}</strong>
     `
     button.addEventListener('pointerdown', (event) => event.stopPropagation())
-    button.addEventListener('pointerenter', () => { isFeatureLabelHovered = true })
-    button.addEventListener('pointerleave', () => { isFeatureLabelHovered = false })
-    button.addEventListener('focus', () => { isFeatureLabelHovered = true })
-    button.addEventListener('blur', () => { isFeatureLabelHovered = false })
     button.addEventListener('click', (event) => {
       event.stopPropagation()
       selectKarstFeature(feature.id)
@@ -341,12 +341,15 @@ function frameCameraToModel() {
   const aspect = Math.max(0.6, camera.aspect || 1.6)
   const verticalFov = THREE.MathUtils.degToRad(camera.fov)
   const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect)
-  const distance = Math.max(10, Math.min(30, Math.max(
+  const fittedDistance = Math.max(10, Math.min(30, Math.max(
     (size.y * 0.62) / Math.tan(verticalFov / 2),
     (size.x * 0.62) / Math.tan(horizontalFov / 2),
     size.z * 1.05,
   )))
-  const direction = new THREE.Vector3(0.5, 0.07, 1.56).normalize()
+  const distance = fittedDistance * 1.12
+  // Keep the opening view square to the model's front face. The previous
+  // horizontal offset introduced a noticeable perspective skew on load.
+  const direction = new THREE.Vector3(0, 0.055, 1).normalize()
   camera.position.copy(center).add(direction.multiplyScalar(distance))
   camera.near = 0.05
   camera.far = Math.max(180, distance * 10)
@@ -414,6 +417,9 @@ function loadKarstModel() {
     model.updateMatrixWorld(true)
     buildFeatureLabels(model)
 
+    // The render loop also runs while the GLB is downloading. Clear the idle
+    // rotation accumulated during loading so the first visible frame is level.
+    terrainGroup.rotation.set(0, MODEL_FRONT_YAW, MODEL_LEVEL_ROLL)
     modelLoadProgress.value = 100
     modelLoadState.value = 'ready'
     resizeScene(true)
@@ -432,10 +438,6 @@ function loadKarstModel() {
 
 function animateScene() {
   animationFrameId = requestAnimationFrame(animateScene)
-  const delta = Math.min(clock.getDelta(), 0.05)
-  if (terrainGroup && !isFeatureLabelHovered && !activeFeatureId.value) {
-    terrainGroup.rotation.y += delta * 0.018
-  }
   orbitControls?.update()
   updateFeatureLabelVisibility()
   if (renderer && scene && camera) {
@@ -495,18 +497,18 @@ function initScene() {
   scene.add(caveWaterLight)
 
   terrainGroup = new THREE.Group()
+  terrainGroup.rotation.set(0, MODEL_FRONT_YAW, MODEL_LEVEL_ROLL)
   scene.add(terrainGroup)
   resizeScene(true)
   resizeObserver = new ResizeObserver(() => resizeScene())
   resizeObserver.observe(host)
-  clock.start()
   loadKarstModel()
   animateScene()
 }
 
 function resetView() {
   selectKarstFeature(null)
-  if (terrainGroup) terrainGroup.rotation.set(0, 0, 0)
+  if (terrainGroup) terrainGroup.rotation.set(0, MODEL_FRONT_YAW, MODEL_LEVEL_ROLL)
   resizeScene(true)
   frameCameraToModel()
 }
@@ -580,7 +582,7 @@ onBeforeUnmount(disposeScene)
 
 .brand-logo {
   width: 140px;
-  max-height: 44px;
+  max-height: 70px;
   object-fit: contain;
   object-position: left center;
 }

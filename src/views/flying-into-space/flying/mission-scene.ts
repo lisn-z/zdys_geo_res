@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { configureSkyRadiance } from './sky-compat';
 import { TextureBank } from './assets';
 import { ModelMaterials, mBox, mCyl, mBall, meshOf, rod } from './models';
 import { makeFlame, makeSmoke } from './effects';
@@ -246,7 +247,7 @@ export class MissionScene {
     u.turbidity!.value = 2.3; u.rayleigh!.value = 2.15; u.mieCoefficient!.value = .004; u.mieDirectionalG!.value = .78;
     u.sunPosition!.value.copy(this.sunDirection).multiplyScalar(450000);
     if (u.cloudCoverage) u.cloudCoverage!.value = 0;
-    sky.material.fragmentShader = sky.material.fragmentShader.replace(/gl_FragColor\s*=\s*vec4\(\s*texColor\s*,\s*1\.0\s*\)\s*;/, 'gl_FragColor = vec4(texColor * .125, 1.0);');
+    configureSkyRadiance(sky.material,.125);
     sky.onBeforeRender = (_renderer, _scene, camera) => { sky.position.copy(camera.position); sky.updateMatrixWorld(); };
     this.scene.add(sky);
     this.buildDistantClouds();

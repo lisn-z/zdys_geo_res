@@ -3,7 +3,7 @@ export const DEFAULT_IMAGE_BASE = '/geo-resources-folder/images/';
 export const ORIGINAL_LOGO = 'https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png';
 export { ASSET_FILES, ASSET_KEYS, emptyAssetState } from './resources';
 export type { PlanetKind, AssetKey, AssetState } from './resources';
-import { ASSET_FILES, ASSET_KEYS, ResourceLedger, runResourceWorkers, imageDimensionError, type PlanetKind, type AssetKey, type AssetState } from './resources';
+import { ASSET_FILES, ASSET_KEYS, ResourceLedger, fitTextureDimensions, type PlanetKind, type AssetKey, type AssetState } from './resources';
 export const SUN_DIRECTION = new THREE.Vector3(-.65, .75, .7).normalize();
 export function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, data = false) {
     const el = document.createElement('canvas');
@@ -17,7 +17,7 @@ export function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingCon
     tex.colorSpace = data ? THREE.NoColorSpace : THREE.SRGBColorSpace;
     return tex;
 }
-/** Decode the original image directly. It never passes through a resized CanvasTexture. */
+/** Decode the original image; hardware-limit adaptation happens before GPU upload. */
 async function decodeResource(blob: Blob, signal: AbortSignal): Promise<HTMLImageElement> {
   if (signal.aborted) throw new Error('已取消加载');
   const url = URL.createObjectURL(blob), image = new Image();
@@ -48,12 +48,17 @@ export class TextureBank {
   ledger: ResourceLedger;
   private controllers = new Set<AbortController>();
   private dead = false;
-  private inFlight: Promise<void> | null = null;
+  private jobs = new Map<AssetKey, { promise: Promise<void>; run: () => Promise<void>; reject: (reason: Error) => void }>();
+  private queue: AssetKey[] = [];
+  private active = 0;
   constructor(public base: string, private update: (s: AssetState) => void, private anisotropy = 4) {
     this.ledger = new ResourceLedger(base); this.emit();
   }
   get state(): AssetState { return this.ledger.snapshot(); }
   get ready(): boolean { return this.ledger.ready; }
+  hasReady(keys: readonly AssetKey[]): boolean {
+    return keys.every(key => this.textures.has(key) && this.ledger.records.get(key)?.gpuReady === true);
+  }
   /** Only returns the real, decoded and uploaded Texture. Using it too early is a visible error. */
   get(key: AssetKey): THREE.Texture {
     const texture = this.textures.get(key);
@@ -61,11 +66,45 @@ export class TextureBank {
     return texture;
   }
   preloadAll(upload: (texture: THREE.Texture) => void, maxTextureSize: number, retry = false): Promise<void> {
-    if (this.inFlight) return this.inFlight;
-    const todo = ASSET_KEYS.filter(key => this.ledger.records.get(key)?.phase !== 'ready');
-    const work = runResourceWorkers(todo, key => this.load(key, upload, maxTextureSize, retry), 3);
-    this.inFlight = work.finally(() => { this.inFlight = null; });
-    return this.inFlight;
+    return this.preloadKeys(ASSET_KEYS, upload, maxTextureSize, retry);
+  }
+  /** All callers share three workers and one job per texture. A manual chapter
+   * change moves its waiting files ahead of speculative future-scene work. */
+  async preloadKeys(keys: readonly AssetKey[], upload: (texture: THREE.Texture) => void, maxTextureSize: number, retry = false, priority = true): Promise<void> {
+    if (this.dead) throw new Error('资源管理器已释放');
+    const promises: Promise<void>[] = [];
+    const requested = [...new Set(keys)].filter(key => !this.hasReady([key]));
+    for (const key of requested) {
+      let job = this.jobs.get(key);
+      if (!job) {
+        let resolve!: () => void, reject!: (reason: Error) => void;
+        const promise = new Promise<void>((ok, fail) => { resolve = ok; reject = fail; });
+        job = { promise, reject, run: async () => {
+          let failure: Error | undefined;
+          try { await this.load(key, upload, maxTextureSize, retry); }
+          catch (error) { failure = error instanceof Error ? error : new Error(String(error)); }
+          this.active--; this.jobs.delete(key); this.pump();
+          if (failure) reject(failure); else resolve();
+        } };
+        this.jobs.set(key, job); this.queue.push(key);
+      }
+      promises.push(job.promise);
+    }
+    if (priority) {
+      const waiting = requested.filter(key => this.queue.includes(key));
+      this.queue = [...waiting, ...this.queue.filter(key => !waiting.includes(key))];
+    }
+    this.pump();
+    const results = await Promise.allSettled(promises);
+    const errors = results.filter(result => result.status === 'rejected');
+    if (errors.length) throw new Error(`${errors.length} 项纹理未就绪，请查看失败文件并重试。`);
+  }
+  private pump() {
+    while (!this.dead && this.active < 3 && this.queue.length) {
+      const key = this.queue.shift()!, job = this.jobs.get(key)!;
+      this.active++;
+      void job.run();
+    }
   }
   private async load(key: AssetKey, upload: (texture: THREE.Texture) => void, maxTextureSize: number, retry: boolean) {
     if (this.dead) throw new Error('资源管理器已释放');
@@ -86,13 +125,21 @@ export class TextureBank {
       this.ledger.set(key, {phase:'decoding', bytes:blob.size}); this.emit();
       const image = await decodeResource(blob, controller.signal);
       const width = image.naturalWidth || image.width, height = image.naturalHeight || image.height;
-      const invalid = imageDimensionError(width, height, maxTextureSize);
       this.ledger.set(key, {width, height});
-      if (invalid) throw new Error(invalid);
+      const fitted = fitTextureDimensions(width, height, maxTextureSize);
       if (this.dead || controller.signal.aborted) throw new Error('已取消加载');
+      let textureImage: HTMLImageElement | HTMLCanvasElement = image;
+      if (fitted.resized) {
+        const canvas = document.createElement('canvas');
+        canvas.width = fitted.width; canvas.height = fitted.height;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('浏览器无法准备适合当前设备的贴图');
+        context.drawImage(image, 0, 0, fitted.width, fitted.height);
+        textureImage = canvas;
+      }
       // v5 FIX: create a fresh Texture at the FINAL dimensions, before its first GPU use.
       // Updating the image of an already uploaded 1024x512 placeholder cannot resize immutable GL storage.
-      texture = new THREE.Texture(image);
+      texture = new THREE.Texture(textureImage);
       texture.name = key;
       texture.colorSpace = key === 'waterNormals' ? THREE.NoColorSpace : THREE.SRGBColorSpace;
       texture.anisotropy = this.anisotropy;
@@ -102,9 +149,10 @@ export class TextureBank {
       texture.minFilter = THREE.LinearMipmapLinearFilter;
       texture.magFilter = key === 'galaxy' ? THREE.NearestFilter : THREE.LinearFilter;
       if (key === 'galaxy') texture.anisotropy = Math.max(texture.anisotropy, 8);
-      texture.userData = {assetKey:key, originalUrl:entry.url, originalWidth:width, originalHeight:height, fallback:false};
+      texture.userData = {assetKey:key, originalUrl:entry.url, originalWidth:width, originalHeight:height,
+        gpuWidth:fitted.width, gpuHeight:fitted.height, resized:fitted.resized, fallback:false};
       texture.needsUpdate = true;
-      this.ledger.set(key, {phase:'uploading', textureId:texture.uuid}); this.emit();
+      this.ledger.set(key, {phase:'uploading', textureId:texture.uuid, gpuWidth:fitted.width, gpuHeight:fitted.height, resized:fitted.resized}); this.emit();
       upload(texture); // renderer.initTexture + gl.getError: completion is NOT merely HTTP 200.
       if (this.dead) throw new Error('已取消加载');
       texture.userData.gpuReady = true;
@@ -121,6 +169,8 @@ export class TextureBank {
   private emit() { if (!this.dead) this.update(this.state); }
   dispose() {
     this.dead = true; this.controllers.forEach(c => c.abort()); this.controllers.clear();
+    for (const key of this.queue) { this.jobs.get(key)?.reject(new Error('资源管理器已释放')); this.jobs.delete(key); }
+    this.queue = [];
     this.textures.forEach(t => t.dispose()); this.extra.forEach(t => t.dispose());
     this.textures.clear(); this.extra.clear();
   }

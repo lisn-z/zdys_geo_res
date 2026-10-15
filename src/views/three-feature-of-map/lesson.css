@@ -17,10 +17,14 @@
 .map-zoom .theme-btn + .theme-btn { border-top: 1px solid #638f9b4d; }
 .map-picking .leaflet-host { cursor: crosshair; }
 .paper-exercise input[type="range"] { padding: 0; min-height: 36px; accent-color: #8be1c0; cursor: pointer; }
-.lesson-navigation, .map-actions, .lesson-card, .location-card, .compass, .map-legend, .map-status, .interaction-hint, .notice { position: absolute; z-index: 500; box-sizing: border-box; }
-.lesson-navigation { top: 20px; left: 22px; padding: 6px; border-radius: 12px; display: flex; align-items: center; gap: 20px; }
+.lesson-overlay, .map-actions, .compass, .map-legend, .map-status, .interaction-hint, .notice { position: absolute; z-index: 500; box-sizing: border-box; }
+/* Keep the teaching card in flow below the actual navigation height. Astro's
+   host fonts / large-screen button rules must never consume this spacing. */
+.lesson-overlay { top: 20px; left: 22px; bottom: 136px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; width: max-content; max-width: calc(100% - 44px); pointer-events: none; }
+.lesson-overlay > .lesson-navigation, .lesson-overlay > .lesson-card { position: relative; box-sizing: border-box; pointer-events: auto; }
+.lesson-navigation { flex: 0 0 auto; max-width: 100%; padding: 6px; border-radius: 12px; display: flex; align-items: center; gap: 20px; }
 .lesson-tabs { display: flex; gap: 5px; }
-.lesson-tab { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 100px; min-height: 42px; padding: 10px 14px; font-size: 15px; }
+.lesson-navigation .lesson-tab { display: flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; min-width: 100px; min-height: 42px; padding: 10px 14px; font-size: 15px; }
 .tab-number { font-size: 11px; font-variant-numeric: tabular-nums; opacity: 0.7; }
 .lesson-context { color: var(--text-secondary); font-size: 13px; padding-right: 14px; }
 .map-actions { top: 24px; right: 22px; display: flex; gap: 8px; }
@@ -30,7 +34,7 @@
 .graticule-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #b8ced2; transition: transform .15s; }
 .graticule-toggle[aria-checked='true'] .graticule-switch { background: #28766d; border-color: #99e9d3; }
 .graticule-toggle[aria-checked='true'] .graticule-switch::after { transform: translateX(12px); background: #d4fff0; }
-.lesson-card { top: 94px; left: 22px; width: clamp(320px, 23vw, 380px); max-height: calc(100% - 230px); padding: 22px; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+.lesson-card { flex: 0 1 auto; min-height: 0; width: clamp(320px, 23vw, 380px); padding: 22px; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
 .lesson-heading { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; flex: 0 0 auto; }
 .lesson-body { min-height: 0; overflow-y: auto; }
 .eyebrow { color: var(--theme-primary-light); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }
@@ -69,7 +73,7 @@ input:not([type='checkbox']), select { display: block; box-sizing: border-box; w
 select option { background: #10283b; }
 input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid #8cf7e9; outline-offset: 3px; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
-.exercise-fields label, .location-card label { display: block; color: var(--text-secondary); font-size: 12px; }
+.exercise-fields label { display: block; color: var(--text-secondary); font-size: 12px; }
 .drawing-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0 14px; }
 .drawing-group-title { margin: 18px 0 8px; color: var(--theme-primary-light); font-size: 12px; }
 .drawing-group-title + .drawing-tools { margin-top: 0; }
@@ -88,10 +92,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .generate-campus span { font-size: 20px; }
 .campus-preview-entry p { margin: 7px 0 0; font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
 .campus-preview-entry .campus-range-hint { margin-top: 10px; padding: 9px 11px; border-left: 2px solid #d9bc78; border-radius: 0 6px 6px 0; background: #d9bc7810; color: #ffe2a0; }
-.location-card { top: 82px; right: 22px; width: 300px; padding: 18px; border-radius: 12px; z-index: 600; }
-.location-card .section-title-row { display: flex; align-items: center; justify-content: space-between; }
-.location-card label { margin: 12px 0; }
-.location-card .button-row { margin-top: 16px; }
 .form-error { font-size: 12px; color: #ffaaa4; }
 .compass { top: 96px; right: 22px; width: 150px; padding: 7px; border-radius: 50%; pointer-events: none; }
 .compass svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -128,6 +128,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .leaflet-host :deep(.lesson-scale-control .lesson-scale-scope) { margin-bottom: 3px; color: #ffda85; font: 700 13px/1.4 'Microsoft YaHei', sans-serif; }
 .leaflet-host :deep(.lesson-scale-control .lesson-scale-limit) { margin-bottom: 5px; color: #ffe8b5; font: 700 12px/1.5 'Microsoft YaHei', sans-serif; }
 .leaflet-host :deep(.lesson-scale-control .lesson-scale-caption) { margin-bottom: 4px; color: #c5ddd9; font: 11px/1.4 'Microsoft YaHei', sans-serif; white-space: nowrap; }
+.leaflet-host :deep(.address-location-label) { max-width: min(260px, 60vw); overflow: hidden; padding: 5px 9px; border: 1px solid #ccbaff; border-radius: 6px; background: #191d37f2; color: #fff; box-shadow: 0 2px 10px #0004; font-size: 13px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
 :deep(.leaflet-control-zoom) { margin-right: 22px; margin-bottom: 60px; }
 :deep(.leaflet-control-zoom a) { width: 40px; height: 38px; line-height: 38px; }
 :deep(.leaflet-control-attribution) { background: rgba(8, 20, 34, 0.85); color: #c2dce9; font-size: 10px; }
@@ -140,21 +141,21 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 :deep(.leaflet-tooltip::before) { display: none; }
 @media (max-width: 1250px) {
   .lesson-context { display: none; }
-  .lesson-tab { min-width: 87px; padding: 9px 11px; }
+  .lesson-navigation .lesson-tab { min-width: 87px; padding: 9px 11px; }
   .lesson-card { padding: 18px; width: 300px; }
 }
 @media (max-width: 850px) {
   .globe-caption { left: 12px; bottom: 22px; gap: 6px; padding: 8px 10px; }
   .globe-caption .option-btn { min-height: 44px; }
   .map-zoom { right: 12px; }
-  .lesson-navigation { top: 12px; left: 12px; right: 12px; padding: 5px; }
+  .lesson-overlay { top: 12px; left: 12px; right: 12px; bottom: 140px; width: auto; max-width: none; gap: 64px; }
+  .lesson-navigation { width: 100%; padding: 5px; }
   .lesson-tabs { width: 100%; }
-  .lesson-tab { flex: 1; min-width: 0; font-size: 13px; padding: 8px; gap: 5px; }
+  .lesson-navigation .lesson-tab { flex: 1; min-width: 0; font-size: 13px; padding: 8px; gap: 5px; }
   .map-actions { top: 78px; right: 12px; gap: 5px; }
   .map-actions .option-btn { font-size: 12px; padding: 8px; min-height: 44px; }
-  .lesson-card { top: 130px; left: 12px; width: 280px; padding: 15px; max-height: calc(100% - 270px); }
+  .lesson-card { width: 280px; padding: 15px; }
   .compass { top: 132px; right: 12px; width: 124px; }
-  .location-card { top: 120px; right: 12px; width: min(300px, calc(100% - 24px)); }
   .map-legend { right: 12px; width: 260px; padding: 12px; }
   .map-status { left: 12px; max-width: calc(100% - 85px); }
   .interaction-hint { bottom: 108px; max-width: calc(100% - 24px); width: max-content; }
@@ -163,9 +164,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   .compass { width: 102px; padding: 4px; }
   .interaction-hint { flex-wrap: wrap; gap: 8px; }
   .interaction-actions { margin-left: auto; }
-  .lesson-card { width: calc(100% - 114px); min-width: 218px; }
+  .lesson-card { width: calc(100% - 90px); min-width: 218px; }
   .lesson-heading h2 { font-size: 16px; }
-  .lesson-card:not(.is-collapsed) ~ .map-legend { display: none; }
+  .lesson-overlay:not(.is-collapsed) ~ .map-legend { display: none; }
   .map-legend { bottom: 120px; }
   .tab-number { display: none; }
   .map-status { font-size: 11px; bottom: 91px; }
@@ -173,9 +174,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   .brand-area { max-width: 85px; }
 }
 @media (max-height: 640px) and (min-width: 851px) {
-  .lesson-navigation { top: 10px; }
+  .lesson-overlay { top: 10px; bottom: 144px; gap: 10px; }
   .map-actions { top: 14px; }
-  .lesson-card { top: 76px; max-height: calc(100% - 220px); }
   .map-status { bottom: 85px; }
   .compass { top: 80px; }
 }

@@ -81,6 +81,19 @@
             </div>
           </section>
 
+          <section class="geo-card map-note-card">
+            <h3><span aria-hidden="true">📌</span> 操作方法</h3>
+            <template v-if="gameMode === 'click'">
+              <p><strong>1.</strong> 点击右侧任意省级行政区名称。</p>
+              <p><strong>2.</strong> 再点击地图中的对应位置。</p>
+            </template>
+            <template v-else>
+              <p><strong>1.</strong> 按住右侧省级行政区卡片。</p>
+              <p><strong>2.</strong> 拖到地图对应位置后松开。</p>
+            </template>
+            <p class="method-result">匹配正确后，省区将高亮并标记为已完成。</p>
+          </section>
+
           <section class="geo-card progress-card">
             <div class="progress-head">
               <div>
@@ -118,12 +131,6 @@
             </div>
           </section>
 
-          <section class="geo-card map-note-card">
-            <h3>操作说明</h3>
-            <p v-if="gameMode === 'click'">👆 点选模式：先点击右侧省级行政区名称，再点击地图中对应位置。</p>
-            <p v-else>🖐 拖拽模式：直接按住右侧卡片（左上角为简称）拖到地图上对应位置松开。</p>
-            <p>匹配正确后，该省份会高亮，右侧名称会变为已完成状态。</p>
-          </section>
         </div>
 
         <div class="resize-handle resize-left" v-bind="rightResizeAttrs"></div>
@@ -398,6 +405,102 @@ const PROVINCES: Array<{ adcode: string; name: string; shortName: string }> = [
   { adcode: '820000', name: '澳门特别行政区', shortName: '澳' },
 ]
 
+/*
+ * 省级行政区陆地相邻关系。
+ * 使用 DSATUR 图着色生成底色，确保相邻省区不会使用同一种颜色。
+ */
+const PROVINCE_NEIGHBOR_PAIRS: Array<[string, string]> = [
+  ['北京市', '天津市'], ['北京市', '河北省'], ['天津市', '河北省'],
+  ['河北省', '辽宁省'], ['河北省', '内蒙古自治区'], ['河北省', '山西省'],
+  ['河北省', '河南省'], ['河北省', '山东省'],
+  ['山西省', '内蒙古自治区'], ['山西省', '陕西省'], ['山西省', '河南省'],
+  ['内蒙古自治区', '黑龙江省'], ['内蒙古自治区', '吉林省'], ['内蒙古自治区', '辽宁省'],
+  ['内蒙古自治区', '陕西省'], ['内蒙古自治区', '宁夏回族自治区'], ['内蒙古自治区', '甘肃省'],
+  ['辽宁省', '吉林省'], ['吉林省', '黑龙江省'],
+  ['上海市', '江苏省'], ['上海市', '浙江省'],
+  ['江苏省', '山东省'], ['江苏省', '安徽省'], ['江苏省', '浙江省'],
+  ['浙江省', '安徽省'], ['浙江省', '江西省'], ['浙江省', '福建省'],
+  ['安徽省', '江西省'], ['安徽省', '湖北省'], ['安徽省', '河南省'], ['安徽省', '山东省'],
+  ['福建省', '江西省'], ['福建省', '广东省'],
+  ['江西省', '湖北省'], ['江西省', '湖南省'], ['江西省', '广东省'],
+  ['山东省', '河南省'],
+  ['河南省', '陕西省'], ['河南省', '湖北省'],
+  ['湖北省', '陕西省'], ['湖北省', '重庆市'], ['湖北省', '湖南省'],
+  ['湖南省', '重庆市'], ['湖南省', '贵州省'], ['湖南省', '广西壮族自治区'], ['湖南省', '广东省'],
+  ['广东省', '广西壮族自治区'], ['广东省', '香港特别行政区'], ['广东省', '澳门特别行政区'],
+  ['广西壮族自治区', '贵州省'], ['广西壮族自治区', '云南省'],
+  ['重庆市', '陕西省'], ['重庆市', '四川省'], ['重庆市', '贵州省'],
+  ['四川省', '青海省'], ['四川省', '甘肃省'], ['四川省', '陕西省'],
+  ['四川省', '贵州省'], ['四川省', '云南省'], ['四川省', '西藏自治区'],
+  ['贵州省', '云南省'],
+  ['云南省', '西藏自治区'],
+  ['西藏自治区', '新疆维吾尔自治区'], ['西藏自治区', '青海省'],
+  ['陕西省', '甘肃省'], ['陕西省', '宁夏回族自治区'],
+  ['甘肃省', '新疆维吾尔自治区'], ['甘肃省', '青海省'], ['甘肃省', '宁夏回族自治区'],
+  ['青海省', '新疆维吾尔自治区'],
+]
+
+const PROVINCE_BASE_COLORS = [
+  '#789ec6',
+  '#c58fa2',
+  '#86ad79',
+  '#d0a35f',
+  '#9b8cc1',
+]
+
+function createProvinceColorMap() {
+  const neighbors = new Map(
+    PROVINCES.map(province => [province.name, new Set<string>()])
+  )
+
+  for (const [left, right] of PROVINCE_NEIGHBOR_PAIRS) {
+    neighbors.get(left)?.add(right)
+    neighbors.get(right)?.add(left)
+  }
+
+  const colorIndexes = new Map<string, number>()
+  const uncolored = new Set(PROVINCES.map(province => province.name))
+
+  while (uncolored.size) {
+    const name = [...uncolored].sort((a, b) => {
+      const saturationA = new Set(
+        [...(neighbors.get(a) || [])]
+          .map(item => colorIndexes.get(item))
+          .filter((item): item is number => item !== undefined)
+      ).size
+      const saturationB = new Set(
+        [...(neighbors.get(b) || [])]
+          .map(item => colorIndexes.get(item))
+          .filter((item): item is number => item !== undefined)
+      ).size
+
+      return saturationB - saturationA ||
+        (neighbors.get(b)?.size || 0) - (neighbors.get(a)?.size || 0)
+    })[0]!
+
+    const usedColors = new Set(
+      [...(neighbors.get(name) || [])]
+        .map(item => colorIndexes.get(item))
+        .filter((item): item is number => item !== undefined)
+    )
+    const colorIndex = PROVINCE_BASE_COLORS.findIndex(
+      (_, index) => !usedColors.has(index)
+    )
+
+    colorIndexes.set(name, colorIndex >= 0 ? colorIndex : 0)
+    uncolored.delete(name)
+  }
+
+  return new Map(
+    PROVINCES.map(province => [
+      province.name,
+      PROVINCE_BASE_COLORS[colorIndexes.get(province.name) || 0]!,
+    ])
+  )
+}
+
+const provinceBaseColorMap = createProvinceColorMap()
+
 // 中国省级行政区 GeoJSON：高德下载的全国省级完整数据
 const CHINA_GEOJSON_URL = '/geo-resources-folder/geojson/中国矢量数据/中国省级行政区.json'
 // 不能注册成 china：ECharts 对名为 china 的地图会注入内置南海诸岛小窗。
@@ -493,7 +596,31 @@ function isNineDashFeature(feature: any): boolean {
 }
 
 function getBaseGeoRegions() {
+  const provinceRegions = PROVINCES.map(province => {
+    const matched = matchedSet.value.has(province.name)
+    const areaColor = matched
+      ? provinceBaseColorMap.get(province.name) || '#2ec4b6'
+      : '#9ca3af'
+
+    return {
+      name: province.name,
+      itemStyle: {
+        areaColor,
+        borderColor: '#ffffff',
+        borderWidth: matched ? 1.6 : 1.2,
+      },
+      emphasis: {
+        itemStyle: {
+          areaColor,
+          borderColor: '#ffffff',
+          borderWidth: matched ? 1.6 : 1.2,
+        },
+      },
+    }
+  })
+
   return [
+    ...provinceRegions,
     {
       name: NINE_DASH_REGION_NAME,
       silent: true,
@@ -718,14 +845,11 @@ function matchProvince(name: string) {
   matchedCount.value = matchedSet.value.size
   progressPercent.value = (matchedCount.value / totalCount.value) * 100
 
-  const regions = [
-    ...getBaseGeoRegions(),
-    ...[...matchedSet.value].map(n => ({
-      name: n,
-      itemStyle: { areaColor: '#2ec4b6', borderColor: '#ffffff', borderWidth: 1.5 },
-    })),
-  ]
-  chart?.setOption({ geo: { regions } }, false)
+  chart?.setOption({
+    geo: {
+      regions: getBaseGeoRegions(),
+    },
+  }, false)
 
   showDropFeedback(true, `✅ ${name} 位置正确！🎯`)
   activeProvince.value = ''
@@ -1629,13 +1753,19 @@ body {
 
 .map-note-card {
   padding: 12px;
+  margin-bottom: 12px;
+  background:
+    linear-gradient(135deg, rgba(46, 196, 182, 0.13), rgba(36, 124, 255, 0.08));
+  border-color: rgba(46, 196, 182, 0.36);
 }
 
 .map-note-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 8px;
-  color: var(--text-primary);
+  color: #74eae5;
   font-size: 15px;
-
 }
 
 .map-note-card p {
@@ -1643,7 +1773,16 @@ body {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.6;
+}
 
+.map-note-card p strong {
+  color: #74eae5;
+}
+
+.map-note-card .method-result {
+  padding-top: 7px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(116, 234, 229, 0.18);
 }
 
 

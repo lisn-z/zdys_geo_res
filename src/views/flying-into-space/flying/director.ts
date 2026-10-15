@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TextureBank, makeEnvironment, type AssetState } from './assets';
+import { worldAssetKeys } from './resources';
 import { ModelMaterials } from './models';
 import { AscentCloudPass } from './clouds';
 import { SoftSmokeDepthPass } from './smoke-depth';
@@ -232,7 +233,16 @@ export class SpaceDirector {
         el.addEventListener('webglcontextrestored', this.contextRestored);
     }
     async prepareAssets(retry = false, onStage?: (message:string)=>void) {
-        await this.bank.preloadAll(texture => {
+        // Prepare every original texture, including GPU upload, before opening
+        // the journey so chapter changes never need another resource wait.
+        onStage?.('正在准备整段星空旅程');
+        await Promise.all([
+            this.bank.preloadAll(this.uploadTexture, this.renderer.capabilities.maxTextureSize, retry),
+            this.cloudPass.prepare(this.renderer),
+        ]);
+    }
+    isWorldReady(worldKey: string): boolean { return this.bank.hasReady(worldAssetKeys(worldKey)); }
+    private uploadTexture = (texture: THREE.Texture) => {
             const gl = this.renderer.getContext();
             if (gl.isContextLost()) throw new Error('WebGL 上下文已丢失，无法上传纹理');
             // Clear earlier diagnostics so each reported error belongs to this texture.
@@ -240,10 +250,7 @@ export class SpaceDirector {
             this.renderer.initTexture(texture);
             const code = gl.getError();
             if (code !== gl.NO_ERROR) throw new Error(`GPU 纹理上传失败（WebGL ${code}）`);
-        }, this.renderer.capabilities.maxTextureSize, retry);
-        onStage?.('纹理已就绪，正在准备三维云场与渲染程序');
-        await this.cloudPass.prepare(this.renderer);
-    }
+    };
     private contextLost = (e: Event) => { e.preventDefault(); this.options.onError('图形上下文暂时丢失，请重新初始化场景。'); };
     private contextRestored = () => { this.hasFrame = false; this.currentKey = ''; this.forceTransition = true; };
     resize() {
@@ -332,7 +339,7 @@ export class SpaceDirector {
     restartMissionIntro() { this.missionScene?.restartIntro(); }
     /** Task mode owns its scene, simulation state and camera independently of story chapters. */
     renderMission(state:MissionFlightState,dt:number) {
-        if(this.disposed||!this.bank.ready)return;
+        if(this.disposed||!this.isWorldReady('mission'))return;
         this.applyPendingResize();
         if(!this.missionScene)this.missionScene=new MissionScene(this.bank,this.materials,this.environment,this.options.quality);
         if(!this.missionActive){
@@ -358,7 +365,7 @@ export class SpaceDirector {
         this.drawQuad(this.outputMat,null);this.hasFrame=true;
     }
     render(f: WorldFrame, dt: number, advanceTransitions = true) {
-        if (this.disposed || !this.bank.ready)
+        if (this.disposed || !this.isWorldReady(f.shot.world))
             return;
         this.applyPendingResize();
         if(this.missionActive){
@@ -479,7 +486,7 @@ export class SpaceDirector {
         this.hasFrame = true;
         this.lastShot = shot.id;
         const next = locateStory(Math.min(TOTAL_DURATION - .01, f.global + 2));
-        if (next.shot.world !== shot.world)
+        if (next.shot.world !== shot.world && this.isWorldReady(next.shot.world))
             this.getWorld(next.shot.world);
     }
     private applyHighlight(world: WorldPack, label: string) {
@@ -599,8 +606,9 @@ export class AmbientSound {
     private noise: AudioBufferSourceNode | null = null;
     private drone: OscillatorNode | null = null;
     enabled = false;
-    async toggle() {
-        this.enabled = !this.enabled;
+    toggle() { return this.setEnabled(!this.enabled); }
+    async setEnabled(enabled: boolean) {
+        this.enabled = enabled;
         if (this.enabled && !this.ctx) {
             this.ctx = new AudioContext();
             const c = this.ctx;
@@ -629,8 +637,10 @@ export class AmbientSound {
         }
         if (this.enabled)
             await this.ctx?.resume();
-        else if (this.ctx && this.gain)
-            this.gain.gain.setTargetAtTime(0, this.ctx.currentTime, .15);
+        else if (this.ctx && this.gain) {
+            this.gain.gain.cancelScheduledValues(this.ctx.currentTime);
+            this.gain.gain.setValueAtTime(0, this.ctx.currentTime);
+        }
         return this.enabled;
     }
     update(world: string, playing: boolean) {

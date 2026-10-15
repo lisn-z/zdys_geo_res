@@ -187,6 +187,8 @@ export function createSurfaceCamera(
     canvas.removeEventListener('keydown', keydown)
   }
   return { setEnabled, update, resetView, cancel, dispose,
+    // OrbitControls 缓存初始化时的 up 基准；空间参考系变化后需换绑控制器。
+    setControls(nextControls: OrbitControls) { controls = nextControls },
     locate() {
       following = true
       camera.fov = camera.fov < 30 ? OBSERVER_FOV : OBSERVER_CLOSE_FOV

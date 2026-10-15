@@ -50,6 +50,7 @@
         <div class="formula-strip">
           <span>核心公式</span>
           <strong>{{ activeTool.formula }}</strong>
+          <small>{{ activeTool.formulaNote }}</small>
         </div>
 
         <div class="calc-workspace">
@@ -166,6 +167,7 @@ type ToolConfig = {
   badge: string
   desc: string
   formula: string
+  formulaNote: string
   fields: FieldConfig[]
   defaults: Record<string, number>
   examples: ExampleConfig[]
@@ -231,7 +233,7 @@ const latField: FieldConfig = {
 
 const deltaField: FieldConfig = {
   key: 'delta',
-  label: '太阳赤纬 δ',
+  label: '太阳直射点纬度 δ',
   unit: '°',
   min: -23.44,
   max: 23.44,
@@ -242,25 +244,6 @@ const deltaField: FieldConfig = {
 
 const tools = [
   {
-    id: 'solarDeclination',
-    title: '太阳赤纬计算',
-    icon: '☀️',
-    category: '地球公转',
-    badge: '赤纬',
-    desc: '根据年内序号估算太阳直射点纬度。',
-    formula: 'δ ≈ 23.44° × sin[360° × (284 + n) / 365]',
-    fields: [
-      { key: 'day', label: '年内序号 n', unit: '天', min: 1, max: 365, step: 1, placeholder: '1 - 365', tip: '1 月 1 日为第 1 天' },
-    ],
-    defaults: { day: 172 },
-    examples: [
-      { name: '春分附近', values: { day: 80 } },
-      { name: '夏至附近', values: { day: 172 } },
-      { name: '冬至附近', values: { day: 355 } },
-    ],
-    knowledge: ['太阳赤纬可近似理解为太阳直射点纬度。', '太阳直射点在南北回归线之间周年移动。', '夏至直射北回归线，冬至直射南回归线。'],
-  },
-  {
     id: 'noonAltitude',
     title: '正午太阳高度角',
     icon: '📐',
@@ -268,6 +251,7 @@ const tools = [
     badge: '正午',
     desc: '计算某地某日正午太阳高度角。',
     formula: 'H = 90° - |φ - δ|',
+    formulaNote: 'H 为正午太阳高度角；φ 为当地纬度，δ 为太阳直射点纬度，均用角度表示。北纬为正，南纬为负。',
     fields: [latField, deltaField],
     defaults: { lat: 31.23, delta: 23.44 },
     examples: [
@@ -275,7 +259,7 @@ const tools = [
       { name: '北京冬至', values: { lat: 39.9, delta: -23.44 } },
       { name: '赤道春分', values: { lat: 0, delta: 0 } },
     ],
-    knowledge: ['正午太阳高度是一天中太阳高度最大值。', '纬度与太阳赤纬越接近，正午太阳高度越大。', '太阳直射点所在纬度正午太阳高度为 90°。'],
+    knowledge: ['正午太阳高度是一天中太阳高度最大值。', '当地纬度与太阳直射点纬度越接近，正午太阳高度越大。', '太阳直射点所在纬度正午太阳高度为 90°。'],
   },
   {
     id: 'solarAltitudeAnyTime',
@@ -283,8 +267,9 @@ const tools = [
     icon: '🕘',
     category: '太阳高度',
     badge: '时刻',
-    desc: '根据纬度、太阳赤纬和地方太阳时计算太阳高度。',
-    formula: 'sin h = sinφ·sinδ + cosφ·cosδ·cosω，ω = 15° × (t - 12)',
+    desc: '根据当地纬度、太阳直射点纬度和地方太阳时计算太阳高度。',
+    formula: 'sin h = sinφ·sinδ + cosφ·cosδ·cosθ，θ = 15° × (t - 12)',
+    formulaNote: 'h 为太阳高度角；φ 为当地纬度，δ 为太阳直射点纬度；θ 为时角，t 为地方太阳时（小时）。12 表示正午 12:00。',
     fields: [latField, deltaField, { key: 'solarTime', label: '地方太阳时 t', unit: '时', min: 0, max: 24, step: 0.1, placeholder: '例如 14', tip: '正午为 12' }],
     defaults: { lat: 31.23, delta: 23.44, solarTime: 14 },
     examples: [
@@ -299,8 +284,9 @@ const tools = [
     icon: '🌗',
     category: '昼夜长短',
     badge: '昼长',
-    desc: '根据纬度和太阳赤纬计算理论昼长。',
-    formula: '昼长 N = 2 × arccos(-tanφ·tanδ) / 15',
+    desc: '根据当地纬度和太阳直射点纬度计算理论昼长。',
+    formula: '昼长 N = 2 × arccos(-tanφ·tanδ) ÷ (15°/时)',
+    formulaNote: 'N 为昼长（小时）；φ 为当地纬度，δ 为太阳直射点纬度。反余弦先求出角度，再按每小时 15° 换算成时间。',
     fields: [latField, deltaField],
     defaults: { lat: 39.9, delta: 23.44 },
     examples: [
@@ -317,7 +303,8 @@ const tools = [
     category: '昼夜长短',
     badge: '日出',
     desc: '根据昼长推算日出、日落的地方太阳时。',
-    formula: '日出 = 12 - N/2，日落 = 12 + N/2',
+    formula: '日出地方时 = 12时 - N/2，日落地方时 = 12时 + N/2',
+    formulaNote: '12时指当地太阳正午 12:00；N 为昼长（小时），N/2 是正午到日出或日落的时间。极昼、极夜时无通常意义的日出日落。',
     fields: [latField, deltaField],
     defaults: { lat: 31.23, delta: 23.44 },
     examples: [
@@ -333,7 +320,8 @@ const tools = [
     category: '时间计算',
     badge: '地方时',
     desc: '根据经度差计算两地地方时差。',
-    formula: '目标地方时 = 参考地方时 + (λ目标 - λ参考) × 4分钟',
+    formula: '目标地方时 = 参考地方时 + (λ目标 - λ参考) × (4分钟/度)',
+    formulaNote: 'λ 是经度，东经为正、西经为负；经度每差 1°，地方时相差 4 分钟。相加前先统一时间单位。',
     fields: [
       { key: 'refTime', label: '参考地方时', unit: '时', min: 0, max: 24, step: 0.1, placeholder: '例如 12', tip: '13.5 表示 13:30' },
       { key: 'refLon', label: '参考经度', unit: '°', min: -180, max: 180, step: 0.01, placeholder: '例如 120', tip: '东经为正，西经为负' },
@@ -354,6 +342,7 @@ const tools = [
     badge: '区时',
     desc: '根据时区差换算不同地区的区时。',
     formula: '目标区时 = 已知区时 + (目标时区 - 已知时区)',
+    formulaNote: '东时区记正数，西时区记负数；时区数每差 1，区时相差 1 小时。跨过 0:00 或 24:00 时需调整日期。',
     fields: [
       { key: 'knownTime', label: '已知区时', unit: '时', min: 0, max: 24, step: 0.1, placeholder: '例如 8', tip: '输入十进制小时' },
       { key: 'knownZone', label: '已知时区', unit: '区', min: -12, max: 12, step: 1, placeholder: '东八区输入 8', tip: '东区为正，西区为负' },
@@ -373,7 +362,8 @@ const tools = [
     category: '经纬网',
     badge: '经度',
     desc: '根据地方时时间差反推两地经度差。',
-    formula: 'Δλ = Δt / 4分钟',
+    formula: '经度差 Δλ = 地方时差 Δt ÷ (4分钟/度)',
+    formulaNote: 'Δt = 目标地地方时 − 参考地地方时，单位为分钟；Δλ 为目标地经度减参考地经度，单位为度。',
     fields: [{ key: 'timeDiff', label: '地方时时间差', unit: '分钟', min: -720, max: 720, step: 1, placeholder: '例如 60', tip: '目标地时间减参考地时间' }],
     defaults: { timeDiff: 60 },
     examples: [
@@ -389,7 +379,8 @@ const tools = [
     category: '地球自转',
     badge: '线速度',
     desc: '计算不同纬度处随地球自转的线速度。',
-    formula: 'v = 465.1 × cosφ m/s',
+    formula: 'v = 465.1m/s × cosφ',
+    formulaNote: 'v 为地表线速度；φ 为当地纬度。465.1 m/s 是按赤道周长和约 23 小时 56 分恒星日得到的赤道近似速度。',
     fields: [latField],
     defaults: { lat: 31.23 },
     examples: [
@@ -397,7 +388,7 @@ const tools = [
       { name: '上海', values: { lat: 31.23 } },
       { name: '北极', values: { lat: 90 } },
     ],
-    knowledge: ['地球自转角速度全球基本相同。', '自转线速度由赤道向两极递减。', '赤道线速度最大，两极线速度为 0。'],
+    knowledge: ['自转线速度表示地表某点每秒随地球自转移动的距离。', '纬线圈周长由赤道向两极减小，所以线速度逐渐减小。', '赤道线速度最大，两极线速度为 0。'],
   },
   {
     id: 'angularVelocity',
@@ -406,14 +397,15 @@ const tools = [
     category: '地球自转',
     badge: '角速度',
     desc: '计算地球自转角速度。',
-    formula: 'ω = 360° / 24h = 15°/h ≈ 7.292×10⁻⁵ rad/s',
+    formula: '角速度 = 360° ÷ 自转周期 T',
+    formulaNote: 'T 的单位为小时，结果单位为度/时；按 24 小时估算约为 15°/时。恒星日约 23.934 小时，对应约 15.04°/时。',
     fields: [{ key: 'hours', label: '自转周期', unit: '小时', min: 1, max: 48, step: 0.01, placeholder: '24', tip: '教学常用 24 小时' }],
     defaults: { hours: 24 },
     examples: [
       { name: '太阳日 24h', values: { hours: 24 } },
       { name: '恒星日 23.934h', values: { hours: 23.934 } },
     ],
-    knowledge: ['地球自转角速度在全球各纬度基本相同。', '常用结论：每小时转过 15°。', '线速度才会随纬度变化。'],
+    knowledge: ['角速度表示单位时间内转过的角度。', '除南北极点外，地表各地随地球自转转过的角度相同。', '按 24 小时太阳日估算，每小时约转过 15°。'],
   },
   {
     id: 'coriolis',
@@ -423,6 +415,7 @@ const tools = [
     badge: '偏向',
     desc: '计算科氏参数 f，用于理解水平运动物体偏转。',
     formula: 'f = 2Ωsinφ',
+    formulaNote: 'f 为科氏参数，单位 s⁻¹；Ω 为地球实际自转角速度（约 7.292×10⁻⁵ rad/s），φ 为当地纬度。',
     fields: [latField],
     defaults: { lat: 31.23 },
     examples: [
@@ -439,7 +432,8 @@ const tools = [
     category: '经纬网',
     badge: '纬距',
     desc: '根据纬度差估算南北方向实际距离。',
-    formula: 'D ≈ 111.32 × |φ₂ - φ₁| km',
+    formula: 'D ≈ (111.32千米/度) × |φ₂ - φ₁|',
+    formulaNote: 'D 为距离，单位千米；φ₁、φ₂ 是两地纬度，差值用度。每相差 1° 约为 111.32 千米。',
     fields: [
       { key: 'lat1', label: '纬度 φ₁', unit: '°', min: -90, max: 90, step: 0.01, tip: '北纬为正，南纬为负' },
       { key: 'lat2', label: '纬度 φ₂', unit: '°', min: -90, max: 90, step: 0.01, tip: '北纬为正，南纬为负' },
@@ -458,7 +452,8 @@ const tools = [
     category: '经纬网',
     badge: '经距',
     desc: '根据纬度和经度差估算东西方向距离。',
-    formula: 'D ≈ 111.32 × cosφ × |λ₂ - λ₁| km',
+    formula: 'D ≈ (111.32千米/度) × cosφ × |λ₂ - λ₁|',
+    formulaNote: 'D 为距离，单位千米；φ 为两地所在的同一纬线纬度，λ₁、λ₂ 为经度，差值用度。适用于同纬线距离估算。',
     fields: [latField, { key: 'lon1', label: '经度 λ₁', unit: '°', min: -180, max: 180, step: 0.01, tip: '东经为正，西经为负' }, { key: 'lon2', label: '经度 λ₂', unit: '°', min: -180, max: 180, step: 0.01, tip: '东经为正，西经为负' }],
     defaults: { lat: 30, lon1: 110, lon2: 120 },
     examples: [
@@ -473,8 +468,9 @@ const tools = [
     icon: '🛰️',
     category: '经纬网',
     badge: '球距',
-    desc: '使用 haversine 公式计算地球表面两点最短距离。',
-    formula: 'd = 2R × asin√[sin²(Δφ/2)+cosφ₁cosφ₂sin²(Δλ/2)]',
+    desc: '按球面余弦公式估算地球表面两点间的最短距离。',
+    formula: 'd = R × arccos[sinφ₁sinφ₂ + cosφ₁cosφ₂cos(λ₂-λ₁)]',
+    formulaNote: 'd 为大圆劣弧距离；R 取地球平均半径 6371 千米；φ 为纬度，λ 为经度。计算三角函数时角度须换成弧度。',
     fields: [
       { key: 'lat1', label: '纬度 φ₁', unit: '°', min: -90, max: 90, step: 0.01, tip: '北纬为正，南纬为负' },
       { key: 'lon1', label: '经度 λ₁', unit: '°', min: -180, max: 180, step: 0.01, tip: '东经为正，西经为负' },
@@ -486,7 +482,7 @@ const tools = [
       { name: '上海到北京', values: { lat1: 31.23, lon1: 121.47, lat2: 39.9, lon2: 116.4 } },
       { name: '赤道 1°', values: { lat1: 0, lon1: 0, lat2: 0, lon2: 1 } },
     ],
-    knowledge: ['球面最短距离不是平面直线距离。', '长距离航线常接近大圆航线。', '经纬网精确距离建议使用球面公式。'],
+    knowledge: ['球面两点最短距离沿大圆劣弧计算。', '两地经纬度须先换为弧度，再代入三角函数。', '球面公式把地球视为球体，所得距离为近似值。'],
   },
   {
     id: 'mapDistance',
@@ -496,6 +492,7 @@ const tools = [
     badge: '比例尺',
     desc: '根据比例尺把实际距离换算成图上距离。',
     formula: '图上距离 cm = 实际距离 km × 100000 / 比例尺分母',
+    formulaNote: '比例尺为 1:M 时，M 为分母；100000 是 1 千米等于 100000 厘米的单位换算系数。',
     fields: [{ key: 'realKm', label: '实际距离', unit: 'km', min: 0, step: 0.01, tip: '单位千米' }, { key: 'scale', label: '比例尺分母', min: 1, step: 1, tip: '1:1000000 输入 1000000' }],
     defaults: { realKm: 120, scale: 1000000 },
     examples: [
@@ -512,6 +509,7 @@ const tools = [
     badge: '比例尺',
     desc: '根据比例尺把图上距离换算成实际距离。',
     formula: '实际距离 km = 图上距离 cm × 比例尺分母 / 100000',
+    formulaNote: '比例尺为 1:M 时，M 为分母；100000 是厘米换算成千米的系数。',
     fields: [{ key: 'mapCm', label: '图上距离', unit: 'cm', min: 0, step: 0.01, tip: '单位厘米' }, { key: 'scale', label: '比例尺分母', min: 1, step: 1, tip: '1:1000000 输入 1000000' }],
     defaults: { mapCm: 5, scale: 1000000 },
     examples: [
@@ -528,6 +526,7 @@ const tools = [
     badge: '视距',
     desc: '估算观察者在一定高度下能看到的地平线距离。',
     formula: 'd ≈ 3.57 × √h km',
+    formulaNote: 'd 是地平线视距，单位千米；h 是观察高度，单位米。3.57 是按地球半径近似换算的系数。',
     fields: [{ key: 'height', label: '观察高度 h', unit: 'm', min: 0, step: 0.1, placeholder: '例如 100', tip: '观察点相对地面的高度' }],
     defaults: { height: 100 },
     examples: [
@@ -545,6 +544,7 @@ const tools = [
     badge: '影长',
     desc: '根据物体高度和太阳高度角计算影子长度。',
     formula: 'L = 物体高度 / tanH',
+    formulaNote: 'L 为水平地面上的影长；H 为太阳高度角，需大于 0°。物体高度与影长使用相同长度单位。',
     fields: [{ key: 'objectHeight', label: '物体高度', unit: 'm', min: 0, step: 0.01, placeholder: '例如 2', tip: '杆、树或建筑物高度' }, { key: 'altitude', label: '太阳高度角 H', unit: '°', min: 0, max: 90, step: 0.01, placeholder: '例如 60', tip: '太阳高度必须大于 0°' }],
     defaults: { objectHeight: 2, altitude: 60 },
     examples: [
@@ -559,16 +559,17 @@ const tools = [
     icon: '❄️',
     category: '昼夜长短',
     badge: '极昼',
-    desc: '根据纬度和太阳赤纬判断是否出现极昼或极夜。',
-    formula: '|φ| + |δ| ≥ 90° 时，可能出现极昼或极夜',
+    desc: '根据当地纬度和太阳直射点纬度判断极昼或极夜。',
+    formula: '|φ| + |δ| ≥ 90° 时，再判断两地是否同半球',
+    formulaNote: 'φ 为当地纬度，δ 为太阳直射点纬度；| | 表示取绝对值。满足条件后，同半球为极昼，异半球为极夜；春秋分极点为临界状态。',
     fields: [latField, deltaField],
     defaults: { lat: 70, delta: 23.44 },
     examples: [
-      { name: '北极圈夏至', values: { lat: 66.5, delta: 23.44 } },
-      { name: '北极圈冬至', values: { lat: 66.5, delta: -23.44 } },
-      { name: '南极圈夏至', values: { lat: -66.5, delta: 23.44 } },
+      { name: '北极圈夏至', values: { lat: 66.56, delta: 23.44 } },
+      { name: '北极圈冬至', values: { lat: 66.56, delta: -23.44 } },
+      { name: '南极圈夏至', values: { lat: -66.56, delta: 23.44 } },
     ],
-    knowledge: ['极昼极夜出现在极圈及其以内地区。', '纬度与太阳直射半球相同可能极昼。', '纬度与太阳直射半球相反可能极夜。'],
+    knowledge: ['极昼极夜只可能出现在极圈及其以内地区。', '当地纬度绝对值与直射点纬度绝对值之和达到 90°，且两者同半球时，该地出现极昼。', '两者纬度绝对值之和达到 90°，且分处南北半球时，该地出现极夜。'],
   },
   {
     id: 'tropicPolarCircle',
@@ -578,6 +579,7 @@ const tools = [
     badge: '黄赤交角',
     desc: '根据黄赤交角计算回归线和极圈纬度。',
     formula: '回归线纬度 = ε，极圈纬度 = 90° - ε',
+    formulaNote: 'ε 是黄赤交角，单位为度；计算结果为南北回归线和南北极圈的纬度绝对值。',
     fields: [{ key: 'epsilon', label: '黄赤交角 ε', unit: '°', min: 0, max: 45, step: 0.01, placeholder: '23.44', tip: '当前约 23.44°' }],
     defaults: { epsilon: 23.44 },
     examples: [
@@ -593,7 +595,8 @@ const tools = [
     category: '时间计算',
     badge: '真太阳时',
     desc: '根据当地经度和时区中央经线估算太阳正午对应钟表时间。',
-    formula: '钟表正午 ≈ 12 - (λ当地 - λ中央经线) / 15',
+    formula: '钟表正午 ≈ 12时 - (λ当地 - λ中央经线) ÷ (15°/时)',
+    formulaNote: '12 为钟表 12:00；λ 是经度（度），经度差每 15° 相当于 1 小时。此处忽略均时差。',
     fields: [{ key: 'lon', label: '当地经度 λ', unit: '°', min: -180, max: 180, step: 0.01, tip: '东经为正，西经为负' }, { key: 'zone', label: '所在时区', unit: '区', min: -12, max: 12, step: 1, tip: '东八区输入 8' }],
     defaults: { lon: 121.47, zone: 8 },
     examples: [
@@ -611,6 +614,7 @@ const tools = [
     badge: '气温',
     desc: '根据海拔差估算气温变化。',
     formula: 'T₂ = T₁ - 0.6℃ × Δh / 100m',
+    formulaNote: 'T₁ 为起点气温，T₂ 为目标气温；Δh 为目标地减起点的海拔差（米），0.6℃/100m 为近似递减率。',
     fields: [{ key: 'baseTemp', label: '起点气温 T₁', unit: '℃', step: 0.1, placeholder: '例如 25', tip: '低处或起点气温' }, { key: 'heightDiff', label: '海拔升高 Δh', unit: 'm', step: 1, placeholder: '例如 1000', tip: '升高为正，降低为负' }],
     defaults: { baseTemp: 25, heightDiff: 1000 },
     examples: [
@@ -627,6 +631,7 @@ const tools = [
     badge: '坡度',
     desc: '根据高差和水平距离计算坡度、坡角。',
     formula: '坡度 = 高差 / 水平距离 × 100%，坡角 = arctan(高差 / 水平距离)',
+    formulaNote: '高差与水平距离用同一单位；坡度是百分比，坡角是反正切所得角度。',
     fields: [{ key: 'heightDiff', label: '高差', unit: 'm', min: 0, step: 1, placeholder: '例如 200', tip: '两点海拔差' }, { key: 'horizontalDistance', label: '水平距离', unit: 'm', min: 0.01, step: 1, placeholder: '例如 1000', tip: '地图或实地水平距离' }],
     defaults: { heightDiff: 200, horizontalDistance: 1000 },
     examples: [
@@ -680,6 +685,7 @@ async function copyResult(): Promise<void> {
   const text = [
     `【${activeTool.value.title}】`,
     `公式：${activeTool.value.formula}`,
+    `符号说明：${activeTool.value.formulaNote}`,
     `结果：${calcResult.value.main}`,
     `说明：${calcResult.value.sub}`,
   ].join('\n')
@@ -701,22 +707,6 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
   const v = (key: string, fallback = 0): number => safeNumber(values[key], fallback)
 
   switch (id) {
-    case 'solarDeclination': {
-      const day = clamp(v('day', 1), 1, 365)
-      const angle = (360 * (284 + day)) / 365
-      const delta = 23.44 * Math.sin(toRad(angle))
-      return {
-        main: `太阳赤纬约 ${fmt(delta)}°`,
-        sub: delta >= 0 ? '太阳直射点位于北半球。' : '太阳直射点位于南半球。',
-        tip: '这是教学常用近似公式，适合课堂演示和快速估算。',
-        highlights: [
-          { label: '年内序号', value: `${fmt(day, 0)} 天` },
-          { label: '公式角度', value: `${fmt(angle)}°` },
-          { label: '太阳赤纬', value: `${fmt(delta)}°` },
-        ],
-        dynamicLines: [`δ ≈ 23.44° × sin[360° × (284 + ${fmt(day, 0)}) / 365]`, `δ ≈ 23.44° × sin(${fmt(angle)}°)`, `δ ≈ ${fmt(delta)}°`],
-      }
-    }
     case 'noonAltitude': {
       const lat = v('lat')
       const delta = v('delta')
@@ -728,7 +718,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
         tip: '判断正午影子长短时，先算正午太阳高度；高度越大，影子越短。',
         highlights: [
           { label: '纬度 φ', value: `${fmt(lat)}°` },
-          { label: '赤纬 δ', value: `${fmt(delta)}°` },
+          { label: '直射点纬度 δ', value: `${fmt(delta)}°` },
           { label: '|φ - δ|', value: `${fmt(diff)}°` },
           { label: 'H', value: `${fmt(h)}°` },
         ],
@@ -739,36 +729,46 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
       const lat = v('lat')
       const delta = v('delta')
       const solarTime = v('solarTime')
-      const omega = 15 * (solarTime - 12)
-      const sinH = Math.sin(toRad(lat)) * Math.sin(toRad(delta)) + Math.cos(toRad(lat)) * Math.cos(toRad(delta)) * Math.cos(toRad(omega))
+      const hourAngle = 15 * (solarTime - 12)
+      const sinH = Math.sin(toRad(lat)) * Math.sin(toRad(delta)) + Math.cos(toRad(lat)) * Math.cos(toRad(delta)) * Math.cos(toRad(hourAngle))
       const h = toDeg(Math.asin(clamp(sinH, -1, 1)))
       return {
         main: `太阳高度角 ${fmt(h)}°`,
         sub: h >= 0 ? '太阳位于地平线以上。' : '太阳位于地平线以下，理论上为夜间。',
         tip: '这类公式适合解释一天中太阳高度变化：早晚低，正午高。',
         highlights: [
-          { label: '时角 ω', value: `${fmt(omega)}°` },
+          { label: '时角 θ', value: `${fmt(hourAngle)}°` },
           { label: 'sin h', value: fmt(sinH, 4) },
           { label: '太阳高度 h', value: `${fmt(h)}°` },
         ],
-        dynamicLines: [`ω = 15° × (${fmt(solarTime)} - 12) = ${fmt(omega)}°`, `sin h = sin(${fmt(lat)}°)×sin(${fmt(delta)}°) + cos(${fmt(lat)}°)×cos(${fmt(delta)}°)×cos(${fmt(omega)}°)`, `sin h = ${fmt(sinH, 4)}`, `h = ${fmt(h)}°`],
+        dynamicLines: [`θ = 15° × (${fmt(solarTime)} - 12) = ${fmt(hourAngle)}°`, `sin h = sin(${fmt(lat)}°)×sin(${fmt(delta)}°) + cos(${fmt(lat)}°)×cos(${fmt(delta)}°)×cos(${fmt(hourAngle)}°)`, `sin h = ${fmt(sinH, 4)}`, `h = ${fmt(h)}°`],
       }
     }
     case 'dayLength':
     case 'sunriseSunset': {
       const lat = v('lat')
       const delta = v('delta')
+      if (Math.abs(lat) === 90 && delta === 0) {
+        return {
+          main: '春秋分极点处于昼夜临界',
+          sub: '太阳位于地平线附近，无法按通常的日出日落过程计算昼长。',
+          tip: '极点春秋分是昼夜交替的特殊边界，不能直接代入常规昼长公式。',
+          highlights: [{ label: '判断', value: '昼夜临界' }],
+          dynamicLines: ['当地位于极点，太阳直射赤道。', '此时常规昼长公式不适用。'],
+        }
+      }
       const cosH0 = -Math.tan(toRad(lat)) * Math.tan(toRad(delta))
+      const reachesPolar = Math.abs(lat) + Math.abs(delta) >= 90
       let dayHours = 0
       let status = '正常'
-      if (cosH0 <= -1) {
+      if (reachesPolar && lat * delta > 0) {
         dayHours = 24
         status = '极昼'
-      } else if (cosH0 >= 1) {
+      } else if (reachesPolar && lat * delta < 0) {
         dayHours = 0
         status = '极夜'
       } else {
-        dayHours = (2 * toDeg(Math.acos(cosH0))) / 15
+        dayHours = (2 * toDeg(Math.acos(clamp(cosH0, -1, 1)))) / 15
       }
       if (id === 'sunriseSunset') {
         const sunrise = 12 - dayHours / 2
@@ -778,11 +778,11 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
           sub: status === '正常' ? `理论昼长约 ${fmt(dayHours)} 小时。` : '该纬度该日出现极昼或极夜。',
           tip: '这里算的是地方太阳时，不一定等于北京时间或当地标准时间。',
           highlights: [
-            { label: '昼长 N', value: `${fmt(dayHours)} h` },
+            { label: '昼长 N', value: `${fmt(dayHours)} 小时` },
             { label: '日出', value: status === '正常' ? hourText(sunrise) : status },
             { label: '日落', value: status === '正常' ? hourText(sunset) : status },
           ],
-          dynamicLines: [`先算昼长 N = ${fmt(dayHours)} h`, `日出 = 12 - N/2 = ${status === '正常' ? hourText(sunrise) : status}`, `日落 = 12 + N/2 = ${status === '正常' ? hourText(sunset) : status}`],
+          dynamicLines: [`先算昼长 N = ${fmt(dayHours)} 小时`, `日出地方时 = 12时 - N/2 = ${status === '正常' ? hourText(sunrise) : status}`, `日落地方时 = 12时 + N/2 = ${status === '正常' ? hourText(sunset) : status}`],
         }
       }
       return {
@@ -794,7 +794,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
           { label: '昼长', value: `${fmt(dayHours)} h` },
           { label: '夜长', value: `${fmt(24 - dayHours)} h` },
         ],
-        dynamicLines: ['N = 2 × arccos(-tanφ·tanδ) / 15', `N = 2 × arccos[-tan(${fmt(lat)}°) × tan(${fmt(delta)}°)] / 15`, `中间值 = ${fmt(cosH0, 4)}`, `N = ${fmt(dayHours)} 小时`],
+        dynamicLines: ['N = 2 × arccos(-tanφ·tanδ) ÷ (15°/时)', `N = 2 × arccos[-tan(${fmt(lat)}°) × tan(${fmt(delta)}°)] ÷ (15°/时)`, `中间值 = ${fmt(cosH0, 4)}`, `N = ${fmt(dayHours)} 小时`],
       }
     }
     case 'localSolarTime': {
@@ -847,7 +847,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
           { label: '经度差', value: `${fmt(lonDiff)}°` },
           { label: '方向', value: directionText(lonDiff) },
         ],
-        dynamicLines: ['Δλ = Δt / 4', `Δλ = ${fmt(timeDiff)} / 4`, `Δλ = ${fmt(lonDiff)}°`],
+        dynamicLines: ['Δλ = Δt ÷ (4分钟/度)', `Δλ = ${fmt(timeDiff)}分钟 ÷ (4分钟/度)`, `Δλ = ${fmt(lonDiff)}°`],
       }
     }
     case 'linearVelocity': {
@@ -863,7 +863,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
           { label: 'cosφ', value: fmt(cosLat, 4) },
           { label: '线速度', value: `${fmt(speed)} m/s` },
         ],
-        dynamicLines: ['v = 465.1 × cosφ', `v = 465.1 × cos(${fmt(lat)}°)`, `v = ${fmt(speed)} m/s`],
+        dynamicLines: ['v = 465.1m/s × cosφ', `v = 465.1m/s × cos(${fmt(lat)}°)`, `v = ${fmt(speed)} m/s`],
       }
     }
     case 'angularVelocity': {
@@ -873,13 +873,13 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
       return {
         main: `角速度 ${fmt(degPerHour)}°/h`,
         sub: `约 ${radPerSec.toExponential(3)} rad/s。`,
-        tip: '做地理题时通常直接使用 15°/h 或 1°=4分钟。',
+        tip: hours === 24 ? '按 24 小时太阳日估算是 15°/时；实际自转一周约用 23 小时 56 分。' : '将 360° 除以输入周期；只有周期取 24 小时时才是 15°/时。',
         highlights: [
           { label: '自转周期', value: `${fmt(hours)} h` },
           { label: '角速度', value: `${fmt(degPerHour)}°/h` },
           { label: '弧度制', value: `${radPerSec.toExponential(3)} rad/s` },
         ],
-        dynamicLines: ['ω = 360° / T', `ω = 360° / ${fmt(hours)}h`, `ω = ${fmt(degPerHour)}°/h`, `ω ≈ ${radPerSec.toExponential(3)} rad/s`],
+        dynamicLines: ['角速度 = 360° ÷ T', `角速度 = 360° ÷ ${fmt(hours)}小时`, `角速度 = ${fmt(degPerHour)}°/时`, `角速度 ≈ ${radPerSec.toExponential(3)} rad/s`],
       }
     }
     case 'coriolis': {
@@ -912,7 +912,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
           { label: '每度距离', value: '111.32 km' },
           { label: '距离', value: `${fmt(distance)} km` },
         ],
-        dynamicLines: ['D ≈ 111.32 × |φ₂ - φ₁|', `D ≈ 111.32 × |${fmt(lat2)} - ${fmt(lat1)}|`, `D ≈ ${fmt(distance)} km`],
+        dynamicLines: ['D ≈ (111.32千米/度) × |φ₂ - φ₁|', `D ≈ (111.32千米/度) × |${fmt(lat2)} - ${fmt(lat1)}|`, `D ≈ ${fmt(distance)} km`],
       }
     }
     case 'lonDistance': {
@@ -930,7 +930,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
           { label: 'cosφ', value: fmt(Math.cos(toRad(lat)), 4) },
           { label: '距离', value: `${fmt(distance)} km` },
         ],
-        dynamicLines: ['D ≈ 111.32 × cosφ × |λ₂ - λ₁|', `D ≈ 111.32 × cos(${fmt(lat)}°) × |${fmt(lon2)} - ${fmt(lon1)}|`, `D ≈ ${fmt(distance)} km`],
+        dynamicLines: ['D ≈ (111.32千米/度) × cosφ × |λ₂ - λ₁|', `D ≈ (111.32千米/度) × cos(${fmt(lat)}°) × |${fmt(lon2)} - ${fmt(lon1)}|`, `D ≈ ${fmt(distance)} km`],
       }
     }
     case 'greatCircle': {
@@ -938,21 +938,19 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
       const lon1 = v('lon1')
       const lat2 = v('lat2')
       const lon2 = v('lon2')
-      const dLat = toRad(lat2 - lat1)
-      const dLon = toRad(lon2 - lon1)
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
-      const c = 2 * Math.asin(Math.sqrt(clamp(a, 0, 1)))
+      const cosC = Math.sin(toRad(lat1)) * Math.sin(toRad(lat2)) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1))
+      const c = Math.acos(clamp(cosC, -1, 1))
       const distance = EARTH_RADIUS_KM * c
       return {
         main: `球面距离约 ${fmt(distance)} km`,
         sub: '这是沿地球表面的近似最短距离。',
         tip: '短距离可用经纬差估算，长距离建议用球面距离。',
         highlights: [
-          { label: 'a', value: fmt(a, 6) },
+          { label: '中央角余弦', value: fmt(cosC, 6) },
           { label: '中央角', value: `${fmt(toDeg(c))}°` },
           { label: '距离', value: `${fmt(distance)} km` },
         ],
-        dynamicLines: [`Δφ = ${fmt(lat2)}° - ${fmt(lat1)}° = ${fmt(lat2 - lat1)}°`, `Δλ = ${fmt(lon2)}° - ${fmt(lon1)}° = ${fmt(lon2 - lon1)}°`, `a = ${fmt(a, 6)}`, `d = 2 × ${EARTH_RADIUS_KM} × asin√a = ${fmt(distance)} km`],
+        dynamicLines: [`λ₂ - λ₁ = ${fmt(lon2)}° - ${fmt(lon1)}° = ${fmt(lon2 - lon1)}°`, `cos(中央角) = ${fmt(cosC, 6)}`, `中央角 = ${fmt(toDeg(c))}°`, `d = ${EARTH_RADIUS_KM} × ${fmt(c, 6)} = ${fmt(distance)} km`],
       }
     }
     case 'mapDistance': {
@@ -1024,18 +1022,19 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
       const lat = v('lat')
       const delta = v('delta')
       const sum = Math.abs(lat) + Math.abs(delta)
-      const status = sum >= 90 ? (lat * delta > 0 ? '极昼' : '极夜') : '无极昼极夜'
+      const poleEquinox = Math.abs(lat) === 90 && delta === 0
+      const status = poleEquinox ? '昼夜临界' : sum >= 90 ? (lat * delta > 0 ? '极昼' : '极夜') : '无极昼极夜'
       return {
         main: status,
-        sub: `|φ| + |δ| = ${fmt(sum)}°。`,
-        tip: '判断极昼极夜：先看是否达到 90°，再看纬度和直射点是否同半球。',
+        sub: poleEquinox ? '春秋分时，极点的太阳位于地平线附近。' : `|φ| + |δ| = ${fmt(sum)}°。`,
+        tip: poleEquinox ? '极点春秋分是昼夜交替的特殊边界。' : '先判断纬度绝对值之和是否达到 90°，再判断所在地与直射点是否同半球。',
         highlights: [
           { label: '|φ|', value: `${fmt(Math.abs(lat))}°` },
           { label: '|δ|', value: `${fmt(Math.abs(delta))}°` },
           { label: '和值', value: `${fmt(sum)}°` },
           { label: '判断', value: status },
         ],
-        dynamicLines: [`|φ| + |δ| = |${fmt(lat)}| + |${fmt(delta)}|`, `= ${fmt(Math.abs(lat))} + ${fmt(Math.abs(delta))} = ${fmt(sum)}°`, `${fmt(sum)}° ${sum >= 90 ? '≥' : '<'} 90°，所以：${status}`],
+        dynamicLines: [`|φ| + |δ| = |${fmt(lat)}| + |${fmt(delta)}|`, `= ${fmt(Math.abs(lat))} + ${fmt(Math.abs(delta))} = ${fmt(sum)}°`, poleEquinox ? '直射点位于赤道，极点处于昼夜临界状态。' : `${fmt(sum)}° ${sum >= 90 ? '≥' : '<'} 90°，所以：${status}`],
       }
     }
     case 'tropicPolarCircle': {
@@ -1068,7 +1067,7 @@ function computeResult(id: string, values: Record<string, number>): CalcResult {
           { label: '经度差', value: `${fmt(diff)}°` },
           { label: '太阳正午', value: hourText(noonClock) },
         ],
-        dynamicLines: [`中央经线 = ${fmt(zone, 0)} × 15° = ${fmt(centralLon)}°`, '钟表正午 ≈ 12 - (λ当地 - λ中央经线) / 15', `钟表正午 ≈ 12 - (${fmt(lon)} - ${fmt(centralLon)}) / 15`, `钟表正午 ≈ ${hourText(noonClock)}`],
+        dynamicLines: [`中央经线 = ${fmt(zone, 0)} × 15° = ${fmt(centralLon)}°`, '钟表正午 ≈ 12时 - (λ当地 - λ中央经线) ÷ (15°/时)', `钟表正午 ≈ 12时 - (${fmt(lon)}° - ${fmt(centralLon)}°) ÷ (15°/时)`, `钟表正午 ≈ ${hourText(noonClock)}`],
       }
     }
     case 'altitudeTemperature': {
@@ -1430,10 +1429,12 @@ button {
 }
 
 .formula-strip {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   min-width: 0;
   align-items: center;
-  gap: 10px;
+  column-gap: 10px;
+  row-gap: 4px;
   min-height: 38px;
   padding: 6px 12px;
   border: 1px solid rgba(46, 196, 182, 0.2);
@@ -1443,11 +1444,17 @@ button {
 
 .formula-strip strong {
   min-width: 0;
-  overflow: hidden;
   color: #082f36;
   font-size: 15px;
   line-height: 1.35;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+
+.formula-strip small {
+  grid-column: 1 / -1;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .calc-workspace {

@@ -136,11 +136,11 @@
             <el-collapse v-model="activePanels" class="analysis-collapse">
               <el-collapse-item title="🌍 什么是水土流失" name="concept">
                 <div class="collapse-content principle-content">
-                  <p><strong>定义：</strong>水土流失是指土壤在<strong>水力、风力、重力</strong>等外力作用下，被破坏、剥蚀、搬运和沉积的过程。</p>
+                  <p><strong>定义：</strong>水土流失是指在<strong>水力、风力、重力</strong>等自然营力和<strong>不合理人类活动</strong>作用下，水土资源及土地生产能力受到破坏和损失的过程，包括地表土壤侵蚀和水分损失。</p>
                   <p>
                     <strong>主要分布区：</strong>我国水土流失主要发生在<strong>山区、丘陵区和风沙区</strong>，尤其是<strong>黄土高原</strong>。我国是世界上水土流失最严重的国家之一。
                   </p>
-                  <p><strong>发生过程：</strong>降雨落在地面→土壤被雨滴打散→地表水汇成径流→冲刷土壤→携带泥沙流入河流→在低洼处沉积。</p>
+                  <p><strong>发生过程：</strong>降雨落在地面→土壤被雨滴打散→地表水汇成径流→冲刷表层土壤→携带泥沙流入河流。</p>
                 </div>
               </el-collapse-item>
               <el-collapse-item title="⛰️ 以黄土高原为例" name="loess">
@@ -157,10 +157,10 @@
               </el-collapse-item>
               <el-collapse-item title="⚠️ 水土流失的危害" name="harm">
                 <div class="collapse-content principle-content">
-                  <p><strong>① 土地资源：</strong>土壤肥力下降，土地变得<strong>贫瘠</strong>，农业减产。</p>
+                  <p><strong>① 土地资源：</strong>表土流失、土层变薄、土壤肥力下降，造成<strong>土地退化和耕地质量降低</strong>。</p>
                   <p><strong>② 河流含沙量：</strong>大量泥沙涌入河流，<strong>淤塞河道、水库、渠道</strong>。</p>
                   <p><strong>③ 生态环境：</strong>加剧<strong>干旱、洪涝、滑坡</strong>等自然灾害。</p>
-                  <p><strong>④ 经济发展：</strong>影响农业生产，制约区域可持续发展。</p>
+                  <p><strong>④ 社会经济：</strong>增加<strong>防洪、清淤和生态修复成本</strong>，威胁生产生活安全，制约区域可持续发展。</p>
                 </div>
               </el-collapse-item>
               <el-collapse-item title="🌱 治理措施" name="treatment">
@@ -204,7 +204,7 @@ const soundEnabled = ref(true)
 const activePreset = ref('')
 
 const soilOptions = [
-  { value: 'sand', label: '沙土', icon: '🟡' },
+  { value: 'sand', label: '砂土', icon: '🟡' },
   { value: 'loam', label: '壤土', icon: '🟤' },
   { value: 'clay', label: '黏土', icon: '🟠' },
 ]
@@ -356,9 +356,24 @@ function mixCol(a: number[], b: number[], t: number) {
 }
 function col(arr: number[], alpha = 1) { return 'rgba(' + (arr[0] ?? 0) + ',' + (arr[1] ?? 0) + ',' + (arr[2] ?? 0) + ',' + alpha + ')' }
 
-function terrainYAt(x: number) {
+function baseTerrainYAt(x: number) {
   const idx = cl(Math.floor(x / 5), 0, terrainPts.length - 1)
   return terrainPts[idx]?.y ?? canvasHeight - 76
+}
+
+function erosionDepthAt(x: number) {
+  if (!terrainPts.length || canvasWidth <= 0) return 0
+  const erosionRatio = cl(accumulatedErosion.value / MAX_DEPOSIT, 0, 1)
+  const positionRatio = cl(x / canvasWidth, 0, 1)
+  // 坡面中段下切最明显，首尾保持稳定，避免与河道和画布边界脱节。
+  const slopeProfile = Math.sin(positionRatio * Math.PI)
+  // 确定性的细沟纹理让表土流失不是整块同步下沉。
+  const rillProfile = 0.55 + Math.pow(Math.sin(x * 0.052 + slopeState.value * 0.11), 2) * 0.45
+  return Math.pow(erosionRatio, 0.82) * slopeProfile * rillProfile * 28
+}
+
+function terrainYAt(x: number) {
+  return Math.min(baseTerrainYAt(x) + erosionDepthAt(x), canvasHeight - 74)
 }
 
 function generateTerrain() {
@@ -407,24 +422,62 @@ function drawTerrain() {
   const soil = soilParams[soilTypeState.value]
   if (!soil) return
   const base = soil.color
-  ctx.fillStyle = col([Math.round((base[0] ?? 0) * 0.58), Math.round((base[1] ?? 0) * 0.58), Math.round((base[2] ?? 0) * 0.58)])
+  const erosionRatio = cl(accumulatedErosion.value / MAX_DEPOSIT, 0, 1)
+  const subsoil = [
+    Math.round((base[0] ?? 0) * 0.62),
+    Math.round((base[1] ?? 0) * 0.62),
+    Math.round((base[2] ?? 0) * 0.62),
+  ]
+
+  // 先绘制侵蚀后的下垫面，坡面会随累计侵蚀量真实下切。
+  ctx.fillStyle = col(subsoil)
   ctx.beginPath()
   ctx.moveTo(0, canvasHeight)
-  for (const pt of terrainPts) ctx.lineTo(pt.x, pt.y + 8)
+  for (const pt of terrainPts) ctx.lineTo(pt.x, terrainYAt(pt.x))
   ctx.lineTo(canvasWidth, canvasHeight)
   ctx.closePath()
   ctx.fill()
+
+  // 表土层随侵蚀逐渐变薄，和下层土的色差用于表现“表层土壤流失”。
+  const topsoilThickness = lerp(13, 3, erosionRatio)
   ctx.fillStyle = col(base)
   ctx.beginPath()
-  ctx.moveTo(0, canvasHeight)
-  for (const pt of terrainPts) ctx.lineTo(pt.x, pt.y)
-  ctx.lineTo(canvasWidth, canvasHeight)
+  for (let i = 0; i < terrainPts.length; i++) {
+    const pt = terrainPts[i]
+    if (!pt) continue
+    const y = terrainYAt(pt.x)
+    if (i === 0) ctx.moveTo(pt.x, y)
+    else ctx.lineTo(pt.x, y)
+  }
+  for (let i = terrainPts.length - 1; i >= 0; i--) {
+    const pt = terrainPts[i]
+    if (!pt) continue
+    ctx.lineTo(pt.x, terrainYAt(pt.x) + topsoilThickness)
+  }
   ctx.closePath()
   ctx.fill()
+
+  // 侵蚀增强后绘制细沟阴影，使坡面冲刷变化更易观察。
+  if (erosionRatio > 0.04) {
+    ctx.strokeStyle = col(subsoil, 0.28 + erosionRatio * 0.42)
+    ctx.lineCap = 'round'
+    for (let i = 1; i <= 9; i++) {
+      const x = (canvasWidth * i) / 10
+      const depth = erosionDepthAt(x)
+      if (depth < 1) continue
+      const y = terrainYAt(x)
+      ctx.lineWidth = 0.8 + erosionRatio * 1.8
+      ctx.beginPath()
+      ctx.moveTo(x - 16, y - 3)
+      ctx.quadraticCurveTo(x - 2, y + depth * 0.12, x + 19, y + 3)
+      ctx.stroke()
+    }
+  }
+
   ctx.fillStyle = 'rgba(0,0,0,.12)'
   for (let i = 0; i < 180; i++) {
     const x = (i * 53 + frameCount * 0.3) % canvasWidth
-    const y = rand(terrainYAt(x) + 8, canvasHeight - 6)
+    const y = rand(terrainYAt(x) + topsoilThickness, canvasHeight - 6)
     ctx.fillRect(x, y, 1, 1)
   }
 }
@@ -435,6 +488,17 @@ function drawVegetation() {
     ctx.save()
     ctx.translate(t.x, t.y)
     const sway = Math.sin(frameCount * 0.02 + t.swayOffset) * 1.5
+    const exposedRootDepth = Math.max(0, terrainYAt(t.x) - (t.y + 2))
+    if (exposedRootDepth > 0.8) {
+      ctx.strokeStyle = 'rgba(78, 51, 29, 0.9)'
+      ctx.lineWidth = 1.4
+      ctx.beginPath()
+      ctx.moveTo(0, 1)
+      ctx.lineTo(-4 - exposedRootDepth * 0.18, 2 + exposedRootDepth)
+      ctx.moveTo(0, 1)
+      ctx.lineTo(4 + exposedRootDepth * 0.18, 2 + exposedRootDepth)
+      ctx.stroke()
+    }
     if (t.type === 'tree') {
       ctx.fillStyle = '#46321e'
       ctx.fillRect(-2, -5, 4, 9)

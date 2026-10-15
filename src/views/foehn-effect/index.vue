@@ -20,11 +20,13 @@
 
     <main class="workspace" v-bind="workspaceAttrs">
       <FloatingFeatureCard v-if="panelsVisible" v-model:collapsed="leftFloatingCollapsed" title="模拟控制"
-        subtitle="调整地形、来风与水汽条件" variant="control" :initial-top="82" :initial-right="18" :draggable="true"
+        subtitle="调整地形、来风与水汽条件" variant="control" :initial-top="82" :initial-left="18" :draggable="true"
         :resizable="true" class="foehn-control-card">
         <div class="panel-scroll">
           <section class="geo-card control-section">
             <h3 class="section-title">参数预设</h3>
+
+            <p class="preset-scale-hint">预设只改变来风与地形条件；下方可分别观察单次越山和长期影响。</p>
 
             <div class="preset-current-row">
               <span>当前</span>
@@ -74,7 +76,7 @@
           <section class="geo-card control-section">
             <h3 class="section-title">图层显示</h3>
 
-            <div class="switch-row">
+            <div v-if="viewMode === 'event'" class="switch-row">
               <div class="control-copy">
                 <strong>动态风线</strong>
                 <span>显示湿润气流越山与背风坡变暖过程</span>
@@ -83,7 +85,7 @@
               <el-switch v-model="params.showWind" />
             </div>
 
-            <div class="switch-row">
+            <div v-if="viewMode === 'event'" class="switch-row">
               <div class="control-copy">
                 <strong>云与降水</strong>
                 <span>显示迎风坡成云、降水和弱云提示</span>
@@ -95,7 +97,7 @@
             <div class="switch-row">
               <div class="control-copy">
                 <strong>植被</strong>
-                <span>显示迎风坡湿润与背风坡长期干热差异</span>
+                <span>{{ viewMode === 'event' ? '显示山坡原有植被' : '显示长期环境下可能形成的植被差异' }}</span>
               </div>
 
               <el-switch v-model="params.showPlants" />
@@ -113,7 +115,7 @@
 
           <section class="geo-card control-section">
             <button type="button" class="theme-btn reset-scene-btn full-width-btn" @click="resetProcess">
-              重置演示过程
+              {{ viewMode === 'event' ? '重置演示过程' : '返回单次演示' }}
             </button>
           </section>
         </div>
@@ -135,109 +137,149 @@
           </transition>
         </div>
 
-        <div class="timeline-dock">
-          <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
-            :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
-            <el-icon>
-              <VideoPause v-if="isPlaying" />
-              <VideoPlay v-else />
-            </el-icon>
-          </button>
-
-          <div class="timeline-main">
-            <div class="timeline-copy">
-              <span>14 秒演示进度</span>
-              <strong>{{ timelinePercent.toFixed(1) }}%</strong>
+        <div class="timeline-dock" :class="{ 'timeline-dock--long-term': viewMode === 'longTerm' }">
+          <div class="time-view-switch">
+            <span class="time-view-heading">观察尺度</span>
+            <div class="time-view-tabs" role="group" aria-label="观察时间尺度">
+              <button type="button" class="time-view-btn" :class="{ active: viewMode === 'event' }"
+                :aria-pressed="viewMode === 'event'" @click="setViewMode('event')">单次越山</button>
+              <button type="button" class="time-view-btn" :class="{ active: viewMode === 'longTerm' }"
+                :aria-pressed="viewMode === 'longTerm'" @click="setViewMode('longTerm')">长期影响</button>
             </div>
-
-            <el-slider v-model="timelinePercent" :min="0" :max="100" :step="0.1" :show-tooltip="false" />
-
-            <div class="foehn-timeline-marks">
-              <span style="left: 10%">海风进入</span>
-              <span style="left: 32%">达到云底</span>
-              <span style="left: 46%">地形雨增强</span>
-              <span style="left: 56%">越过山脊</span>
-              <span style="left: 66%">下沉增温</span>
-              <span style="left: 74%">蒸发增强</span>
-            </div>
+            <span class="time-view-caption">{{ viewMode === 'event' ? '14 秒动画 · 非真实耗时' : '相似天气长期或频繁出现时' }}</span>
           </div>
 
-          <div class="speed-options">
-            <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
-              :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
-              {{ item }}×
+          <div v-if="viewMode === 'event'" class="playback-row">
+            <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+              :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="isPlaying = !isPlaying">
+              <el-icon>
+                <VideoPause v-if="isPlaying" />
+                <VideoPlay v-else />
+              </el-icon>
             </button>
+
+            <div class="timeline-main">
+              <div class="timeline-copy">
+                <span>过程动画</span>
+                <strong>{{ timelinePercent.toFixed(1) }}%</strong>
+              </div>
+
+              <el-slider v-model="timelinePercent" :min="0" :max="100" :step="0.1" :show-tooltip="false" />
+
+              <div class="foehn-timeline-marks">
+                <span style="left: 10%">海风</span>
+                <span style="left: 35%">上升变冷</span>
+                <span style="left: 58%">可能降雨</span>
+                <span style="left: 82%">下沉变暖</span>
+              </div>
+            </div>
+
+            <div class="speed-options" aria-label="播放速度">
+              <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+                :class="{ active: playbackSpeed === item }" @click="playbackSpeed = item">
+                {{ item }}×
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
-      <FloatingFeatureCard v-if="panelsVisible" v-model:collapsed="rightFloatingCollapsed" title="实时过程"
-        subtitle="温度、降水、湿度与干热判断" variant="data" :initial-top="144" :initial-right="18" :draggable="true"
-        :resizable="true" class="foehn-data-card">
+      <FloatingFeatureCard v-if="panelsVisible" v-model:collapsed="rightFloatingCollapsed"
+        :title="viewMode === 'event' ? '过程观察' : '长期影响'"
+        :subtitle="viewMode === 'event' ? '跟随气流，看天气如何变化' : '相似天气反复出现的可能结果'" variant="data" :initial-top="144" :initial-right="18" :draggable="true"
+        :resizable="true" class="foehn-data-card" :class="{ 'foehn-data-card--learning-open': activePanels.includes('details') }">
         <div class="panel-scroll">
-          <div class="data-grid">
-            <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="item.className">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.description }}</small>
-            </article>
-          </div>
+          <template v-if="viewMode === 'event'">
+            <section class="geo-card process-summary-card" aria-live="polite">
+              <span>当前阶段</span>
+              <strong>{{ currentStage.title }}</strong>
+              <p>{{ currentStage.description }}</p>
+            </section>
 
-          <section class="geo-card foehn-diagnosis-card">
-            <h3 class="section-title">干热化与植被影响</h3>
+            <div class="simple-facts">
+              <div><span>迎风坡</span><strong>{{ windwardStatus }}</strong></div>
+              <div><span>背风坡</span><strong>{{ leewardStatus }}</strong></div>
+            </div>
 
-            <div class="diagnosis-row">
-              <span>干化来源</span>
-              <strong>{{ dryDiagnosis.source }}</strong>
-            </div>
-            <div class="diagnosis-row">
-              <span>干旱等级</span>
-              <strong>{{ dryDiagnosis.droughtLevel }}</strong>
-            </div>
-            <div class="diagnosis-row">
-              <span>长期植被影响</span>
+            <p class="time-scale-callout">这段动画只展示一次气流越山。植被变化请切换到“长期影响”查看。</p>
+          </template>
+
+          <section v-else class="geo-card foehn-diagnosis-card" :class="`impact-card--${dryDiagnosis.witherType}`">
+            <h3 class="section-title impact-card-title">可能出现的变化</h3>
+
+            <div class="impact-hero">
+              <div class="impact-hero-top">
+                <span>背风坡植被</span>
+                <span class="impact-badge">{{ impactBadge }}</span>
+              </div>
               <strong>{{ dryDiagnosis.witherLevel }}</strong>
+              <small>假设类似天气长期或频繁出现</small>
             </div>
 
-            <p>{{ dryDiagnosis.reason }}</p>
+            <div class="impact-details">
+              <div>
+                <span>偏干原因</span>
+                <strong>{{ drySourceLabel }}</strong>
+              </div>
+              <div>
+                <span>偏干程度</span>
+                <strong>{{ dryDiagnosis.droughtLevel }}</strong>
+              </div>
+            </div>
+
+            <p class="impact-explanation">{{ dryDiagnosis.reason }}</p>
           </section>
 
           <el-collapse v-model="activePanels" class="analysis-collapse">
-            <el-collapse-item title="过程解读" name="process">
-              <div class="collapse-content">
-                <p>{{ processNoteText }}</p>
-                <p class="foehn-scale-note">
-                  时间尺度说明：气温升高、相对湿度下降是即时焚风过程；植被发黄、稀疏和退化表示长期或频繁干热环境的压缩演示。
-                </p>
-              </div>
-            </el-collapse-item>
+            <el-collapse-item title="查看原理与计算（选学）" name="details">
+              <div class="collapse-content learning-content">
+                <div class="learning-intro">
+                  <span>原理速览</span>
+                  <p>气流上山冷却，可能成云降雨；越过山顶后下沉增温，相对湿度降低。</p>
+                </div>
 
-            <el-collapse-item title="露点与近似云底" name="lcl">
-              <div class="collapse-content">
-                <p>{{ formulaParams.lclText }}</p>
-                <p>{{ formulaParams.cloudVisualText }}</p>
-              </div>
-            </el-collapse-item>
+                <div class="learning-scale-note">
+                  <strong>时间尺度</strong>
+                  <p>气温、湿度和降雨对应一次越山；植被变化是类似天气长期或频繁出现的可能结果。</p>
+                </div>
 
-            <el-collapse-item title="迎风坡抬升与地形雨" name="windward">
-              <div class="collapse-content">
-                <p>{{ formulaParams.ridgeText }}</p>
-                <p>{{ formulaParams.rainText }}</p>
-              </div>
-            </el-collapse-item>
+                <div class="learning-steps">
+                  <section class="learning-step">
+                    <div class="learning-step-heading"><span>01</span><h4>什么时候成云？</h4></div>
+                    <p class="learning-step-summary">空气上升变冷，达到露点后才容易凝结成云。</p>
+                    <div class="learning-result"><span>近似云底</span><strong>{{ formulaParams.lclValue }}</strong></div>
+                    <details class="learning-calculation"><summary>查看云底计算</summary><p>{{ formulaParams.lclText }}</p></details>
+                  </section>
 
-            <el-collapse-item title="背风坡下沉增温" name="leeward">
-              <div class="collapse-content">
-                <p>{{ formulaParams.leewardText }}</p>
-                <p>{{ formulaParams.humidityText }}</p>
-              </div>
-            </el-collapse-item>
+                  <section class="learning-step">
+                    <div class="learning-step-heading"><span>02</span><h4>迎风坡为什么可能降雨？</h4></div>
+                    <p class="learning-step-summary">气流被山地抬升后继续冷却，水汽可能凝结并形成地形雨。</p>
+                    <div class="learning-result"><span>山顶气温</span><strong>{{ formulaParams.ridgeValue }}</strong></div>
+                    <details class="learning-calculation"><summary>查看温度与降雨计算</summary><p>{{ formulaParams.ridgeText }}</p><p>{{ formulaParams.rainText }}</p></details>
+                  </section>
 
-            <el-collapse-item title="动态计算说明" name="formula">
-              <div class="collapse-content">
-                <p>{{ formulaParams.symbolText }}</p>
-                <p>{{ formulaParams.dryStressText }}</p>
-                <p>{{ formulaParams.processText }}</p>
+                  <section class="learning-step">
+                    <div class="learning-step-heading"><span>03</span><h4>背风坡为什么更暖、更干？</h4></div>
+                    <p class="learning-step-summary">气流下沉时升温，能容纳更多水汽，因此相对湿度下降。</p>
+                    <div class="learning-result"><span>背风坡气温</span><strong>{{ formulaParams.leewardTempValue }}</strong></div>
+                    <div class="learning-result learning-result--secondary"><span>相对湿度</span><strong>{{ formulaParams.leewardRhValue }}</strong></div>
+                    <details class="learning-calculation"><summary>查看气温与湿度计算</summary><p>{{ formulaParams.leewardText }}</p><p>{{ formulaParams.humidityText }}</p></details>
+                  </section>
+
+                  <section v-if="viewMode === 'longTerm'" class="learning-step learning-step--impact">
+                    <div class="learning-step-heading"><span>04</span><h4>如何判断长期影响？</h4></div>
+                    <p class="learning-step-summary">把热、干和降雨情况合起来看，判断植被可能承受的水分压力。</p>
+                    <div class="learning-result"><span>当前判断</span><strong>{{ dryDiagnosis.witherLevel }}</strong></div>
+                    <details class="learning-calculation"><summary>查看判断依据</summary><p>{{ processNoteText }}</p><p>{{ formulaParams.dryStressText }}</p><p>{{ formulaParams.processText }}</p></details>
+                  </section>
+                </div>
+
+                <details class="learning-symbols">
+                  <summary>符号、数据与画面说明</summary>
+                  <p>{{ formulaParams.symbolText }}</p>
+                  <p>{{ formulaParams.sourceText }}</p>
+                  <p>{{ formulaParams.cloudVisualText }}</p>
+                </details>
               </div>
             </el-collapse-item>
           </el-collapse>
@@ -361,7 +403,7 @@ const params = reactive({
   running: true,
   // 默认使用“强焚风/强热干”演示参数：
   // 1000m 山体 + 5m/s 来风 + 20% 近海相对湿度 + 36℃ 海平面气温。
-  // 演示进行到背风坡阶段后，会形成强热干胁迫；植被变化用于表示长期或频繁干热环境的压缩效果。
+  // 单次越山展示气流变化；长期视图才展示反复热干条件下的植被差异。
   mountainHeightM: 1000,
   windSpeed: 5.0,
   humidity: 20,
@@ -375,6 +417,20 @@ const params = reactive({
 const timelineProgress = ref(0)
 const playbackSpeed = ref(1)
 const speedOptions = [0.5, 1, 2, 5]
+const viewMode = ref<'event' | 'longTerm'>('event')
+
+function setViewMode(mode: 'event' | 'longTerm') {
+  if (viewMode.value === mode) return
+
+  viewMode.value = mode
+  timelineProgress.value = mode === 'event' ? 0 : 1
+  params.running = mode === 'event'
+  activeStageIndex = -1
+  stageToast.visible = false
+  window.clearTimeout(stageToastTimer)
+  initRainData()
+  updateVisibility()
+}
 
 const isPlaying = computed({
   get() {
@@ -405,49 +461,37 @@ const stats = reactive({
   altitudeEffect: '默认演示为低湿高温来风：迎风坡地形雨不明显，但背风坡会形成本底热干型强胁迫；植被变化表示长期干热影响。',
 })
 
-const activePanels = ref([
-  'process',
-  'formula',
-])
+const activePanels = ref<string[]>([])
 
-const dataCards = computed(() => [
-  {
-    label: '海平面气温',
-    value: `${params.baseTemp.toFixed(1)}℃`,
-    description: '初始气团',
-    className: 'blue-card',
-  },
-  {
-    label: '山顶附近',
-    value: `${stats.ridgeTemp.toFixed(1)}℃`,
-    description: '抬升冷却',
-    className: 'cyan-card',
-  },
-  {
-    label: '地形雨增强',
-    value: `${stats.rainfall.toFixed(0)}%`,
-    description: '演示指数，非雨量',
-    className: 'purple-card',
-  },
-  {
-    label: '背风坡',
-    value: `${stats.leewardTemp.toFixed(1)}℃`,
-    description: '下沉增温',
-    className: 'orange-card',
-  },
-  {
-    label: '背风湿度',
-    value: `${stats.leewardHumidity.toFixed(0)}%`,
-    description: '升温后偏低',
-    className: 'blue-card',
-  },
-  {
-    label: '干旱强度',
-    value: formulaParams.value.dryValueText,
-    description: '综合热干指数',
-    className: 'orange-card',
-  },
-])
+const currentStage = computed(() => {
+  const progress = timelineProgress.value
+  const cloudReady = getCloudTarget() >= 0.14
+  const rainReady = getRainStrength() >= 0.20
+
+  if (progress < 0.10) return { title: '准备出发', description: '海风将把空气送向山地。' }
+  if (progress < 0.32) return { title: '海风进入', description: '空气从海面吹向迎风坡。' }
+  if (progress < 0.55) return cloudReady
+    ? { title: '迎风坡降温成云', description: '空气爬升时变冷，水汽逐渐凝结。' }
+    : { title: '迎风坡云少', description: '水汽或山体抬升不足，难以形成明显云层。' }
+  if (progress < 0.66) return rainReady
+    ? { title: '迎风坡降雨', description: '云中水汽凝结，雨落在迎风坡。' }
+    : { title: '迎风坡少雨', description: '凝结条件不足，地形雨不明显。' }
+
+  return {
+    title: '背风坡变暖变干',
+    description: `空气下沉后约${stats.leewardTemp.toFixed(0)}℃，相对湿度约${stats.leewardHumidity.toFixed(0)}%。`,
+  }
+})
+
+const windwardStatus = computed(() => {
+  if (timelineProgress.value < 0.32) return '等待气流到达'
+  if (timelineProgress.value < 0.55) return '抬升、降温'
+  return getRainStrength() >= 0.20 ? '形成地形雨' : '降雨不明显'
+})
+
+const leewardStatus = computed(() =>
+  timelineProgress.value < 0.66 ? '等待气流越山' : '下沉、变暖变干',
+)
 
 type ParamPreset = {
   name: string
@@ -460,48 +504,48 @@ type ParamPreset = {
 
 const PARAM_PRESETS: ParamPreset[] = [
   {
-    name: '强干旱',
-    desc: '低湿高温，强干热胁迫',
+    name: '热干来风',
+    desc: '高温、低湿',
     mountainHeightM: 1000,
     windSpeed: 5.0,
     humidity: 20,
     baseTemp: 36,
   },
   {
-    name: '雨影干化',
-    desc: '高湿越山，局部发黄风险',
+    name: '湿润越山',
+    desc: '高温、高湿',
     mountainHeightM: 1000,
     windSpeed: 5.0,
     humidity: 100,
     baseTemp: 36,
   },
   {
-    name: '中湿轻干',
-    desc: '中湿高温，轻度胁迫',
+    name: '中湿来风',
+    desc: '高温、中等湿度',
     mountainHeightM: 1000,
     windSpeed: 2.4,
     humidity: 50,
     baseTemp: 36,
   },
   {
-    name: '偏湿常绿',
-    desc: '偏湿条件，基本不枯',
+    name: '偏湿来风',
+    desc: '较低山地、偏湿',
     mountainHeightM: 700,
     windSpeed: 2.4,
     humidity: 65,
     baseTemp: 36,
   },
   {
-    name: '低温不枯',
-    desc: '低温低湿，影响较弱',
+    name: '低温来风',
+    desc: '低温、低湿',
     mountainHeightM: 1000,
     windSpeed: 5.0,
     humidity: 20,
     baseTemp: 16,
   },
   {
-    name: '低山弱效',
-    desc: '低山弱雨影，不明显',
+    name: '低山越山',
+    desc: '低山、高湿',
     mountainHeightM: 500,
     windSpeed: 3.0,
     humidity: 95,
@@ -527,6 +571,8 @@ function applyPreset(preset: ParamPreset) {
   params.humidity = preset.humidity
   params.baseTemp = preset.baseTemp
 
+  if (viewMode.value === 'event') timelineProgress.value = 0
+
   activeStageIndex = -1
   stageToast.visible = false
   updateStats()
@@ -541,16 +587,16 @@ const formulaParams = computed(() => {
   const rainTimeFactor = smoothstep(0.50, 0.78, timelineProgress.value)
   const rainPotential = getRainStrength()
   const currentRain = THREE.MathUtils.clamp(rainTimeFactor * rainPotential, 0, 1)
-  const dryTime = dryTimelineProgress.value
   const thermalDry = getThermalDryFactor()
   const ambientDryHeat = getAmbientDryHeatFactor()
   const rainShadowDryHeat = getRainShadowDryHeatFactor()
   const dryPotentialValue = dryPotential.value
-  const dryValue = dryProgress.value
+  const dryValue = dryPotential.value
 
   return {
     lclValue: `${calc.lclKm.toFixed(2)}km`,
     ridgeValue: `${calc.ridgeTemp.toFixed(1)}℃`,
+    leewardTempValue: `${calc.leewardTemp.toFixed(1)}℃`,
     leewardRhValue: `${calc.leewardHumidity.toFixed(0)}%`,
     dryValueText: dryValue.toFixed(2),
     symbolText: `T0=海平面气温=${params.baseTemp.toFixed(1)}℃；RH=近海相对湿度=${params.humidity.toFixed(0)}%；H=山体相对高度=${calc.heightKm.toFixed(2)}km；v=来风速度=${params.windSpeed.toFixed(1)}m/s；Td=露点温度（℃）；LCL=近似云底高度（km）`,
@@ -561,7 +607,7 @@ const formulaParams = computed(() => {
     leewardText: `按气流下沉至背风坡山麓近似：T背风坡≈${calc.ridgeTemp.toFixed(1)}+${calc.dryLapse.toFixed(1)}×${calc.heightKm.toFixed(2)}=${calc.leewardTemp.toFixed(1)}℃`,
     humidityText: `剩余水汽压e≈${calc.remainingVaporPressure.toFixed(1)}hPa；es(T背风坡)≈${calc.leewardSaturationVaporPressure.toFixed(1)}hPa；RH背风坡≈${calc.remainingVaporPressure.toFixed(1)}/${calc.leewardSaturationVaporPressure.toFixed(1)}×100%=${calc.leewardHumidity.toFixed(0)}%`,
     rainText: `地形雨强度指数=时间推进系数${rainTimeFactor.toFixed(2)}×潜在降水强度${rainPotential.toFixed(2)}≈${currentRain.toFixed(2)}；潜在降水受 H、RH、v 和是否达到 LCL 共同控制。`,
-    dryStressText: `T背风坡=${calc.leewardTemp.toFixed(1)}℃，VPD≈${calc.leewardVpd.toFixed(1)}hPa；热干条件=${thermalDry.toFixed(2)}，本底热干=${ambientDryHeat.toFixed(2)}，雨影干化=${rainShadowDryHeat.toFixed(2)}；VPD越高，地表蒸发和植被蒸腾需求越强；植被变化为长期影响的压缩演示。`,
+    dryStressText: `T背风坡=${calc.leewardTemp.toFixed(1)}℃，VPD≈${calc.leewardVpd.toFixed(1)}hPa；热干条件=${thermalDry.toFixed(2)}，本底热干=${ambientDryHeat.toFixed(2)}，雨影干化=${rainShadowDryHeat.toFixed(2)}；VPD越高，地表蒸发和植被蒸腾需求越强；植被差异只在长期影响视图展示。`,
     processText: `干化来源=${dryDiagnosis.value.source}；干旱等级=${dryDiagnosis.value.droughtLevel}；长期植被影响=${dryDiagnosis.value.witherLevel}；干旱强度=${dryValue.toFixed(2)}`,
   }
 })
@@ -574,7 +620,7 @@ const dryDiagnosis = computed(() => {
   const ambient = getAmbientDryHeatFactor()
   const rainShadow = getRainShadowDryHeatFactor()
   const potential = dryPotential.value
-  const currentDry = dryProgress.value
+  const currentDry = dryPotential.value
   const reach = dryReach.value
   const thermal = getThermalDryFactor()
   const hasRainShadow = rainShadow >= 0.18
@@ -589,14 +635,14 @@ const dryDiagnosis = computed(() => {
     source = '雨影干化'
   }
 
-  let droughtLevel = '无明显干旱'
+  let droughtLevel = '不明显'
   let levelType: 'safe' | 'weak' | 'medium' | 'strong' = 'safe'
 
   if (currentDry >= 0.58 && reach >= 0.56) {
-    droughtLevel = '强干旱'
+    droughtLevel = '明显偏干'
     levelType = 'strong'
   } else if (currentDry >= 0.28 && reach >= 0.34) {
-    droughtLevel = '中度干旱'
+    droughtLevel = '中度偏干'
     levelType = 'medium'
   } else if (currentDry >= 0.08 || potential >= 0.16) {
     droughtLevel = '轻度偏干'
@@ -610,7 +656,7 @@ const dryDiagnosis = computed(() => {
     witherLevel = '植被影响较弱'
     witherType = 'safe'
   } else if (currentDry >= 0.62 && reach >= 0.62 && thermal >= 0.72) {
-    witherLevel = '长期干旱退化明显'
+    witherLevel = '退化风险较高'
     witherType = 'strong'
   } else if (currentDry >= 0.34 && reach >= 0.42 && thermal >= 0.48) {
     witherLevel = '局部发黄风险'
@@ -624,13 +670,13 @@ const dryDiagnosis = computed(() => {
   if (calc.leewardTemp < 18) {
     reason = `背风坡约${calc.leewardTemp.toFixed(1)}℃，温度偏低，即使相对湿度下降，长期植被影响也较弱。`
   } else if (source === '本底热干') {
-    reason = `入山前空气已经偏干，背风坡约${calc.leewardTemp.toFixed(1)}℃、RH约${calc.leewardHumidity.toFixed(0)}%，VPD较高；若长期或频繁出现，容易造成土壤失水和植被退化。`
+    reason = `入山前空气已经偏干，越山后背风坡更暖。若这种天气长期或频繁出现，土壤更容易失水，植被可能受影响。`
   } else if (source === '雨影干化') {
-    reason = `迎风坡成云降水消耗水汽，背风坡下沉增温后RH降至约${calc.leewardHumidity.toFixed(0)}%；若长期或频繁出现，雨影侧更易出现植被发黄和稀疏。`
+    reason = `迎风坡降雨后，背风坡空气下沉变暖。若这种天气长期或频繁出现，背风坡植被可能发黄、变稀疏。`
   } else if (source === '混合干化') {
-    reason = `入山空气偏干，同时越山后又有下沉增温和雨影效应，两种机制共同增强背风坡干化；植被变化表示长期干热影响。`
+    reason = `入山前空气偏干，越山后又变暖。两种条件叠加，长期反复出现时背风坡植被更容易缺水。`
   } else {
-    reason = `当前热干条件较弱，背风坡RH约${calc.leewardHumidity.toFixed(0)}%，主要表现为轻微偏干，长期植被影响较弱。`
+    reason = `当前变暖、变干的程度较弱。即使类似天气长期出现，植被影响也较小。`
   }
 
   return {
@@ -643,6 +689,23 @@ const dryDiagnosis = computed(() => {
   }
 })
 
+const drySourceLabel = computed(() => {
+  const labels: Record<string, string> = {
+    '本底热干': '来风本身偏干',
+    '雨影干化': '迎风坡降雨',
+    '混合干化': '两种原因叠加',
+    '弱干化': '干化条件较弱',
+  }
+  return labels[dryDiagnosis.value.source] || dryDiagnosis.value.source
+})
+
+const impactBadge = computed(() => ({
+  safe: '影响较弱',
+  weak: '轻度风险',
+  medium: '局部风险',
+  strong: '较高风险',
+}[dryDiagnosis.value.witherType]))
+
 
 const processNoteText = computed(() => {
   const cloudReady = getCloudTarget() >= 0.14
@@ -650,7 +713,7 @@ const processNoteText = computed(() => {
   const weakWater = params.humidity < 40
   const calc = getThermodynamicEstimate()
   const diagnosis = dryDiagnosis.value
-  const evaporationText = getEvaporationStrength() >= 0.16 ? ' 红色平面箭头快速升高，表示背风坡地表蒸发和植被蒸腾需求增强。' : ''
+  const evaporationText = getDryPotential() >= 0.16 ? ' 背风坡地表蒸发和植被蒸腾需求可能增强。' : ''
   const conclusion = `判断：${diagnosis.source}，${diagnosis.droughtLevel}，${diagnosis.witherLevel}。`
 
   if (calc.leewardTemp < 18) {
@@ -686,10 +749,10 @@ const processNoteText = computed(() => {
   }
 
   if (diagnosis.witherType === 'medium') {
-    return `${conclusion} 背风坡热干化较明显，红色平面箭头快速升高，表示地表蒸发增强；若长期或频繁出现，低海拔和部分中坡有局部发黄风险。${evaporationText}`
+    return `${conclusion} 背风坡热干化较明显，地表蒸发需求增强；若长期或频繁出现，低海拔和部分中坡有局部发黄风险。${evaporationText}`
   }
 
-  return `${conclusion} 背风坡热干化强，红色平面箭头快速升高，表示地表蒸发和植被蒸腾需求显著增强；若长期或频繁出现，低海拔植被易出现发黄、稀疏和退化。画面为长期影响的压缩演示。`
+  return `${conclusion} 背风坡热干化强，地表蒸发和植被蒸腾需求显著增强；若长期或频繁出现，低海拔植被可能发黄、稀疏或退化。画面展示的是长期影响。`
 })
 
 
@@ -722,55 +785,37 @@ const STAGE_MESSAGES = [
     at: 0.10,
     type: 'info' as const,
     condition: 'wind' as const,
-    message: '海洋水汽开始随风进入迎风坡。',
+    message: '海风把空气送向迎风坡。',
   },
   {
     at: 0.32,
     type: 'success' as const,
     condition: 'cloud' as const,
-    message: '气流沿迎风坡抬升，越过近似云底高度后，云层会从该高度附近生成；为避免嵌入山体，视觉上明显上浮。',
+    message: '空气爬升时变冷，水汽逐渐凝结成云。',
   },
   {
     at: 0.32,
     type: 'info' as const,
     condition: 'noCloud' as const,
-    message: '山体高度或水汽条件不足，气流未明显达到近似云底高度；画面只保留很淡的云雾提示，不代表形成明显云层。',
+    message: '水汽或抬升不足，迎风坡云层不明显。',
   },
   {
     at: 0.55,
     type: 'success' as const,
     condition: 'rain' as const,
-    message: '迎风坡云体增厚，水汽凝结并形成地形雨，坡面逐渐湿润。',
+    message: '水汽凝结成雨，落在迎风坡。',
   },
   {
     at: 0.55,
     type: 'info' as const,
     condition: 'noRain' as const,
-    message: '云雾较弱，地形雨不明显；画面中的淡云只表示接近凝结条件，迎风坡只表现为轻微湿润。',
+    message: '云层较弱，迎风坡降雨不明显。',
   },
   {
-    at: 0.56,
+    at: 0.66,
     type: 'warning' as const,
-    condition: 'dry' as const,
-    message: '气流越过山脊并进入背风坡，开始下沉增温、逐步转干。',
-  },
-  {
-    at: 0.62,
-    type: 'info' as const,
-    condition: 'noDry' as const,
-    message: '山体抬升、下沉增温或热干条件不足，背风坡没有形成明显干热胁迫。',
-  },
-  {
-    at: 0.74,
-    type: 'warning' as const,
-    condition: 'evaporation' as const,
-    message: '背风坡下沉增温后，空气更暖更干，红色平面箭头快速升高，表示地表蒸发和植被蒸腾需求增强。',
-  },
-  {
-    at: 0.82,
-    type: 'warning' as const,
-    condition: 'wither' as const,
-    message: '背风坡进入明显热干阶段：地面逐渐转干；植被低伏发黄表示长期干化影响的压缩演示。',
+    condition: 'lee' as const,
+    message: '空气越过山顶后下沉，相对更暖、更干。',
   },
 ]
 
@@ -883,17 +928,15 @@ const snowProgress = computed(() => {
 })
 
 const wetProgress = computed(() => {
-  // 迎风坡植被的“生长过程”必须由成云降水驱动。
-  // 低海拔抬升弱、降水弱时，不做明显生长动画，只保留比背风坡略茂密的基础植被。
-  const windArrived = smoothstep(0.18, 0.42, timelineProgress.value)
-  const rainArrived = smoothstep(0.52, 0.78, timelineProgress.value)
+  // 植被差异只在长期影响视图出现，不随一次越山动画生长。
+  if (viewMode.value !== 'longTerm') return 0
 
   const heightLift = smoothstep(380, 900, params.mountainHeightM)
   const rainDriven = THREE.MathUtils.clamp(getRainStrength() / 0.88, 0, 1)
   const humidityReady = THREE.MathUtils.clamp((params.humidity - 48) / 52, 0, 1)
   const growthTarget = heightLift * rainDriven * humidityReady
 
-  return THREE.MathUtils.clamp(windArrived * rainArrived * growthTarget, 0, 1)
+  return THREE.MathUtils.clamp(growthTarget, 0, 1)
 })
 
 const cloudProgress = computed(() => {
@@ -904,16 +947,6 @@ const cloudProgress = computed(() => {
 const rainProgress = computed(() => {
   // 地形雨必须晚于凝结成云；未达到近似云底高度时不强行下雨。
   return THREE.MathUtils.clamp(smoothstep(0.50, 0.78, timelineProgress.value) * getRainStrength(), 0, 1)
-})
-
-const dryTimelineProgress = computed(() => {
-  // 符合焚风过程：先迎风坡成云降水，再气流越过山脊；
-  // 背风坡气流到达后，才开始“发黄风险 → 干草色 → 低伏退化”。
-  const yellowing = smoothstep(0.68, 0.80, timelineProgress.value)
-  const withering = smoothstep(0.78, 0.92, timelineProgress.value)
-  const finalDry = smoothstep(0.88, 1.0, timelineProgress.value)
-
-  return THREE.MathUtils.clamp(yellowing * 0.24 + withering * 0.42 + finalDry * 0.34, 0, 1)
 })
 
 const dryPotential = computed(() => getDryPotential())
@@ -959,7 +992,8 @@ const dryReach = computed(() => {
 
 
 const dryProgress = computed(() => {
-  return THREE.MathUtils.clamp(dryPotential.value * dryTimelineProgress.value, 0, 1)
+  // 长期结果按同一组参数直接比较，不借用 14 秒动画进度。
+  return viewMode.value === 'longTerm' ? dryPotential.value : 0
 })
 
 
@@ -971,6 +1005,7 @@ watch(
 watch(
   () => [params.mountainHeightM, params.humidity, params.windSpeed, params.baseTemp],
   () => {
+    if (viewMode.value === 'event') timelineProgress.value = 0
     activeStageIndex = -1
     stageToast.visible = false
     updateStats()
@@ -979,6 +1014,7 @@ watch(
 )
 
 function toggleRunning() {
+  if (viewMode.value !== 'event') return
   params.running = !params.running
 }
 
@@ -1004,6 +1040,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 function resetProcess() {
+  if (viewMode.value !== 'event') setViewMode('event')
   timelineProgress.value = 0
   simElapsed = 0
   initRainData()
@@ -2263,11 +2300,12 @@ function createEvaporationArrows() {
 }
 
 function getEvaporationStrength() {
+  if (viewMode.value !== 'event') return 0
   const calc = getThermodynamicEstimate()
   const tempReady = smoothstep(20, 32, calc.leewardTemp)
   const rhDry = 1 - smoothstep(42, 72, calc.leewardHumidity)
   const vpdReady = smoothstep(10, 30, calc.leewardVpd)
-  const dryReady = THREE.MathUtils.clamp(dryProgress.value * 0.82 + dryPotential.value * 0.18, 0, 1)
+  const dryReady = dryPotential.value
   const stageReady = smoothstep(0.66, 0.92, timelineProgress.value)
 
   // 蒸发增强不是向上的风，而是地表水分/植被水分亏缺后的蒸发蒸腾需求增强。
@@ -3165,13 +3203,14 @@ function getWeakCloudHint() {
 }
 
 function updateVisibility() {
-  if (windLineGroup) windLineGroup.visible = params.showWind
+  const showingEvent = viewMode.value === 'event'
+  if (windLineGroup) windLineGroup.visible = showingEvent && params.showWind
   if (altitudeAxisGroup) altitudeAxisGroup.visible = params.showAltitudeAxis
-  if (cloudGroup) cloudGroup.visible = params.showClouds
-  if (mistGroup) mistGroup.visible = params.showClouds
-  if (rainLines) rainLines.visible = params.showClouds
+  if (cloudGroup) cloudGroup.visible = showingEvent && params.showClouds
+  if (mistGroup) mistGroup.visible = showingEvent && params.showClouds
+  if (rainLines) rainLines.visible = showingEvent && params.showClouds
   if (vegetationGroup) vegetationGroup.visible = params.showPlants
-  if (evaporationGroup) evaporationGroup.visible = true
+  if (evaporationGroup) evaporationGroup.visible = showingEvent
 }
 
 function animate() {
@@ -3180,7 +3219,7 @@ function animate() {
 
   const delta = Math.min(clock.getDelta(), 0.04)
 
-  if (params.running) {
+  if (params.running && viewMode.value === 'event') {
     simElapsed += delta
     timelineProgress.value += (delta * playbackSpeed.value) / DEMO_DURATION
     if (timelineProgress.value > 1) {
@@ -3205,6 +3244,7 @@ function animate() {
 }
 
 function updateStageMessage() {
+  if (viewMode.value !== 'event') return
   const progress = timelineProgress.value
 
   if (progress < 0.035) {
@@ -3236,14 +3276,10 @@ function updateStageMessage() {
 function shouldShowStageMessage(item: (typeof STAGE_MESSAGES)[number]) {
   const cloudReady = getCloudTarget() >= 0.14
   const rainReady = cloudReady && getRainStrength() >= 0.20
-  const thermalDry = getThermalDryFactor()
-  const ambientDryHeat = getAmbientDryHeatFactor()
-  const dryReady = getDryPotential() >= 0.08 && dryReach.value >= 0.12 && thermalDry >= 0.16
-  const evaporationReady = getEvaporationStrength() >= 0.16
-  const witherReady = getDryPotential() >= 0.42 && dryReach.value >= 0.34 && thermalDry >= 0.55
 
   switch (item.condition) {
     case 'wind':
+    case 'lee':
       return true
     case 'cloud':
       return cloudReady
@@ -3253,14 +3289,6 @@ function shouldShowStageMessage(item: (typeof STAGE_MESSAGES)[number]) {
       return rainReady
     case 'noRain':
       return cloudReady && !rainReady
-    case 'dry':
-      return dryReady
-    case 'evaporation':
-      return evaporationReady
-    case 'noDry':
-      return !dryReady && (rainReady || ambientDryHeat >= 0.28)
-    case 'wither':
-      return witherReady
     default:
       return false
   }
@@ -3278,7 +3306,7 @@ function showStageToast(item: (typeof STAGE_MESSAGES)[number]) {
       : item.type === 'warning'
         ? '背风坡过程'
         : '阶段提示'
-  stageToast.icon = item.condition === 'evaporation' ? '↑' : item.type === 'success' ? '☁' : item.type === 'warning' ? '↘' : '➤'
+  stageToast.icon = item.type === 'success' ? '☁' : item.type === 'warning' ? '↘' : '➤'
   stageToast.message = item.message
   stageToast.visible = true
 
@@ -3376,8 +3404,8 @@ function updateWindLines(time: number) {
 function updateClouds(time: number) {
   const ridgeY = mountainHeight(0.2, 0)
   const lclY = getLclVisualY()
-  const normalCloudProgress = params.showClouds ? cloudProgress.value : 0
-  const weakCloudHint = params.showClouds ? getWeakCloudHint() : 0
+  const normalCloudProgress = params.showClouds && viewMode.value === 'event' ? cloudProgress.value : 0
+  const weakCloudHint = params.showClouds && viewMode.value === 'event' ? getWeakCloudHint() : 0
   const visibleProgress = Math.max(normalCloudProgress, weakCloudHint)
   const isWeakCloudOnly = normalCloudProgress < 0.035 && weakCloudHint > 0
   const rainStrength = getRainStrength()
@@ -3448,7 +3476,7 @@ function updateRain(delta: number) {
   if (!rainGeometry || !rainPositions || !rainLines) return
 
   const mat = rainLines.material as THREE.LineBasicMaterial
-  mat.opacity = params.showClouds ? THREE.MathUtils.clamp(rainProgress.value * 0.72, 0, 0.68) : 0
+  mat.opacity = params.showClouds && viewMode.value === 'event' ? THREE.MathUtils.clamp(rainProgress.value * 0.72, 0, 0.68) : 0
 
   const shouldMove = params.running && rainProgress.value > 0.02
 
@@ -4262,7 +4290,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .foehn-control-card:not(.collapsed) {
   width: min(390px, calc(100vw - 28px));
-  height: min(720px, calc(100vh - 98px));
+  height: min(720px, calc(100vh - 230px));
 }
 
 .foehn-control-card :deep(.feature-card-content) {
@@ -4276,7 +4304,13 @@ onBeforeUnmount(() => {
 
 .foehn-data-card:not(.collapsed) {
   width: min(390px, calc(100vw - 28px));
-  height: min(680px, calc(100vh - 98px));
+  height: min(430px, calc(100vh - 210px));
+}
+
+@media (min-height: 800px) {
+  .foehn-data-card:not(.collapsed).foehn-data-card--learning-open {
+    height: min(560px, calc(100vh - 300px));
+  }
 }
 
 .foehn-data-card :deep(.feature-card-content) {
@@ -4286,6 +4320,403 @@ onBeforeUnmount(() => {
 .foehn-data-card .panel-scroll {
   height: 100%;
   padding: 12px;
+}
+
+.preset-scale-hint {
+  margin: 0 0 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.foehn-effect-container .timeline-dock {
+  display: flex;
+  width: min(860px, calc(100% - 28px));
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+.foehn-effect-container .timeline-dock--long-term {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.time-view-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.time-view-heading {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.time-view-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--inactive-border);
+  border-radius: 10px;
+  background: var(--inactive-background);
+}
+
+.time-view-btn {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.time-view-btn.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
+  box-shadow: 0 2px 10px rgba(var(--theme-primary-rgb), 0.25);
+}
+
+.time-view-btn:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+.time-view-caption {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.playback-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.playback-row .timeline-main {
+  min-width: 0;
+}
+
+.process-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 17px;
+}
+
+.process-summary-card span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.process-summary-card strong {
+  color: var(--accent-color);
+  font-size: 19px;
+}
+
+.process-summary-card p {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.simple-facts {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.simple-facts div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--card-background);
+}
+
+.simple-facts span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.simple-facts strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: right;
+}
+
+.time-scale-callout {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  background: var(--inactive-background);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.learning-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.learning-intro {
+  padding: 12px 13px;
+  border: 1px solid rgba(var(--theme-primary-rgb), 0.32);
+  border-radius: 10px;
+  background: rgba(var(--theme-primary-rgb), 0.1);
+}
+
+.learning-intro > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent-color);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.learning-intro p {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.learning-scale-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 10px 11px;
+  border: 1px solid var(--inactive-border);
+  border-radius: 9px;
+  background: var(--inactive-background);
+}
+
+.learning-scale-note strong {
+  color: var(--accent-color);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.learning-scale-note p {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.learning-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.learning-step {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--inactive-border);
+  border-radius: 10px;
+  background: var(--inactive-background);
+}
+
+.learning-step-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.learning-step-heading > span {
+  display: grid;
+  flex: 0 0 27px;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--accent-color);
+  background: rgba(var(--theme-primary-rgb), 0.15);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.learning-step-heading h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.learning-step-summary {
+  margin-top: 8px !important;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.learning-result {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(var(--theme-primary-rgb), 0.3);
+  border-radius: 8px;
+  background: rgba(var(--theme-primary-rgb), 0.1);
+}
+
+.learning-result--secondary {
+  margin-top: 5px;
+  border-color: var(--inactive-border);
+  background: transparent;
+}
+
+.learning-result span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.learning-result strong {
+  color: var(--accent-color);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.learning-result--secondary strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.learning-calculation {
+  margin-top: 9px;
+  padding: 0 10px;
+  border-left: 2px solid rgba(var(--theme-primary-rgb), 0.65);
+  border-radius: 0 7px 7px 0;
+  background: rgba(0, 0, 0, 0.13);
+}
+
+.learning-calculation summary {
+  padding: 8px 0;
+  color: var(--accent-color);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.learning-calculation summary:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+.learning-calculation p {
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.learning-calculation p:last-child {
+  padding-bottom: 9px;
+}
+
+.learning-calculation p + p {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--inactive-border);
+}
+
+.learning-step--impact .learning-result strong {
+  font-size: 14px;
+}
+
+.learning-symbols {
+  padding: 10px 11px;
+  border: 1px dashed var(--inactive-border);
+  border-radius: 9px;
+  color: var(--text-secondary);
+}
+
+.learning-symbols summary {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.learning-symbols summary:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 3px;
+}
+
+.learning-symbols p {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .foehn-effect-container .timeline-dock {
+    width: calc(100% - 16px);
+    padding: 8px 10px;
+  }
+
+  .time-view-switch {
+    flex-wrap: wrap;
+    gap: 5px 8px;
+  }
+
+  .time-view-heading {
+    display: none;
+  }
+
+  .time-view-caption {
+    width: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .playback-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px 10px;
+  }
+
+  .playback-row .speed-options {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  .foehn-timeline-marks span:nth-child(2),
+  .foehn-timeline-marks span:nth-child(3) {
+    display: none;
+  }
 }
 
 .foehn-effect-container .three-canvas {
@@ -4315,25 +4746,38 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.preset-btn {
-  min-height: 54px;
+.foehn-effect-container .preset-btn {
+  display: flex;
+  box-sizing: border-box;
+  min-height: 76px;
+  padding: 11px 12px;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 3px;
+  gap: 6px;
   text-align: left;
+  white-space: normal;
 }
 
 .preset-btn strong,
 .preset-btn span {
   position: relative;
   z-index: 1;
+  display: block;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.preset-btn strong {
+  font-size: 14px;
+  line-height: 1.25;
 }
 
 .preset-btn span {
-  font-size: 11px;
-  line-height: 1.3;
-  opacity: 0.78;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  opacity: 0.9;
 }
 
 .full-width-btn {
@@ -4424,42 +4868,115 @@ onBeforeUnmount(() => {
 }
 
 .foehn-diagnosis-card {
-  margin-top: clamp(10px, 0.8vw, 14px);
-  margin-bottom: clamp(14px, 1.1vw, 20px);
-  padding: clamp(14px, 1.05vw, 18px);
+  --impact-color: #69cf9b;
+  --impact-bg: rgba(70, 173, 119, 0.14);
+  --impact-border: rgba(105, 207, 155, 0.4);
+  margin: 0 0 10px;
+  padding: 14px;
 }
 
-.diagnosis-row {
+.impact-card--weak {
+  --impact-color: #74bdf1;
+  --impact-bg: rgba(64, 147, 210, 0.15);
+  --impact-border: rgba(116, 189, 241, 0.42);
+}
+
+.impact-card--medium {
+  --impact-color: #eec66f;
+  --impact-bg: rgba(214, 151, 58, 0.16);
+  --impact-border: rgba(238, 198, 111, 0.44);
+}
+
+.impact-card--strong {
+  --impact-color: #ffad72;
+  --impact-bg: rgba(220, 102, 49, 0.18);
+  --impact-border: rgba(255, 173, 114, 0.48);
+}
+
+.impact-card-title {
+  margin: 0 0 11px;
+  font-size: 14px;
+}
+
+.impact-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 13px 14px;
+  border: 1px solid var(--impact-border);
+  border-radius: 11px;
+  background: var(--impact-bg);
+}
+
+.impact-hero-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 9px 0;
-  border-bottom: 1px dashed var(--inactive-border);
-  font-size: 12px;
+  gap: 8px;
 }
 
-.diagnosis-row span {
+.impact-hero-top > span:first-child {
   color: var(--text-secondary);
+  font-size: 11px;
 }
 
-.diagnosis-row strong {
-  color: var(--accent-color);
-  text-align: right;
+.impact-badge {
+  padding: 3px 7px;
+  border: 1px solid var(--impact-border);
+  border-radius: 999px;
+  color: var(--impact-color);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 10px;
+  font-weight: 800;
 }
 
-.foehn-diagnosis-card p,
-.foehn-scale-note {
-  margin: 10px 0 0;
+.impact-hero strong {
+  color: var(--impact-color);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.impact-hero small {
   color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 11px;
 }
 
-.foehn-scale-note {
-  padding: 8px 9px;
-  border-radius: 10px;
+.impact-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.impact-details > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 11px;
+  border: 1px solid var(--inactive-border);
+  border-radius: 9px;
   background: var(--inactive-background);
+}
+
+.impact-details span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.impact-details strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.foehn-diagnosis-card .impact-explanation {
+  margin: 11px 0 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--impact-color);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .foehn-effect-container .workspace.panel-resizing,

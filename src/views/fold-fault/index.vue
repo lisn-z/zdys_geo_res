@@ -37,14 +37,14 @@
               <strong class="control-value">{{ Math.round(compressionStrength * 100) }}%</strong>
             </div>
             <el-slider v-model="compressionPercent" :min="0" :max="100" :step="1" :show-tooltip="false"
-              @input="onManualFoldControl" />
+              @input="onManualFoldControl('compression')" />
 
             <div class="section-title-row compact-title-row">
               <span class="mini-control-label">侵蚀强度</span>
               <strong class="control-value">{{ Math.round(erosionStrength * 100) }}%</strong>
             </div>
             <el-slider v-model="erosionPercent" :min="0" :max="100" :step="1" :show-tooltip="false"
-              @input="onManualFoldControl" />
+              @input="onManualFoldControl('erosion')" />
 
             <h3 class="section-title fold-preset-title">过程预设</h3>
             <div class="option-grid fold-preset-grid">
@@ -73,7 +73,7 @@
               @input="onManualFaultControl" />
 
             <div class="section-title-row compact-title-row">
-              <span class="mini-control-label">断层面倾角</span>
+              <span class="mini-control-label">断层面倾角（正视）</span>
               <strong class="control-value">{{ Math.round(faultDip) }}°</strong>
             </div>
             <el-slider v-model="faultDip" :min="45" :max="80" :step="1" :show-tooltip="false" />
@@ -145,7 +145,7 @@
 
           <div class="stage-mode-chip">
             <strong>{{ activeMode === 'fold' ? '褶皱形成演示' : '断层错动演示' }}</strong>
-            <span>拖动旋转 · 滚轮缩放 · 点击岩层查看数据</span>
+            <span>{{ activeMode === 'fault' ? '正视查看倾角 · 拖动旋转 · 点击岩层查看数据' : '拖动旋转 · 滚轮缩放 · 点击岩层查看数据' }}</span>
           </div>
 
         </div>
@@ -183,19 +183,32 @@
         :initial-right="18" :initial-collapsed="true" :min-width="300" :min-height="260">
         <div class="floating-card-body">
 
+          <div class="data-panel-intro">
+            <span class="data-live-dot" aria-hidden="true"></span>
+            <span>模型参数实时同步</span>
+            <span class="data-panel-mode">{{ activeMode === 'fold' ? '褶皱分析' : '断层分析' }}</span>
+          </div>
+
           <div class="data-grid">
-            <article v-for="item in dataCards" :key="item.label" class="geo-card data-card" :class="item.className">
-              <span>{{ item.label }}</span>
+            <article v-for="(item, index) in dataCards" :key="item.label" class="geo-card data-card" :class="item.className">
+              <div class="data-card-heading">
+                <span class="data-card-index">{{ String(index + 1).padStart(2, '0') }}</span>
+                <span>{{ item.label }}</span>
+              </div>
               <strong>{{ item.value }}</strong>
               <small>{{ item.description }}</small>
+              <div v-if="item.meter !== undefined" class="data-card-meter" aria-hidden="true">
+                <i :style="{ width: `${item.meter}%` }"></i>
+              </div>
             </article>
           </div>
 
           <section class="geo-card selected-feature-card">
             <div class="selected-feature-heading">
               <span>当前选中</span>
-              <strong>{{ selectedFeature.title }}</strong>
+              <small>点击模型查看岩层</small>
             </div>
+            <strong class="selected-feature-title">{{ selectedFeature.title }}</strong>
             <p>{{ selectedFeature.description }}</p>
           </section>
 
@@ -244,6 +257,14 @@ type ViewType = 'perspective' | 'front' | 'top'
 type FeatureInfo = {
   title: string
   description: string
+}
+
+type DataCardInfo = {
+  label: string
+  value: string
+  description: string
+  className: string
+  meter?: number
 }
 
 const panelsVisible = ref(true)
@@ -297,19 +318,19 @@ const viewOptions: Array<{ label: string; value: ViewType }> = [
 const speedOptions = [0.5, 1, 2]
 
 const rockLegend = [
-  { label: '表层（风化层）', color: '#7fc943', note: '最上部年轻覆盖层' },
-  { label: '浅色岩层', color: '#d9d3c8', note: '用于观察连续弯曲与错断' },
-  { label: '砂泥质层', color: '#ae8f79', note: '中部标志层' },
-  { label: '深色岩层', color: '#725246', note: '较老岩层' },
-  { label: '基底岩层', color: '#47332f', note: '模型底部基底' },
+  { label: '表层（风化层）', color: '#82936a', note: '最上部年轻覆盖层' },
+  { label: '浅色岩层', color: '#c0b8a8', note: '用于观察连续弯曲与错断' },
+  { label: '砂泥质层', color: '#a68e79', note: '中部标志层' },
+  { label: '深色岩层', color: '#786458', note: '较老岩层' },
+  { label: '基底岩层', color: '#554940', note: '模型底部基底' },
 ]
 
-const layerThicknesses = [0.55, 0.68, 0.82, 0.94, 1.08]
+const layerThicknesses = [0.55, 0.68, 0.82, 0.94, 2.28]
 const layerColors = rockLegend.map((item) => item.color)
 const totalRockThickness = layerThicknesses.reduce((sum, value) => sum + value, 0)
+const foldBaseLevel = -4.3
 
 const activeMode = ref<StructureMode>('fold')
-const foldPreset = ref<FoldPreset>('flat')
 const faultType = ref<FaultType>('normal')
 const currentView = ref<ViewType>('perspective')
 
@@ -317,6 +338,16 @@ const compressionStrength = ref(0)
 const erosionStrength = ref(0)
 const faultDisplacement = ref(0)
 const faultDip = ref(62)
+
+const foldPreset = computed<FoldPreset | null>(() => {
+  const compression = compressionStrength.value
+  const erosion = erosionStrength.value
+  if (compression < 0.005 && erosion < 0.005) return 'flat'
+  if (Math.abs(compression - 0.45) < 0.005 && erosion < 0.005) return 'gentle'
+  if (compression > 0.995 && erosion < 0.005) return 'tight'
+  if (compression > 0.995 && erosion > 0.995) return 'eroded'
+  return null
+})
 
 const showLabels = ref(true)
 const showForceArrows = ref(true)
@@ -365,14 +396,14 @@ const currentStageTitle = computed(() => {
   if (compressionStrength.value < 0.55) return '岩层受挤压发生弯曲'
   if (erosionStrength.value < 0.05) return '背斜与向斜形成'
   if (erosionStrength.value < 0.6) return '褶皱顶部开始受侵蚀'
-  return '差异侵蚀与岩层出露'
+  return '背斜成谷、向斜成山'
 })
 
 const faultTypeLabel = computed(() => {
   return faultTypeOptions.find((item) => item.value === faultType.value)?.label || '正断层'
 })
 
-const dataCards = computed(() => {
+const dataCards = computed<DataCardInfo[]>(() => {
   if (activeMode.value === 'fault') {
     return [
       {
@@ -386,11 +417,12 @@ const dataCards = computed(() => {
         value: `${Math.round(faultDisplacement.value * 100)}%`,
         description: '模型相对位移程度',
         className: 'blue-card',
+        meter: faultDisplacement.value * 100,
       },
       {
         label: '断层倾角',
         value: `${Math.round(faultDip.value)}°`,
-        description: '断层面与水平面的夹角',
+        description: '正视时断层面与水平面的夹角',
         className: 'purple-card',
       },
       {
@@ -420,12 +452,14 @@ const dataCards = computed(() => {
       value: `${Math.round(compressionStrength.value * 100)}%`,
       description: '水平挤压作用程度',
       className: 'blue-card',
+      meter: compressionStrength.value * 100,
     },
     {
       label: '侵蚀强度',
       value: `${Math.round(erosionStrength.value * 100)}%`,
       description: '顶部差异侵蚀程度',
       className: 'purple-card',
+      meter: erosionStrength.value * 100,
     },
     {
       label: '主要构造',
@@ -444,10 +478,10 @@ const mechanismText = computed(() => {
     if (faultType.value === 'reverse') {
       return '岩层受挤压力作用发生断裂后，上盘沿断层面相对上升，形成逆断层。逆断层常与强烈水平挤压、地壳缩短有关。'
     }
-    return '岩层沿近直立断裂面发生以水平方向为主的错动，形成平移断层。判断重点是同一标志物或岩层在断层两侧发生水平错开。'
+    return '岩层沿断裂面发生以水平方向为主的错动，形成平移断层。判断重点是同一标志物或岩层在断层两侧发生水平错开。'
   }
 
-  return '水平岩层受到持续的水平挤压力后发生塑性弯曲，向上拱起形成背斜，向下弯曲形成向斜。继续经历差异侵蚀后，不同部位的岩层会被削低并出露，从而形成更复杂的地表形态。'
+  return '水平岩层受到持续的水平挤压力后发生塑性弯曲，向上拱起形成背斜，向下弯曲形成向斜。差异侵蚀使背斜及两翼被削低，向斜中心保留为相对高地，形成“背斜成谷、向斜成山”的地形倒置。'
 })
 
 const recognitionPoints = computed(() => {
@@ -501,6 +535,7 @@ let faultLabelGroup: THREE.Group | null = null
 let foldArrowGroup: THREE.Group | null = null
 let faultArrowGroup: THREE.Group | null = null
 let faultPlaneMesh: THREE.Mesh | null = null
+let faultTraceMesh: THREE.Mesh | null = null
 let faultLeftGroup: THREE.Group | null = null
 let faultRightGroup: THREE.Group | null = null
 
@@ -509,13 +544,12 @@ const faultLayerMeshes: THREE.Mesh[] = []
 const clickableMeshes: THREE.Object3D[] = []
 const sceneMaterials: THREE.Material[] = []
 const sceneTextures: THREE.Texture[] = []
-const sceneGeometries: THREE.BufferGeometry[] = []
+let rockTexture: THREE.CanvasTexture | null = null
 
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
 let pointerDownX = 0
 let pointerDownY = 0
-let lastFoldGeometryUpdate = 0
 
 function switchMode(mode: StructureMode) {
   if (activeMode.value === mode) return
@@ -531,7 +565,6 @@ function switchMode(mode: StructureMode) {
   if (mode === 'fold') {
     compressionStrength.value = 0
     erosionStrength.value = 0
-    foldPreset.value = 'flat'
   } else {
     faultDisplacement.value = 0
   }
@@ -556,7 +589,6 @@ function setFaultType(type: FaultType) {
 
 function applyFoldPreset(preset: FoldPreset) {
   isPlaying.value = false
-  foldPreset.value = preset
   if (preset === 'flat') {
     compressionStrength.value = 0
     erosionStrength.value = 0
@@ -574,18 +606,22 @@ function applyFoldPreset(preset: FoldPreset) {
     erosionStrength.value = 1
     progress.value = 100
   }
-  updateFoldModel(true)
+  updateFoldModel()
 }
 
-function onManualFoldControl() {
+function onManualFoldControl(control: 'compression' | 'erosion') {
   isPlaying.value = false
-  foldPreset.value = 'flat'
+  if (control === 'erosion' && erosionStrength.value > 0) {
+    compressionStrength.value = 1
+  } else if (control === 'compression' && compressionStrength.value < 1) {
+    erosionStrength.value = 0
+  }
   if (erosionStrength.value > 0.01) {
     progress.value = 65 + erosionStrength.value * 35
   } else {
     progress.value = compressionStrength.value * 65
   }
-  updateFoldModel(true)
+  updateFoldModel()
 }
 
 function onManualFaultControl() {
@@ -616,13 +652,6 @@ function applyProgressToModel() {
       compressionStrength.value = 1
       erosionStrength.value = (progress.value - 65) / 35
     }
-    foldPreset.value = progress.value < 1
-      ? 'flat'
-      : progress.value < 60
-        ? 'gentle'
-        : progress.value < 70
-          ? 'tight'
-          : 'eroded'
     updateFoldModel()
   } else {
     faultDisplacement.value = progress.value / 100
@@ -630,13 +659,68 @@ function applyProgressToModel() {
   }
 }
 
-function createMaterial(color: string, options: Partial<THREE.MeshStandardMaterialParameters> = {}) {
+function createRockTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('无法创建岩层纹理')
+  const image = context.createImageData(canvas.width, canvas.height)
+  for (let y = 0; y < canvas.height; y += 1) {
+    for (let x = 0; x < canvas.width; x += 1) {
+      const index = (y * canvas.width + x) * 4
+      const broad = Math.sin(x * 0.065 + Math.sin(y * 0.027) * 2.1) * Math.cos(y * 0.051)
+      const bedding = Math.sin(y * 0.34 + Math.sin(x * 0.035) * 2.2)
+      const seed = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
+      const grain = seed - Math.floor(seed)
+      const value = THREE.MathUtils.clamp(Math.round(237 + broad * 8 + bedding * 4 + (grain - 0.5) * 12), 208, 255)
+      image.data[index] = value
+      image.data[index + 1] = value
+      image.data[index + 2] = value
+      image.data[index + 3] = 255
+    }
+  }
+  context.putImageData(image, 0, 0)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = 4
+  sceneTextures.push(texture)
+  return texture
+}
+
+function addRockUvs(geometry: THREE.BufferGeometry) {
+  const positions = geometry.getAttribute('position') as THREE.BufferAttribute
+  const uv = new Float32Array(positions.count * 2)
+  for (let index = 0; index < positions.count; index += 3) {
+    const x = [positions.getX(index), positions.getX(index + 1), positions.getX(index + 2)]
+    const y = [positions.getY(index), positions.getY(index + 1), positions.getY(index + 2)]
+    const z = [positions.getZ(index), positions.getZ(index + 1), positions.getZ(index + 2)]
+    const xSpan = Math.max(...x) - Math.min(...x)
+    const ySpan = Math.max(...y) - Math.min(...y)
+    const zSpan = Math.max(...z) - Math.min(...z)
+    for (let corner = 0; corner < 3; corner += 1) {
+      const vertex = index + corner
+      const u = zSpan < 0.001 ? x[corner] : xSpan < 0.001 ? z[corner] : x[corner]
+      const v = zSpan < 0.001 || xSpan < 0.001 ? y[corner] : z[corner]
+      uv[vertex * 2] = u! / 2.8
+      uv[vertex * 2 + 1] = v! / 1.8
+    }
+  }
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+}
+
+function createMaterial(color: string) {
+  // 图例和岩层使用同一套低饱和度色值，细纹理只增加岩石质感。
   const material = new THREE.MeshStandardMaterial({
     color,
-    roughness: 0.8,
-    metalness: 0.02,
+    map: rockTexture,
+    emissive: color,
+    emissiveIntensity: 0.1,
+    roughness: 0.98,
+    metalness: 0,
     side: THREE.DoubleSide,
-    ...options,
   })
   sceneMaterials.push(material)
   return material
@@ -672,17 +756,17 @@ function createTextSprite(text: string, accent = '#2ec4b6') {
   if (!ctx) throw new Error('无法创建文字纹理')
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
-  roundedRectPath(ctx, 18, 22, 604, 156, 34)
-  ctx.fillStyle = 'rgba(6, 20, 34, 0.9)'
+  roundedRectPath(ctx, 18, 22, 604, 156, 18)
+  ctx.fillStyle = 'rgba(16, 27, 32, 0.86)'
   ctx.fill()
-  ctx.lineWidth = 5
+  ctx.lineWidth = 3
   ctx.strokeStyle = accent
   ctx.stroke()
 
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.font = '700 62px "Microsoft YaHei", "PingFang SC", sans-serif'
+  ctx.font = '700 58px "Microsoft YaHei", "PingFang SC", sans-serif'
   ctx.fillText(text, 320, 103)
 
   const texture = new THREE.CanvasTexture(canvas)
@@ -698,7 +782,7 @@ function createTextSprite(text: string, accent = '#2ec4b6') {
   sceneMaterials.push(material)
 
   const sprite = new THREE.Sprite(material)
-  sprite.scale.set(3.1, 0.96, 1)
+  sprite.scale.set(2.25, 0.7, 1)
   sprite.renderOrder = 10
   return sprite
 }
@@ -718,17 +802,12 @@ function foldErosionSurfaceAt(rawX: number) {
 
   const amplitude = 1.85 * Math.pow(compressionStrength.value, 0.88)
   const wave = foldWaveAt(rawX)
-  const ridgeFactor = amplitude > 0.001
-    ? Math.max(0, wave / amplitude)
+  // 背斜核部和两翼侵蚀更强，向斜核部保留为地形高点。
+  const positionAcrossFold = amplitude > 0.001
+    ? THREE.MathUtils.clamp((wave / amplitude + 1) / 2, 0, 1)
     : 0
-  const shoulderFactor = amplitude > 0.001
-    ? Math.max(0, 1 - Math.abs(wave / amplitude))
-    : 0
-
   const erosionDepth = erosionStrength.value * (
-    0.18 +
-    Math.pow(ridgeFactor, 1.45) * 3.95 +
-    shoulderFactor * 0.28
+    0.18 + 2.6 * amplitude * Math.pow(positionAcrossFold, 0.9)
   )
 
   return original - erosionDepth
@@ -738,11 +817,14 @@ function getLayerBounds(layerIndex: number, rawX: number) {
   const surface = foldOriginalSurfaceAt(rawX)
   const erosionSurface = foldErosionSurfaceAt(rawX)
   let topOffset = 0
-  for (let i = 0; i < layerIndex; i += 1) topOffset += layerThicknesses[i]
-  const bottomOffset = topOffset + layerThicknesses[layerIndex]
+  for (let i = 0; i < layerIndex; i += 1) topOffset += layerThicknesses[i] ?? 0
+  const bottomOffset = topOffset + (layerThicknesses[layerIndex] ?? 0)
 
   const originalTop = surface - topOffset
-  const originalBottom = surface - bottomOffset
+  // 基底底面保持平直，让褶皱岩层嵌在完整的地质剖块中。
+  const originalBottom = layerIndex === layerThicknesses.length - 1
+    ? foldBaseLevel
+    : surface - bottomOffset
   const visibleTop = Math.min(originalTop, erosionSurface)
   const visibleBottom = Math.min(originalBottom, erosionSurface)
 
@@ -781,6 +863,7 @@ function buildFoldLayerGeometry(layerIndex: number) {
     const x1 = rawX1 * compressionScale
     const b0 = getLayerBounds(layerIndex, rawX0)
     const b1 = getLayerBounds(layerIndex, rawX1)
+    if (b0.top - b0.bottom < 0.001 && b1.top - b1.bottom < 0.001) continue
 
     addQuad(
       positions,
@@ -836,6 +919,7 @@ function buildFoldLayerGeometry(layerIndex: number) {
 
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  addRockUvs(geometry)
   geometry.computeVertexNormals()
   geometry.computeBoundingSphere()
   return geometry
@@ -853,8 +937,8 @@ function createFoldModel() {
     const material = createMaterial(color)
     const mesh = new THREE.Mesh(geometry, material)
     mesh.userData.feature = {
-      title: rockLegend[index].label,
-      description: `这是${rockLegend[index].label}。在褶皱形成过程中，同一岩层应保持连续弯曲；若发生断层，则同一标志层会在断裂面两侧错开。`,
+      title: rockLegend[index]!.label,
+      description: `这是${rockLegend[index]!.label}。在褶皱形成过程中，同一岩层应保持连续弯曲；若发生断层，则同一标志层会在断裂面两侧错开。`,
     } satisfies FeatureInfo
     foldLayerMeshes.push(mesh)
     clickableMeshes.push(mesh)
@@ -862,9 +946,9 @@ function createFoldModel() {
   })
 
   foldLabelGroup = new THREE.Group()
-  const anticlineLeft = createTextSprite('背斜', '#8bc34a')
-  const syncline = createTextSprite('向斜', '#3ea6ff')
-  const anticlineRight = createTextSprite('背斜', '#8bc34a')
+  const anticlineLeft = createTextSprite('背斜', '#a8bd8a')
+  const syncline = createTextSprite('向斜', '#a8c7d1')
+  const anticlineRight = createTextSprite('背斜', '#a8bd8a')
   anticlineLeft.userData.rawX = -4
   syncline.userData.rawX = 0
   anticlineRight.userData.rawX = 4
@@ -891,7 +975,7 @@ function createFoldModel() {
   foldArrowGroup.add(leftArrow, rightArrow)
   foldGroup.add(foldArrowGroup)
 
-  updateFoldModel(true)
+  updateFoldModel()
 }
 
 function updateFoldLabels() {
@@ -905,11 +989,8 @@ function updateFoldLabels() {
   })
 }
 
-function updateFoldModel(force = false) {
+function updateFoldModel() {
   if (!foldGroup) return
-  const now = performance.now()
-  if (!force && now - lastFoldGeometryUpdate < 34) return
-  lastFoldGeometryUpdate = now
 
   foldLayerMeshes.forEach((mesh, index) => {
     const oldGeometry = mesh.geometry as THREE.BufferGeometry
@@ -925,56 +1006,92 @@ function updateFoldModel(force = false) {
   updateFoldLabels()
 }
 
+function faultPlaneX(y: number) {
+  // 断层倾角定义为断层面与水平面的夹角，向右倾的上盘位于右侧。
+  return -y / Math.tan(THREE.MathUtils.degToRad(faultDip.value))
+}
+
+function buildFaultLayerGeometry(layerIndex: number, side: 'left' | 'right', verticalOffset: number) {
+  const halfWidth = 7.24
+  const halfDepth = 2.6
+  const faultGap = 0.1
+  const bottom = -totalRockThickness / 2 + layerThicknesses
+    .slice(layerIndex + 1)
+    .reduce((sum, thickness) => sum + thickness, 0)
+  const top = bottom + layerThicknesses[layerIndex]!
+  const cutAtTop = faultPlaneX(top + verticalOffset) + (side === 'left' ? -faultGap / 2 : faultGap / 2)
+  const cutAtBottom = faultPlaneX(bottom + verticalOffset) + (side === 'left' ? -faultGap / 2 : faultGap / 2)
+  const leftTop = side === 'left' ? -halfWidth : cutAtTop
+  const rightTop = side === 'left' ? cutAtTop : halfWidth
+  const leftBottom = side === 'left' ? -halfWidth : cutAtBottom
+  const rightBottom = side === 'left' ? cutAtBottom : halfWidth
+  const positions: number[] = []
+
+  addQuad(positions,
+    [leftTop, top, halfDepth], [rightTop, top, halfDepth],
+    [rightTop, top, -halfDepth], [leftTop, top, -halfDepth])
+  addQuad(positions,
+    [leftBottom, bottom, -halfDepth], [rightBottom, bottom, -halfDepth],
+    [rightBottom, bottom, halfDepth], [leftBottom, bottom, halfDepth])
+  addQuad(positions,
+    [leftBottom, bottom, halfDepth], [rightBottom, bottom, halfDepth],
+    [rightTop, top, halfDepth], [leftTop, top, halfDepth])
+  addQuad(positions,
+    [rightBottom, bottom, -halfDepth], [leftBottom, bottom, -halfDepth],
+    [leftTop, top, -halfDepth], [rightTop, top, -halfDepth])
+  addQuad(positions,
+    [leftBottom, bottom, -halfDepth], [leftBottom, bottom, halfDepth],
+    [leftTop, top, halfDepth], [leftTop, top, -halfDepth])
+  addQuad(positions,
+    [rightBottom, bottom, halfDepth], [rightBottom, bottom, -halfDepth],
+    [rightTop, top, -halfDepth], [rightTop, top, halfDepth])
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  addRockUvs(geometry)
+  geometry.computeVertexNormals()
+  geometry.computeBoundingSphere()
+  return geometry
+}
+
 function createFaultBlock(side: 'left' | 'right') {
   const group = new THREE.Group()
-  const blockWidth = 7.15
-  const depth = 5.2
-  let currentY = -totalRockThickness / 2
-
-  layerThicknesses
-    .slice()
-    .reverse()
-    .forEach((thickness, reverseIndex) => {
-      const layerIndex = layerThicknesses.length - 1 - reverseIndex
-      const geometry = new THREE.BoxGeometry(blockWidth, thickness, depth, 1, 1, 1)
-      const material = createMaterial(layerColors[layerIndex])
-      const mesh = new THREE.Mesh(geometry, material)
-      mesh.position.y = currentY + thickness / 2
-      mesh.userData.feature = {
-        title: `${side === 'left' ? '左侧' : '右侧'} · ${rockLegend[layerIndex].label}`,
-        description: `断层发生后，观察这条${rockLegend[layerIndex].label}在断层两侧是否还能连续对应，即可判断岩层的相对错动。`,
-      } satisfies FeatureInfo
-      currentY += thickness
-      faultLayerMeshes.push(mesh)
-      clickableMeshes.push(mesh)
-      group.add(mesh)
-    })
-
-  const topGeometry = new THREE.PlaneGeometry(blockWidth, depth)
-  topGeometry.rotateX(-Math.PI / 2)
-  const topMaterial = createMaterial('#8bce4a', { roughness: 0.9 })
-  const topMesh = new THREE.Mesh(topGeometry, topMaterial)
-  topMesh.position.y = totalRockThickness / 2 + 0.006
-  topMesh.userData.feature = {
-    title: `${side === 'left' ? '左侧' : '右侧'}地表`,
-    description: '地表高差本身不能单独确定断层类型，需要结合断层面和同一岩层在两侧的相对位置综合判断。',
-  } satisfies FeatureInfo
-  clickableMeshes.push(topMesh)
-  group.add(topMesh)
+  layerThicknesses.forEach((_, layerIndex) => {
+    const geometry = buildFaultLayerGeometry(layerIndex, side, 0)
+    const material = createMaterial(layerColors[layerIndex]!)
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.userData.layerIndex = layerIndex
+    mesh.userData.side = side
+    mesh.userData.feature = {
+      title: `${side === 'left' ? '左侧' : '右侧'} · ${rockLegend[layerIndex]!.label}`,
+      description: `断层发生后，观察这条${rockLegend[layerIndex]!.label}在断层两侧是否还能连续对应，即可判断岩层的相对错动。`,
+    } satisfies FeatureInfo
+    faultLayerMeshes.push(mesh)
+    clickableMeshes.push(mesh)
+    group.add(mesh)
+  })
 
   return group
 }
 
+function faultVerticalRange() {
+  const halfThickness = totalRockThickness / 2
+  const leftOffset = faultLeftGroup?.position.y ?? 0
+  const rightOffset = faultRightGroup?.position.y ?? 0
+  return {
+    bottom: Math.min(leftOffset, rightOffset) - halfThickness - 0.08,
+    top: Math.max(leftOffset, rightOffset) + halfThickness + 0.08,
+  }
+}
+
 function buildFaultPlaneGeometry() {
-  const depth = 6.1
-  const height = 6.4
-  const dipRad = THREE.MathUtils.degToRad(faultDip.value)
-  const horizontalShift = height / Math.tan(dipRad)
+  const depth = 5.2
+  const { bottom, top } = faultVerticalRange()
   const positions = [
-    -horizontalShift / 2, -height / 2, -depth / 2,
-    horizontalShift / 2, height / 2, -depth / 2,
-    horizontalShift / 2, height / 2, depth / 2,
-    -horizontalShift / 2, -height / 2, depth / 2,
+    faultPlaneX(bottom), bottom, -depth / 2,
+    faultPlaneX(top), top, -depth / 2,
+    faultPlaneX(top), top, depth / 2,
+    faultPlaneX(bottom), bottom, depth / 2,
   ]
   const indices = [0, 1, 2, 0, 2, 3]
   const geometry = new THREE.BufferGeometry()
@@ -990,6 +1107,21 @@ function refreshFaultPlaneGeometry() {
   const newGeometry = buildFaultPlaneGeometry()
   faultPlaneMesh.geometry = newGeometry
   oldPlaneGeometry.dispose()
+  if (faultTraceMesh) {
+    const oldTraceGeometry = faultTraceMesh.geometry as THREE.BufferGeometry
+    faultTraceMesh.geometry = buildFaultTraceGeometry()
+    oldTraceGeometry.dispose()
+  }
+}
+
+function buildFaultTraceGeometry() {
+  const { bottom, top } = faultVerticalRange()
+  const front = 2.66
+  const curve = new THREE.LineCurve3(
+    new THREE.Vector3(faultPlaneX(bottom), bottom, front),
+    new THREE.Vector3(faultPlaneX(top), top, front),
+  )
+  return new THREE.TubeGeometry(curve, 1, 0.045, 6, false)
 }
 
 function createFaultModel() {
@@ -1001,32 +1133,34 @@ function createFaultModel() {
 
   faultLeftGroup = createFaultBlock('left')
   faultRightGroup = createFaultBlock('right')
-  faultLeftGroup.position.x = -3.66
-  faultRightGroup.position.x = 3.66
   faultGroup.add(faultLeftGroup, faultRightGroup)
 
   const planeGeometry = buildFaultPlaneGeometry()
-  const hiddenPlaneMaterial = new THREE.MeshBasicMaterial({
+  const planeMaterial = new THREE.MeshBasicMaterial({
+    color: 0x71d9ef,
     transparent: true,
-    opacity: 0,
+    opacity: 0.2,
     side: THREE.DoubleSide,
     depthWrite: false,
-    colorWrite: false,
   })
-  sceneMaterials.push(hiddenPlaneMaterial)
-  faultPlaneMesh = new THREE.Mesh(planeGeometry, hiddenPlaneMaterial)
-  faultPlaneMesh.visible = false
+  sceneMaterials.push(planeMaterial)
+  faultPlaneMesh = new THREE.Mesh(planeGeometry, planeMaterial)
   faultGroup.add(faultPlaneMesh)
+
+  const traceMaterial = new THREE.MeshBasicMaterial({ color: 0x71d9ef, toneMapped: false })
+  sceneMaterials.push(traceMaterial)
+  faultTraceMesh = new THREE.Mesh(buildFaultTraceGeometry(), traceMaterial)
+  faultGroup.add(faultTraceMesh)
 
   faultLabelGroup = new THREE.Group()
   const footwallLabel = createTextSprite('下盘', '#2ec4b6')
   const hangingWallLabel = createTextSprite('上盘', '#ff9f43')
   const leftRockLabel = createTextSprite('左侧岩块', '#2ec4b6')
   const rightRockLabel = createTextSprite('右侧岩块', '#ff9f43')
-  footwallLabel.scale.set(2.7, 0.84, 1)
-  hangingWallLabel.scale.set(2.7, 0.84, 1)
-  leftRockLabel.scale.set(3.15, 0.84, 1)
-  rightRockLabel.scale.set(3.15, 0.84, 1)
+  footwallLabel.scale.set(2.05, 0.65, 1)
+  hangingWallLabel.scale.set(2.05, 0.65, 1)
+  leftRockLabel.scale.set(2.5, 0.65, 1)
+  rightRockLabel.scale.set(2.5, 0.65, 1)
   footwallLabel.position.set(-3.7, 3.15, 2.95)
   hangingWallLabel.position.set(3.7, 3.15, 2.95)
   leftRockLabel.visible = false
@@ -1043,8 +1177,10 @@ function createFaultModel() {
 function rebuildFaultArrows() {
   if (!faultArrowGroup) return
   while (faultArrowGroup.children.length) {
-    const child = faultArrowGroup.children.pop()
-    if (child) child.parent = null
+    const child = faultArrowGroup.children[0]
+    if (!child) break
+    faultArrowGroup.remove(child)
+    disposeObject(child)
   }
 
   const displacement = 1.75
@@ -1092,8 +1228,8 @@ function updateFaultModel() {
   if (!faultGroup || !faultLeftGroup || !faultRightGroup) return
   const amount = faultDisplacement.value * 2.15
 
-  faultLeftGroup.position.set(-3.66, 0, 0)
-  faultRightGroup.position.set(3.66, 0, 0)
+  faultLeftGroup.position.set(0, 0, 0)
+  faultRightGroup.position.set(0, 0, 0)
 
   if (faultType.value === 'normal') {
     faultLeftGroup.position.y = amount * 0.42
@@ -1105,6 +1241,16 @@ function updateFaultModel() {
     faultLeftGroup.position.z = amount * 0.62
     faultRightGroup.position.z = -amount * 0.62
   }
+
+  // 每层内侧切面按当前世界高度取断层面位置，位移后仍与标注倾角重合。
+  faultLayerMeshes.forEach((mesh) => {
+    const side = mesh.userData.side as 'left' | 'right'
+    const verticalOffset = side === 'left' ? faultLeftGroup!.position.y : faultRightGroup!.position.y
+    const oldGeometry = mesh.geometry as THREE.BufferGeometry
+    mesh.geometry = buildFaultLayerGeometry(mesh.userData.layerIndex as number, side, verticalOffset)
+    oldGeometry.dispose()
+  })
+  refreshFaultPlaneGeometry()
 
   if (faultLabelGroup) {
     faultLabelGroup.visible = showLabels.value
@@ -1133,38 +1279,14 @@ function updateFaultModel() {
   if (faultArrowGroup) {
     faultArrowGroup.visible = showForceArrows.value
   }
-  if (faultPlaneMesh) faultPlaneMesh.visible = false
+  if (faultPlaneMesh) faultPlaneMesh.visible = true
   faultGroup.visible = activeMode.value === 'fault'
-}
-
-function createBackgroundParticles() {
-  if (!scene) return
-  const positions: number[] = []
-  for (let i = 0; i < 170; i += 1) {
-    const x = (Math.random() - 0.5) * 28
-    const y = Math.random() * 10 - 0.4
-    const z = -4.5 - Math.random() * 7
-    positions.push(x, y, z)
-  }
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  sceneGeometries.push(geometry)
-  const material = new THREE.PointsMaterial({
-    color: 0xb8d9e8,
-    size: 0.075,
-    transparent: true,
-    opacity: 0.62,
-    depthWrite: false,
-  })
-  sceneMaterials.push(material)
-  const points = new THREE.Points(geometry, material)
-  scene.add(points)
 }
 
 function updateSceneModeVisibility() {
   if (foldGroup) foldGroup.visible = activeMode.value === 'fold'
   if (faultGroup) faultGroup.visible = activeMode.value === 'fault'
-  if (activeMode.value === 'fold') updateFoldModel(true)
+  if (activeMode.value === 'fold') updateFoldModel()
   else updateFaultModel()
 }
 
@@ -1178,14 +1300,14 @@ function applyCurrentView() {
   camera.up.set(0, 1, 0)
 
   if (currentView.value === 'front') {
-    camera.position.set(0, 0.45, 20.5)
-    orbitControls.target.set(0, 0.1, 0)
+    camera.position.set(0, 0.5, 28)
+    orbitControls.target.set(0, 0.5, 0)
   } else if (currentView.value === 'top') {
-    camera.position.set(0.01, 18.5, 0.01)
+    camera.position.set(0.01, 28, 0.01)
     camera.up.set(0, 0, -1)
     orbitControls.target.set(0, 0.1, 0)
   } else {
-    camera.position.set(11.8, 7.1, 15.5)
+    camera.position.set(15.4, 10.5, 22.5)
     orbitControls.target.set(0, 0.1, 0)
   }
 
@@ -1274,8 +1396,8 @@ function initScene() {
 
   scene = new THREE.Scene()
 
-  camera = new THREE.PerspectiveCamera(42, 1, 0.1, 120)
-  camera.position.set(11.8, 7.1, 15.5)
+  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 120)
+  camera.position.set(15.4, 10.5, 22.5)
 
   renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -1293,25 +1415,25 @@ function initScene() {
   orbitControls.enableDamping = true
   orbitControls.dampingFactor = 0.08
   orbitControls.enablePan = false
-  orbitControls.minDistance = 9
-  orbitControls.maxDistance = 30
+  orbitControls.minDistance = 10
+  orbitControls.maxDistance = 42
   orbitControls.minPolarAngle = 0.08
   orbitControls.maxPolarAngle = Math.PI * 0.88
   orbitControls.target.set(0, 0.1, 0)
   orbitControls.update()
 
-  const hemisphereLight = new THREE.HemisphereLight(0xc9edff, 0x293229, 1.25)
+  const hemisphereLight = new THREE.HemisphereLight(0xf2eee7, 0x353a39, 1.35)
   scene.add(hemisphereLight)
 
-  mainLight = new THREE.DirectionalLight(0xffffff, 2.15)
+  mainLight = new THREE.DirectionalLight(0xfff3e2, 1.5)
   mainLight.position.set(8, 13, 10)
   scene.add(mainLight)
 
-  const rimLight = new THREE.DirectionalLight(0x4ca9ff, 0.65)
+  const rimLight = new THREE.DirectionalLight(0xd5e3e7, 0.4)
   rimLight.position.set(-10, 6, -8)
   scene.add(rimLight)
 
-  createBackgroundParticles()
+  rockTexture = createRockTexture()
   createFoldModel()
   createFaultModel()
   updateSceneModeVisibility()
@@ -1376,7 +1498,6 @@ function animateTimeline(time: number) {
 
 function resetControls() {
   activeMode.value = 'fold'
-  foldPreset.value = 'flat'
   faultType.value = 'normal'
   currentView.value = 'perspective'
   compressionStrength.value = 0
@@ -1395,7 +1516,6 @@ function resetControls() {
   }
 
   rebuildFaultArrows()
-  refreshFaultPlaneGeometry()
   updateSceneModeVisibility()
   applyCurrentView()
   scheduleSceneResize(90)
@@ -1407,12 +1527,12 @@ watch(showLabels, () => {
 })
 
 watch(showForceArrows, () => {
-  updateFoldModel(true)
+  updateFoldModel()
   updateFaultModel()
 })
 
 watch(faultDip, () => {
-  refreshFaultPlaneGeometry()
+  updateFaultModel()
   renderOnce()
 })
 
@@ -1423,12 +1543,14 @@ watch(faultType, () => {
 
 function disposeObject(object: THREE.Object3D) {
   object.traverse((child) => {
-    if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments || child instanceof THREE.Points) {
+    if (child instanceof THREE.Mesh || child instanceof THREE.Line || child instanceof THREE.Points) {
       const geometry = child.geometry as THREE.BufferGeometry | undefined
       geometry?.dispose()
       const material = child.material as THREE.Material | THREE.Material[] | undefined
       if (Array.isArray(material)) material.forEach((item) => item.dispose())
       else material?.dispose()
+    } else if (child instanceof THREE.Sprite) {
+      child.material.dispose()
     }
   })
 }
@@ -1453,10 +1575,10 @@ function disposeScene() {
 
   sceneTextures.forEach((texture) => texture.dispose())
   sceneTextures.length = 0
+  rockTexture = null
 
   if (scene) disposeObject(scene)
   sceneMaterials.length = 0
-  sceneGeometries.length = 0
   foldLayerMeshes.length = 0
   faultLayerMeshes.length = 0
   clickableMeshes.length = 0
@@ -1477,6 +1599,7 @@ function disposeScene() {
   foldArrowGroup = null
   faultArrowGroup = null
   faultPlaneMesh = null
+  faultTraceMesh = null
   faultLeftGroup = null
   faultRightGroup = null
 }
@@ -1512,7 +1635,142 @@ onBeforeUnmount(() => {
 }
 
 .fold-fault-data-card {
-  width: clamp(320px, 22vw, 440px);
+  width: clamp(348px, 28vw, 448px);
+}
+
+.fold-fault-data-card .floating-card-body {
+  gap: 13px;
+  padding: 15px;
+}
+
+.data-panel-intro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #a8bfba;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.data-live-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: #a9c8aa;
+  box-shadow: 0 0 0 3px rgba(169, 200, 170, 0.12);
+}
+
+.data-panel-mode {
+  margin-left: auto;
+  color: #d1ded8;
+  font-weight: 700;
+}
+
+.fold-fault-data-card .data-grid {
+  gap: 9px;
+  margin: 0;
+}
+
+.fold-fault-data-card .data-card {
+  --data-accent: #a8c7bd;
+  position: relative;
+  display: flex;
+  min-height: 106px;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 14px 15px;
+  overflow: hidden;
+  border: 1px solid rgba(168, 191, 184, 0.17);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(31, 49, 53, 0.95), rgba(13, 31, 38, 0.95));
+  box-shadow: inset 0 1px 0 rgba(230, 240, 232, 0.06);
+  backdrop-filter: none;
+}
+
+.fold-fault-data-card .data-card::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--data-accent);
+  content: '';
+  opacity: 0.8;
+}
+
+.fold-fault-data-card .data-card:first-child,
+.fold-fault-data-card .data-card:last-child {
+  grid-column: 1 / -1;
+  min-height: 96px;
+}
+
+.fold-fault-data-card .blue-card {
+  --data-accent: #a5bccd;
+}
+
+.fold-fault-data-card .purple-card {
+  --data-accent: #bbaac3;
+}
+
+.fold-fault-data-card .orange-card {
+  --data-accent: #cdb492;
+}
+
+.data-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.fold-fault-data-card .data-card-heading span {
+  color: #a9bcb9;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.fold-fault-data-card .data-card-heading .data-card-index {
+  color: var(--data-accent);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fold-fault-data-card .data-card strong {
+  overflow: visible;
+  color: #f0f3ee;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.18;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.fold-fault-data-card .data-card:first-child strong {
+  font-size: 25px;
+}
+
+.fold-fault-data-card .data-card small {
+  color: #aabbb7;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.data-card-meter {
+  height: 3px;
+  margin-top: auto;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(218, 230, 225, 0.13);
+}
+
+.data-card-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--data-accent);
+  transition: width 160ms ease;
 }
 
 /*
@@ -1685,7 +1943,14 @@ onBeforeUnmount(() => {
 
 
 .selected-feature-card {
-  margin-top: 12px;
+  margin: 0;
+  padding: 14px 15px 15px;
+  border: 1px solid rgba(155, 183, 174, 0.22);
+  border-left: 3px solid #9cb9a9;
+  border-radius: 9px;
+  background: rgba(23, 43, 46, 0.84);
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .selected-feature-heading {
@@ -1696,21 +1961,71 @@ onBeforeUnmount(() => {
 }
 
 .selected-feature-heading span {
-  color: var(--text-secondary);
-  font-size: 12px;
+  color: #adc7bc;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
-.selected-feature-heading strong {
-  color: var(--text-primary);
-  font-size: 15px;
-  text-align: right;
+.selected-feature-heading small {
+  color: #8da6a3;
+  font-size: 10px;
+}
+
+.selected-feature-title {
+  display: block;
+  margin-top: 8px;
+  color: #f0f3ee;
+  font-size: 18px;
+  line-height: 1.35;
 }
 
 .selected-feature-card p {
-  margin: 10px 0 0;
-  color: var(--text-secondary);
+  margin: 6px 0 0;
+  color: #b6c8c1;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.fold-fault-data-card :deep(.analysis-collapse) {
+  overflow: hidden;
+  border: 1px solid rgba(155, 183, 174, 0.17);
+  border-radius: 9px;
+  background: rgba(12, 29, 36, 0.6);
+}
+
+.fold-fault-data-card :deep(.analysis-collapse .el-collapse-item) {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.fold-fault-data-card :deep(.analysis-collapse .el-collapse-item + .el-collapse-item) {
+  border-top: 1px solid rgba(155, 183, 174, 0.15);
+}
+
+.fold-fault-data-card :deep(.analysis-collapse .el-collapse-item__header) {
+  height: 42px;
+  padding: 0 13px;
+  color: #e0eae4;
   font-size: 12px;
-  line-height: 1.7;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
+}
+
+.fold-fault-data-card :deep(.analysis-collapse .el-collapse-item__wrap) {
+  background: transparent;
+  border: 0;
+}
+
+.fold-fault-data-card :deep(.analysis-collapse .el-collapse-item__content) {
+  padding: 0 13px 13px;
+  color: #b5c5bf;
+  font-size: 11px;
+  line-height: 1.65;
 }
 
 .recognition-list p+p {
@@ -1718,6 +2033,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 860px) {
+
+  .fold-fault-data-card {
+    width: min(390px, calc(100vw - 36px));
+  }
 
   .fault-type-grid,
   .view-option-grid {

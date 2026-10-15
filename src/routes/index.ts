@@ -436,6 +436,15 @@ export const routes = [
     component: () =>
       import('@/views/flying-into-space/index.vue'),
   },
+  {
+    path: '/making-a-globe',
+    name: 'making-a-globe',
+    meta: {
+      title: '制作地球仪',
+    },
+    component: () =>
+      import('@/views/making-a-globe/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {

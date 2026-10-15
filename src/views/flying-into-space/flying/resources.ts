@@ -7,6 +7,24 @@ export const ASSET_FILES: Record<AssetKey, string> = {
   mercury: 'mercury.jpg', venus: 'venus.jpg', jupiter: 'jupiter.jpg', saturn: 'saturn.jpg', uranus: 'uranus.jpg', neptune: 'neptune.jpg',
 };
 export const ASSET_KEYS = Object.keys(ASSET_FILES) as AssetKey[];
+/** External textures used while constructing each scene. Procedural terrain and
+ * vehicle materials need no downloads. Keep this aligned with createWorld. */
+export function worldAssetKeys(key: string): readonly AssetKey[] {
+  const [type, kind] = key.split(':');
+  switch (type) {
+    case 'mission': case 'coast': return ['waterNormals'];
+    case 'camp': case 'campEnd': return ['galaxy', 'moon'];
+    case 'dune': case 'field': case 'pad': case 'return': case 'recovery': case 'mars': return [];
+    case 'lunar': return kind === 'apollo' ? ['galaxy', 'earthDay', 'earthNight'] : ['galaxy'];
+    case 'cabin': case 'earth': case 'orbit': return ['galaxy', 'earthDay', 'earthNight'];
+    case 'moonOrbit': return ['galaxy', 'moon'];
+    case 'marsOrbit': return ['galaxy', 'mars'];
+    case 'relay': case 'transfer': return ['galaxy', 'earthDay', 'earthNight', 'moon'];
+    case 'solar': return ASSET_KEYS.filter(asset => asset !== 'waterNormals' && asset !== 'moon');
+    case 'finale': return ASSET_KEYS.filter(asset => asset !== 'waterNormals');
+    default: return ['galaxy'];
+  }
+}
 export const ASSET_LABELS: Record<AssetKey, string> = {
   earthDay:'地球昼面', earthNight:'地球夜光', galaxy:'银河星空', moon:'月球', mars:'火星', sun:'太阳', waterNormals:'海洋法线',
   mercury:'水星', venus:'金星', jupiter:'木星', saturn:'土星', uranus:'天王星', neptune:'海王星',
@@ -15,6 +33,8 @@ export type AssetPhase = 'queued' | 'downloading' | 'decoding' | 'uploading' | '
 export interface AssetRecord {
   key: AssetKey; file: string; label: string; url: string; phase: AssetPhase;
   width: number; height: number; bytes: number; error: string; textureId: string; gpuReady: boolean;
+  /** Original dimensions remain in width/height; these describe the device-ready image. */
+  gpuWidth?: number; gpuHeight?: number; resized?: boolean;
 }
 export interface AssetState {
   requested: number; completed: number; ready: number; failed: string[]; pending: string[]; items: AssetRecord[];
@@ -58,4 +78,14 @@ export function imageDimensionError(width: number, height: number, maxTextureSiz
   if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) return '图像解码后尺寸无效';
   if (width > maxTextureSize || height > maxTextureSize) return `原图 ${width} × ${height} 超出当前显卡单纹理上限 ${maxTextureSize}；未静默缩小原图。`;
   return '';
+}
+/** Match Three.js's hardware-limit adaptation without changing capable devices.
+ * Resize before the first GPU upload so immutable texture storage uses the final dimensions. */
+export function fitTextureDimensions(width: number, height: number, maxTextureSize: number): { width: number; height: number; resized: boolean } {
+  const invalid = imageDimensionError(width, height, Infinity);
+  if (invalid) throw new Error(invalid);
+  if (!Number.isFinite(maxTextureSize) || maxTextureSize < 1) throw new Error('当前设备的纹理尺寸上限无效');
+  const limit = Math.floor(maxTextureSize);
+  const scale = Math.min(1, limit / Math.max(width, height));
+  return { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)), resized: scale < 1 };
 }

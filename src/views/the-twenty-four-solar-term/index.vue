@@ -114,7 +114,7 @@
             <div class="switch-row">
               <div class="control-copy">
                 <strong>地轴与赤道</strong>
-                <span>显示23.44°地轴倾角与赤道环</span>
+                <span>地轴与黄道面法线夹角约23°26′，显示赤道环</span>
               </div>
               <el-switch v-model="showEarthAxis" />
             </div>
@@ -246,8 +246,14 @@
 
 
           <div class="scene-legend">
-            <span><i class="legend-dot normal-dot"></i>普通节气</span>
-            <span><i class="legend-dot major-dot"></i>二分二至</span>
+            <span>
+              <span class="legend-season-markers">
+                <i v-for="season in seasonOptions" :key="season.value" class="legend-marker"
+                  :style="{ backgroundColor: `#${seasonColors[season.value].toString(16)}` }"></i>
+              </span>
+              普通节气（春夏秋冬）
+            </span>
+            <span><i class="legend-marker major-marker"></i>二分二至</span>
             <span><i class="legend-line"></i>地球公转方向</span>
           </div>
         </div>
@@ -462,7 +468,7 @@ const completePoemMap: Record<string, SolarTermPoem> = {
     title: '咏廿四气诗·芒种五月节',
     author: '唐·元稹',
     lines: [
-      '芒种看今日，螗螂应节生。',
+      '芒种看今日，螳螂应节生。',
       '彤云高下影，鴳鸟往来声。',
       '渌沼莲花放，炎风暑雨情。',
       '相逢问蚕麦，幸得称人情。',
@@ -1094,7 +1100,14 @@ function selectTerm(index: number) {
   activeInfoSections.value = []
   hoveredTermIndex.value = null
 
-  startTermSelectionTransition(safeIndex)
+  // 二至是轨道的精确位置，选中时立即对齐地球与标记。
+  if (solarTerms[safeIndex].solarLongitude === 90 || solarTerms[safeIndex].solarLongitude === 270) {
+    displayedOrbitProgress = safeIndex
+    termSelectionTransition = null
+    updateEarthPosition()
+  } else {
+    startTermSelectionTransition(safeIndex)
+  }
   updateSelectedMarker()
 }
 
@@ -1140,7 +1153,9 @@ const ORBIT_RADIUS = 11.2
 const EARTH_RADIUS = 1.16
 const SUN_RADIUS = 1.68
 const TERMS_PER_SECOND = 0.32
-const FIXED_AXIAL_TILT = THREE.MathUtils.degToRad(-23.44)
+const AXIAL_TILT_DEGREES = 23 + 26 / 60
+const EARTH_ROTATION_RADIANS_PER_SECOND = 1.05
+const FIXED_AXIAL_TILT = THREE.MathUtils.degToRad(-AXIAL_TILT_DEGREES)
 const FIXED_AXIAL_TILT_QUATERNION = new THREE.Quaternion().setFromAxisAngle(
   new THREE.Vector3(0, 0, 1),
   FIXED_AXIAL_TILT,
@@ -1188,7 +1203,6 @@ let termSelectionTransition: {
 } | null = null
 
 const markerMeshes: THREE.Mesh[] = []
-const majorMarkerMeshes: THREE.Mesh[] = []
 const seasonArcMaterials = new Map<
   SeasonKey,
   { core: THREE.LineBasicMaterial; glow: THREE.LineBasicMaterial }
@@ -1660,7 +1674,7 @@ function createMarkers() {
     const marker = new THREE.Mesh(geometry, material)
     const orbitPosition = getOrbitPosition(term.index)
     marker.position.copy(orbitPosition)
-    marker.position.y = height * 0.5 - 0.04
+    marker.position.y = height * 0.5
     marker.lookAt(0, marker.position.y, 0)
     marker.userData.termIndex = term.index
     marker.userData.baseY = marker.position.y
@@ -1715,7 +1729,6 @@ function createMarkers() {
     marker.add(backSeal)
 
     if (term.major) {
-      majorMarkerMeshes.push(marker)
       const haloGeometry = new THREE.RingGeometry(0.40, 0.58, 48)
       const haloMaterial = new THREE.MeshBasicMaterial({
         color: seasonColors[term.season],
@@ -1729,7 +1742,7 @@ function createMarkers() {
       disposableMaterials.push(haloMaterial)
       const halo = new THREE.Mesh(haloGeometry, haloMaterial)
       halo.rotation.x = -Math.PI / 2
-      halo.position.y = 0.06
+      halo.position.y = 0.06 - marker.position.y
       marker.add(halo)
     }
   })
@@ -2353,7 +2366,7 @@ function updateSelectedMarker() {
     const selected = index === currentTermIndex.value
     const sameSeason = term.season === currentTerm.value.season
 
-    marker.scale.setScalar(selected ? (term.major ? 1.48 : 1.72) : 1)
+    marker.scale.setScalar(selected && !term.major ? 1.72 : 1)
 
     const material = marker.material as THREE.MeshBasicMaterial
     material.opacity = selected ? 1 : sameSeason ? (term.major ? 0.82 : 0.68) : (term.major ? 0.48 : 0.26)
@@ -2859,7 +2872,7 @@ function animateScene(time: number) {
   }
 
   if (earthMesh && autoEarthRotation.value) {
-    earthMesh.rotation.y += delta * 0.52
+    earthMesh.rotation.y += delta * EARTH_ROTATION_RADIANS_PER_SECOND
   }
 
   enforceFixedEarthAxis()
@@ -2981,17 +2994,10 @@ function animateScene(time: number) {
     const baseY = marker.userData.baseY as number
     const phase = marker.userData.floatPhase as number
     const activeSeasonMarker = term.season === currentTerm.value.season
-    const targetY = activeSeasonMarker
+    const targetY = activeSeasonMarker && !term.major
       ? baseY + Math.sin(time * 0.0022 + phase) * 0.12
       : baseY
     marker.position.y = THREE.MathUtils.lerp(marker.position.y, targetY, 0.12)
-  })
-
-  majorMarkerMeshes.forEach((marker, index) => {
-    const pulse = 1 + Math.sin(time * 0.003 + index * 1.2) * 0.08
-    if (marker.userData.termIndex !== currentTermIndex.value) {
-      marker.scale.setScalar(pulse)
-    }
   })
 
   if (selectedMarkerHalo) {
@@ -3079,7 +3085,6 @@ function disposeScene() {
   }
 
   markerMeshes.length = 0
-  majorMarkerMeshes.length = 0
   seasonArcMaterials.clear()
   seasonParticleMaterials.clear()
   seasonParticleSystems.clear()
@@ -3510,21 +3515,25 @@ onBeforeUnmount(() => {
   gap: 5px;
 }
 
-.legend-dot {
+.scene-legend .legend-season-markers {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.legend-marker {
   display: inline-block;
   width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.normal-dot {
-  background: #6cd7ad;
-}
-
-.major-dot {
-  width: 10px;
   height: 10px;
-  background: #fff2b2;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 2px;
+}
+
+.major-marker {
+  width: 10px;
+  height: 13px;
+  background: #faf0cf;
+  border-color: #ffe19b;
   box-shadow: 0 0 8px rgba(255, 228, 132, 0.75);
 }
 

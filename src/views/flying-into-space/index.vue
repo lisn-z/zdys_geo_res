@@ -1,6 +1,7 @@
 <template>
-  <section ref="pageRef" class="flying-space" :aria-busy="!pageReady" :class="{ 'is-embedded': embedded, 'is-cabin': isCabin, 'is-observing': observing, 'is-loading': !pageReady, 'is-mission': isMission, 'is-mission-white': isMission && flight.whiteout > .55 }">
+  <section ref="pageRef" class="flying-space" :aria-busy="!pageReady" :class="{ 'is-embedded': embedded, 'is-cabin': isCabin, 'is-observing': observing, 'is-loading': !pageReady, 'is-mission': isMission, 'is-mission-white': isMission && flight.whiteout > .55 }" @pointerdown.capture="resumeBackgroundMusic" @keydown.capture="resumeBackgroundMusic">
     <div ref="sceneRef" class="fs-scene" />
+    <audio ref="musicAudioRef" preload="none" hidden aria-hidden="true" />
     <div class="fs-vignette" aria-hidden="true" />
     <div v-if="isMission" class="fs-mission-whiteout" :style="{ opacity: flight.whiteout }" aria-hidden="true" />
     <header class="fs-header">
@@ -18,6 +19,7 @@
           <input :checked="player.interactionEnabled" type="checkbox" :disabled="player.experience === 'task'" @change="toggleInteractive(($event.target as HTMLInputElement).checked)" />
           <span>互动</span>
         </label>
+        <button class="fs-icon-btn" :class="{ active: !audioMuted }" :title="audioMuted ? '开启声音' : '静音'" :aria-label="audioMuted ? '开启声音' : '静音'" :aria-pressed="audioMuted" @click="toggleSound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path v-if="audioMuted" d="m16 9 5 6m0-6-5 6"/><path v-else d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></button>
         <button class="fs-icon-btn fs-secondary" title="全屏" aria-label="切换全屏" @click="toggleFullscreen"><svg viewBox="0 0 24 24"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button>
         <button class="fs-icon-btn" title="说明与设置" aria-label="说明与设置" @click="openInfo"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 11v6m0-10v1"/></svg></button>
       </nav>
@@ -157,6 +159,10 @@
           <h4>观看设置</h4>
           <label class="fs-setting"><span>旁白字幕</span><input v-model="captionsEnabled" type="checkbox" /></label>
           <label class="fs-setting"><span>画面效果</span><select v-model="quality" @change="changeQuality"><option value="balanced">流畅</option><option value="high">精细</option></select></label>
+          <template v-if="backgroundMusic.ready && !isMission">
+            <label class="fs-setting"><span>背景音乐</span><input v-model="musicEnabled" type="checkbox" /></label>
+            <label v-if="musicEnabled" class="fs-setting fs-music-volume"><span>音乐音量</span><input v-model.number="musicVolume" type="range" min="0" max="100" step="1" /><output>{{ musicVolume }}%</output></label>
+          </template>
           <h4>操作提示</h4>
           <p v-if="isMission" class="fs-key-help"><kbd>SPACE</kbd> 按住发射　<kbd>R</kbd> 重新发射<br /><kbd>ESC</kbd> 关闭当前面板</p>
           <p v-else class="fs-key-help"><kbd>P</kbd> 播放 / 暂停　<kbd>ESC</kbd> 关闭当前面板<br />勾选互动后，历史章节会出现一道小问答。</p>
@@ -180,6 +186,8 @@ import { StoryPlayer } from './flying/player';
 import { LaunchMission } from './flying/mission';
 import MissionSuccess from './components/MissionSuccess.vue';
 import { SpaceDirector, AmbientSound } from './flying/director';
+import { BackgroundMusic, type BackgroundTrack } from './flying/background-music';
+import { EXPLORATION_MUSIC } from './flying/music-sources';
 import { DEFAULT_IMAGE_BASE, ORIGINAL_LOGO, emptyAssetState, type AssetState } from './flying/assets';
 import { formatTime } from './flying/math';
 const props = withDefaults(defineProps<{
@@ -187,7 +195,8 @@ const props = withDefaults(defineProps<{
     logoUrl?: string;
     embedded?: boolean;
     debug?: boolean;
-}>(), { imageBase: DEFAULT_IMAGE_BASE, logoUrl: ORIGINAL_LOGO, embedded: false, debug: false });
+    musicTracks?: readonly BackgroundTrack[];
+}>(), { imageBase: DEFAULT_IMAGE_BASE, logoUrl: ORIGINAL_LOGO, embedded: false, debug: false, musicTracks: () => EXPLORATION_MUSIC });
 const pageRef = ref<HTMLElement | null>(null), sceneRef = ref<HTMLElement | null>(null), dialogRef = ref<HTMLElement | null>(null), infoRef = ref<HTMLElement | null>(null);
 const player = reactive(new StoryPlayer());
 const mission = new LaunchMission();
@@ -200,7 +209,10 @@ const missionPhaseLabel = computed(() => ({ready:'等待点火',igniting:'建立
 let missionPointer: number | null = null;
 const assets = ref<AssetState>(emptyAssetState(props.imageBase));
 const pageReady = ref(false), loadingActive = ref(false), loadingError = ref(''), loadingStage = ref('正在汇集人类飞行的足迹');
-const assetPercent = computed(() => assets.value.requested ? assets.value.ready / assets.value.requested * 100 : 0);
+const assetPercent = computed(() => {
+    const items = assets.value.items;
+    return items.length ? items.filter(item => item.phase === 'ready' && item.gpuReady).length / items.length * 100 : 0;
+});
 function journeyLoadingStage(state: AssetState) {
     const progress = state.requested ? state.ready / state.requested : 0;
     if (progress < .35) return '正在汇集人类飞行的足迹';
@@ -213,9 +225,29 @@ watch(assets, state => {
     loadingStage.value = journeyLoadingStage(state);
 }, { deep: true, immediate: true });
 let loadGeneration = 0, loadResume = false;
-const error = ref(''), drawer = ref(false), infoOpen = ref(false), textbookOnly = ref(false), captionsEnabled = ref(true), observing = ref(false), soundEnabled = ref(false), pickedPart = ref(''), photo = ref('');
+const error = ref(''), drawer = ref(false), infoOpen = ref(false), textbookOnly = ref(false), captionsEnabled = ref(true), observing = ref(false), audioMuted = ref(false), pickedPart = ref(''), photo = ref('');
 const quality = ref<'balanced' | 'high'>('high'), isCabin = ref(false), scrubTime = ref<number | null>(null);
 let director: SpaceDirector | null = null, sound = new AmbientSound(), raf = 0, lastStamp = 0, dead = false, modalWasPlaying = false, observeWasPlaying = false, scrubWasPlaying = false, hiddenWasPlaying = false, photoWasPlaying = false;
+const musicAudioRef = ref<HTMLAudioElement | null>(null);
+const backgroundMusic = new BackgroundMusic(props.musicTracks, () => {
+    if (!musicAudioRef.value) throw new Error('Background audio is not mounted.');
+    return musicAudioRef.value;
+});
+const musicEnabled = ref(true), musicVolume = ref(32), pageVisible = ref(true);
+let ambientRequest = 0;
+function setAmbientEnabled(enabled: boolean) {
+    const request = ++ambientRequest;
+    void sound.setEnabled(enabled).catch(() => { if (request === ambientRequest) sound.enabled = false; });
+}
+const shouldPlayMusic = computed(() => !audioMuted.value && musicEnabled.value && pageReady.value && pageVisible.value
+    && !isMission.value && player.started && !player.ended && (player.playing || observing.value)
+    && !player.quiz && !drawer.value && !infoOpen.value && !photo.value && !error.value && !loadingError.value);
+watch(shouldPlayMusic, active => backgroundMusic.setActive(active), { flush: 'sync' });
+watch(musicVolume, volume => backgroundMusic.setVolume(volume / 100), { flush: 'sync' });
+function resumeBackgroundMusic() {
+    if (pageReady.value && !audioMuted.value && !sound.enabled) setAmbientEnabled(true);
+    if (shouldPlayMusic.value) backgroundMusic.resumeFromGesture();
+}
 let restoreFocus: HTMLElement | null = null;
 const chapter = computed(() => locateStory(player.time).chapter), local = computed(() => locateStory(player.time).local);
 const timelinePointerTime = ref<number | null>(null);
@@ -325,9 +357,9 @@ function releaseThrust() { player.thrust = false; }
 function connectRelay() { player.relay = true; player.feedback = '中继链路已接通'; player.action(); }
 function closePhoto() { photo.value = ''; player.playing = photoWasPlaying; }
 function cycleSpeed() { const speeds = [.5, 1, 1.5, 2]; player.speed = speeds[(speeds.indexOf(player.speed) + 1) % speeds.length]!; }
-function resetJourney() { mission.reset(); flight.value = mission.snapshot(); missionPointer = null; player.reset(); observing.value = false; director?.requestTransition(); pickedPart.value = ''; photo.value = ''; }
+function resetJourney() { mission.reset(); flight.value = mission.snapshot(); missionPointer = null; player.reset(); observing.value = false; backgroundMusic.reset(); director?.requestTransition(); pickedPart.value = ''; photo.value = ''; }
 function toggleObserve() {
-    if (!director || isCabin.value)
+    if (!director || isCabin.value || !pageReady.value)
         return;
     observing.value = !observing.value;
     if (observing.value) {
@@ -338,14 +370,10 @@ function toggleObserve() {
         player.playing = observeWasPlaying;
     director.setFree(observing.value);
 }
-async function toggleSound() {
-    try {
-        soundEnabled.value = await sound.toggle();
-    }
-    catch {
-        soundEnabled.value = false;
-        player.feedback = '音频未能启动，继续无声观看。';
-    }
+function toggleSound() {
+    audioMuted.value = !audioMuted.value;
+    setAmbientEnabled(!audioMuted.value);
+    if (!audioMuted.value) resumeBackgroundMusic();
 }
 async function toggleFullscreen() {
     try {
@@ -457,6 +485,7 @@ function keyup(e: KeyboardEvent) {
 }
 function clearInput() { player.thrust = false; mission.releaseAll(); missionPointer = null; flight.value = mission.snapshot(); lastStamp = 0; }
 function visibility() {
+    pageVisible.value = !document.hidden;
     clearInput();
     if (isMission.value) return;
     if (document.hidden) {
@@ -486,7 +515,7 @@ function trapFocus(e: KeyboardEvent) {
     }
 }
 function frame(stamp: number) {
-    if (dead || !pageReady.value)
+    if (dead || !pageReady.value || error.value)
         return;
     const dt = lastStamp ? Math.min(.08, (stamp - lastStamp) / 1000) : .016;
     lastStamp = stamp;
@@ -498,16 +527,17 @@ function frame(stamp: number) {
             director?.renderMission(flight.value, document.hidden || infoOpen.value ? 0 : dt);
             missionIntroReady.value = director?.missionIntroComplete || false;
             isCabin.value = false;
-            sound.update('coast:generic', flight.value.power > .01 && !infoOpen.value);
+            sound.update('coast:generic', !audioMuted.value && pageVisible.value && flight.value.power > .01 && !infoOpen.value);
         } else {
             if (!document.hidden) player.tick(dt);
             const loc = locateStory(player.time);
             director?.render({ chapter: loc.chapter, shot: loc.shot, local: loc.local, global: player.time, interactionTime: player.interactionTime, state: player.visual }, dt, player.playing && !document.hidden);
             isCabin.value = director?.isCabin || false;
-            sound.update(loc.shot.world, player.playing && !drawer.value && !infoOpen.value);
+            sound.update(loc.shot.world, !audioMuted.value && pageVisible.value && player.playing && !drawer.value && !infoOpen.value);
         }
     }
     catch (e) {
+        console.error('[FlyingIntoSpace] Scene render failed:', { world: isMission.value ? 'mission' : locateStory(player.time).shot.world, time: player.time }, e);
         error.value = e instanceof Error ? e.message : String(e);
         player.playing = false;
         cancelAnimationFrame(raf);
@@ -521,7 +551,7 @@ async function finishPreloading(retry = false) {
     loadingActive.value = true; loadingError.value = ''; loadingStage.value = journeyLoadingStage(assets.value);
     try {
         await owner.prepareAssets(retry, () => {
-            if (!dead && generation === loadGeneration) loadingStage.value = '正在准备云海，即将启程';
+            if (!dead && generation === loadGeneration) loadingStage.value = '正在准备整段星空旅程';
         });
         if (dead || generation !== loadGeneration) return;
         loadingStage.value = '星空已就位，即将启程';
@@ -549,9 +579,9 @@ async function initialize() {
     try {
         director = new SpaceDirector(sceneRef.value, {imageBase:props.imageBase, quality:quality.value,
           onAssets:s => { assets.value = s; }, onPick:modelPicked,
-          onError:message => {error.value = message; player.playing = false;} });
+          onError:message => { console.error('[FlyingIntoSpace] Renderer:', message); error.value = message; player.playing = false;} });
         await finishPreloading();
-    } catch (e) { error.value = e instanceof Error ? e.message : String(e); }
+    } catch (e) { console.error('[FlyingIntoSpace] Initialization failed:', e); error.value = e instanceof Error ? e.message : String(e); }
 }
 async function retryTextures() { if (director) await finishPreloading(true); else await reinitialize(); }
 async function reinitialize() {
@@ -562,6 +592,7 @@ async function reinitialize() {
 async function changeQuality() { player.quality = quality.value; await reinitialize(); }
 defineExpose({ seek: (time: number) => { requestSeek(time, player.playing); }, reset: resetJourney, player, diagnostics: () => director?.getDiagnostics() });
 onMounted(() => {
+    pageVisible.value = !document.hidden;
     player.quality = quality.value;
     void initialize();
     window.addEventListener('keydown', keydown);
@@ -583,12 +614,16 @@ onBeforeUnmount(() => {
     document.removeEventListener('keydown', trapFocus);
     director?.dispose();
     sound.dispose();
+    backgroundMusic.dispose();
     if (props.debug)
         delete (window as unknown as Record<string, unknown>).__FLYING_SPACE__;
 });
 </script>
 
 <style scoped>
+.fs-music-volume { gap: 12px; }
+.fs-music-volume input[type="range"] { width: 120px; margin-left: auto; accent-color: var(--fs-accent); }
+.fs-music-volume output { min-width: 3em; text-align: right; font-size: 12px; color: var(--fs-muted); }
 /* Keep the resource library's navigation clear of the playback controls. */
 @media (max-width: 1200px) {
   .flying-space:not(.is-mission) ~ :global(.back-home-btn) { bottom: 128px; }

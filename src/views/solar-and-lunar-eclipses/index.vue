@@ -112,6 +112,34 @@
               </label>
               <label class="toggle-tile">
                 <span class="toggle-copy">
+                  <strong>经纬网</strong>
+                  <small>地球表面定位网格</small>
+                </span>
+                <el-switch v-model="showEarthGrid" aria-label="显示地球经纬网" />
+              </label>
+              <label class="toggle-tile">
+                <span class="toggle-copy">
+                  <strong>赤道</strong>
+                  <small>0° · 红色实线</small>
+                </span>
+                <el-switch v-model="showEquator" aria-label="显示赤道" />
+              </label>
+              <label class="toggle-tile">
+                <span class="toggle-copy">
+                  <strong>南北回归线</strong>
+                  <small>{{ formatDegrees(EARTH_AXIAL_TILT_DEGREES) }} · 黄色虚线</small>
+                </span>
+                <el-switch v-model="showTropics" aria-label="显示南北回归线" />
+              </label>
+              <label class="toggle-tile">
+                <span class="toggle-copy">
+                  <strong>南北极圈</strong>
+                  <small>{{ formatDegrees(90 - EARTH_AXIAL_TILT_DEGREES) }} · 浅蓝虚线</small>
+                </span>
+                <el-switch v-model="showPolarCircles" aria-label="显示南北极圈" />
+              </label>
+              <label class="toggle-tile">
+                <span class="toggle-copy">
                   <strong>近实际比例</strong>
                   <small>调整尺寸距离</small>
                 </span>
@@ -132,7 +160,7 @@
             <div class="parameter-block primary-parameter">
               <div class="parameter-heading">
                 <span>月球公转位置</span>
-                <strong>{{ moonLongitude.toFixed(1) }}°</strong>
+                <strong>{{ formatDegrees(moonLongitude) }}</strong>
               </div>
               <el-slider v-model="moonLongitude" :min="0" :max="360" :step="0.1" :show-tooltip="false"
                 @input="handleManualMoonPosition" />
@@ -148,7 +176,7 @@
             <div class="parameter-block">
               <div class="parameter-heading">
                 <span>月球轨道倾角</span>
-                <strong>{{ moonInclination.toFixed(1) }}°</strong>
+                <strong>{{ formatDegrees(moonInclination) }}</strong>
               </div>
               <el-slider v-model="moonInclination" :min="0" :max="10" :step="0.1" :show-tooltip="false" />
             </div>
@@ -156,7 +184,7 @@
             <div class="parameter-block">
               <div class="parameter-heading">
                 <span>轨道交点方位</span>
-                <strong>{{ Math.round(sarosProgress) }}°</strong>
+                <strong>{{ formatDegrees(sarosProgress) }}</strong>
               </div>
               <el-slider v-model="sarosProgress" :min="0" :max="360" :step="1" :show-tooltip="false" />
               <small class="parameter-help">旋转月球轨道升、降交点的方向；场景标记会同步移动</small>
@@ -174,10 +202,12 @@
 
             <div class="option-grid view-option-grid">
               <button v-for="item in viewOptions" :key="item.value" type="button" class="theme-btn option-btn"
-                :class="{ active: currentView === item.value }" @click="setCameraView(item.value)">
+                :title="item.value === 'presentation' ? '恢复默认侧向构图：太阳在左，地球在右' : item.value === 'top' ? '从黄道北侧俯视，保留黄道参考系' : '以地理北极为画面上方，不改变地轴倾角或光照'"
+                :class="{ active: currentView === item.value, 'default-view-btn': item.value === 'presentation' }" @click="setCameraView(item.value)">
                 {{ item.label }}
               </button>
             </div>
+            <p class="space-frame-help">默认构图保留黄道参考；全景和地球近景采用北向上。</p>
             <button type="button" class="theme-btn reset-scene-btn" @click="resetControls">
               恢复默认参数
             </button>
@@ -191,7 +221,7 @@
           :style="{ '--space-share': spaceShare + '%' }">
           <div class="space-pane">
           <div class="observer-pane-heading">
-            <strong><i></i>{{ surfaceViewEnabled ? '地球表面 · 第一人称' : '空间全景 · 上帝视角' }}</strong>
+            <strong><i></i>{{ surfaceViewEnabled ? '地球表面 · 第一人称' : currentView === 'presentation' ? '空间全景 · 默认构图' : currentView === 'top' ? '黄道俯视 · 上帝视角' : '空间视角 · 北向上' }}</strong>
             <span>{{ earthViewSubtitle }} · {{ localDaylightState }}</span>
             <div class="observation-mode-control" role="group" aria-label="观测设置">
               <span>观测对象</span>
@@ -283,7 +313,7 @@
             :style="{ top: surfaceHorizonPercent + '%' }"><span>几何地平线</span></div>
           <div v-if="surfaceViewEnabled" class="observer-pane-footer surface-view-note">
             <span>站在原地球表面 · 日月方向与角尺度已同步</span>
-            <strong>方位 {{ surfaceHeading.toFixed(0) }}° · 仰角 {{ surfacePitch.toFixed(0) }}°</strong>
+            <strong>方位 {{ formatDegrees(surfaceHeading) }} · 仰角 {{ formatDegrees(surfacePitch) }}</strong>
             <small>拖动 / 方向键环顾 · 共用几何地平线，未计大气折射</small>
           </div>
 
@@ -306,7 +336,7 @@
             </div>
             <div class="observer-pane-footer">
               <span>{{ observerGeometry.targetVisible ? localObservationResult : '目标在当地地平线以下' }}</span>
-              <strong>方位 {{ observerHeading.toFixed(0) }}° · 仰角 {{ observerPitch.toFixed(0) }}°</strong>
+              <strong>方位 {{ formatDegrees(observerHeading) }} · 仰角 {{ formatDegrees(observerPitch) }}</strong>
               <small>拖动 / 方向键环顾 · 滚轮缩放</small>
             </div>
           </section>
@@ -333,7 +363,7 @@
                 <span>公转进度 <small>拖动定位</small></span>
                 <strong class="timeline-angle-value">
                   <small>日地月夹角</small>
-                  <b>{{ sunEarthMoonAngle.toFixed(1) }}°</b>
+                  <b>{{ formatDegrees(sunEarthMoonAngle) }}</b>
                   <i>· {{ currentPhaseName.split('（')[0] }}</i>
                 </strong>
               </div>
@@ -352,7 +382,7 @@
 
             <label class="timeline-rotation-control moon-rotation-control">
               <span>{{ moonRotationEnabled ? '同步自转角' : '月球自转角' }}</span>
-              <strong>{{ moonRotationAngle.toFixed(1) }}°</strong>
+              <strong>{{ formatDegrees(moonRotationAngle) }}</strong>
               <el-slider v-model="moonRotationAngle" :min="0" :max="360" :step="1" :show-tooltip="false"
                 aria-label="月球自转角" @input="handleManualMoonRotation" />
             </label>
@@ -383,7 +413,7 @@
 
             <label class="timeline-rotation-control earth-rotation-control">
               <span>地球自转角</span>
-              <strong>{{ Math.round(earthRotationAngle) }}°</strong>
+              <strong>{{ formatDegrees(earthRotationAngle) }}</strong>
               <el-slider v-model="earthRotationAngle" :min="0" :max="360" :step="1" :show-tooltip="false"
                 aria-label="地球自转角" />
             </label>
@@ -421,8 +451,14 @@
                 <strong>{{ earthViewTitle }}</strong>
                 <em>LOCAL SKY</em>
               </div>
-              <span>{{ earthViewGeometryStatus }}</span>
-              <small>{{ earthViewAzimuthStatus }}</small>
+              <dl class="earth-view-metrics">
+                <div v-for="metric in earthViewMetrics" :key="metric.label">
+                  <dt>{{ metric.label }}</dt>
+                  <dd>{{ metric.value }}</dd>
+                </div>
+              </dl>
+              <p class="earth-view-direction-note">方位角从正北起，顺时针计算</p>
+              <p v-if="!observerGeometry.targetVisible" class="earth-view-visibility-note">目标位于当地地平线以下</p>
             </div>
           </section>
 
@@ -445,6 +481,7 @@ import {
 
 import '@/styles/geo-page-template.css'
 import { ArrowDown, Location } from '@element-plus/icons-vue'
+import { formatDegrees, formatSignedDegrees, formatLatitude, formatLongitude } from '@/hooks/useDegreeFormat'
 
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 
@@ -454,7 +491,9 @@ import {
 
 import * as THREE from 'three'
 import { calculateMoonPosition, calculateMoonOrientation, calculateSkyUp } from './moonGeometry'
-import { calculateEarthOrientation } from './earthOrientation'
+import { calculateEarthOrientation, EARTH_AXIAL_TILT_DEGREES } from './earthOrientation'
+import { northUpSpacePose, presentationSpacePose, spaceCameraUp, transportSpaceCamera } from './spaceCamera'
+import { createEarthGraticule } from './earthGraticule'
 import { advanceMoonMotion, advanceEarthRotation, stepPlaybackSpeed } from './motionControls'
 import {
   MOON_DISTANCE_EARTH_RADII, MOON_RADIUS_EARTH_RADII, SUN_DISTANCE_EARTH_RADII, SUN_RADIUS_EARTH_RADII,
@@ -645,6 +684,10 @@ const earthRotationEnabled = ref(false)
 const showUmbra = ref(true)
 const showEarthView = ref(true)
 const showMoonOrbit = ref(true)
+const showEarthGrid = ref(false)
+const showEquator = ref(false)
+const showTropics = ref(false)
+const showPolarCircles = ref(false)
 const realScaleMode = ref(false)
 
 const moonLongitude = ref(0)
@@ -656,7 +699,7 @@ const nextPlaybackSpeed = computed(() => stepPlaybackSpeed(playbackSpeed.value, 
 const timelineDockRef = ref<HTMLElement | null>(null)
 const timelineHeight = ref(170)
 let timelineResizeObserver: ResizeObserver | null = null
-const currentView = ref('overview')
+const currentView = ref('presentation')
 const observerViewEnabled = ref(false)
 const surfaceViewEnabled = ref(false)
 const observerCanvasRef = ref<HTMLCanvasElement | null>(null)
@@ -697,6 +740,7 @@ const controlCardCollapsed = ref(true)
 const observationCardCollapsed = ref(true)
 
 const viewOptions = [
+  { label: '默认构图', value: 'presentation' },
   { label: '全景', value: 'overview' },
   { label: '俯视', value: 'top' },
   { label: '日地连线', value: 'alignment' },
@@ -714,15 +758,8 @@ const phaseAngle = computed(() =>
   normalizeDegrees(moonLongitude.value)
 )
 
-const observerLatitudeLabel = computed(() => {
-  const suffix = observerLatitude.value >= 0 ? 'N' : 'S'
-  return `${Math.abs(Math.round(observerLatitude.value))}° ${suffix}`
-})
-
-const observerLongitudeLabel = computed(() => {
-  const suffix = observerLongitude.value >= 0 ? 'E' : 'W'
-  return `${Math.abs(Math.round(observerLongitude.value))}° ${suffix}`
-})
+const observerLatitudeLabel = computed(() => formatLatitude(observerLatitude.value))
+const observerLongitudeLabel = computed(() => formatLongitude(observerLongitude.value))
 
 const earthSeasonLabel = computed(() => {
   if (earthOrbitalPosition.value === 90) return '夏至位置'
@@ -864,11 +901,7 @@ const earthViewSubtitle = computed(() =>
 
 const observerGeometry = computed(() => calculateObserverGeometry())
 
-const solarDeclinationLabel = computed(() => {
-  const declination = observerGeometry.value.solarDeclination
-  const suffix = declination >= 0 ? 'N' : 'S'
-  return `${Math.abs(declination).toFixed(1)}° ${suffix}`
-})
+const solarDeclinationLabel = computed(() => formatLatitude(observerGeometry.value.solarDeclination))
 
 const localDaylightState = computed(() => {
   const altitude = observerGeometry.value.sunAltitude
@@ -880,7 +913,7 @@ const localDaylightState = computed(() => {
   return '夜晚'
 })
 
-const earthViewGeometryStatus = computed(() => {
+const earthViewMetrics = computed(() => {
   const separation = observationMode.value === 'solar'
     ? observerGeometry.value.solarSeparation
     : observerGeometry.value.lunarSeparation
@@ -888,17 +921,15 @@ const earthViewGeometryStatus = computed(() => {
     ? observerGeometry.value.sunAltitude
     : observerGeometry.value.moonAltitude
 
-  return `高度 ${altitude.toFixed(1)}° · 中心角距 ${separation.toFixed(2)}°`
-})
-
-const earthViewAzimuthStatus = computed(() => {
   const azimuth = observationMode.value === 'solar'
     ? observerGeometry.value.sunAzimuth
     : observerGeometry.value.moonAzimuth
 
-  return observerGeometry.value.targetVisible
-    ? `方位 ${azimuth.toFixed(1)}°（北起顺时针）`
-    : `方位 ${azimuth.toFixed(1)}° · 地平线以下`
+  return [
+    { label: '高度角', value: formatSignedDegrees(altitude) },
+    { label: '中心角距', value: formatDegrees(separation) },
+    { label: '方位角', value: formatDegrees(azimuth) },
+  ]
 })
 
 const localObservationResult = computed(() => {
@@ -970,6 +1001,7 @@ let orbitControls: OrbitControls | null = null
 
 let sunMesh: THREE.Mesh<THREE.SphereGeometry, THREE.Material> | null = null
 let earthMesh: THREE.Mesh<THREE.SphereGeometry, THREE.Material> | null = null
+let earthGraticule: ReturnType<typeof createEarthGraticule> | null = null
 let moonMesh: THREE.Mesh<THREE.SphereGeometry, THREE.Material> | null = null
 let moonOrbitLine: THREE.Line | null = null
 let moonNodeGroup: THREE.Group | null = null
@@ -3148,6 +3180,7 @@ function updateBodyGeometry(
 
 function updateCelestialGeometry() {
   const scale = getCurrentScale()
+  earthGraticule?.setRadius(scale.earthRadius)
 
   updateBodyGeometry(
     sunMesh,
@@ -3375,6 +3408,8 @@ function createCelestialScene() {
   earthMesh.quaternion.copy(createEarthOrientationQuaternion())
   earthAtmosphere = createEarthAtmosphere(scale.earthRadius)
   earthMesh.add(earthAtmosphere)
+  earthGraticule = createEarthGraticule(scale.earthRadius)
+  earthMesh.add(earthGraticule.group)
 
   moonMesh = new THREE.Mesh(
     registerGeometry(
@@ -3518,6 +3553,7 @@ function renderScene() {
   }
 
   surfaceCamera?.update(getSurfaceState(), performance.now())
+  syncSpaceCameraFrame()
   if (sunMesh && moonMesh && earthMesh) {
     if (!surfaceBodies) surfaceBodies = createSurfaceBodies(scene, sunMesh, moonMesh, earthMesh)
     const scale = getCurrentScale()
@@ -3615,15 +3651,9 @@ function initScene() {
   renderer.domElement.className = 'scene-canvas three-canvas'
   container.appendChild(renderer.domElement)
 
-  orbitControls = new OrbitControls(camera, renderer.domElement)
-  orbitControls.enableDamping = true
-  orbitControls.dampingFactor = 0.08
-  orbitControls.minDistance = 12
-  orbitControls.maxDistance = 150
-  orbitControls.target.set(0, 0, 0)
-  orbitControls.update()
+  configureSpaceControls(new THREE.Vector3())
 
-  surfaceCamera = createSurfaceCamera(camera, orbitControls, renderer.domElement, (heading, pitch, following, closeUp) => {
+  surfaceCamera = createSurfaceCamera(camera, orbitControls!, renderer.domElement, (heading, pitch, following, closeUp) => {
     surfaceHeading.value = heading
     surfacePitch.value = pitch
     surfaceFollowing.value = following
@@ -3643,9 +3673,9 @@ function initScene() {
   createPreviewScene()
   loadCelestialTextures()
   syncCelestialSurfaceMode()
-  setCameraView(currentView.value)
-
+  // 默认构图依赖实际画幅，先更新 aspect，避免首次加载按 1:1 画幅把机位推远。
   resizeThreeSceneNow()
+  setCameraView(currentView.value)
 
   threeResizeObserver = new ResizeObserver(() => {
     if (
@@ -3741,6 +3771,13 @@ function getSurfaceState() {
 
 function syncSurfaceLayers() {
   const localView = !!surfaceCamera?.active
+  // 第一人称隐藏教学网格，避免悬在眼前；回到全景后恢复开关状态。
+  earthGraticule?.setVisibility({
+    grid: showEarthGrid.value,
+    equator: showEquator.value,
+    tropics: showTropics.value,
+    polarCircles: showPolarCircles.value,
+  }, localView)
   if (earthAtmosphere && camera) earthAtmosphere.visible = !localView || camera.position.length() > getCurrentScale().earthRadius * 1.08
   if (moonOrbitLine) moonOrbitLine.visible = showMoonOrbit.value && !localView
   if (moonNodeGroup) moonNodeGroup.visible = showMoonOrbit.value && !localView
@@ -3771,6 +3808,31 @@ function syncObserverViewLayers() {
   updateMoonTransform()
 }
 
+function configureSpaceControls(target: THREE.Vector3) {
+  if (!camera || !renderer) return
+  // OrbitControls 在构造时缓存 up 变换。不能只改 camera.up，否则拖动仍绕旧轴。
+  orbitControls?.dispose()
+  orbitControls = new OrbitControls(camera, renderer.domElement)
+  orbitControls.enableDamping = true
+  orbitControls.dampingFactor = 0.08
+  orbitControls.minDistance = 12
+  // 近实际比例的默认构图更远，不能让旧缩放上限把预设机位拉近、裁掉太阳。
+  orbitControls.maxDistance = Math.max(150, camera.position.distanceTo(target))
+  orbitControls.target.copy(target)
+  orbitControls.update()
+  surfaceCamera?.setControls(orbitControls)
+}
+
+function syncSpaceCameraFrame() {
+  // 地表机位和进入/离开时的飞行由 SurfaceCamera 独立管理。
+  if (!camera || !orbitControls || surfaceCamera?.active) return
+  const up = spaceCameraUp(earthOrbitalPosition.value, currentView.value)
+  if (camera.up.distanceToSquared(up) < 1e-12) return
+  const target = orbitControls.target.clone()
+  transportSpaceCamera(camera, target, up)
+  configureSpaceControls(target)
+}
+
 function setCameraView(view: string) {
   currentView.value = view
   if (!camera || !orbitControls) return
@@ -3785,7 +3847,11 @@ function setCameraView(view: string) {
 
   camera.up.set(0, 1, 0)
 
-  if (view === 'top') {
+  if (view === 'presentation') {
+    const pose = presentationSpacePose(scale, camera.aspect)
+    camera.position.copy(pose.position)
+    orbitControls.target.copy(pose.target)
+  } else if (view === 'top') {
     camera.position.set(
       -scale.sunDistance * 0.2,
       Math.max(58, scale.sunDistance * 0.9),
@@ -3818,28 +3884,35 @@ function setCameraView(view: string) {
 
     camera.position.set(
       centerX,
-      Math.max(6, scale.earthRadius * 1.8),
+      0,
       Math.max(46, framingDistance)
     )
     orbitControls.target.set(centerX, 0, 0)
   } else if (view === 'earth') {
-    camera.position.set(18, 10, 19)
+    camera.position.set(18, 0, 19)
     orbitControls.target.set(0, 0, 0)
   } else {
     /*
-     * 默认全景向后拉远，并把观察中心放在太阳与地球之间，
-     * 确保太阳不会被左上角的食相观察窗遮挡或裁切。
+     * 赤道侧面的北向上全景：相机和焦点位于地球赤道面内，
+     * 使地轴在画面竖直、赤道横向，轨道的相对倾斜仍然真实保留。
      */
     camera.position.set(
       scale.sunDistance * 0.34,
-      Math.max(28, scale.sunDistance * 0.68),
+      0,
       Math.max(68, scale.sunDistance * 1.95)
     )
     orbitControls.target.set(-scale.sunDistance * 0.3, 0, 0)
   }
 
+  const target = orbitControls.target.clone()
+  if (view !== 'top' && view !== 'presentation') {
+    const pose = northUpSpacePose(camera.position, target, earthOrbitalPosition.value)
+    camera.position.copy(pose.position)
+    camera.up.copy(pose.up)
+    target.copy(pose.target)
+  }
+  configureSpaceControls(target)
   syncObserverViewLayers()
-  orbitControls.update()
   renderScene()
 }
 
@@ -3903,6 +3976,10 @@ function resetControls() {
   showUmbra.value = true
   showEarthView.value = true
   showMoonOrbit.value = true
+  showEarthGrid.value = false
+  showEquator.value = false
+  showTropics.value = false
+  showPolarCircles.value = false
   realScaleMode.value = false
   moonLongitude.value = 0
   moonInclination.value = 5.1
@@ -3916,9 +3993,9 @@ function resetControls() {
   earthOrbitalPosition.value = 0
   observerViewEnabled.value = false
   surfaceViewEnabled.value = false
-  currentView.value = 'overview'
+  currentView.value = 'presentation'
 
-  setCameraView('overview')
+  setCameraView('presentation')
   updateCelestialGeometry()
   scheduleSceneResize(90)
 }
@@ -3987,6 +4064,11 @@ watch(
   }
 )
 
+watch([showEarthGrid, showEquator, showTropics, showPolarCircles], () => {
+  syncSurfaceLayers()
+  renderScene()
+})
+
 function disposeScene() {
   cancelAnimationFrame(sceneAnimationFrameId)
 
@@ -4046,6 +4128,8 @@ function disposeScene() {
   celestialImageBitmaps.length = 0
 
   observerScene?.dispose()
+  earthGraticule?.dispose()
+  earthGraticule = null
   observerScene = null
   surfaceCamera?.dispose()
   surfaceCamera = null
@@ -4733,6 +4817,17 @@ onBeforeUnmount(() => {
   gap: 7px;
 }
 
+.view-control-group .default-view-btn {
+  grid-column: 1 / -1;
+}
+
+.space-frame-help {
+  margin: 9px 1px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .view-control-group .option-btn {
   min-height: 34px;
   font-size: 12px;
@@ -4983,19 +5078,20 @@ onBeforeUnmount(() => {
 
 .observation-preview-heading strong {
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .observation-preview-heading span {
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .observation-preview-heading b {
   padding: 4px 7px;
   color: #9af8ed;
-  font-size: 9px;
-  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
   background: rgba(46, 196, 182, 0.08);
   border: 1px solid rgba(81, 240, 200, 0.18);
   border-radius: 6px;
@@ -5146,8 +5242,8 @@ onBeforeUnmount(() => {
   display: grid;
   box-sizing: border-box;
   width: 100%;
-  gap: 4px;
-  padding: 9px 10px 10px;
+  gap: 10px;
+  padding: 13px 14px;
   overflow: hidden;
   color: rgba(229, 247, 255, 0.94);
   background:
@@ -5199,41 +5295,69 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 8px var(--heading-glow);
 }
 
-.earth-view-heading strong {
+.earth-view-heading-title strong {
   min-width: 0;
   color: #f2fbff;
-  font-size: 12px;
-  line-height: 1.2;
+  font-size: 16px;
+  line-height: 1.4;
   white-space: nowrap;
 }
 
 .earth-view-heading em {
   margin-left: auto;
   color: rgba(142, 202, 225, 0.58);
-  font-size: 7px;
+  font-size: 10px;
   font-style: normal;
   font-weight: 900;
   letter-spacing: 0.1em;
   white-space: nowrap;
 }
 
-.earth-view-heading span {
-  overflow: hidden;
-  color: rgba(194, 224, 237, 0.78);
-  font-size: 9px;
-  line-height: 1.35;
-  text-overflow: ellipsis;
+.earth-view-metrics {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+
+.earth-view-metrics>div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  line-height: 1.4;
+}
+
+.earth-view-metrics dt {
+  color: #bbd4e0;
+  font-size: 14px;
+}
+
+.earth-view-metrics dd {
+  margin: 0;
+  color: #f2fbff;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.earth-view-heading small {
-  overflow: hidden;
+.earth-view-metrics>div:last-child dd {
   color: var(--heading-accent);
-  font-size: 8px;
+}
+
+.earth-view-direction-note,
+.earth-view-visibility-note {
+  margin: 0;
+  color: #a9c8d8;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.earth-view-visibility-note {
+  color: var(--heading-accent);
   font-weight: 700;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .sky-up-indicator {
