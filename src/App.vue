@@ -47,6 +47,11 @@ const TAG_STYLES: Record<string, { background: string; color: string; boxShadow:
   '第三批': { background: 'rgba(74, 222, 128, 0.95)', color: '#052e16', boxShadow: '0 2px 8px rgba(74, 222, 128, 0.35)' },
   '第四批': { background: 'rgba(167, 139, 250, 0.95)', color: '#2e1065', boxShadow: '0 2px 8px rgba(167, 139, 250, 0.35)' },
   '第五批': { background: 'rgba(244, 114, 182, 0.95)', color: '#500724', boxShadow: '0 2px 8px rgba(244, 114, 182, 0.35)' },
+  '第六批': { background: 'rgba(34, 211, 238, 0.95)', color: '#083344', boxShadow: '0 2px 8px rgba(34, 211, 238, 0.35)' },
+  '第七批': { background: 'rgba(251, 146, 60, 0.95)', color: '#431407', boxShadow: '0 2px 8px rgba(251, 146, 60, 0.35)' },
+  '第八批': { background: 'rgba(163, 230, 53, 0.95)', color: '#1a2e05', boxShadow: '0 2px 8px rgba(163, 230, 53, 0.35)' },
+  '第九批': { background: 'rgba(129, 140, 248, 0.95)', color: '#1e1b4b', boxShadow: '0 2px 8px rgba(129, 140, 248, 0.35)' },
+  '第十批': { background: 'rgba(251, 113, 133, 0.95)', color: '#4c0519', boxShadow: '0 2px 8px rgba(251, 113, 133, 0.35)' },
 
   '工具': { background: 'rgba(45, 212, 191, 0.95)', color: '#042f2e', boxShadow: '0 2px 8px rgba(45, 212, 191, 0.35)' },
   '禁用': { background: 'rgba(148, 163, 184, 0.9)', color: '#1e293b', boxShadow: '0 2px 8px rgba(100, 116, 139, 0.35)' },

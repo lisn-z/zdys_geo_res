@@ -554,7 +554,8 @@ export function createGeologicScene(host: HTMLElement, periods: GeologicPeriod[]
   const initialPosition = new THREE.Vector3(22.117536, 25.1530528, 27.383616)
   const initialTarget = new THREE.Vector3(0, 1.3, 0)
   // Wider late-period terraces need the full outer ring inside the overview.
-  initialPosition.sub(initialTarget).multiplyScalar(1.10).add(initialTarget)
+  // Include the separate Phanerozoic bracket outside the period labels.
+  initialPosition.sub(initialTarget).multiplyScalar(1.17).add(initialTarget)
   camera.position.copy(initialPosition)
   const controls = new OrbitControls(camera, renderer.domElement)
   controls.target.copy(initialTarget)

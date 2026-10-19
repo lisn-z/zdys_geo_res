@@ -158,15 +158,6 @@ export const routes = [
       import('@/views/soil-erosion/index.vue'),
   },
   {
-    path: '/geological-time',
-    name: 'geological-time',
-    meta: {
-      title: '地质年代的划分',
-      tags: ['第四批'],
-    },
-    component: () => import('@/views/geological-time/index.vue'),
-  },
-  {
     path: '/earth-evolution',
     name: 'earth-evolution',
     meta: {
@@ -397,16 +388,7 @@ export const routes = [
     component: () =>
       import('@/views/city-breezes/index.vue'),
   },
-  {
-    path: '/the-process-of-atmospheric-heating',
-    name: 'the-process-of-atmospheric-heating',
-    meta: {
-      title: '大气受热过程',
-      tags: ['暂时不上'],
-    },
-    component: () =>
-      import('@/views/the-process-of-atmospheric-heating/index.vue'),
-  },
+
   {
     path: '/thermal-circulation-laboratory',
     name: 'thermal-circulation-laboratory',
@@ -421,7 +403,8 @@ export const routes = [
     path: '/narrowing-effect',
     name: 'narrowing-effect',
     meta: {
-      title: '狭管效应', tags: ['第三批'],
+      title: '狭管效应',
+      tags: ['第三批'],
     },
     component: () =>
       import('@/views/narrowing-effect/index.vue'),
@@ -437,10 +420,21 @@ export const routes = [
       import('@/views/three-feature-of-map/index.vue'),
   },
   {
+    path: '/the-process-of-atmospheric-heating',
+    name: 'the-process-of-atmospheric-heating',
+    meta: {
+      title: '大气受热过程',
+      tags: ['第四批'],
+    },
+    component: () =>
+      import('@/views/the-process-of-atmospheric-heating/index.vue'),
+  },
+  {
     path: '/flying-into-space',
     name: 'flying-into-space',
     meta: {
       title: '飞向太空',
+      tags: ['第四批'],
     },
     component: () =>
       import('@/views/flying-into-space/index.vue'),
@@ -450,9 +444,19 @@ export const routes = [
     name: 'making-a-globe',
     meta: {
       title: '制作地球仪',
+      tags: ['第四批'],
     },
     component: () =>
       import('@/views/making-a-globe/index.vue'),
+  },
+  {
+    path: '/geological-time',
+    name: 'geological-time',
+    meta: {
+      title: '地质年代的划分',
+      tags: ['第四批'],
+    },
+    component: () => import('@/views/geological-time/index.vue'),
   },
 ]
 

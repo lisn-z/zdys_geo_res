@@ -267,11 +267,20 @@ export function createOuterChronology(
   const endLabel = finalAge === '0' ? '现在' : finalAge
   addText(endLabel, 1, outside(1, 2.05, 1.95, 0.50), Math.max(0.90, endLabel.length * 0.22), 0.50, finalIndex, 'outer-chronology-age-present')
   addText('亿年', 1 - 0.90 / count, 2.65, 1.10, 0.50, finalIndex, 'outer-chronology-unit')
-  // The connected gold rail from Cambrian to present is the Phanerozoic
-  // bracket; end ticks extend beyond the individual period labels. Its label
-  // belongs to the full 3–14 range, not to Quaternary as a subdivision.
-  crossTick(3 / count, 1.55, 2.85, 3, 0.82, 'phanerozoic-start')
-  crossTick(1, 1.55, 2.85, finalIndex, 0.82, 'phanerozoic-end')
+  // A separate outer bracket encloses all three eras, outside the period
+  // names and ages. Its joined sections follow the same spiral from the
+  // Cambrian boundary to the present, while retaining per-period focus fading.
+  const eonRailAcross = 2.85
+  const eonRailColor = '#d3b380'
+  for (let index = 3; index < count; index++) {
+    const points: THREE.Vector3[] = []
+    for (let step = 0; step <= 64; step++) {
+      points.push(pointAt((index + step / 64) / count, eonRailAcross, 0.185))
+    }
+    addLine(points, index, 0.88, `phanerozoic-range-${index}`, eonRailColor)
+  }
+  crossTick(3 / count, 1.55, eonRailAcross, 3, 0.88, 'phanerozoic-start', eonRailColor)
+  crossTick(1, 1.55, eonRailAcross, finalIndex, 0.88, 'phanerozoic-end', eonRailColor)
   addText('显生宙', 1 - 0.32 / count, 2.50, 1.65, 0.60, finalIndex, 'outer-chronology-eon')
   return { group, updateLabels }
 }
