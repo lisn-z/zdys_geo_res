@@ -358,7 +358,7 @@ const sensorCardCollapsed = ref(true)
 const stageCardCollapsed = ref(true)
 const recordsCardCollapsed = ref(true)
 const airColumnVisible = ref(false)
-const airColumnWidth = ref(500)
+const airColumnWidth = ref(760)
 const airColumnResizing = ref(false)
 const showAirMolecules = ref(false)
 const showPressureOverlay = ref(false)
@@ -1052,6 +1052,9 @@ function createPanelMoleculeColumn(
   color: number,
   width: number,
   distribution: 'density-gradient' | 'stratified' = 'density-gradient',
+  densityExponent = 1.48,
+  uniformCoverage = 0,
+  pinEndpoints = false,
 ) {
   const geometry = registerMoleculePanelGeometry(new THREE.SphereGeometry(.055, 10, 8))
   const material = registerMoleculePanelMaterial(new THREE.MeshStandardMaterial({
@@ -1063,9 +1066,16 @@ function createPanelMoleculeColumn(
   const phases = new Float32Array(count)
   for (let index = 0; index < count; index += 1) {
     const randomRatio = seededRandom(seed + index * 3)
+    const stratifiedRatio = pinEndpoints && count > 1
+      ? index === 0
+        ? 0
+        : index === count - 1
+          ? 1
+          : THREE.MathUtils.clamp((index + (randomRatio - .5) * .34) / (count - 1), 0, 1)
+      : THREE.MathUtils.clamp((index + .5 + (randomRatio - .5) * .34) / count, .04, .96)
     const ratio = distribution === 'stratified'
-      ? THREE.MathUtils.clamp((index + .5 + (randomRatio - .5) * .34) / count, .04, .96)
-      : Math.pow(randomRatio, 1.48)
+      ? THREE.MathUtils.lerp(Math.pow(stratifiedRatio, densityExponent), stratifiedRatio, uniformCoverage)
+      : Math.pow(randomRatio, densityExponent)
     bases[index * 3] = x + (seededRandom(seed + index * 3 + 1) - .5) * width * .76
     bases[index * 3 + 1] = bottom + .16 + ratio * Math.max(.1, top - bottom - .32)
     bases[index * 3 + 2] = .22 + (seededRandom(seed + index * 3 + 2) - .5) * width * .72
@@ -1209,15 +1219,18 @@ function initMoleculePanelScene() {
 
   createPanelColumn(model, -2.55, .08, 2.55, 1.12, 0xd8664d)
   createPanelColumn(model, -2.55, 2.55, 5.28, 1.12, 0x67a957)
-  createPanelMoleculeColumn(model, -2.55, .08, 2.55, 78, 2100, 0x6687a1, 1.12)
-  createPanelMoleculeColumn(model, -2.55, 2.55, 5.28, 34, 2500, 0x8da0b5, 1.12)
+  createPanelMoleculeColumn(model, -2.55, .08, 2.55, 220, 2100, 0x6687a1, 1.12)
+  createPanelMoleculeColumn(model, -2.55, 2.55, 5.28, 18, 2500, 0x8da0b5, 1.12, 'stratified', 1.15)
 
   createPanelColumn(model, -.55, .08, 5.28, .46, 0xe4b236)
-  createPanelMoleculeColumn(model, -.55, .08, 5.28, 38, 3100, 0x7d91aa, .46)
+  // 单条连续密度曲线：地面最密、随高度平滑变疏；均匀覆盖项避免任意高度出现断层。
+  createPanelMoleculeColumn(model, -.55, .08, 5.28, 120, 3100, 0x7d91aa, .46, 'stratified', 3.75, .14, true)
+  // 仅强化贴近地面的低层密度，不改变中高层的稀疏程度。
+  createPanelMoleculeColumn(model, -.55, .08, 1.52, 48, 3200, 0x7d91aa, .46, 'density-gradient', 1.65)
   createPanelColumn(model, 1.23, 3.76, 5.28, .46, 0xe4b236)
   // 山顶空气柱更短且位于较高海拔：粒子总数与单位体积密度均低于平地空气柱。
   // 分层错位采样避免随机粒子局部堆叠，便于观察“高处较疏”的趋势。
-  createPanelMoleculeColumn(model, 1.23, 3.76, 5.28, 6, 3500, 0x9eabc0, .46, 'stratified')
+  createPanelMoleculeColumn(model, 1.23, 3.76, 5.28, 8, 3500, 0x9eabc0, .46, 'stratified', 1.16)
 
   moleculePanelResizeObserver = new ResizeObserver(scheduleMoleculePanelResize)
   moleculePanelResizeObserver.observe(host)
@@ -1975,8 +1988,10 @@ onBeforeUnmount(disposeScene)
 .air-column-header {
   position: absolute;
   top: 16px;
-  right: 16px;
+  right: auto;
   left: 16px;
+  width: max-content;
+  max-width: calc(100% - 32px);
   display: flex;
   align-items: center;
   justify-content: space-between;

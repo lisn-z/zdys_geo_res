@@ -67,7 +67,7 @@ export const routes = [
     path: '/threeD-terrain',
     name: '3D-terrain',
     meta: {
-      title: '3D等高线地形图',
+      title: '等高线地形图 · 三维投影',
       tags: ['第一批'],
     },
     component: () => import('@/views/threeD-terrain/index.vue'),
@@ -156,6 +156,15 @@ export const routes = [
     },
     component: () =>
       import('@/views/soil-erosion/index.vue'),
+  },
+  {
+    path: '/geological-time',
+    name: 'geological-time',
+    meta: {
+      title: '地质年代的划分',
+      tags: ['第四批'],
+    },
+    component: () => import('@/views/geological-time/index.vue'),
   },
   {
     path: '/earth-evolution',

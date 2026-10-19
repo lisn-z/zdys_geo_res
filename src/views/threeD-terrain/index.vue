@@ -35,11 +35,18 @@
             <strong class="dock-item-value">{{ contourInterval }}m</strong>
           </div>
 
+          <div class="dock-group dock-slider-group">
+            <span class="dock-item-label">等高线粗细</span>
+            <el-slider v-model="contourLineWidth" :min="1" :max="4" :step="0.5" :show-tooltip="false"
+              aria-label="等高线粗细" @input="onContourLineWidthChange" />
+            <strong class="dock-item-value">{{ contourLineWidth }}px</strong>
+          </div>
+
           <div class="dock-group dock-generate-group">
             <span class="dock-item-label">地形生成</span>
             <el-select v-model="terrainGenType" class="theme-select terrain-type-select terrain-type-select-wide"
               popper-class="geo-select-popper geo-select-popper-dark" placeholder="地形类型"
-              @change="generateRandomTerrain">
+              @change="generateRandomTerrain()">
               <el-option label="全部" value="all" />
               <el-option label="山顶" value="peak" />
               <el-option label="鞍部" value="saddle" />
@@ -50,6 +57,8 @@
               <el-option label="缓坡" value="gentle" />
               <el-option label="盆地" value="basin" />
             </el-select>
+            <button type="button" class="theme-btn basin-observe-btn" :disabled="generatingTerrain"
+              @click="observeBasin">观察盆地</button>
           </div>
         </div>
 
@@ -179,7 +188,7 @@
               <p><strong>鞍部：</strong>两峰之间低凹部位，比两侧山顶低。</p>
               <p><strong>山脊：</strong>分水岭，等高线向低处凸出。</p>
               <p><strong>山谷：</strong>集水线，等高线向高处凸出，常发育河流。</p>
-              <p><strong>盆地：</strong>四周较高、中间较低。本示例为闭合盆地，内部等高线由外向内降低，短示坡线指向低处。</p>
+              <p><strong>盆地：</strong>四周山地较高，中间是较宽、平缓的低地。点击“观察盆地”可从斜上方看清盆底与周围高地；闭合等高线的数值由外向内降低。</p>
             </div>
           </section>
 
@@ -257,6 +266,9 @@ import {
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
 
 // ============================================================
 // 配置参数
@@ -282,6 +294,7 @@ const threeContainerRef = ref<HTMLDivElement | null>(null)
 const profileCanvas = ref<HTMLCanvasElement | null>(null)
 const viewCube = ref<HTMLDivElement | null>(null)
 const contourInterval = ref(5)
+const contourLineWidth = ref(3)
 const showFeatureLabels = ref(true)
 const showRidgeLines = ref(true)
 const uiScale = ref(1)  // 整体 UI 缩放系数（根据分辨率自动调节）
@@ -338,13 +351,14 @@ type BasinParameters = {
   cx: number; cz: number; rx: number; rz: number; floor: number; rim: number
 }
 const DEFAULT_BASIN: BasinParameters = {
-  cx: 0.18, cz: 0.18, rx: 0.145, rz: 0.13, floor: 0.11, rim: 0.33,
+  cx: 0.20, cz: 0.18, rx: 0.17, rz: 0.14, floor: 0.10, rim: 0.35,
+}
+function getStandaloneBasin(cx: number, cz: number): BasinParameters {
+  return { cx, cz, rx: 0.29, rz: 0.24, floor: 0.10, rim: 0.48 }
 }
 function getActiveBasin(): BasinParameters | null {
   if (terrainGenType.value === 'all') return DEFAULT_BASIN
-  if (terrainGenType.value === 'basin') return {
-    ...currentTerrainParams, rx: 0.22, rz: 0.20, floor: 0.12, rim: 0.54,
-  }
+  if (terrainGenType.value === 'basin') return getStandaloneBasin(currentTerrainParams.cx, currentTerrainParams.cz)
   return null
 }
 
@@ -537,15 +551,16 @@ function defaultCliffMask(x: number): number {
 function blendBasinHeight(base: number, x: number, z: number, p: BasinParameters): number {
   const dx = (x - p.cx) / p.rx
   const dz = (z - p.cz) / p.rz
-  const r = Math.hypot(dx, dz)
-  if (r >= 1.85) return base
   const theta = Math.atan2(dz, dx)
-  // 先在局部重建盆底—盆壁—盆缘，再在盆缘之外与原山麓融合。
-  // 不能把一个凹坑直接加到倾斜山坡上：低侧盆缘会被山坡削开。
-  const wall = smoothStep01((r - 0.34) / 0.66)
-  const rimVariation = (0.008 * Math.cos(2 * theta) + 0.006 * Math.sin(3 * theta)) * wall
-  const basinHeight = p.floor + 0.012 * Math.min(1, r * r)
-    + (p.rim - p.floor - 0.012) * wall + rimVariation
+  // 宽阔盆底 + 不规则山缘：避免等半径、等高度的圆环看起来像火山口。
+  const radiusScale = 1 + 0.08 * Math.cos(3 * theta) + 0.05 * Math.sin(2 * theta)
+  const r = Math.hypot(dx, dz) / radiusScale
+  if (r >= 1.85) return base
+  const wall = smoothStep01((r - 0.50) / 0.50)
+  const rimVariation = (0.028 * Math.cos(2 * theta) + 0.022 * Math.sin(3 * theta)
+    + 0.035 * Math.sin(theta)) * wall
+  const basinHeight = p.floor + 0.008 * Math.min(1, r * r)
+    + (p.rim - p.floor - 0.008) * wall + rimVariation
   // 宽过渡延伸到山麓，避免盆缘外侧变成一圈陡直的“火山口外壁”。
   const weight = 1 - smoothStep01((r - 1) / 0.85)
   return base * (1 - weight) + basinHeight * weight
@@ -596,7 +611,7 @@ function getNormalizedHeight(x: number, z: number): number {
   // 带限细节噪声只作用于原地形；盆底使用下面独立的平缓曲面。
   h += fbm(x * 4.5, z * 4.5, 4) * 0.06 + fbm(x * 9.0, z * 9.0, 3) * 0.02
 
-  // 完整盆缘高于 70m、盆底约 52m；避免闭合低地全部落在 50m 起绘线以下。
+  // 完整盆缘高于 70m、盆底约 51m；避免闭合低地全部落在 50m 起绘线以下。
   h = blendBasinHeight(h, x, z, DEFAULT_BASIN)
 
   return Math.max(0, Math.min(1, h))
@@ -743,7 +758,7 @@ function createMergedContourSegments(
   color: number,
   opacity = 0.9,
   renderOrder = 10,
-): THREE.LineSegments | null {
+): LineSegments2 | null {
   let segmentCount = 0
   for (const points of polylines) {
     segmentCount += Math.max(0, points.length / 3 - 1)
@@ -759,20 +774,21 @@ function createMergedContourSegments(
     }
   }
 
-  const lineGeo = new THREE.BufferGeometry()
-  lineGeo.setAttribute(
-    'position',
-    new THREE.BufferAttribute(mergedPositions, 3)
-  )
-
-  const lineMat = new THREE.LineBasicMaterial({
+  // 按像素绘制宽线，仍将所有线段合并为一次绘制，避免为每条等高线创建网格。
+  const lineGeo = new LineSegmentsGeometry()
+  lineGeo.setPositions(mergedPositions)
+  const lineMat = new LineMaterial({
     color,
     transparent: true,
     opacity,
+    worldUnits: false,
+    alphaToCoverage: true,
     depthTest: true,
     depthWrite: false,
   })
-  const line = new THREE.LineSegments(lineGeo, lineMat)
+  lineMat.linewidth = contourLineWidth.value
+  // LineSegments2 在绘制前同步视口尺寸；缩放和 DPR 变化时保持 CSS 像素线宽。
+  const line = new LineSegments2(lineGeo, lineMat)
 
   line.renderOrder = renderOrder
   line.frustumCulled = false
@@ -1865,40 +1881,13 @@ function buildBasinContourHints(segments: ContourSegment[], levels: number[]) {
           (points[i]! - centerX) / (basin.rx * TERRAIN_SIZE),
           (points[i + 2]! - centerZ) / (basin.rz * TERRAIN_SIZE),
         )
-        if (r > 1.08) { withinBasin = false; break }
+        if (r > 1.18) { withinBasin = false; break }
       }
       if (withinBasin) { closed.push({ level, points }); break }
     }
   }
   if (!closed.length) return
-  // 只在最外侧那条“内低外高”的闭合等高线上画向盆内的短示坡线。
-  const outer = closed[closed.length - 1]!
-  const line = outer.points
-  const surfaceTicks: Float32Array[] = []
-  const projectionTicks: Float32Array[] = []
-  let accumulated = 0
-  let lastTickDistance = -Infinity
-  for (let i = 3; i < line.length; i += 3) {
-    const x = line[i]!, z = line[i + 2]!
-    accumulated += Math.hypot(x - line[i - 3]!, z - line[i - 1]!)
-    if (accumulated - lastTickDistance < 0.105) continue
-    const distance = Math.hypot(centerX - x, centerZ - z)
-    if (distance < 0.04) continue
-    const length = Math.min(0.026, distance * 0.10)
-    const ex = x + (centerX - x) / distance * length
-    const ez = z + (centerZ - z) / distance * length
-    const sy = sampleTerrainHeightAtSceneXZ(x, z) + 0.01
-    const ey = sampleTerrainHeightAtSceneXZ(ex, ez) + 0.01
-    if (ey >= sy - 0.0002) continue
-    surfaceTicks.push(new Float32Array([x, sy, z, ex, ey, ez]))
-    projectionTicks.push(new Float32Array([x, BASE_PLANE_Y + 0.010, z, ex, BASE_PLANE_Y + 0.010, ez]))
-    lastTickDistance = accumulated
-  }
-  const surface = createMergedContourSegments(surfaceTicks, 0x5a0d9a, 0.95, 11)
-  const projection = createMergedContourSegments(projectionTicks, 0x8833aa, 0.95, 11)
-  if (surface) contourGroup3D.add(surface)
-  if (projection) projectionGroup.add(projection)
-
+  // 保留盆地闭合等高线的海拔标注，用数值说明由外向内降低。
   const selectedIndices = [...new Set([0, Math.floor((closed.length - 1) / 2), closed.length - 1])]
   const angles = [0.45, 2.60, 4.35]
   selectedIndices.forEach((index, labelIndex) => {
@@ -1936,6 +1925,23 @@ function addBasinElevationLabels() {
     projection.name = 'projectionElevationLabel'
     projection.position.set(marker.x, BASE_PLANE_Y + 0.035, marker.z)
     projectionGroup.add(projection)
+  }
+  // 单独观察时明确标出实际盆缘高程，与盆底的“低”形成对照。
+  if (terrainGenType.value === 'basin') {
+    const basin = getActiveBasin()!
+    const angle = 0.9
+    const radius = 1 + 0.08 * Math.cos(3 * angle) + 0.05 * Math.sin(2 * angle)
+    const x = basin.cx + basin.rx * radius * Math.cos(angle)
+    const z = basin.cz + basin.rz * radius * Math.sin(angle)
+    const sceneX = (x - 0.5) * TERRAIN_SIZE
+    const sceneZ = (0.5 - z) * TERRAIN_SIZE
+    const div = document.createElement('div')
+    div.textContent = `周围山地（高）${Math.round(sampleRealHeightNormalized(x, z))}m`
+    div.style.cssText = 'color:#fff;background:#78623c;padding:4px 8px;border-radius:6px;'
+      + 'font:700 13px "Microsoft YaHei",sans-serif;white-space:nowrap;pointer-events:none;'
+    const label = new CSS2DObject(div)
+    label.position.set(sceneX, sampleTerrainHeightAtSceneXZ(sceneX, sceneZ) + 0.07, sceneZ)
+    featureLabelGroup.add(label)
   }
 }
 
@@ -2780,7 +2786,9 @@ function addFeatureLabels() {
     const labelY = sampleTerrainHeightAtSceneXZ(labelX, labelZ) + 0.08
 
     const div = document.createElement('div')
-    div.textContent = f.text
+    div.textContent = f.type === 'basin'
+      ? `盆底（低）${Math.round(sampleRealHeightNormalized(position.x, position.z))}m`
+      : f.text
     div.className = 'feature-label'
     div.style.color = '#fff'
     div.style.fontSize = `${baseFont}px`
@@ -2805,6 +2813,16 @@ function onContourIntervalChange() {
     buildLabels(false)
     contourDebounceTimer = null
   }, 150)
+}
+
+function onContourLineWidthChange() {
+  for (const group of [contourGroup3D, projectionGroup]) {
+    if (!group) continue
+    for (const child of group.children) {
+      if (child instanceof LineSegments2) child.material.linewidth = contourLineWidth.value
+    }
+  }
+  invalidateSceneRender()
 }
 
 function onToggleFeatureLabels() {
@@ -3018,14 +3036,21 @@ const TERRAIN_SEEDS: Record<string, (x: number, z: number, params?: { cx: number
   },
   basin: (x, z, p) => {
     const cx = p?.cx ?? 0.5, cz = p?.cz ?? 0.5
-    return blendBasinHeight(0.18 + 0.012 * (x - cx), x, z, {
-      cx, cz, rx: 0.22, rz: 0.20, floor: 0.12, rim: 0.54,
-    })
+    // 外围保持连片起伏的高地，避免盆缘向外降到低平地而形成孤立的火山锥。
+    const surroundingHighland = 0.45 + 0.065 * Math.sin(11 * x + 0.5) * Math.cos(9 * z)
+      + 0.04 * Math.sin(7 * z + 2 * x)
+    return blendBasinHeight(surroundingHighland, x, z, getStandaloneBasin(cx, cz))
   },
   all: (x, z) => getNormalizedHeight(x, z),
 }
 
-function generateRandomTerrain() {
+function observeBasin() {
+  if (generatingTerrain.value) return
+  terrainGenType.value = 'basin'
+  generateRandomTerrain(true)
+}
+
+function generateRandomTerrain(focusBasin = false) {
   if (generatingTerrain.value) return
   generatingTerrain.value = true
 
@@ -3055,7 +3080,7 @@ function generateRandomTerrain() {
     } else {
       // 单类型：随机位置 + TERRAIN_SEEDS 函数，每次不同
       // 盆地的完整盆缘必须留在画面内；陡崖两端也要有足够的过渡空间。
-      const margin = type === 'basin' ? 0.31 : type === 'cliff' ? 0.30 : type === 'valley' ? 0.28 : 0.15
+      const margin = type === 'basin' ? 0.36 : type === 'cliff' ? 0.30 : type === 'valley' ? 0.28 : 0.15
       const cx = margin + Math.random() * (1 - 2 * margin)
       const cz = margin + Math.random() * (1 - 2 * margin)
       currentTerrainParams = { cx, cz }
@@ -3124,6 +3149,14 @@ function generateRandomTerrain() {
     // 重建等高线、河流带和标签
     buildContoursAndProjection()
     buildLabels()
+    if (focusBasin === true && type === 'basin' && !learningMode.value) {
+      const x = (currentTerrainParams.cx - 0.5) * TERRAIN_SIZE
+      const z = (0.5 - currentTerrainParams.cz) * TERRAIN_SIZE
+      controls.target.set(x, 0.25, z)
+      camera.position.set(x, 4.8, z + 5.2)
+      controls.update()
+      invalidateSceneRender()
+    }
     generatingTerrain.value = false
   }, 50)
 }
@@ -3841,6 +3874,8 @@ onUnmounted(() => {
   disposeFeatureLineGroup(valleyRiverGroup)
   disposeFeatureLineGroup(valleyGuideGroup3D)
   disposeFeatureLineGroup(valleyGuideProjectionGroup)
+  disposeFeatureLineGroup(contourGroup3D)
+  disposeFeatureLineGroup(projectionGroup)
   valleyRiverMaterial = null
   valleyRiverPath = []
   cachedRidgeHeightfield = null
@@ -4046,12 +4081,13 @@ onUnmounted(() => {
       138px);
 }
 
-.terrain-control-dock {
+.terrain-projection-template .terrain-control-dock {
   width:
     min(1380px,
       calc(100% - 28px));
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 10px;
   padding-top: calc(8px * var(--ui-scale));
   padding-bottom: calc(8px * var(--ui-scale));
@@ -4079,8 +4115,15 @@ onUnmounted(() => {
 
 .dock-slider-group {
   gap: 8px;
-  width: min(360px, 42vw);
-  flex: 0 1 360px;
+  width: min(300px, 28vw);
+  flex: 1 1 260px;
+}
+
+.basin-observe-btn {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .dock-slider-group .el-slider {
@@ -4144,7 +4187,7 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1280px) {
-  .terrain-control-dock {
+  .terrain-projection-template .terrain-control-dock {
     width: min(760px, calc(100% - 28px));
     gap: 8px;
   }
@@ -4155,6 +4198,12 @@ onUnmounted(() => {
     gap: 8px;
   }
 
+  .dock-row-top {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 24px;
+  }
+
   .dock-slider-group,
   .dock-generate-group {
     width: 100%;
@@ -4162,7 +4211,8 @@ onUnmounted(() => {
   }
 
   .dock-generate-group {
-    justify-content: space-between;
+    grid-column: 1 / -1;
+    justify-content: center;
   }
 
   .dock-switches-group {
@@ -4171,7 +4221,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
-  .terrain-control-dock {
+  .dock-row-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .terrain-projection-template .terrain-control-dock {
     width: calc(100% - 20px);
   }
 

@@ -1,13 +1,15 @@
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
 
-export type AdjustmentKind = 'axis' | 'equatorMove' | 'equatorTilt'
-type DropTarget = 'sphere' | 'north' | 'south'
+export type AdjustmentKind = 'axis' | 'equatorMove' | 'equatorTilt' | 'axialTilt'
+export type DropTarget = 'sphere' | 'north' | 'south' | 'stand-slot' | 'globe-slot'
 
 interface GlobeDragOptions {
   canUse: (id: string) => boolean
   select: (id: string) => void
   prepare: (id: string) => void
   resolveDrop: (id: string, x: number, y: number) => DropTarget | null
+  moveTool?: (id: string, x: number, y: number, valid: boolean) => void
+  endTool?: (id: string) => void
   drop: (id: string, target: DropTarget) => void
   cancel: () => void
   startAdjustment: (kind: AdjustmentKind) => number
@@ -50,12 +52,18 @@ export function useGlobeDrag(options: GlobeDragOptions) {
     const previous = session
     session = null
     Object.assign(drag, { active: false, id: null, x: 0, y: 0, valid: false })
-    if (previous?.element?.hasPointerCapture(previous.pointerId)) {
-      previous.element.releasePointerCapture(previous.pointerId)
-    }
-    if (interactionPaused) {
-      interactionPaused = false
-      options.setInteraction(true)
+    try {
+      if (previous?.element?.hasPointerCapture(previous.pointerId)) {
+        previous.element.releasePointerCapture(previous.pointerId)
+      }
+    } catch { /* The tool may have been removed when its drop was committed. */ }
+    try {
+      if (previous?.type === 'tool' && previous.started) options.endTool?.(previous.id)
+    } finally {
+      if (interactionPaused) {
+        interactionPaused = false
+        options.setInteraction(true)
+      }
     }
     return previous
   }
@@ -121,12 +129,16 @@ export function useGlobeDrag(options: GlobeDragOptions) {
       current.started = true
       pauseInteraction()
       options.prepare(current.id)
+      // Establish the actual grab point even when the first move travels far.
+      options.moveTool?.(current.id, current.originX, current.originY, false)
     }
     if (!current.started || session !== current) return
+    const valid = options.resolveDrop(current.id, event.clientX, event.clientY) !== null
     Object.assign(drag, {
       active: true, id: current.id, x: event.clientX, y: event.clientY,
-      valid: options.resolveDrop(current.id, event.clientX, event.clientY) !== null,
+      valid,
     })
+    options.moveTool?.(current.id, event.clientX, event.clientY, valid)
   }
 
   function onPointerMove(event: PointerEvent) {
@@ -159,11 +171,18 @@ export function useGlobeDrag(options: GlobeDragOptions) {
     if (session !== current) return
     const target = current.started && options.canUse(current.id)
       ? options.resolveDrop(current.id, event.clientX, event.clientY) : null
-    clearSession()
     if (!current.started) {
+      clearSession()
       if (options.canUse(current.id)) options.select(current.id)
-    } else if (target) options.drop(current.id, target)
-    else options.cancel()
+      return
+    }
+    try {
+      // Commit the model before endTool starts any final placement animation.
+      if (target) options.drop(current.id, target)
+      else options.cancel()
+    } finally {
+      clearSession()
+    }
   }
 
   function onPointerCancel(event: PointerEvent) {

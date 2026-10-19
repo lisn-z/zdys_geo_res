@@ -1,6 +1,7 @@
 import * as THREE from 'three'
+import { LAYER_PREVIEW_ICONS } from './layer-preview-icons'
 
-export type MaterialId = 'sphere' | 'axis' | 'N' | 'S' | 'equator' | 'latitude' | 'longitude' | 'tropics' | 'polarCircles' | 'map' | 'stand'
+export type MaterialId = 'sphere' | 'axis' | 'N' | 'S' | 'equator' | 'latitude' | 'longitude' | 'tropics' | 'polarCircles' | 'map' | 'stand' | 'grid'
 
 const DEG = Math.PI / 180
 const TROPIC = 23 + 26 / 60
@@ -8,14 +9,14 @@ const TEXTURE_URL = '/geo-resources-folder/images/Material.002_diffuse.jpg'
 const COLORS = { equator: '#ff4058', ordinary: '#a8fff6', tropics: '#ffd447', polar: '#66d9ff' }
 let previews: Promise<Partial<Record<MaterialId, string>>> | undefined
 
-/** One offscreen renderer produces real model thumbnails, then releases its context. */
+/** Flat map and vector icons accompany the rendered model-part thumbnails. */
 export function getMaterialPreviews(): Promise<Partial<Record<MaterialId, string>>> {
   previews ??= renderPreviews()
   return previews
 }
 
 async function renderPreviews(): Promise<Partial<Record<MaterialId, string>>> {
-  const result: Partial<Record<MaterialId, string>> = {}
+  const result: Partial<Record<MaterialId, string>> = { ...LAYER_PREVIEW_ICONS, map: TEXTURE_URL }
   if (typeof document === 'undefined') return result
   let renderer: THREE.WebGLRenderer
   try {
@@ -134,12 +135,9 @@ async function renderPreviews(): Promise<Partial<Record<MaterialId, string>>> {
     latitude(0, COLORS.equator)
     snapshot('equator')
 
-    ball(contextBall)
-    for (const angle of [-60, -30, 30, 60]) latitude(angle, COLORS.ordinary)
-    snapshot('latitude')
-
-    ball(contextBall)
     const meridianMaterial = material(new THREE.MeshBasicMaterial({ color: COLORS.ordinary }))
+    ball(contextBall)
+    for (const angle of [-60, -30, 0, 30, 60]) latitude(angle, angle === 0 ? COLORS.equator : COLORS.ordinary)
     for (let angle = 0; angle < 180; angle += 30) {
       const phi = angle * DEG
       curve(Array.from({ length: 97 }, (_, i) => {
@@ -147,43 +145,51 @@ async function renderPreviews(): Promise<Partial<Record<MaterialId, string>>> {
         return new THREE.Vector3(1.025 * Math.sin(theta) * Math.cos(phi), 1.025 * Math.cos(theta), 1.025 * Math.sin(theta) * Math.sin(phi))
       }), meridianMaterial, 0.017)
     }
-    snapshot('longitude')
+    snapshot('grid')
 
-    ball(contextBall)
-    for (const angle of [-TROPIC, TROPIC]) latitude(angle, COLORS.tropics, true)
-    snapshot('tropics')
-
-    ball(contextBall)
-    for (const angle of [TROPIC - 90, 90 - TROPIC]) latitude(angle, COLORS.polar, true)
-    snapshot('polarCircles')
-
-    // The support is empty: learners can recognise the part they are adding.
-    rod(0.58, 0.12, -1.36)
-    rod(0.12, 0.35, -1.17, brass)
-    const tilt = TROPIC * DEG
+    // Match the assembled globe: brass meridian frame and a tiered wooden base.
+    // Leave the frame empty so learners can recognise the separate part.
+    const woodDark = material(new THREE.MeshStandardMaterial({ color: '#4a1d21', roughness: 0.38 }))
+    const woodWarm = material(new THREE.MeshStandardMaterial({ color: '#60292a', roughness: 0.36 }))
+    const standCylinder = (top: number, bottom: number, height: number, y: number, mat: THREE.Material) => {
+      const mesh = new THREE.Mesh(geometry(new THREE.CylinderGeometry(top, bottom, height, 48)), mat)
+      mesh.position.y = y
+      model.add(mesh)
+    }
+    standCylinder(0.515, 0.525, 0.055, -1.44, woodDark)
+    standCylinder(0.46, 0.5, 0.06, -1.385, woodWarm)
+    standCylinder(0.41, 0.455, 0.045, -1.3325, woodDark)
+    standCylinder(0.095, 0.115, 0.0175, -1.30125, brass)
+    standCylinder(0.0475, 0.065, 0.115, -1.2425, brass)
     const support = new THREE.Group()
+    support.position.y = 0.025
+    support.rotation.z = -TROPIC * DEG
     model.add(support)
-    const frame = new THREE.Mesh(geometry(new THREE.TorusGeometry(1.14, 0.052, 12, 80, Math.PI)), teal)
-    frame.rotation.z = -Math.PI / 2
+    const frameShape = new THREE.Shape()
+    frameShape.absarc(0, 0, 1.24, -Math.PI / 2, Math.PI / 2, false)
+    frameShape.absarc(0, 0, 1.18, Math.PI / 2, -Math.PI / 2, true)
+    frameShape.closePath()
+    const frame = new THREE.Mesh(geometry(new THREE.ExtrudeGeometry(frameShape, { depth: 0.06, bevelEnabled: false, curveSegments: 64 })), brass)
+    frame.position.z = -0.03
     support.add(frame)
+    const tickMaterial = material(new THREE.MeshBasicMaterial({ color: '#80652f' }))
+    const tickPoints: THREE.Vector3[] = []
+    for (let angle = -80; angle <= 80; angle += 10) {
+      const a = angle * DEG
+      for (const radius of [angle % 30 === 0 ? 1.185 : 1.2, 1.235]) {
+        tickPoints.push(new THREE.Vector3(radius * Math.cos(a), radius * Math.sin(a), 0.031))
+      }
+    }
+    support.add(new THREE.LineSegments(geometry(new THREE.BufferGeometry().setFromPoints(tickPoints)), tickMaterial))
     for (const direction of [-1, 1]) {
-      const collar = new THREE.Mesh(geometry(new THREE.CylinderGeometry(0.073, 0.073, 0.16, 20)), brass)
-      collar.position.y = direction * 1.09
+      const collar = new THREE.Mesh(geometry(new THREE.CylinderGeometry(0.049, 0.049, 0.14, 20)), brass)
+      collar.position.y = direction * 1.13
       support.add(collar)
     }
-    support.rotation.z = tilt
-    model.rotation.y = -0.22
+    // Face the thumbnail towards the camera without changing its rightward lean.
+    model.rotation.y = Math.atan2(camera.position.x, camera.position.z)
     snapshot('stand')
 
-    // Never invent continents when the real map cannot be loaded.
-    const texture = await loadEarthTexture()
-    if (texture) {
-      textures.add(texture)
-      texture.colorSpace = THREE.SRGBColorSpace
-      ball(material(new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9 })))
-      model.rotation.y = -1.1
-      snapshot('map')
-    }
   } finally {
     geometries.forEach(value => value.dispose())
     materials.forEach(value => value.dispose())
@@ -195,19 +201,3 @@ async function renderPreviews(): Promise<Partial<Record<MaterialId, string>>> {
   return result
 }
 
-function loadEarthTexture(): Promise<THREE.Texture | null> {
-  return new Promise(resolve => {
-    const image = new Image()
-    const finish = (texture: THREE.Texture | null) => {
-      window.clearTimeout(timeout)
-      image.onload = null
-      image.onerror = null
-      if (!texture) image.removeAttribute('src')
-      resolve(texture)
-    }
-    const timeout = window.setTimeout(() => finish(null), 6000)
-    image.onload = () => { const texture = new THREE.Texture(image); texture.needsUpdate = true; finish(texture) }
-    image.onerror = () => finish(null)
-    image.src = TEXTURE_URL
-  })
-}

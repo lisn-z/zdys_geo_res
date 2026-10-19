@@ -71,8 +71,8 @@
       </div>
       <div v-if="missionIntroReady && flight.phase !== 'success' && flight.phase !== 'crashed'" class="fs-mission-altitude"><span>飞行高度 · 示意</span><strong>{{ Math.round(flight.height * 10).toLocaleString() }}<small>m</small></strong><i>{{ missionPhaseLabel }}</i></div>
       <div v-if="missionIntroReady && (flight.phase === 'ready' || flight.phase === 'igniting' || flight.phase === 'flying')" class="fs-mission-control">
-        <button class="fs-launch-orb" :class="{ 'is-held': flight.held }" aria-label="按住发射火箭" aria-keyshortcuts="Space" :aria-pressed="flight.held" @pointerdown.prevent="holdMissionPointer" @pointerup="releaseMissionPointer" @pointercancel="releaseMissionPointer" @lostpointercapture="releaseMissionPointer" @contextmenu.prevent>
-          <span class="fs-launch-orbit" aria-hidden="true" /><span class="fs-launch-core" aria-hidden="true">↑</span>
+        <button class="fs-launch-orb" :class="{ 'is-held': flight.held }" aria-label="按住发射火箭" aria-keyshortcuts="Space" :aria-pressed="flight.held" @pointerdown.prevent="holdMissionPointer" @pointerup="releaseMissionPointer" @pointercancel="releaseMissionPointer" @lostpointercapture="releaseMissionPointer" @touchstart.prevent @selectstart.prevent @dragstart.prevent @contextmenu.prevent>
+          <span class="fs-launch-orbit" aria-hidden="true" /><span class="fs-launch-core" aria-hidden="true" />
         </button>
         <strong>{{ flight.held ? '持续推进中 · 保持按住' : '按住光点，启动火箭' }}</strong><p>或长按 <kbd>SPACE</kbd><span>松手将失去推力</span></p>
       </div>
@@ -2083,6 +2083,9 @@ onBeforeUnmount(() => {
 .fs-mission-altitude i { font-size:11px; font-style:normal; letter-spacing:2px; color:#acdacc; }
 .fs-mission-control { position:absolute; bottom:27px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; text-align:center; width:270px; }
 .fs-launch-orb { position:relative; width:90px; height:90px; border-radius:50%; border:1px solid #c4f2ff60; background:radial-gradient(circle,#ecfcff24,#16435932 62%,#091b300f 64%); color:#f1fcff; pointer-events:auto; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; margin-bottom:18px; box-shadow:0 0 45px #84d9fa21; }
+/* Keep long presses on the whole control, including its decorative center. */
+.fs-launch-orb,.fs-launch-orb * { user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+.fs-launch-orbit,.fs-launch-core { pointer-events:none; }
 .fs-launch-core { position:absolute; inset:23px; display:grid; place-items:center; font-size:24px; border-radius:50%; background:#d8f8ff; color:#245269; box-shadow:0 0 16px #caf5ff,0 0 36px #84dafa; animation:fs-mission-beacon 1.8s ease-in-out infinite; }
 .fs-launch-orbit { position:absolute; inset:-10px; border:1px solid #a1dcea45; border-radius:50%; animation:fs-mission-pulse 2.4s ease-out infinite; }
 .fs-launch-orb.is-held { border-color:#e5fffa; background:#99efdd24; box-shadow:0 0 60px #a7f1dd50; }

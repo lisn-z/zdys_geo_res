@@ -1,360 +1,404 @@
 <template>
-  <div class="heating-2d" :class="{ 'final-overview': progress >= 99.9 }" aria-label="大气受热过程二维示意图">
-    <svg viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid meet" role="img"
-      aria-labelledby="heating2d-title heating2d-desc">
-      <title id="heating2d-title">大气受热过程二维分阶段示意</title>
-      <desc id="heating2d-desc">通过太阳、分层大气、海洋、陆地和动态能量箭头演示太阳暖大地、大地暖大气和大气还大地。</desc>
+  <div class="atmosphere-scene" :class="{ 'motion-off': !motion, 'is-overview': overview }" aria-label="受热过程示意图，完整画面随窗口等比缩放">
+    <!-- One shared coordinate system: no independent cover crop or background transform. -->
+    <svg viewBox="0 0 1440 810" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="atmosphere-title atmosphere-desc">
+      <title id="atmosphere-title">大气受热过程二维写实示意</title>
+      <desc id="atmosphere-desc">背景、层界和能量路径共用同一等比缩放坐标。太阳短波被反射、散射和选择性吸收；地表长波被大气吸收，大气向上和向下辐射。感热用空气流动、潜热用水汽输送和凝结表示，二者不是辐射。光色、波线与发光节点均为教学符号，高度不按比例。</desc>
       <defs>
-        <linearGradient id="sky2d" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#071a35" />
-          <stop offset="0.58" stop-color="#164c70" />
-          <stop offset="1" stop-color="#d07960" />
-        </linearGradient>
-        <linearGradient id="ocean2d" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#075c78" />
-          <stop offset="1" stop-color="#1692a1" />
-        </linearGradient>
-        <linearGradient id="land2d" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#496b41" />
-          <stop offset="0.6" stop-color="#81934f" />
-          <stop offset="1" stop-color="#50623d" />
-        </linearGradient>
-        <radialGradient id="sun2d">
-          <stop offset="0" stop-color="#fff8c3" />
-          <stop offset="0.34" stop-color="#ffd85b" />
-          <stop offset="1" stop-color="#ff8a25" />
-        </radialGradient>
-        <filter id="softGlow2d" x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur stdDeviation="7" result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-        <marker id="arrowSolar2d" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="10" markerHeight="10"
-          orient="auto-start-reverse"><path d="M1 1L13 7L1 13Z" fill="#ffd45c" /></marker>
-        <marker id="arrowCool2d" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="10" markerHeight="10"
-          orient="auto-start-reverse"><path d="M1 1L13 7L1 13Z" fill="#72dbff" /></marker>
-        <marker id="arrowScatter2d" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="7" markerHeight="7"
-          orient="auto"><path d="M1 1L13 7L1 13Z" fill="#8be7ff" /></marker>
-        <marker id="arrowViolet2d" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="10" markerHeight="10"
-          orient="auto-start-reverse"><path d="M1 1L13 7L1 13Z" fill="#b9a2ff" /></marker>
-        <marker id="arrowWarm2d" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="10" markerHeight="10"
-          orient="auto-start-reverse"><path d="M1 1L13 7L1 13Z" fill="#ff7954" /></marker>
-        <marker id="arrowHeat2d" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="10" markerHeight="10"
-          orient="auto-start-reverse"><path d="M1 1L13 7L1 13Z" fill="#ff665d" /></marker>
-        <marker id="arrowLatent2d" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="10" markerHeight="10"
-          orient="auto-start-reverse"><path d="M1 1L13 7L1 13Z" fill="#5ce7df" /></marker>
-        <marker id="arrowAir2d" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="10" markerHeight="10"
-          orient="auto-start-reverse"><path d="M1 1L13 7L1 13Z" fill="#ff77ba" /></marker>
+        <linearGradient id="scene-shade" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#01050b" stop-opacity=".86" /><stop offset=".45" stop-color="#041525" stop-opacity=".32" /><stop offset="1" stop-color="#031019" stop-opacity=".16" /></linearGradient>
+        <linearGradient id="troposphere-tint" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="360" y2="740"><stop stop-color="#82c6bd" stop-opacity=".11" /><stop offset=".6" stop-color="#82c6bd" stop-opacity=".06" /><stop offset="1" stop-color="#82c6bd" stop-opacity="0" /></linearGradient>
+        <linearGradient id="beam-cross" x1="0" x2="1" y1="0" y2="0"><stop stop-color="#e9ae39" stop-opacity="0" /><stop offset=".23" stop-color="#f6cb60" stop-opacity=".06" /><stop offset=".45" stop-color="#fff3b8" stop-opacity=".35" /><stop offset=".5" stop-color="#fff8d2" stop-opacity=".6" /><stop offset=".55" stop-color="#fff3b8" stop-opacity=".35" /><stop offset=".77" stop-color="#f6cb60" stop-opacity=".06" /><stop offset="1" stop-color="#e9ae39" stop-opacity="0" /></linearGradient>
+        <linearGradient id="beam-length" x1="0" y1="0" x2="0" y2="1"><stop stop-color="white" stop-opacity=".8" /><stop offset=".28" stop-color="white" /><stop offset="1" stop-color="white" stop-opacity=".5" /></linearGradient>
+        <mask id="beam-falloff" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#beam-length)" /></mask>
+        <radialGradient id="absorption-glow"><stop stop-color="#fff8dd" stop-opacity=".95" /><stop offset=".08" stop-color="#ffe9a0" stop-opacity=".85" /><stop offset=".28" stop-color="#f8c466" stop-opacity=".45" /><stop offset=".65" stop-color="#f0a849" stop-opacity=".12" /><stop offset="1" stop-color="#ec8c3e" stop-opacity="0" /></radialGradient>
+        <radialGradient id="heat-glow"><stop stop-color="#ffce8c" stop-opacity=".75" /><stop offset=".25" stop-color="#f99550" stop-opacity=".35" /><stop offset=".65" stop-color="#f17e47" stop-opacity=".12" /><stop offset="1" stop-color="#f17e47" stop-opacity="0" /></radialGradient>
+        <linearGradient id="thermal-fade" x1="0" y1="1" x2="0" y2="0"><stop stop-color="white" stop-opacity=".8" /><stop offset=".2" stop-color="white" /><stop offset=".8" stop-color="white" stop-opacity=".75" /><stop offset="1" stop-color="white" stop-opacity=".28" /></linearGradient>
+        <mask id="thermal-envelope" maskContentUnits="objectBoundingBox"><rect x="0" y="0" width="1" height="1" fill="url(#thermal-fade)" /></mask>
+        <filter id="energy-glow" x="-120%" y="-20%" width="340%" height="140%"><feGaussianBlur stdDeviation="4" /></filter>
+        <filter id="scatter-glow" x="-40%" y="-400%" width="180%" height="900%"><feGaussianBlur stdDeviation="3" /></filter>
+        <filter id="haze-glow" x="-220%" y="-30%" width="540%" height="160%"><feGaussianBlur stdDeviation="7" /></filter>
+        <filter id="node-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="7" /></filter>
+        <filter id="light-core" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="1.3" /></filter>
+        <marker v-for="(color, key) in colors" :id="`tip-${key}`" :key="key" viewBox="0 0 14 10" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L14 5L0 10L4 5Z" :fill="color" /></marker>
       </defs>
 
-      <rect width="1200" height="680" fill="url(#sky2d)" />
-      <g class="phase-zones" aria-hidden="true">
-        <rect x="8" y="82" width="384" height="516" rx="24" class="phase-zone phase-zone-solar" />
-        <rect x="408" y="82" width="384" height="516" rx="24" class="phase-zone phase-zone-ground" />
-        <rect x="808" y="82" width="384" height="516" rx="24" class="phase-zone phase-zone-air" />
-        <path d="M400 106V586M800 106V586" />
+      <image class="landscape-plate" :href="landscape" x="0" y="0" width="1440" height="810" preserveAspectRatio="xMidYMid meet" />
+      <rect width="1440" height="810" fill="url(#scene-shade)" />
+
+      <!-- Mid-latitude schematic: the two internal curves are the layer boundaries,
+           not energy paths. The high atmosphere continues beyond the drawing. -->
+      <g class="atmospheric-layers">
+        <path :d="layerBand(0, 0, 275, 195)" fill="#8291db" fill-opacity=".09" />
+        <path :d="layerBand(275, 195, 400, 320)" fill="#4a9bd4" fill-opacity=".12" />
+        <path :d="layerBand(400, 320, 810, 810)" fill="url(#troposphere-tint)" />
+        <path class="layer-edge-shadow" :d="layerEdge(275, 195)" />
+        <path class="layer-edge stratosphere-edge" :d="layerEdge(275, 195)" />
+        <path class="layer-edge-shadow" :d="layerEdge(400, 320)" />
+        <path class="layer-edge troposphere-edge" :d="layerEdge(400, 320)" />
       </g>
-      <circle cx="160" cy="125" r="76" fill="#ffc64a" opacity=".08" class="sun-aura" />
-      <g class="sun-symbol" transform="translate(160 125)">
-        <g class="sun-rays" stroke="#ffd45c" stroke-width="6" stroke-linecap="round">
-          <path d="M0-60V-82M0 60V82M-60 0H-82M60 0H82M-43-43L-59-59M43 43L59 59M43-43L59-59M-43 43L-59 59" />
+
+      <g class="lesson-content">
+      <g class="sun"><image :href="sun" x="190" y="-8" width="250" height="250" /><text v-if="showLabels" x="445" y="103" class="sun-caption">太阳<tspan x="445" dy="22">短波能量来源</tspan></text></g>
+
+      <g v-if="hasSunlight" class="solar-column" aria-hidden="true" :transform="`translate(${sunSource[0]} ${sunSource[1]}) rotate(${beamAngle})`">
+        <path :d="`M-14 0H14L46 ${beamLength}H-46Z`" fill="url(#beam-cross)" mask="url(#beam-falloff)" />
+        <path v-for="(offset,index) in [-6,6]" :key="offset" :d="`M${offset * .5} 0L${offset * 1.8} ${beamLength}`" class="beam-filament" :style="{ animationDelay: `${index * -1.8}s` }" />
+      </g>
+      <g v-for="point in emittingSurfaces" :key="point[0]" class="surface-emission" :transform="`translate(${point[0]} ${point[1]})`">
+        <ellipse class="surface-warmth" rx="100" ry="29" fill="url(#heat-glow)" />
+        <ellipse rx="40" ry="5" fill="url(#absorption-glow)" />
+      </g>
+
+      <g v-if="has('absorption') || has('airUp') || has('airDown') || has('solarAirAbsorption')" class="molecules" aria-label="水汽和二氧化碳分子示意，非实际比例">
+        <g v-for="(point, index) in molecules" :key="index" :transform="`translate(${point[0]} ${point[1]})`">
+          <g class="molecule-drift" :style="{ animationDelay: `${index * -.7}s` }">
+            <template v-if="index % 3 === 1"><path d="M-13 0H13" /><circle r="4" class="atom carbon" /><circle cx="-13" r="5" class="atom oxygen" /><circle cx="13" r="5" class="atom oxygen" /></template>
+            <template v-else><path d="M-10 5L0-3L11 5" /><circle cy="-3" r="5" class="atom oxygen" /><circle cx="-10" cy="5" r="3" class="atom" /><circle cx="11" cy="5" r="3" class="atom" /></template>
+          </g>
         </g>
-        <circle r="49" fill="url(#sun2d)" stroke="#ffdc72" stroke-width="4" />
-        <circle cx="-15" cy="-17" r="11" fill="#fff" opacity=".64" />
+        <text v-if="showLabels" :x="has('solarAirAbsorption') ? 450 : 980" :y="has('solarAirAbsorption') ? 515 : 490" class="gas-label">水汽 · CO₂（分子放大示意）</text>
       </g>
 
-      <g class="atmosphere-bands" aria-label="三层大气结构">
-        <path class="atmosphere-layer layer-high"
-          d="M-80 620Q600-300 1280 620L1280 620Q600-100-80 620Z" />
-        <path class="atmosphere-layer layer-stratosphere"
-          d="M-80 620Q600-100 1280 620L1280 620Q600 100-80 620Z" />
-        <path class="atmosphere-layer layer-troposphere"
-          d="M-80 620Q600 100 1280 620L1280 620Q600 300-80 620Z" />
-        <path class="layer-boundary boundary-high" d="M-80 620Q600-300 1280 620" />
-        <path class="layer-boundary boundary-stratosphere" d="M-80 620Q600-100 1280 620" />
-        <path class="layer-boundary boundary-troposphere" d="M-80 620Q600 100 1280 620" />
-        <path class="layer-boundary boundary-surface" d="M-80 620Q600 300 1280 620" />
-
-        <g class="layer-name layer-name-high" transform="translate(430 188)">
-          <circle r="5" /><text x="14" y="4">高层大气</text><text class="layer-note" x="14" y="21">稀薄 · 吸收高能辐射</text>
+      <g v-for="flow in radiativeFlows" :key="flow.id" class="energy-flow" :class="{ 'thermal-flow': !!flow.wave }" :data-flow="flow.id" :style="{ '--energy': colors[flow.color], '--travel-time': `${flow.duration || 4.8}s` }">
+        <g v-if="flow.wave" class="radiation-bundle" mask="url(#thermal-envelope)">
+          <g v-for="(strand,index) in flow.strands" :key="index">
+            <path :d="strand" class="strand-bloom" />
+            <path :d="strand" class="strand-track" />
+            <path v-if="motion" :d="strand" class="strand-traveller" pathLength="1000" :style="{ animationDelay: `${index * -2.3}s` }" />
+          </g>
         </g>
-        <g class="layer-name layer-name-stratosphere" transform="translate(440 288)">
-          <circle r="5" /><text x="14" y="4">平流层</text><text class="layer-note" x="14" y="21">稳定分层 · 臭氧集中</text>
+        <path :d="flow.path" class="flow-haze" />
+        <path :d="flow.path" class="flow-bloom" />
+        <path :d="flow.path" class="flow-track" :marker-end="flow.node ? undefined : `url(#tip-${flow.color})`" />
+        <path :d="flow.path" class="flow-core" />
+        <path v-if="motion" :d="flow.path" class="flow-traveller" pathLength="1000" />
+        <g v-if="flow.node" class="absorption-node" :class="{ 'ground-node': flow.node[1] > 650 }" :transform="`translate(${flow.node[0]} ${flow.node[1]})`">
+          <ellipse v-if="flow.node[1] > 650" class="ground-aura" rx="88" ry="32" fill="url(#absorption-glow)" />
+          <circle v-else class="node-aura" r="58" fill="url(#absorption-glow)" />
+          <g :transform="flow.node[1] > 650 ? 'scale(1.65 .38)' : 'scale(1)'">
+            <circle class="node-ring" r="20" /><circle class="node-ring second-ring" r="20" />
+          </g>
+          <circle class="node-core" r="9" /><circle class="node-pin" r="3.4" />
+          <ellipse v-if="flow.node[1] > 650" rx="15" ry="2" class="ground-glint" />
+          <g v-if="motion" class="absorption-specks">
+            <circle v-for="(speck,index) in absorptionSpecks" :key="index" r="1.6" :style="{ '--from-x': `${speck[0]}px`, '--from-y': `${speck[1]}px`, animationDelay: `${index * -.38}s` }" />
+          </g>
         </g>
-        <g class="layer-name layer-name-troposphere" transform="translate(400 405)">
-          <circle r="5" /><text x="-14" y="4">对流层</text><text class="layer-note" x="-14" y="21">天气活动 · 水汽与云</text>
+      </g>
+
+      <!-- Material transport has no radiation bundle, glowing wave or light traveller. -->
+      <g v-for="flow in transportFlows" :key="flow.id" class="material-transport" :class="flow.id" :data-flow="flow.id" :style="{ '--transport': colors[flow.color] }">
+        <path :d="flow.path" class="transport-route" :marker-end="`url(#tip-${flow.color})`" />
+        <g v-if="flow.id === 'sensible'" aria-label="暖空气上升输送感热">
+          <g v-for="index in 4" :key="index" class="air-parcel" :style="{ '--parcel-start': `${(index - 1) * -48}px`, animationDelay: `${index * -1.3}s` }">
+            <ellipse cx="865" cy="675" rx="21" ry="10" /><path d="M853 678Q865 664 877 678" />
+          </g>
+        </g>
+        <g v-else aria-label="海水蒸发吸热，水汽上升后凝结放热">
+          <g v-for="index in 6" :key="index" class="vapor-parcel" :style="{ '--parcel-start': `${(index - 1) * -34}px`, animationDelay: `${index * -.9}s` }">
+            <path :d="`M${480 + (index % 2 ? -15 : 15) - 5} 684L${480 + (index % 2 ? -15 : 15)} 679L${480 + (index % 2 ? -15 : 15) + 5} 684`" /><circle :cx="480 + (index % 2 ? -15 : 15)" cy="679" r="3" /><circle :cx="480 + (index % 2 ? -15 : 15) - 5" cy="684" r="2" /><circle :cx="480 + (index % 2 ? -15 : 15) + 5" cy="684" r="2" />
+          </g>
+          <g class="condensation" transform="translate(480 457)"><ellipse rx="39" ry="15" /><circle cx="-15" cy="-10" r="17" /><circle cx="8" cy="-15" r="22" /><circle cx="28" cy="-6" r="15" /><path class="condensation-drop" d="M0 15Q-8 27 0 29Q8 27 0 15" /><path class="condensation-heat" d="M-46-10l-11-4M-47 9l-12 4M45-10l11-4M47 9l12 4" /></g>
+          <text v-if="showLabels" x="533" y="452" class="transport-note">凝结放热</text><text v-if="showLabels" x="408" y="736" class="transport-note">蒸发吸热</text>
         </g>
       </g>
 
-      <g class="cloud" transform="translate(342 278)">
-        <ellipse cx="0" cy="18" rx="66" ry="22" fill="#dfeef5" opacity=".9" />
-        <circle cx="-34" cy="3" r="28" fill="#edf7fb" /><circle cx="2" cy="-10" r="40" fill="#f4fbff" />
-        <circle cx="41" cy="5" r="31" fill="#e7f3f8" />
-      </g>
-      <g class="cloud cloud-small" transform="translate(714 245)">
-        <ellipse cx="0" cy="14" rx="51" ry="18" fill="#dfeef5" opacity=".78" />
-        <circle cx="-25" cy="0" r="21" fill="#eef8fb" /><circle cx="5" cy="-8" r="29" fill="#f6fcff" />
-        <circle cx="31" cy="3" r="22" fill="#e5f1f6" />
-      </g>
-      <g class="cloud cloud-third" transform="translate(980 250)">
-        <ellipse cx="0" cy="13" rx="47" ry="17" fill="#dfeef5" opacity=".72" />
-        <circle cx="-23" cy="0" r="19" fill="#eef8fb" /><circle cx="5" cy="-8" r="27" fill="#f6fcff" />
-        <circle cx="29" cy="3" r="20" fill="#e5f1f6" />
+      <g v-if="has('scatter')" class="scattering" aria-label="散射向多个方向分散">
+        <g v-for="(ray, index) in scatteringRays" :key="ray"><path :d="ray" class="scatter-bloom" /><path :d="ray" class="scatter-line" marker-end="url(#tip-cool)" /><path v-if="motion" :d="ray" class="scatter-pulse" pathLength="100" :style="{ animationDelay: `${index * -.3}s` }" /></g>
+        <circle :cx="scatterPoint[0]" :cy="scatterPoint[1]" r="25" fill="url(#absorption-glow)" /><circle :cx="scatterPoint[0]" :cy="scatterPoint[1]" r="4" fill="#defaff" />
       </g>
 
-      <path d="M520 558Q575 540 635 558Q735 500 828 536Q932 564 1200 548V680H492C505 642 518 600 520 558Z" fill="url(#land2d)" />
-      <path d="M0 553Q182 530 360 553Q438 565 520 558C518 600 505 642 492 680H0Z" fill="url(#ocean2d)" />
-      <path d="M520 558Q575 540 635 558Q735 500 828 536Q932 564 1200 548" fill="none" stroke="#c7d47b" stroke-width="6" />
-      <path d="M0 553Q182 530 360 553Q438 565 520 558" fill="none" stroke="#7ce8ef" stroke-width="5" opacity=".75" />
-      <g class="terrain-detail" fill="#24432f">
-        <path d="M560 553l12-35 12 35zM608 552l15-45 15 45zM756 523l13-40 13 40zM812 532l12-35 12 35zM900 555l14-42 14 42z" />
-      </g>
-      <g class="surface-labels">
-        <text x="145" y="540">海洋</text>
-        <text x="1050" y="540">陆地</text>
-      </g>
+      <g v-if="has('airUp') || has('airDown')" class="air-origin" transform="translate(1090 435)"><ellipse rx="80" ry="38" fill="url(#heat-glow)" /><circle r="35" fill="url(#absorption-glow)" /><circle r="3" fill="#ffe9b8" /></g>
 
-      <g class="flow" :class="flowClass(0)">
-        <path class="flow-halo solar" d="M190 166C255 240 312 326 384 478" />
-        <path class="flow-line solar" d="M190 166C255 240 312 326 384 478" marker-end="url(#arrowSolar2d)" />
-        <g class="svg-label" transform="translate(230 225)"><rect width="142" height="48" rx="12" /><text x="71" y="21">太阳短波</text><text class="callout-sub" x="71" y="38">进入地球系统</text></g>
-      </g>
-
-      <g class="flow" :class="flowClass(11)">
-        <path class="flow-halo violet" d="M208 170C280 198 405 205 490 228" />
-        <path class="flow-line violet" d="M208 170C280 198 405 205 490 228" marker-end="url(#arrowViolet2d)" />
-        <g class="absorption-node absorption-violet" transform="translate(490 228)" aria-label="臭氧吸收能量">
-          <circle class="absorb-aura" r="24" /><circle class="absorb-ring ring-one" r="17" />
-          <circle class="absorb-ring ring-two" r="17" /><circle class="absorb-ring ring-three" r="17" />
-          <circle class="absorb-core" r="7" /><circle class="absorb-highlight" cx="-2" cy="-2" r="2" />
+      <!-- All labels are painted last so a moving light cannot erase its explanation. -->
+      <g v-if="showLabels" class="flow-labels">
+        <g v-for="flow in shownFlows" :key="flow.id" class="flow-label" :data-label="flow.id" :transform="`translate(${flow.label[0]} ${flow.label[1]})`" :style="{ '--energy': colors[flow.color] }">
+          <path d="M0-8V30" class="label-rule" /><text class="label-title" x="12">{{ flow.title }}</text><text class="label-subtitle" x="12" y="23">{{ flow.subtitle }}</text>
         </g>
-        <g class="svg-label" transform="translate(420 168)"><rect width="128" height="48" rx="12" /><text x="64" y="21">臭氧吸收</text><text class="callout-sub" x="64" y="38">截获部分紫外线</text></g>
+        <g v-for="(flow, index) in shownFlows" :key="`compact-${flow.id}`" class="compact-flow-number" :data-number="flow.id" :transform="`translate(${(flow.compactLabel || flow.label)[0]} ${(flow.compactLabel || flow.label)[1]})`" :style="{ '--energy': colors[flow.color] }" aria-hidden="true"><circle r="24" /><text dy=".35em">{{ index + 1 }}</text></g>
+        <g v-if="has('solar')" class="surface-label" transform="translate(465 758)"><text>地表吸收</text><text class="label-subtitle" y="22">太阳能转化为内能</text></g>
+        <g v-if="has('absorption')" class="absorption-label" transform="translate(930 402)"><text>温室气体吸收</text><text class="label-subtitle" y="23">地面长波使大气增温</text></g>
       </g>
-      <g class="flow" :class="flowClass(14)">
-        <path class="flow-halo cool" d="M315 252Q235 205 205 145" />
-        <path class="flow-line cool" d="M315 252Q235 205 205 145" marker-end="url(#arrowCool2d)" />
-        <g class="svg-label" transform="translate(250 171)"><rect width="128" height="48" rx="12" /><text x="64" y="21">云层反射</text><text class="callout-sub" x="64" y="38">短波返回太空</text></g>
-      </g>
-      <g class="flow" :class="flowClass(17)">
-        <path class="flow-halo solar scatter-incoming-halo" d="M215 174Q258 229 300 300" />
-        <path class="flow-line solar scatter-incoming" d="M215 174Q258 229 300 300" />
-        <circle class="scatter-ring" cx="300" cy="300" r="15" />
-        <circle class="scatter-core" cx="300" cy="300" r="7" />
-        <g class="scatter-rays">
-          <path class="scatter-halo" d="M300 300Q270 247 242 205" />
-          <path class="scatter-halo" d="M300 300Q247 253 202 230" />
-          <path class="scatter-halo" d="M300 300Q238 289 178 292" />
-          <path class="scatter-halo" d="M300 300Q246 329 198 351" />
-          <path class="scatter-halo" d="M300 300Q278 351 254 390" />
-          <path class="flow-line cool scatter-ray ray-a" d="M300 300Q270 247 242 205" marker-end="url(#arrowScatter2d)" />
-          <path class="flow-line cool scatter-ray ray-b" d="M300 300Q247 253 202 230" marker-end="url(#arrowScatter2d)" />
-          <path class="flow-line cool scatter-ray ray-c" d="M300 300Q238 289 178 292" marker-end="url(#arrowScatter2d)" />
-          <path class="flow-line cool scatter-ray ray-d" d="M300 300Q246 329 198 351" marker-end="url(#arrowScatter2d)" />
-          <path class="flow-line cool scatter-ray ray-e" d="M300 300Q278 351 254 390" marker-end="url(#arrowScatter2d)" />
-        </g>
-        <g class="svg-label" transform="translate(328 316)"><rect width="136" height="48" rx="12" /><text x="68" y="21">分子散射</text><text class="callout-sub" x="68" y="38">一束光向多方向分散</text></g>
-      </g>
-      <g class="flow" :class="flowClass(20)">
-        <path class="flow-halo solar" d="M224 182L340 310L458 488" />
-        <path class="flow-line solar" d="M224 182L340 310L458 488" marker-end="url(#arrowSolar2d)" />
-        <g class="svg-label" transform="translate(360 337)"><rect width="128" height="48" rx="12" /><text x="64" y="21">大气折射</text><text class="callout-sub" x="64" y="38">路径发生偏折</text></g>
+      <text x="53" y="757" class="terrain-name">海洋<tspan dx="14">储热 · 蒸发</tspan></text>
+      <text x="1230" y="755" class="terrain-name">陆地<tspan dx="14">吸热 · 辐射</tspan></text>
       </g>
 
-      <g class="flow" :class="flowClass(23)">
-        <path class="flow-halo solar" d="M217 177C263 286 298 397 330 525" />
-        <path class="flow-line solar" d="M217 177C263 286 298 397 330 525" marker-end="url(#arrowSolar2d)" />
-        <g class="absorption-node absorption-solar" transform="translate(330 525)" aria-label="海洋吸收太阳短波">
-          <circle class="absorb-aura" r="24" /><circle class="absorb-ring ring-one" r="17" />
-          <circle class="absorb-ring ring-two" r="17" /><circle class="absorb-ring ring-three" r="17" />
-          <circle class="absorb-core" r="7" /><circle class="absorb-highlight" cx="-2" cy="-2" r="2" />
-        </g>
-        <g class="svg-label" transform="translate(220 418)"><rect width="144" height="48" rx="12" /><text x="72" y="21">海洋吸收短波</text><text class="callout-sub" x="72" y="38">转化为水体内能</text></g>
-      </g>
-      <g class="flow" :class="flowClass(28)">
-        <path class="flow-halo solar" d="M213 175C320 262 486 376 636 526" />
-        <path class="flow-line solar" d="M213 175C320 262 486 376 636 526" marker-end="url(#arrowSolar2d)" />
-        <g class="absorption-node absorption-solar" transform="translate(636 526)" aria-label="陆地吸收太阳短波">
-          <circle class="absorb-aura" r="26" /><circle class="absorb-ring ring-one" r="18" />
-          <circle class="absorb-ring ring-two" r="18" /><circle class="absorb-ring ring-three" r="18" />
-          <circle class="absorb-core" r="8" /><circle class="absorb-highlight" cx="-2" cy="-2" r="2.2" />
-        </g>
-        <g class="svg-label" transform="translate(500 448)"><rect width="144" height="48" rx="12" /><text x="72" y="21">陆地吸收短波</text><text class="callout-sub" x="72" y="38">地表快速增温</text></g>
-      </g>
-
-      <g class="flow" :class="flowClass(34)">
-        <path class="flow-halo warm" d="M648 533C630 455 627 374 620 286" />
-        <path class="flow-line warm" d="M648 533C630 455 627 374 620 286" marker-end="url(#arrowWarm2d)" />
-        <g class="svg-label" transform="translate(520 322)"><rect width="128" height="48" rx="12" /><text x="64" y="21">陆地长波</text><text class="callout-sub" x="64" y="38">暖地表向上放热</text></g>
-      </g>
-      <g class="flow" :class="flowClass(38)">
-        <path class="flow-halo warm" d="M326 530C345 455 365 388 392 318" />
-        <path class="flow-line warm" d="M326 530C345 455 365 388 392 318" marker-end="url(#arrowWarm2d)" />
-        <g class="svg-label" transform="translate(340 382)"><rect width="128" height="48" rx="12" /><text x="64" y="21">海洋长波</text><text class="callout-sub" x="64" y="38">海面释放红外线</text></g>
-      </g>
-      <g class="flow" :class="flowClass(42)">
-        <path class="flow-halo warm" d="M770 535C820 410 836 250 825 108" />
-        <path class="flow-line warm" d="M770 535C820 410 836 250 825 108" marker-end="url(#arrowWarm2d)" />
-        <g class="svg-label" transform="translate(770 252)"><rect width="152" height="48" rx="12" /><text x="76" y="21">大气窗口逸出</text><text class="callout-sub" x="76" y="38">部分长波直达太空</text></g>
-      </g>
-
-      <g class="flow" :class="flowClass(45)">
-        <path class="flow-halo warm" d="M650 530C650 454 646 393 642 340" />
-        <path class="flow-line warm" d="M650 530C650 454 646 393 642 340" marker-end="url(#arrowWarm2d)" />
-        <g class="absorption-node absorption-warm" transform="translate(642 340)" aria-label="温室气体吸收地表长波">
-          <circle class="absorb-aura" r="26" /><circle class="absorb-ring ring-one" r="18" />
-          <circle class="absorb-ring ring-two" r="18" /><circle class="absorb-ring ring-three" r="18" />
-          <circle class="absorb-core" r="8" /><circle class="absorb-highlight" cx="-2" cy="-2" r="2.2" />
-        </g>
-        <g class="svg-label" transform="translate(660 354)"><rect width="158" height="48" rx="12" /><text x="79" y="21">温室气体吸收</text><text class="callout-sub" x="79" y="38">水汽、CO₂ 与云</text></g>
-      </g>
-
-      <g class="flow" :class="flowClass(56)">
-        <path class="flow-halo heat" d="M664 532C620 487 704 444 659 398C620 358 692 324 658 282" />
-        <path class="flow-line heat" d="M664 532C620 487 704 444 659 398C620 358 692 324 658 282" marker-end="url(#arrowHeat2d)" />
-        <g class="svg-label" transform="translate(680 430)"><rect width="128" height="48" rx="12" /><text x="64" y="21">感热输送</text><text class="callout-sub" x="64" y="38">空气湍流上升</text></g>
-      </g>
-      <g class="flow" :class="flowClass(62)">
-        <path class="flow-halo latent" d="M310 532C270 480 348 438 307 390C274 350 332 315 304 270" />
-        <path class="flow-line latent" d="M310 532C270 480 348 438 307 390C274 350 332 315 304 270" marker-end="url(#arrowLatent2d)" />
-        <g class="svg-label" transform="translate(205 395)"><rect width="128" height="48" rx="12" /><text x="64" y="21">潜热输送</text><text class="callout-sub" x="64" y="38">蒸发—凝结</text></g>
-      </g>
-
-      <g class="flow" :class="flowClass(68)">
-        <path class="flow-halo air" d="M950 330C948 255 948 184 950 105" />
-        <path class="flow-line air" d="M950 330C948 255 948 184 950 105" marker-end="url(#arrowAir2d)" />
-        <g class="svg-label" transform="translate(975 135)"><rect width="144" height="48" rx="12" /><text x="72" y="21">大气向外辐射</text><text class="callout-sub" x="72" y="38">能量释放至太空</text></g>
-      </g>
-      <g class="flow" :class="flowClass(73)">
-        <path class="flow-halo air" d="M930 325C958 392 976 455 985 525" />
-        <path class="flow-line air" d="M930 325C958 392 976 455 985 525" marker-end="url(#arrowAir2d)" />
-        <g class="svg-label" transform="translate(975 397)"><rect width="144" height="48" rx="12" /><text x="72" y="21">大气向下辐射</text><text class="callout-sub" x="72" y="38">长波返回地面</text></g>
-      </g>
-
-      <g class="flow" :class="flowClass(79)">
-        <path class="flow-halo air" d="M900 298C785 358 570 443 350 526" />
-        <path class="flow-line air" d="M900 298C785 358 570 443 350 526" marker-end="url(#arrowAir2d)" />
-        <g class="svg-label" transform="translate(610 405)"><rect width="144" height="48" rx="12" /><text x="72" y="21">海洋逆辐射</text><text class="callout-sub" x="72" y="38">补偿海面热量</text></g>
-      </g>
-      <g class="flow" :class="flowClass(85)">
-        <path class="flow-halo air" d="M900 300C980 360 1015 438 1030 526" />
-        <path class="flow-line air" d="M900 300C980 360 1015 438 1030 526" marker-end="url(#arrowAir2d)" />
-        <g class="svg-label" transform="translate(1015 430)"><rect width="144" height="48" rx="12" /><text x="72" y="21">陆地逆辐射</text><text class="callout-sub" x="72" y="38">减缓地表冷却</text></g>
-      </g>
-
-      <g class="phase-strip">
-        <g :class="{ active: phaseActive(0) }" transform="translate(20 14)"><rect width="360" height="38" rx="12" /><text x="180" y="25">① 太阳暖大地</text></g>
-        <g :class="{ active: phaseActive(1) }" transform="translate(420 14)"><rect width="360" height="38" rx="12" /><text x="180" y="25">② 大地暖大气</text></g>
-        <g :class="{ active: phaseActive(2) }" transform="translate(820 14)"><rect width="360" height="38" rx="12" /><text x="180" y="25">③ 大气还大地</text></g>
-      </g>
-
-      <g class="diagram-signature" transform="translate(38 650)">
-        <circle r="4" fill="#67e8f9" /><text x="13" y="5">二维能量路径图 · {{ progress >= 99.9 ? '三阶段核心路径总览' : '当前阶段单线聚焦' }}</text>
+      <!-- Keep the altitude key at the viewport edge, outside the central light paths. -->
+      <g class="layer-altitudes" transform="translate(32 0)" aria-label="中纬度大气垂直分层，高度不按比例">
+        <g class="layer-name high-atmosphere" transform="translate(0 185)"><path class="layer-key" d="M-10-13V29" /><text>高层大气</text><text class="layer-range" y="25">约 50 km 以上</text></g>
+        <g class="altitude-boundary" :transform="`translate(0 ${layerBoundaryY(275, 195)})`"><rect x="-10" y="-13" width="178" height="26" rx="5" /><text y="5">约 50 km · 平流层顶</text></g>
+        <g class="layer-name stratosphere" transform="translate(0 315)"><path class="layer-key" d="M-10-13V29" /><text>平流层</text><text class="layer-range" y="25">对流层顶至约 50 km</text></g>
+        <g class="altitude-boundary" :transform="`translate(0 ${layerBoundaryY(400, 320)})`"><rect x="-10" y="-13" width="208" height="26" rx="5" /><text y="5">约 10–12 km · 对流层顶</text></g>
+        <g class="layer-name troposphere" transform="translate(0 490)"><path class="layer-key" d="M-10-13V29" /><text>对流层</text><text class="layer-range" y="25">地面至约 10–12 km</text></g>
+        <text class="layer-note" y="562">中纬度示意 · 高度不按比例</text>
+        <text class="layer-note secondary" y="583">对流层顶随纬度、季节变化</text>
       </g>
     </svg>
+    <div class="compact-readout">
+      <div class="compact-layer-key" aria-label="大气分层高度，中纬度示意，非等比例">
+        <span><strong>高层大气</strong>约 50 km 以上</span>
+        <span><strong>平流层</strong>对流层顶至约 50 km</span>
+        <span><strong>对流层</strong>地面至约 10–12 km</span>
+      </div>
+      <div v-if="showLabels" class="compact-flow-key" aria-label="图中编号对应的能量路径">
+        <div v-for="(flow, index) in shownFlows" :key="flow.id" class="compact-flow-item" :style="{ '--energy': colors[flow.color] }">
+          <span class="compact-key-number">{{ index + 1 }}</span>
+          <div><strong>{{ flow.title }}</strong><p>{{ flow.subtitle }}</p></div>
+        </div>
+      </div>
+      <p class="compact-reading-note"><span class="full-reading-note">高度为中纬度示意，非等比例；对流层顶随纬度、季节变化。可用顶部全屏查看细节。</span><span class="short-reading-note">中纬度示意 · 高度非等比例</span></p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ stageIndex: number; progress: number; balancePhase: number }>()
-const stageRanges = [[11, 23], [23, 34], [34, 45], [45, 56], [56, 68], [68, 79], [79, 91]] as const
-const stageStarts = [[11, 14, 17, 20], [23, 28], [34, 38, 42], [45], [56, 62], [68, 73], [79, 85]] as const
-const balanceFlowSets = [[14, 23, 28], [34, 38], [45], [56, 62], [68, 73], [79, 85]] as const
-const coreFlowStarts = new Set([14, 17, 28, 34, 56, 62, 68, 85])
-const isFinalOverview = () => props.progress >= 99.9
+import { computed } from 'vue'
+import { visibleFlows, type FlowId } from './heatingModel'
 
-function isFlowActive(start: number) {
-  if (isFinalOverview()) return coreFlowStarts.has(start)
-  if (start === 0) return props.stageIndex === 0
-  if (props.stageIndex === 8) return balanceFlowSets[props.balancePhase]?.includes(start as never) ?? false
-  const rangeIndex = stageRanges.findIndex(([from, to]) => start >= from && start < to)
-  if (rangeIndex < 0 || props.stageIndex !== rangeIndex + 1) return false
-  const reached = stageStarts[rangeIndex]!.filter(value => props.progress >= value)
-  if (props.stageIndex === 5 && props.progress >= 65) return start === 56 || start === 62
-  if (props.stageIndex === 6) return start === 68 || start === 73
-  return reached[reached.length - 1] === start
+const imageBase = '/geo-resources-folder/images/the-process-of-atmospheric-heating'
+const landscape = `${imageBase}/atmosphere-landscape.png`
+const sun = `${imageBase}/solar-corona.png`
+
+const props = withDefaults(defineProps<{ stageIndex: number; progress: number; motion?: boolean; showLabels?: boolean; includeExtensions?: boolean }>(), { motion: true, showLabels: true, includeExtensions: false })
+// All scene geometry stays in the photograph's 1440 × 810 coordinate system.
+// SVG performs one uniform fit for every layer; resizing cannot move a hit point
+// relative to its coastline or turn a tropospheric event into a stratospheric one.
+function layerEdge(y: number, controlY: number) {
+  return `M0 ${y}Q720 ${controlY} 1440 ${y}`
 }
-function flowClass(start: number) { const active = isFlowActive(start); return { active, hidden: !active } }
-function phaseActive(index: number) { return isFinalOverview() || Math.min(Math.floor(props.stageIndex / 3), 2) === index }
+function layerBand(top: number, topControl: number, bottom: number, bottomControl: number) {
+  return `${layerEdge(top, topControl)}V${bottom}Q720 ${bottomControl} 0 ${bottom}Z`
+}
+function layerBoundaryY(y: number, controlY: number) {
+  const t = 32 / 1440
+  return y + 2 * t * (1 - t) * (controlY - y)
+}
+
+const colors = { solar: '#ffe9a8', cool: '#c4edf3', ultraviolet: '#d9c8f0', warm: '#ff9e50', sensible: '#dfc3a0', latent: '#91deca', air: '#ffb27d' } as const
+type Point = [number, number]
+const sunSource: Point = [330, 200]
+const ozonePoint: Point = [365, 305]
+const solarAirPoint: Point = [405, 425]
+const reflectionPoint: Point = [420, 468]
+const scatterPoint: Point = [435, 515]
+interface Wave { from: Point; to: Point; cycles: number; amplitude?: number }
+interface Flow { id: FlowId; path: string; title: string; subtitle: string; color: keyof typeof colors; label: Point; compactLabel?: Point; node?: Point; duration?: number; wave?: Wave; transport?: boolean }
+
+// Smooth, tapered wave packets: the side filaments share the same source and sink.
+// Coordinates are computed once, while light travels along the paths in CSS.
+function wavePath(wave: Wave, spread = 0, phase = 0): string {
+  const dx = wave.to[0] - wave.from[0]
+  const dy = wave.to[1] - wave.from[1]
+  const length = Math.hypot(dx, dy)
+  const points: Point[] = Array.from({ length: 81 }, (_, i) => {
+    const t = i / 80
+    const envelope = Math.sin(Math.PI * t)
+    const offset = (Math.sin(t * Math.PI * 2 * wave.cycles + phase) * (wave.amplitude || 7) + spread) * envelope
+    return [wave.from[0] + dx * t - dy / length * offset, wave.from[1] + dy * t + dx / length * offset]
+  })
+  const start = points[0]!
+  let path = `M${start[0]} ${start[1]}`
+  for (let i = 1; i < points.length - 1; i++) {
+    const point = points[i]!
+    const next = points[i + 1]!
+    path += `Q${point[0].toFixed(2)} ${point[1].toFixed(2)} ${((point[0] + next[0]) / 2).toFixed(2)} ${((point[1] + next[1]) / 2).toFixed(2)}`
+  }
+  return `${path}L${wave.to[0]} ${wave.to[1]}`
+}
+
+const flowDefinitions: Flow[] = [
+  { id: 'solar', path: 'M330 200L500 706', title: '太阳辐射', subtitle: '短波进入地球系统', color: 'solar', label: [445, 194], compactLabel: [405, 280], node: [500, 706] },
+  { id: 'ozone', path: 'M330 200L365 305', title: '臭氧吸收', subtitle: '平流层吸收部分太阳紫外线', color: 'ultraviolet', label: [400, 290], node: ozonePoint },
+  { id: 'solarAirAbsorption', path: 'M330 200L405 425', title: '大气吸收太阳红外线', subtitle: '水汽、CO₂ 选择性吸收', color: 'solar', label: [445, 403], node: solarAirPoint },
+  { id: 'reflection', path: 'M420 468L606 160', title: '云层反射', subtitle: '对流层云将部分短波返回太空', color: 'solar', label: [625, 245] },
+  { id: 'scatter', path: 'M330 200L435 515', title: '分子与微粒散射', subtitle: '部分光向四周分散', color: 'cool', label: [246, 622], compactLabel: [330, 620] },
+  { id: 'ocean', path: 'M330 200L470 710', title: '海洋吸收短波', subtitle: '反射一部分，其余吸收', color: 'solar', label: [510, 666], node: [470, 710] },
+  { id: 'land', path: 'M330 200L875 680', title: '陆地吸收短波', subtitle: '反射一部分，其余吸收', color: 'solar', label: [900, 650], node: [875, 680] },
+  { id: 'surfaceReflection', path: 'M500 706L700 370', title: '地面反射', subtitle: '短波反射，不是地面长波', color: 'solar', label: [630, 535] },
+  { id: 'longwave', path: '', wave: { from: [900, 680], to: [900, 440], cycles: 3.2 }, title: '地面长波辐射', subtitle: '暖地表向上释放红外能量', color: 'warm', label: [660, 580], compactLabel: [850, 580] },
+  { id: 'window', path: '', wave: { from: [970, 680], to: [970, 165], cycles: 5.1, amplitude: 5 }, title: '大气窗口', subtitle: '部分长波直接逸向太空', color: 'warm', label: [995, 205] },
+  { id: 'absorption', path: '', wave: { from: [900, 680], to: [900, 440], cycles: 3.2 }, title: '地面长波辐射', subtitle: '近地面大气的主要直接热源', color: 'warm', label: [658, 590], compactLabel: [950, 590], node: [900, 440] },
+  { id: 'sensible', path: 'M865 681Q848 580 865 465', transport: true, title: '感热输送', subtitle: '暖空气运动 · 非辐射传热', color: 'sensible', label: [930, 562] },
+  { id: 'latent', path: 'M480 707Q460 585 480 470', transport: true, title: '潜热输送', subtitle: '水汽携带能量 · 非辐射传热', color: 'latent', label: [530, 574] },
+  { id: 'airUp', path: '', wave: { from: [1090, 435], to: [1108, 164], cycles: 3.4 }, title: '大气向外辐射', subtitle: '长波释放至太空', color: 'air', label: [1150, 220], duration: 4.4 },
+  { id: 'airDown', path: '', wave: { from: [1090, 435], to: [1188, 704], cycles: 3.4 }, title: '大气向下辐射', subtitle: '逆辐射返回地表', color: 'air', label: [1180, 555], node: [1188, 704], duration: 4.4 },
+  { id: 'returnOcean', path: '', wave: { from: [610, 435], to: [495, 710], cycles: 3.5 }, title: '海洋吸收逆辐射', subtitle: '补偿海面损失的部分热量', color: 'air', label: [337, 568], compactLabel: [505, 568], node: [495, 710] },
+  { id: 'returnLand', path: '', wave: { from: [1090, 435], to: [1188, 704], cycles: 3.4 }, title: '陆地吸收逆辐射', subtitle: '减缓地表冷却', color: 'air', label: [1180, 555], node: [1188, 704] },
+]
+const flows = flowDefinitions.map(flow => ({
+  ...flow,
+  path: flow.wave ? wavePath(flow.wave) : flow.path,
+  strands: flow.wave ? [wavePath(flow.wave, -17, .8), wavePath(flow.wave, 17, -.8)] : [],
+}))
+const activeIds = computed(() => visibleFlows(props.stageIndex, props.progress, props.includeExtensions))
+const shownFlows = computed(() => flows.filter(flow => activeIds.value.includes(flow.id)).map(flow => {
+  if (flow.id !== 'surfaceReflection') return flow
+  // The reflection always shares the active shortwave impact point.
+  const origin: Point = props.stageIndex === 2 ? (props.progress < 28 ? [470, 710] : [875, 680]) : [500, 706]
+  return {
+    ...flow,
+    path: `M${origin[0]} ${origin[1]}L${origin[0] + 200} 370`,
+    label: [origin[0] + 135, 535] as Point,
+  }
+}))
+const radiativeFlows = computed(() => shownFlows.value.filter(flow => !flow.transport))
+const transportFlows = computed(() => shownFlows.value.filter(flow => flow.transport))
+const overview = computed(() => props.progress >= 91)
+const has = (id: FlowId) => activeIds.value.includes(id)
+const hasSunlight = computed(() => props.stageIndex <= 2 || overview.value)
+const solarTarget = computed<Point>(() => {
+  if (has('land')) return [875, 680]
+  if (has('ocean')) return [470, 710]
+  if (props.stageIndex === 1) {
+    if (has('scatter')) return scatterPoint
+    if (has('reflection')) return reflectionPoint
+    if (has('solarAirAbsorption')) return solarAirPoint
+    return ozonePoint
+  }
+  return [500, 706]
+})
+const beamLength = computed(() => Math.hypot(solarTarget.value[0] - sunSource[0], solarTarget.value[1] - sunSource[1]))
+const beamAngle = computed(() => Math.atan2(solarTarget.value[1] - sunSource[1], solarTarget.value[0] - sunSource[0]) * 180 / Math.PI - 90)
+const emittingSurfaces = computed<Point[]>(() => shownFlows.value.filter(flow => flow.wave && flow.wave.from[1] > 650).map(flow => flow.wave!.from))
+const scatteringRays = ['M435 515Q392 482 342 470', 'M435 515Q375 510 310 515', 'M435 515Q382 550 327 560', 'M435 515Q410 562 382 600']
+const molecules = computed(() => has('solarAirAbsorption')
+  ? [[355, 410], [400, 465], [465, 465], [535, 466]]
+  : [[690, 439], [780, 460], [875, 439], [950, 416], [1030, 448], [1177, 429]])
+const absorptionSpecks: Point[] = [[-36, -24], [29, -35], [-22, 31], [42, 15], [3, -45], [-43, 4]]
 </script>
 
 <style scoped>
-.heating-2d { position: absolute; inset: 0; overflow: hidden; background: #071a35 }
-.heating-2d svg { display: block; width: 100%; height: 100% }
-.sun-aura { animation: sun-breathe 3.4s ease-in-out infinite alternate }
-.sun-rays { animation: sun-spin 28s linear infinite; transform-box: fill-box; transform-origin: center }
-.cloud { opacity: .9; animation: cloud-drift 10s ease-in-out infinite alternate }
-.cloud-small { animation-delay: -4s; animation-duration: 13s }
-.surface-labels text, .diagram-signature text { fill: #dcecf3; font-family: "Microsoft YaHei", sans-serif }
-.surface-labels text { fill: #d6e8da; font-size: 15px; font-weight: 700; text-anchor: middle; letter-spacing: .5px }
-.diagram-signature text { fill: #b9d7e2; font-size: 12px }
-.atmosphere-layer { stroke: none }
-.layer-high { fill: #9f78e8; fill-opacity: .12 }
-.layer-stratosphere { fill: #6f91ef; fill-opacity: .13 }
-.layer-troposphere { fill: #42c9dd; fill-opacity: .15 }
-.layer-boundary { fill: none; stroke-width: 2.4; vector-effect: non-scaling-stroke }
-.boundary-high { stroke: #c39cff; stroke-opacity: .42 }
-.boundary-stratosphere { stroke: #9eb2ff; stroke-opacity: .5 }
-.boundary-troposphere { stroke: #70deef; stroke-opacity: .58 }
-.boundary-surface { stroke: #81eef2; stroke-opacity: .42 }
-.layer-name text { fill: #eaf8ff; font-family: "Microsoft YaHei", sans-serif; font-size: 14px; font-weight: 800; paint-order: stroke; stroke: #0a2337; stroke-width: 3px; stroke-linejoin: round }
-.layer-name .layer-note { fill: #bdd8e4; font-size: 9px; font-weight: 500; letter-spacing: .4px }
-.layer-name-high circle { fill: #c39cff }.layer-name-stratosphere circle { fill: #9eb2ff }.layer-name-troposphere circle { fill: #70deef }
-.layer-name-troposphere text { text-anchor: end }
-.phase-zones .phase-zone { stroke-width: 1.4; opacity: .055 }
-.phase-zone-solar { fill: #ffd45c; stroke: #ffd45c }
-.phase-zone-ground { fill: #ff7954; stroke: #ff9a70 }
-.phase-zone-air { fill: #ff77ba; stroke: #ff77ba }
-.phase-zones path { fill: none; stroke: #b9d7e2; stroke-width: 1.5; stroke-dasharray: 7 10; opacity: .2 }
-.flow { pointer-events: none; opacity: 1; transition: opacity .45s ease, filter .45s ease }
-.flow.hidden { display: none }
-.flow-halo, .flow-line { fill: none; stroke-linecap: round; stroke-linejoin: round }
-.flow-halo { stroke-width: 19; opacity: .16; filter: url(#softGlow2d) }
-.flow-line { stroke-width: 8; stroke-dasharray: 26 12; animation: energy-travel 1.15s linear infinite }
-.scatter-incoming-halo { stroke-width: 13; opacity: .12 }
-.scatter-incoming { stroke-width: 5; stroke-dasharray: 15 9 }
-.scatter-halo { fill: none; stroke: #72dbff; stroke-width: 10; stroke-linecap: round; opacity: .14; filter: url(#softGlow2d) }
-.scatter-ray { stroke-width: 4.5; stroke-dasharray: 10 7; animation-duration: .9s }
-.scatter-ray.ray-b { animation-delay: -.12s }.scatter-ray.ray-c { animation-delay: -.24s }
-.scatter-ray.ray-d { animation-delay: -.36s }.scatter-ray.ray-e { animation-delay: -.48s }
-.scatter-core { fill: #e9fbff; filter: url(#softGlow2d) }
-.scatter-ring { fill: none; stroke: #8be7ff; stroke-width: 3; opacity: .7; animation: scatter-pulse 1.35s ease-out infinite }
-.absorption-node { pointer-events: none }
-.absorption-solar { color: #ffd45c }.absorption-violet { color: #b9a2ff }.absorption-warm { color: #ff7954 }
-.absorb-aura { fill: currentColor; opacity: .2; filter: url(#softGlow2d); animation: absorb-aura-pulse 1.35s ease-in-out infinite alternate }
-.absorb-core { fill: currentColor; stroke: #fff4cf; stroke-width: 2; filter: url(#softGlow2d); animation: absorb-core-pulse .9s ease-in-out infinite alternate }
-.absorb-highlight { fill: #fff; opacity: .9 }
-.absorb-ring { fill: none; stroke: currentColor; stroke-width: 2.5; opacity: 0; transform-box: fill-box; transform-origin: center; animation: absorb-collapse 1.8s ease-in infinite }
-.absorb-ring.ring-two { animation-delay: -.6s }.absorb-ring.ring-three { animation-delay: -1.2s }
-.solar { stroke: #ffd45c }.cool { stroke: #72dbff }.violet { stroke: #b9a2ff }.warm { stroke: #ff7954 }
-.heat { stroke: #ff665d }.latent { stroke: #5ce7df }.air { stroke: #ff77ba }
-.svg-label rect { fill: #071522; fill-opacity: .93; stroke: currentColor; stroke-opacity: .72 }
-.svg-label text { fill: #fff; font-family: "Microsoft YaHei", sans-serif; text-anchor: middle }
-.svg-label text { font-size: 14px; font-weight: 800 }
-.svg-label .callout-sub { fill: #bad2dc; font-size: 10px; font-weight: 500 }
-.flow.active .svg-label { animation: label-in .45s ease both }
-.flow:has(.solar) .svg-label { color: #ffd45c }.flow:has(.cool) .svg-label { color: #72dbff }
-.flow:has(.violet) .svg-label { color: #b9a2ff }.flow:has(.warm) .svg-label { color: #ff7954 }
-.flow:has(.heat) .svg-label { color: #ff665d }.flow:has(.latent) .svg-label { color: #5ce7df }
-.flow:has(.air) .svg-label { color: #ff77ba }
-.final-overview .flow .svg-label rect, .final-overview .flow .callout-sub { display: none }
-.final-overview .flow .svg-label text:not(.callout-sub) { font-size: 12px; paint-order: stroke; stroke: #06131f; stroke-width: 5px; stroke-linejoin: round }
-.final-overview .flow-line { stroke-width: 5 }
-.final-overview .flow-halo { stroke-width: 10; opacity: .075 }
-.final-overview .scatter-ray { stroke-width: 3.2 }
-.final-overview .absorption-node { opacity: .88 }
-.phase-strip rect { fill: #06131f; fill-opacity: .9; stroke: #82a7b8; stroke-opacity: .35; stroke-width: 1.5 }
-.phase-strip text { fill: #b7ccd5; font-family: "Microsoft YaHei", sans-serif; font-size: 18px; font-weight: 800; text-anchor: middle }
-.phase-strip > g { opacity: .72; transition: opacity .35s ease }
-.phase-strip > g.active { opacity: 1 }
-.phase-strip > g.active rect { stroke: #ffd45c; stroke-opacity: .9; filter: url(#softGlow2d) }
-.phase-strip > g.active text { fill: #fff3c6 }
-@keyframes energy-travel { to { stroke-dashoffset: -38 } }
-@keyframes scatter-pulse { to { r: 27px; opacity: 0 } }
-@keyframes absorb-collapse { 0% { transform: scale(1.65); opacity: 0 } 32% { opacity: .72 } 100% { transform: scale(.45); opacity: 0 } }
-@keyframes absorb-aura-pulse { to { opacity: .34; transform: scale(1.12) } }
-@keyframes absorb-core-pulse { to { transform: scale(1.22); opacity: .92 } }
-@keyframes label-in { from { opacity: 0 } to { opacity: 1 } }
-@keyframes sun-breathe { to { r: 86px; opacity: .13 } }
-@keyframes sun-spin { to { transform: rotate(360deg) } }
-@keyframes cloud-drift { to { opacity: .72 } }
-@media (prefers-reduced-motion: reduce) { .sun-aura, .sun-rays, .cloud, .flow-line, .flow.active .svg-label, .absorb-aura, .absorb-core, .absorb-ring { animation: none } }
+.atmosphere-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: linear-gradient(180deg, #071425, #143a50); }
+svg { width: 100%; height: 100%; display: block; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif }
+.compact-flow-number, .compact-readout, .short-reading-note { display: none }
+.material-transport { --transport: #bfe0cf }
+.transport-route { fill: none; stroke: var(--transport); stroke-width: 2; stroke-dasharray: 8 6; opacity: .6 }
+.air-parcel, .vapor-parcel { transform: translateY(var(--parcel-start)); animation: transport-rise 5.4s linear infinite; }
+.air-parcel ellipse { fill: #d8bc93; fill-opacity: .13; stroke: #dfc3a0; stroke-width: 1.5; }
+.air-parcel path { fill: none; stroke: #e6cfb0; stroke-width: 1.5; }
+.vapor-parcel path { fill: none; stroke: #a6e1cc; stroke-width: 1.5; }
+.vapor-parcel circle { fill: #c8eddd; }
+.condensation { fill: #e6f0ed; fill-opacity: .65; }
+.condensation-drop { fill: #8edbc8; fill-opacity: 1; }
+.condensation-heat { fill: none; stroke: #e8bc83; stroke-width: 2; stroke-linecap: round; animation: condensation-release 2.7s ease-in-out infinite; }
+.transport-note { fill: #e6f2e4; font-size: 14px; font-weight: 500; paint-order: stroke; stroke: #173b43; stroke-width: 3px; }
+.layer-edge, .layer-edge-shadow { fill: none; vector-effect: non-scaling-stroke }
+.layer-edge-shadow { stroke: #061729; stroke-width: 5; opacity: .45 }
+.layer-edge { stroke-width: 1.8; opacity: .8 }
+.stratosphere-edge { stroke: #bdc7f4 }
+.troposphere-edge { stroke: #93ddd4 }
+.layer-altitudes { pointer-events: none }
+.layer-name { fill: #edf5fc; font-size: 19px; font-weight: 600; paint-order: stroke; stroke: #0c253d; stroke-width: 3px; stroke-linejoin: round }
+.layer-range { font-size: 14px; font-weight: 500; fill: #d6e8f2; stroke-width: 2.5px }
+.layer-key { fill: none; stroke-width: 3; stroke-linecap: round }
+.high-atmosphere .layer-key { stroke: #bdc7f4 }.stratosphere .layer-key { stroke: #8ac7ef }.troposphere .layer-key { stroke: #93ddd4 }
+.altitude-boundary rect { fill: #071c2e; fill-opacity: .88; stroke: #98b8c8; stroke-opacity: .55 }
+.altitude-boundary text { fill: #e3f2fa; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums }
+.layer-note { fill: #e2edf2; font-size: 12px; paint-order: stroke; stroke: #0c253d; stroke-width: 3px; stroke-linejoin: round }
+.layer-note.secondary { fill: #bcd1df; font-size: 11px }
+.sun-caption { fill: #e9d2a2; font-size: 20px; letter-spacing: 2px; font-weight: 500 }
+.sun-caption tspan { fill: #b4afa0; font-size: 11px; letter-spacing: .5px }
+.solar-column { animation: beam-breathe 5s ease-in-out infinite alternate; mix-blend-mode: screen }
+.beam-filament { fill: none; stroke: #fff2be; stroke-width: 1.4; opacity: .3; filter: url(#light-core); animation: filament-breathe 4.2s ease-in-out infinite alternate }
+.flow-haze, .flow-track, .flow-bloom, .flow-core, .flow-traveller, .strand-bloom, .strand-track, .strand-traveller { fill: none; stroke: var(--energy); stroke-linecap: round; stroke-linejoin: round }
+.flow-haze { stroke-width: 25; opacity: .075; filter: url(#haze-glow) }
+.flow-bloom { stroke-width: 8; opacity: .42; filter: url(#energy-glow) }
+.flow-track { stroke-width: 2.7; opacity: .92; filter: drop-shadow(0 0 3px var(--energy)) }
+.flow-core { stroke-width: .95; stroke: #fff5cd; opacity: .85 }
+.flow-traveller { stroke-width: 2.6; stroke: #fff9df; opacity: .95; stroke-dasharray: 52 948; animation: energy-move var(--travel-time) linear infinite; filter: drop-shadow(0 0 5px var(--energy)) }
+.thermal-flow .flow-track { stroke-width: 1.7; opacity: .82 }
+.thermal-flow .flow-core { stroke-width: .65; opacity: .64 }
+.thermal-flow .flow-traveller { stroke-width: 1.7; stroke-dasharray: 65 935 }
+.thermal-flow .flow-haze { stroke-width: 16; opacity: .14 }
+.strand-bloom { stroke-width: 6; opacity: .25; filter: url(#energy-glow) }
+.strand-track { stroke-width: 1.15; opacity: .66 }
+.strand-traveller { stroke: #ffe0ac; stroke-width: 1.45; opacity: .9; stroke-dasharray: 100 900; animation: energy-move calc(var(--travel-time) * 1.3) linear infinite; filter: url(#light-core) }
+.energy-flow[data-flow=solar] .flow-track, .energy-flow[data-flow=land] .flow-track, .energy-flow[data-flow=ocean] .flow-track { stroke-width: 4; opacity: .7 }
+.energy-flow[data-flow=solar] .flow-core, .energy-flow[data-flow=land] .flow-core, .energy-flow[data-flow=ocean] .flow-core { stroke-width: 1.65; opacity: .9 }
+.energy-flow[data-flow=solar] .flow-bloom, .energy-flow[data-flow=land] .flow-bloom, .energy-flow[data-flow=ocean] .flow-bloom { stroke-width: 18; opacity: .33 }
+.node-ring { fill: none; stroke: #ffe2a2; stroke-width: .8; transform-origin: 0 0; animation: energy-absorb 2.8s ease-in infinite; opacity: .18 }
+.second-ring { animation-delay: -1.4s }
+.node-core { fill: #ffe8a9; filter: url(#node-glow) }
+.node-pin { fill: #fff7d5; filter: drop-shadow(0 0 4px #ffe6a4) }
+.node-aura, .ground-aura { animation: node-breathe 2.6s ease-in-out infinite alternate; transform-origin: 0 0; mix-blend-mode: screen }
+.ground-glint { fill: #fff1ba; opacity: .7; filter: url(#light-core) }
+.absorption-specks circle { fill: #ffe0a2; filter: drop-shadow(0 0 3px #ffd782); animation: absorption-drift 2.5s ease-in infinite }
+.surface-warmth { animation: ground-breathe 4.5s ease-in-out infinite alternate; mix-blend-mode: screen }
+.scatter-line, .scatter-bloom, .scatter-pulse { fill: none; stroke: #d5edf0; stroke-linecap: round; stroke-width: 1.5 }
+.scatter-bloom { stroke-width: 8; opacity: .45; filter: url(#scatter-glow) }
+.scatter-pulse { stroke: #fff5c9; stroke-width: 2.2; stroke-dasharray: 18 82; animation: scatter-travel 2.8s linear infinite; filter: drop-shadow(0 0 3px #fff0b5) }
+.molecules { opacity: .75 }
+.molecules path { fill: none; stroke: #bce8d2; stroke-width: 1.6; opacity: .7 }
+.atom { fill: #e1f2cf }.oxygen { fill: #80d7b3; filter: drop-shadow(0 0 6px #5bdfb5) }.carbon { fill: #a8c6dd }
+.molecule-drift { animation: molecular-motion 5s ease-in-out infinite alternate }
+.gas-label { fill: #b0d7c5; font-size: 12px; paint-order: stroke; stroke: #153c4a; stroke-width: 2.5px }
+.flow-label { pointer-events: none }
+.label-rule { stroke: var(--energy); stroke-width: 1.4; opacity: .6 }
+.label-title, .absorption-label > text, .surface-label > text { fill: #fff2dc; font-size: 19px; font-weight: 600; paint-order: stroke; stroke: #091d2b; stroke-opacity: .75; stroke-width: 2.8px; stroke-linejoin: round }
+.label-subtitle, .absorption-label .label-subtitle, .surface-label .label-subtitle { fill: #d5e0e3; font-size: 12px; font-weight: 400; paint-order: stroke; stroke: #091d2b; stroke-width: 2.5px; stroke-opacity: .7 }
+.surface-label { text-anchor: middle }.surface-label > text { font-size: 17px }.absorption-label > text { font-size: 18px }
+.terrain-name { fill: #e6e9dd; font-size: 14px; font-weight: 500; paint-order: stroke; stroke: #122c31; stroke-width: 2px; stroke-opacity: .8 }.terrain-name tspan { font-size: 10px; font-weight: 400; fill: #c2d4d2 }
+.motion-off * { animation: none !important }.motion-off .node-ring { opacity: .18 }.motion-off .second-ring { display: none }
+@keyframes energy-move { to { stroke-dashoffset: -1000 } }
+@keyframes scatter-travel { to { stroke-dashoffset: -100 } }
+@keyframes energy-absorb { from { transform: scale(1.2); opacity: 0 } 35% { opacity: .34 } to { transform: scale(.25); opacity: 0 } }
+@keyframes absorption-drift { from { transform: translate(var(--from-x),var(--from-y)); opacity: 0 } 25% { opacity: .8 } to { transform: translate(0,0); opacity: 0 } }
+@keyframes node-breathe { to { opacity: .72; transform: scale(1.12) } }
+@keyframes ground-breathe { to { opacity: .6 } }
+@keyframes beam-breathe { to { opacity: .8 } }
+@keyframes filament-breathe { to { opacity: .6 } }
+@keyframes molecular-motion { to { transform: translate(2px,-4px) rotate(6deg) } }
+@keyframes transport-rise { from { transform: translateY(0); opacity: 0 } 15% { opacity: .9 } 85% { opacity: .9 } to { transform: translateY(-205px); opacity: 0 } }
+@keyframes condensation-release { 50% { opacity: .35; } }
+@media (max-width: 960px) and (orientation: portrait) {
+  .atmosphere-scene { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+  svg { min-width: 0; min-height: 0; }
+  .flow-label > .label-rule, .flow-label > text, .surface-label, .absorption-label,
+  .gas-label, .transport-note, .sun-caption tspan, .terrain-name tspan,
+  .layer-range, .altitude-boundary, .layer-note { display: none; }
+  .layer-name { font-size: 26px; }
+  .terrain-name { font-size: 22px; }
+  .compact-flow-number { display: block; }
+  .compact-flow-number circle { fill: #071c2eee; stroke: var(--energy); stroke-width: 2; }
+  .compact-flow-number text { fill: #fff5e1; font-size: 32px; font-weight: 600; text-anchor: middle; }
+  .compact-readout { display: block; padding: 14px 18px 16px; color: #e8f0ed; background: #0a2234; border-top: 1px solid #b5d8ce26; }
+  .compact-layer-key { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #b5d8ce26; color: #bbced6; font-size: 11px; line-height: 1.6; }
+  .compact-layer-key strong { display: block; color: #edf4f3; font-size: 12px; font-weight: 500; }
+  .compact-layer-key span { padding-left: 8px; border-left: 2px solid #bdc7f4; }
+  .compact-layer-key span:nth-child(2) { border-color: #8ac7ef; }
+  .compact-layer-key span:nth-child(3) { border-color: #93ddd4; }
+  .compact-flow-key { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin-top: 14px; }
+  .compact-flow-item { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+  .compact-key-number { display: grid; place-items: center; flex: 0 0 22px; height: 22px; border: 1px solid var(--energy); border-radius: 50%; color: var(--energy); font-size: 12px; }
+  .compact-flow-item strong { font-size: 13px; font-weight: 500; line-height: 1.5; }
+  .compact-flow-item p { margin: 3px 0 0; color: #b2c7ce; font-size: 11px; line-height: 1.5; }
+  .compact-reading-note { margin: 12px 0 0; color: #91aeb9; font-size: 10px; line-height: 1.6; }
+}
+@media (max-width: 600px) and (orientation: portrait) {
+  .compact-flow-number circle { r: 29px; }
+  .compact-flow-number text { font-size: 42px; }
+  .layer-altitudes, .sun-caption { display: none; }
+  .compact-readout { padding: 12px; }
+  .compact-flow-key { gap: 10px 12px; }
+  .compact-flow-item { gap: 6px; }
+}
+@media (max-width: 960px) and (orientation: portrait) and (max-height: 760px) {
+  .compact-flow-item p { display: none; }
+  .compact-flow-key { gap: 6px 12px; margin-top: 10px; }
+  .compact-flow-item strong { font-size: 12px; }
+  .compact-layer-key { padding-bottom: 8px; }
+  .compact-reading-note { margin-top: 8px; }
+}
+@media (max-width: 960px) and (orientation: portrait) and (max-height: 640px) {
+  .compact-readout { padding: 8px 12px; }
+  .compact-layer-key { font-size: 10px; line-height: 1.3; gap: 6px; }
+  .compact-layer-key strong { font-size: 11px; line-height: 1.4; }
+  .compact-layer-key span { padding-left: 4px; }
+  .compact-flow-key { gap: 4px 10px; margin-top: 8px; }
+  .compact-key-number { flex-basis: 18px; height: 18px; font-size: 11px; }
+  .compact-flow-item strong { font-size: 11px; line-height: 18px; }
+  .full-reading-note { display: none; }
+  .short-reading-note { display: inline; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important }.flow-traveller, .strand-traveller, .scatter-pulse, .absorption-specks { display: none }.node-ring { opacity: .18 } }
 </style>
