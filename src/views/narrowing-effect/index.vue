@@ -4,7 +4,7 @@
     <header class="top-toolbar">
       <div class="brand-area"><img class="brand-logo"
           src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png" alt="logo" /></div>
-      <h1 class="page-title">狭管效应 · 局地风速增强</h1>
+      <h1 class="page-title">狭管效应</h1>
       <div class="toolbar-actions">
         <button type="button" class="theme-btn toolbar-btn record-toolbar-btn" @click="recordExperiment">记录实验</button>
         <button type="button" class="theme-btn toolbar-btn panel-toolbar-btn" :class="{ active: panelsVisible }"
@@ -26,7 +26,7 @@
             <em>约 {{ effectiveSpeedRatio.toFixed(1) }}×</em>
           </div>
           <div v-show="showHazards" class="hazard-badge" :class="hazardClassName"><span>狭口风害等级</span><strong>{{
-              hazardLabel }}</strong><small>{{ hazardTip }}</small></div>
+            hazardLabel }}</strong><small>{{ hazardTip }}</small></div>
           <div v-show="showPressure" class="pressure-hint">
             <span class="high-pressure">较高压 · 低速</span><i></i><span class="low-pressure">较低压 · 高速</span><i></i><span
               class="high-pressure">压力回升 · 减速</span>
@@ -46,7 +46,8 @@
               <div class="comparison-label"><span>当前狭口</span><b>{{ activeGap.toFixed(1) }} m</b></div>
               <div class="comparison-flow-track" :style="{ '--flow-duration': `${narrowParticleDuration}s` }">
                 <i></i><span v-for="index in 7" :key="`narrow-${index}`"
-                  :style="{ animationDelay: `${-index * 0.22}s` }"></span></div>
+                  :style="{ animationDelay: `${-index * 0.22}s` }"></span>
+              </div>
               <strong>{{ throatWindSpeed.toFixed(1) }}<small>m/s</small></strong>
             </div>
             <footer><span><i class="heat-low"></i>低速</span><span><i class="heat-medium"></i>中速</span><span><i
@@ -66,7 +67,7 @@
           </button>
           <div class="timeline-main">
             <div class="timeline-copy"><span>气流进入狭窄通道</span><strong>{{ Math.round(progress) }}% · {{ currentStage.short
-                }}</strong></div>
+            }}</strong></div>
             <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" @input="handleScrub" />
           </div>
           <div class="speed-options">
@@ -86,7 +87,7 @@
           <div class="mode-grid">
             <button v-for="item in modeOptions" :key="item.value" type="button" class="theme-btn option-btn mode-btn"
               :class="{ active: sceneMode === item.value }" @click="setSceneMode(item.value)"><strong>{{ item.label
-                }}</strong><small>{{ item.caption }}</small></button>
+              }}</strong><small>{{ item.caption }}</small></button>
           </div>
         </section>
 
@@ -206,9 +207,9 @@
       </div>
     </FloatingFeatureCard>
 
-    <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="experimentCollapsed" class="narrowing-experiment-card"
-      title="实验对比记录" subtitle="保存参数并导出实验图片" variant="data" :initial-top="242" :initial-right="16" :bottom-inset="88"
-      :min-width="400" :min-height="320">
+    <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="experimentCollapsed"
+      class="narrowing-experiment-card" title="实验对比记录" subtitle="保存参数并导出实验图片" variant="data" :initial-top="242"
+      :initial-right="16" :bottom-inset="88" :min-width="400" :min-height="320">
       <div class="experiment-panel-content">
         <section class="experiment-summary">
           <div><span>已记录</span><strong>{{ experimentRecords.length }}</strong><small>/ 6 组实验</small></div>
@@ -220,15 +221,37 @@
           <p>{{ experimentConclusion.body }}</p>
         </section>
         <div class="experiment-actions">
-          <button type="button" class="theme-btn export-record-btn" :disabled="!experimentRecords.length" @click="exportExperimentImage">导出为 PNG 图片</button>
-          <button type="button" class="theme-btn clear-record-btn" :disabled="!experimentRecords.length" @click="clearExperimentRecords">清空记录</button>
+          <button type="button" class="theme-btn export-record-btn" :disabled="!experimentRecords.length"
+            @click="exportExperimentImage">导出为 PNG 图片</button>
+          <button type="button" class="theme-btn clear-record-btn" :disabled="!experimentRecords.length"
+            @click="clearExperimentRecords">清空记录</button>
         </div>
         <section class="experiment-records">
           <div v-if="!experimentRecords.length" class="empty-records">暂无实验记录，请点击顶部“记录实验”按钮</div>
           <div v-else class="record-table-wrap">
             <table>
-              <thead><tr><th>场景</th><th>间距</th><th>风向</th><th>背景风</th><th>入口</th><th>狭口</th><th>出口</th></tr></thead>
-              <tbody><tr v-for="record in experimentRecords" :key="record.id"><td>{{ record.mode }}</td><td>{{ record.gap }}</td><td>{{ record.direction }}</td><td>{{ record.base }}</td><td>{{ record.entry }}</td><td class="record-throat">{{ record.throat }}</td><td>{{ record.exit }}</td></tr></tbody>
+              <thead>
+                <tr>
+                  <th>场景</th>
+                  <th>间距</th>
+                  <th>风向</th>
+                  <th>背景风</th>
+                  <th>入口</th>
+                  <th>狭口</th>
+                  <th>出口</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="record in experimentRecords" :key="record.id">
+                  <td>{{ record.mode }}</td>
+                  <td>{{ record.gap }}</td>
+                  <td>{{ record.direction }}</td>
+                  <td>{{ record.base }}</td>
+                  <td>{{ record.entry }}</td>
+                  <td class="record-throat">{{ record.throat }}</td>
+                  <td>{{ record.exit }}</td>
+                </tr>
+              </tbody>
             </table>
           </div>
         </section>
@@ -560,7 +583,7 @@ function makeLandmarkFacadeTexture(brandStyle: false | 'front' | 'back') {
     context.shadowBlur = 18
     context.fillStyle = '#f4ffff'
     context.font = '900 108px "Microsoft YaHei", sans-serif'
-    ;['智', '地', '有', '申'].forEach((character, index) => context.fillText(character, 256, 292 + index * 122))
+      ;['智', '地', '有', '申'].forEach((character, index) => context.fillText(character, 256, 292 + index * 122))
   }
   const texture = trackTexture(new THREE.CanvasTexture(canvas))
   texture.colorSpace = THREE.SRGBColorSpace
@@ -721,10 +744,10 @@ function createLandmarkTower(parent: THREE.Group, side: -1 | 1, z: number) {
   parent.add(body)
 
   const finMaterial = trackMaterial(new THREE.MeshStandardMaterial({ color: 0x7df7ee, emissive: 0x32c8cc, emissiveIntensity: 1.65, roughness: 0.3, metalness: 0.45 }))
-  ;[-1, 1].forEach((xSide) => [-1, 1].forEach((zSide) => {
-    const fin = addBox(parent, [0.1, height + 0.55, 0.1], [x + xSide * (width / 2 + 0.035), height / 2 + 0.73, z + zSide * (depth / 2 + 0.035)], finMaterial)
-    fin.renderOrder = 6
-  }))
+    ;[-1, 1].forEach((xSide) => [-1, 1].forEach((zSide) => {
+      const fin = addBox(parent, [0.1, height + 0.55, 0.1], [x + xSide * (width / 2 + 0.035), height / 2 + 0.73, z + zSide * (depth / 2 + 0.035)], finMaterial)
+      fin.renderOrder = 6
+    }))
 
   const crownMaterial = trackMaterial(new THREE.MeshStandardMaterial({ color: 0x235d70, emissive: 0x1d6975, emissiveIntensity: 0.72, roughness: 0.32, metalness: 0.55 }))
   const crown = new THREE.Mesh(trackGeometry(new THREE.CylinderGeometry(1.45, 2.28, 2.1, 8)), crownMaterial)
