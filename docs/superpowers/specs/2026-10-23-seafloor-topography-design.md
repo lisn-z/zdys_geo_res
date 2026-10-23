@@ -93,8 +93,8 @@ timeline-dock 同一行内，从左到右：播放钮、进度 slider、速度�
 - `index.vue`：模板结构、UI 状态（开关/视角/选中/进度）、巡游调度、raycast 接线、标签与说明卡与水深尺的 DOM 更新。
 - `seafloor-data.ts`：六类地形定义（名称、原文/补充、补充标记、深度行、x 区间、锚点）、剖面控制点表、巡游站表、配色常量。纯数据，无 three 依赖。
 - `seafloor-geometry.ts`：由剖面控制点 + 分段噪声生成地形面、地块实体（前/左切面）、水面平面的 BufferGeometry；导出分段判类用的 x 区间查询。
-- `seafloor-scene.ts`：three 装配——renderer/相机/OrbitControls/光照/雾/材质、机位预设与相机动画、水下雾切换、raycast、resize 与 dispose；暴露 `projectToScreen(worldPoint)` 与 `pickLandform(ndc)` 两个纯查询方法。场景模块不直接操作业务 DOM。
-- `index.vue` 每帧用上述两个方法更新标签、水深尺刻度的 DOM 位置；DOM 结构与文案全在 index.vue。
+- `seafloor-scene.ts`：three 装配——renderer/相机/OrbitControls/光照/雾/材质、机位预设与相机动画、水下雾切换、resize 与 dispose；每帧通过 `callbacks.onOverlay(items)` 回投标签与水深尺刻度的屏幕坐标，并暴露 `pick(clientX, clientY, rect)` 供点击判类。场景模块不直接操作业务 DOM。
+- `index.vue` 用 onOverlay 的结果更新标签、水深尺刻度的 DOM 位置，用 pick 接画布点击（带拖拽/点击区分）；DOM 结构与文案全在 index.vue。
 - 单元之间只通过 `seafloor-data.ts` 的常量与场景模块的显式方法通信。
 
 ## 10. 模板与工程约束
