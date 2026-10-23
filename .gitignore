@@ -43,3 +43,6 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# Superpowers brainstorming companion
+.superpowers/
