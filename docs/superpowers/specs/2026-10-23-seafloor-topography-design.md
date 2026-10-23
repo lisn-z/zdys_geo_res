@@ -77,7 +77,7 @@
 
 ## 7. 巡游时间轴
 
-- 7 站：海岸 → 大陆架 → 大陆坡 → 岛弧 → 海沟 → 大洋盆地 → 海岭。progress 0–100 线性映射到 7 段；每站内前 70% 相机 ease 移向该站机位、后 30% 停留；到站自动高亮该段并自动打开其说明卡。
+- 7 站：海岸 → 大陆架 → 大陆坡 → 岛弧 → 海沟 → 大洋盆地 → 海岭。progress 0–100 线性映射到 7 段；每站内前 70% 相机 ease 移向该站机位、后 30% 停留；**进入该站时**（段起点）自动高亮该段并自动打开其说明卡，相机在飞行途中卡片已切换（预览式）。
 - 播放/暂停、进度 slider、1×/1.5×/2× 速度用模板已有 timeline-dock 控件。
 - 用户拖 OrbitControls 或点击地形 → 自动 `isPlaying=false` 交还控制权；再按播放从当前 progress 继续。
 - 巡游机位均在水面以上的表层机位；下潜近看是独立视角预设，不参与巡游。
@@ -101,7 +101,7 @@ timeline-dock 同一行内，从左到右：播放钮、进度 slider、速度�
 
 - 复用 `@/hooks/useGeoPanelLayout`，`<main class="workspace">` 用 `v-bind="workspaceAttrs"`；root 用 hook 的 rootRef。
 - three 只挂 `scene-host`；canvas 不用 fixed；`state.resizing` 为真时跳过 `renderer.setSize()`；ResizeObserver 在 `draggingSide`/`viewportResizing` 为真时跳过；resize 防抖、尺寸未变跳过、setSize 后补绘一帧。
-- 按钮只用公共类：`theme-btn option-btn`（+active）、`theme-btn speed-btn`、`theme-btn reset-scene-btn`、`timeline-icon-btn`；switch 用 `switch-row` + `control-copy`。不重写公共颜色/毛玻璃/滚动条样式。
+- 按钮只用公共类：`theme-btn option-btn`（+active）、`theme-btn speed-btn`、`theme-btn reset-scene-btn`、`timeline-icon-btn`；switch 用 `switch-row` + `control-copy`。**例外（已记录）**：底部单行 dock 内的两个 switch 用业务局部类 `.dock-switch`（`switch-row` 是带下边框的整宽面板行，塞进单行 dock 会破版；先例见 threeD-terrain 的 `.dock-switch-item`）。dock 本身加业务修饰类改排布（flex 单行），只改排布不改公共配色/毛玻璃。不重写公共颜色/毛玻璃/滚动条样式。
 - 删除模板残留：`aiTemplatePrompt`、`copyTemplatePrompt`、`.stage-placeholder.template-prompt-card` 及相关状态。
 - 不引入新依赖（three 已在项目内）。
 
