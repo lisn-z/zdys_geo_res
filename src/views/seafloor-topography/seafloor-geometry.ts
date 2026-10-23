@@ -4,9 +4,9 @@ import { LANDFORMS, PALETTE, WORLD, profileY, type LandformId } from './seafloor
 export const GRID = { nx: 256, nz: 128 } as const
 
 function hash(ix: number, iz: number): number {
-  let h = ix * 374761393 + iz * 668265263
-  h = (h ^ (h >> 13)) * 1274126177
-  return (((h ^ (h >> 16)) >>> 0) / 4294967295) * 2 - 1
+  let h = Math.imul(ix, 374761393) + Math.imul(iz, 668265263)
+  h = Math.imul(h ^ (h >>> 13), 1274126177)
+  return (((h ^ (h >>> 16)) >>> 0) / 4294967295) * 2 - 1
 }
 
 function smooth(t: number): number {
@@ -48,18 +48,23 @@ function bandMask(fx: number, id: LandformId, feather = 0.02): number {
 }
 
 const ARC_CONES: ReadonlyArray<readonly [number, number, number]> = [
-  [0.432, -0.55, 0.9],
-  [0.444, -0.15, 1.15],
-  [0.452, 0.25, 1.0],
-  [0.462, 0.62, 0.8],
+  [0.432, -0.55, 3.0],
+  [0.444, -0.15, 3.4],
+  [0.452, 0.25, 3.1],
+  [0.462, 0.62, 2.8],
 ]
+
+const CONE_RADIUS = 1.2
 
 function coneHeight(fx: number, fz: number): number {
   let h = 0
   for (const [cx, cz, ch] of ARC_CONES) {
     const dx = (fx - cx) * WORLD.length
     const dz = (fz - cz) * (WORLD.width / 2)
-    h += ch * Math.exp(-(dx * dx + dz * dz) * 0.5)
+    const t = 1 - Math.sqrt(dx * dx + dz * dz) / CONE_RADIUS
+    if (t > 0) {
+      h += ch * t * t * (3 - 2 * t)
+    }
   }
   return h
 }
@@ -72,7 +77,7 @@ export function terrainHeight(fx: number, fz: number): number {
   const x = Math.min(1, Math.max(0, fx))
   const z = Math.min(1, Math.max(-1, fz))
   let y = profileY(x)
-  const land = x < WORLD.shoreFx ? 1 : 0
+  const land = 1 - smooth((x - (WORLD.shoreFx - 0.015)) / 0.03)
   const slope = bandMask(x, 'slope')
   const basin = bandMask(x, 'basin')
   const ridge = bandMask(x, 'ridge')
@@ -80,7 +85,7 @@ export function terrainHeight(fx: number, fz: number): number {
   y += slope * Math.sin(z * 26 + fbm(x * 40, z * 8, 2) * 2.2) * 0.22
   y += basin * fbm(x * 34, z * 12, 3) * 0.16
   y += ridge * (ridged(x, z) * 0.4 + Math.sin(z * 18) * 0.08)
-  y += bandMask(x, 'arc', 0.012) * coneHeight(x, z)
+  y += coneHeight(x, z)
   return y
 }
 
@@ -93,6 +98,10 @@ const COLOR_TRENCH = new THREE.Color(PALETTE.trench)
 const COLOR_CUT = new THREE.Color(PALETTE.cut)
 
 function colorFor(fx: number, y: number, out: THREE.Color): void {
+  if (y > WORLD.waterY) {
+    out.copy(COLOR_LAND)
+    return
+  }
   if (fx < WORLD.shoreFx) {
     out.copy(COLOR_LAND)
     return
