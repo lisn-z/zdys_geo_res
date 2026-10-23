@@ -6,6 +6,12 @@ export type LandformId =
   | 'basin'
   | 'ridge'
 
+/**
+ * 单位约定：
+ * - `x0` / `x1` / `anchorFx`：占 `WORLD.length` 的分数，范围 0–1。
+ * - `anchorFz`：占**半宽**（`WORLD.width / 2`）的分数，范围 [-1, 1]。
+ * - 深度 / 高度：世界单位，水面 y = 0，向下为负。
+ */
 export interface LandformDef {
   id: LandformId
   name: string
@@ -39,14 +45,14 @@ export const PALETTE = {
   underwater: 0x06222b,
 } as const
 
-export const LANDFORMS: LandformDef[] = [
+export const LANDFORMS: ReadonlyArray<Readonly<LandformDef>> = [
   {
     id: 'shelf',
     name: '大陆架',
     description: '大陆架是陆地向海洋的自然延伸部分，坡度比较缓，水深一般在 200 米以内。',
     supplement: false,
     depthLine: '水深一般在 200 米以内',
-    x0: 0.16,
+    x0: WORLD.shoreFx,
     x1: 0.3,
     anchorFx: 0.23,
     anchorFz: -0.2,
@@ -108,7 +114,7 @@ export const LANDFORMS: LandformDef[] = [
   },
 ]
 
-export const TOUR_STOPS: (LandformId | null)[] = [
+export const TOUR_STOPS: readonly (LandformId | null)[] = [
   null,
   'shelf',
   'slope',
@@ -118,7 +124,9 @@ export const TOUR_STOPS: (LandformId | null)[] = [
   'ridge',
 ]
 
-export const PROFILE: ReadonlyArray<readonly [number, number]> = [
+export type ProfilePoint = readonly [fx: number, y: number]
+
+export const PROFILE: ReadonlyArray<ProfilePoint> = [
   [0, 1.2],
   [0.13, 1.0],
   [0.16, 0.12],
@@ -143,7 +151,7 @@ function smoothstep(t: number): number {
 }
 
 export function profileY(fx: number): number {
-  const x = Math.min(1, Math.max(0, fx))
+  const x = Number.isFinite(fx) ? Math.min(1, Math.max(0, fx)) : 0
   let prev = PROFILE[0]!
   for (let i = 1; i < PROFILE.length; i++) {
     const cur = PROFILE[i]!
@@ -157,6 +165,7 @@ export function profileY(fx: number): number {
   return prev[1]
 }
 
+// 返回 null 的两种情况都不属于六类地形：fx 小于岸线（陆地），或 fx >= 0.92（海岭以外的盆尾）。
 export function landformAt(fx: number): LandformId | null {
   for (const item of LANDFORMS) {
     if (fx >= item.x0 && fx < item.x1) {
@@ -166,6 +175,10 @@ export function landformAt(fx: number): LandformId | null {
   return null
 }
 
-export function landformById(id: LandformId): LandformDef {
-  return LANDFORMS.find((item) => item.id === id)!
+export function landformById(id: LandformId): Readonly<LandformDef> {
+  const found = LANDFORMS.find((item) => item.id === id)
+  if (!found) {
+    throw new Error('未知地形 id：' + id)
+  }
+  return found
 }
