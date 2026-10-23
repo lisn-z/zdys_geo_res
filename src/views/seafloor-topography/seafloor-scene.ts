@@ -54,6 +54,15 @@ const DEFAULT_EYE = new THREE.Vector3(WORLD.length * 0.5 - 8, 11, 24)
 const DEFAULT_TARGET = new THREE.Vector3(WORLD.length * 0.52, -2.2, 0)
 const SECTION_EYE = new THREE.Vector3(WORLD.length * 0.5, -1.2, 34)
 const SECTION_TARGET = new THREE.Vector3(WORLD.length * 0.5, -3, 0)
+const DIVE_OFFSET = new THREE.Vector3(2.6, 2.1, 4.4)
+const OBLIQUE_STOP_OFFSET = new THREE.Vector3(-6.5, 7.5, 14)
+const FOG_NEAR_SURFACE = 40
+const FOG_FAR_SURFACE = 110
+const FOG_NEAR_UNDER = 16
+const FOG_FAR_UNDER = 55
+const WATER_OPACITY_SURFACE = 0.34
+const WATER_OPACITY_UNDER = 0.18
+const LABEL_LIFT = 0.6
 
 function easeInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
@@ -73,7 +82,7 @@ export function createSeafloorScene(
   callbacks: SeafloorCallbacks = {},
 ): SeafloorController {
   const scene = new THREE.Scene()
-  const fog = new THREE.Fog(PALETTE.fog, 40, 110)
+  const fog = new THREE.Fog(PALETTE.fog, FOG_NEAR_SURFACE, FOG_FAR_SURFACE)
   scene.fog = fog
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 220)
@@ -87,12 +96,22 @@ export function createSeafloorScene(
   renderer.setClearColor(PALETTE.fog, 1)
   host.appendChild(renderer.domElement)
 
+  let contextLost = false
+  renderer.domElement.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault()
+    contextLost = true
+  })
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    contextLost = false
+  })
+
   const controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
   controls.dampingFactor = 0.08
   controls.minDistance = 4
   controls.maxDistance = 80
   controls.target.copy(DEFAULT_TARGET)
+  camera.lookAt(DEFAULT_TARGET)
 
   scene.add(new THREE.HemisphereLight(0xbfe3ef, 0x2a2018, 0.9))
   const rake = new THREE.DirectionalLight(0xfff2d8, 1.7)
@@ -119,7 +138,7 @@ export function createSeafloorScene(
   const waterMaterial = new THREE.MeshStandardMaterial({
     color: PALETTE.water,
     transparent: true,
-    opacity: 0.34,
+    opacity: WATER_OPACITY_SURFACE,
     roughness: 0.18,
     metalness: 0.05,
     side: THREE.DoubleSide,
@@ -171,7 +190,17 @@ export function createSeafloorScene(
   const fogSurface = new THREE.Color(PALETTE.fog)
   const fogUnder = new THREE.Color(PALETTE.underwater)
   const raycaster = new THREE.Raycaster()
+  const pointer = new THREE.Vector2()
   const scratch = new THREE.Vector3()
+
+  const labelAnchors = LANDFORMS.map(
+    (def) =>
+      new THREE.Vector3(
+        def.anchorFx * WORLD.length,
+        terrainHeight(def.anchorFx, def.anchorFz) + LABEL_LIFT,
+        def.anchorFz * (WORLD.width / 2),
+      ),
+  )
 
   function focusPoint(fx: number | null): THREE.Vector3 {
     if (fx === null) {
@@ -203,9 +232,10 @@ export function createSeafloorScene(
     }
     if (view === 'dive') {
       controls.minDistance = 1.2
-      const target = focusPoint(selectedFx())
-      target.y = terrainHeight(selectedFx(), 0) + 0.6
-      beginFlight(target.clone().add(new THREE.Vector3(2.6, 2.1, 4.4)), target, durationMs)
+      const fxF = selectedFx()
+      const target = focusPoint(fxF)
+      target.y = terrainHeight(fxF, 0) + LABEL_LIFT
+      beginFlight(target.clone().add(DIVE_OFFSET), target, durationMs)
       return
     }
     controls.minDistance = 4
@@ -233,9 +263,10 @@ export function createSeafloorScene(
         visible: gate && inFront,
       })
     }
-    for (const def of LANDFORMS) {
-      const y = terrainHeight(def.anchorFx, def.anchorFz) + 0.6
-      project('label-' + def.id, def.anchorFx * WORLD.length, y, def.anchorFz * (WORLD.width / 2), labelsVisible)
+    for (let i = 0; i < LANDFORMS.length; i++) {
+      const def = LANDFORMS[i]!
+      const anchor = labelAnchors[i]!
+      project('label-' + def.id, anchor.x, anchor.y, anchor.z, labelsVisible)
     }
     for (const [id, y] of RULER_POINTS) {
       project(id, RULER_FX * WORLD.length, y, WORLD.width / 2 + 0.05, rulerVisible)
@@ -251,6 +282,10 @@ export function createSeafloorScene(
     const dt = Math.min(0.1, (now - lastTime) / 1000)
     lastTime = now
 
+    if (contextLost) {
+      return
+    }
+
     if (flight) {
       flight.elapsed += dt * 1000
       const k = easeInOut(Math.min(1, flight.elapsed / flight.duration))
@@ -260,22 +295,39 @@ export function createSeafloorScene(
         flight = null
       }
     }
-    controls.update()
 
     const fx = THREE.MathUtils.clamp(camera.position.x / WORLD.length, 0, 1)
     const fz = THREE.MathUtils.clamp(camera.position.z / (WORLD.width / 2), -1, 1)
     const floor = terrainHeight(fx, fz) + 0.35
     if (camera.position.y < floor) {
       camera.position.y = floor
+      camera.lookAt(controls.target)
     }
 
-    const under = camera.position.y < WORLD.waterY ? 1 : 0
+    controls.update()
+
+    controls.target.x = THREE.MathUtils.clamp(controls.target.x, 0, WORLD.length)
+    controls.target.y = THREE.MathUtils.clamp(controls.target.y, WORLD.bottom, 2)
+    controls.target.z = THREE.MathUtils.clamp(controls.target.z, -WORLD.width / 2, WORLD.width / 2)
+
+    if (viewWidth < 2 || viewHeight < 2) {
+      return
+    }
+
+    const under =
+      camera.position.y < WORLD.waterY && camera.position.x > WORLD.length * WORLD.shoreFx
+        ? 1
+        : 0
     underwaterMix += (under - underwaterMix) * Math.min(1, dt * 4)
+    if (Math.abs(underwaterMix - under) < 0.002) {
+      underwaterMix = under
+    }
     fog.color.copy(fogSurface).lerp(fogUnder, underwaterMix)
-    fog.near = 40 - 24 * underwaterMix
-    fog.far = 110 - 55 * underwaterMix
+    fog.near = FOG_NEAR_SURFACE - (FOG_NEAR_SURFACE - FOG_NEAR_UNDER) * underwaterMix
+    fog.far = FOG_FAR_SURFACE - (FOG_FAR_SURFACE - FOG_FAR_UNDER) * underwaterMix
     renderer.setClearColor(fog.color, 1)
-    waterMaterial.opacity = 0.34 - 0.16 * underwaterMix
+    waterMaterial.opacity =
+      WATER_OPACITY_SURFACE - (WATER_OPACITY_SURFACE - WATER_OPACITY_UNDER) * underwaterMix
 
     renderer.render(scene, camera)
     pushOverlay()
@@ -289,6 +341,9 @@ export function createSeafloorScene(
   }
 
   function resize(width: number, height: number): void {
+    if (disposed) {
+      return
+    }
     if (width <= 0 || height <= 0) {
       return
     }
@@ -297,6 +352,7 @@ export function createSeafloorScene(
     }
     viewWidth = Math.round(width)
     viewHeight = Math.round(height)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75))
     renderer.setSize(viewWidth, viewHeight, false)
     camera.aspect = viewWidth / viewHeight
     camera.updateProjectionMatrix()
@@ -308,22 +364,33 @@ export function createSeafloorScene(
 
   return {
     setView(next) {
+      if (disposed) {
+        return
+      }
       view = next
       applyView(1100)
     },
     flyToStop(fx, durationMs) {
+      if (disposed) {
+        return
+      }
       if (view === 'section') {
         return
       }
-      const target = focusPoint(fx)
       if (view === 'dive') {
-        target.y = terrainHeight(fx ?? 0.5, 0) + 0.6
-        beginFlight(target.clone().add(new THREE.Vector3(2.6, 2.1, 4.4)), target, durationMs)
+        const fxF = fx ?? selectedFx()
+        const target = focusPoint(fxF)
+        target.y = terrainHeight(fxF, 0) + LABEL_LIFT
+        beginFlight(target.clone().add(DIVE_OFFSET), target, durationMs)
         return
       }
-      beginFlight(target.clone().add(new THREE.Vector3(-6.5, 7.5, 14)), target, durationMs)
+      const target = focusPoint(fx)
+      beginFlight(target.clone().add(OBLIQUE_STOP_OFFSET), target, durationMs)
     },
     setSelected(id) {
+      if (disposed) {
+        return
+      }
       selected = id
       if (!id) {
         highlight.visible = false
@@ -335,17 +402,29 @@ export function createSeafloorScene(
       highlight.visible = true
     },
     setLabelsVisible(visible) {
+      if (disposed) {
+        return
+      }
       labelsVisible = visible
     },
     setRulerVisible(visible) {
+      if (disposed) {
+        return
+      }
       rulerVisible = visible
     },
     pick(clientX, clientY, rect) {
-      const ndc = new THREE.Vector2(
+      if (disposed) {
+        return null
+      }
+      if (rect.width < 1 || rect.height < 1) {
+        return null
+      }
+      pointer.set(
         ((clientX - rect.left) / rect.width) * 2 - 1,
         -((clientY - rect.top) / rect.height) * 2 + 1,
       )
-      raycaster.setFromCamera(ndc, camera)
+      raycaster.setFromCamera(pointer, camera)
       const hit = raycaster.intersectObject(terrain, false)[0]
       if (!hit) {
         return null
@@ -354,6 +433,9 @@ export function createSeafloorScene(
     },
     resize,
     dispose() {
+      if (disposed) {
+        return
+      }
       disposed = true
       cancelAnimationFrame(frameId)
       controls.dispose()
@@ -370,6 +452,7 @@ export function createSeafloorScene(
         }
       })
       renderer.dispose()
+      renderer.forceContextLoss()
       if (renderer.domElement.parentElement === host) {
         host.removeChild(renderer.domElement)
       }
