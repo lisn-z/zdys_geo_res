@@ -96,7 +96,7 @@
             </aside>
           </div>
 
-          <div class="timeline-dock">
+          <div class="timeline-dock seafloor-dock">
             <button
               type="button"
               class="timeline-icon-btn"
@@ -179,13 +179,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
-import { LANDFORMS, TOUR_STOPS, landformById, type LandformId } from './seafloor-data.ts'
+import { LANDFORMS, TOUR_STOPS, landformById, type LandformId } from './seafloor-data'
 import {
   createSeafloorScene,
   type OverlayItem,
   type SeafloorController,
   type ViewId,
-} from './seafloor-scene.ts'
+} from './seafloor-scene'
 
 const hasLeftPanel = false
 const hasRightPanel = false
@@ -226,8 +226,8 @@ const currentView = ref<ViewId>('oblique')
 const selectedId = ref<LandformId | null>(null)
 
 const viewOptions: { label: string; value: ViewId }[] = [
-  { label: '斜45°', value: 'oblique' },
-  { label: '正剖面', value: 'section' },
+  { label: '斜 45°', value: 'oblique' },
+  { label: '正视剖面', value: 'section' },
   { label: '下潜近看', value: 'dive' },
 ]
 
@@ -256,7 +256,7 @@ function overlayStyle(id: string): Record<string, string> {
 
 const RULER_TICK_DEFS = [
   { id: 'ruler-shelf', label: '200 米以内' },
-  { id: 'ruler-ridge', label: '高出两侧 3000~4000 米' },
+  { id: 'ruler-ridge', label: '高出两侧 3000 ~ 4000 米' },
   { id: 'ruler-slope', label: '数千米' },
   { id: 'ruler-trench', label: '1 万多米' },
 ]
@@ -608,5 +608,27 @@ onBeforeUnmount(() => {
 .view-options {
   display: inline-flex;
   gap: 6px;
+}
+
+.seafloor-dock {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 10px;
+  width: min(1200px, calc(100% - 28px));
+}
+
+.seafloor-dock > * {
+  flex: 0 0 auto;
+}
+
+.seafloor-dock .timeline-main {
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+
+.layout-small .seafloor-dock {
+  flex-wrap: wrap;
+  width: calc(100% - 20px);
 }
 </style>
