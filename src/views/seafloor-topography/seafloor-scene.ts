@@ -54,7 +54,7 @@ const DEFAULT_EYE = new THREE.Vector3(WORLD.length * 0.5 - 8, 11, 24)
 const DEFAULT_TARGET = new THREE.Vector3(WORLD.length * 0.52, -2.2, 0)
 const SECTION_EYE = new THREE.Vector3(WORLD.length * 0.5, -1.2, 34)
 const SECTION_TARGET = new THREE.Vector3(WORLD.length * 0.5, -3, 0)
-const DIVE_OFFSET = new THREE.Vector3(2.6, 2.1, 4.4)
+const DIVE_OFFSET = new THREE.Vector3(2.6, 2.7, 4.4)
 const OBLIQUE_STOP_OFFSET = new THREE.Vector3(-6.5, 7.5, 14)
 const FOG_NEAR_SURFACE = 40
 const FOG_FAR_SURFACE = 110
@@ -63,6 +63,8 @@ const FOG_FAR_UNDER = 55
 const WATER_OPACITY_SURFACE = 0.34
 const WATER_OPACITY_UNDER = 0.18
 const LABEL_LIFT = 0.6
+const DIVE_FOCUS_LIFT = 0.6
+const MAX_PIXEL_RATIO = 1.75
 
 function easeInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
@@ -89,7 +91,7 @@ export function createSeafloorScene(
   camera.position.copy(DEFAULT_EYE)
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75))
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO))
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.06
@@ -234,7 +236,7 @@ export function createSeafloorScene(
       controls.minDistance = 1.2
       const fxF = selectedFx()
       const target = focusPoint(fxF)
-      target.y = terrainHeight(fxF, 0) + LABEL_LIFT
+      target.y = terrainHeight(fxF, 0) + DIVE_FOCUS_LIFT
       beginFlight(target.clone().add(DIVE_OFFSET), target, durationMs)
       return
     }
@@ -296,6 +298,8 @@ export function createSeafloorScene(
       }
     }
 
+    controls.update()
+
     const fx = THREE.MathUtils.clamp(camera.position.x / WORLD.length, 0, 1)
     const fz = THREE.MathUtils.clamp(camera.position.z / (WORLD.width / 2), -1, 1)
     const floor = terrainHeight(fx, fz) + 0.35
@@ -303,8 +307,6 @@ export function createSeafloorScene(
       camera.position.y = floor
       camera.lookAt(controls.target)
     }
-
-    controls.update()
 
     controls.target.x = THREE.MathUtils.clamp(controls.target.x, 0, WORLD.length)
     controls.target.y = THREE.MathUtils.clamp(controls.target.y, WORLD.bottom, 2)
@@ -315,7 +317,9 @@ export function createSeafloorScene(
     }
 
     const under =
-      camera.position.y < WORLD.waterY && camera.position.x > WORLD.length * WORLD.shoreFx
+      camera.position.y < WORLD.waterY &&
+      camera.position.x > WORLD.length * WORLD.shoreFx &&
+      Math.abs(camera.position.z) <= WORLD.width / 2
         ? 1
         : 0
     underwaterMix += (under - underwaterMix) * Math.min(1, dt * 4)
@@ -347,12 +351,12 @@ export function createSeafloorScene(
     if (width <= 0 || height <= 0) {
       return
     }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO))
     if (Math.round(width) === viewWidth && Math.round(height) === viewHeight) {
       return
     }
     viewWidth = Math.round(width)
     viewHeight = Math.round(height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75))
     renderer.setSize(viewWidth, viewHeight, false)
     camera.aspect = viewWidth / viewHeight
     camera.updateProjectionMatrix()
@@ -380,7 +384,7 @@ export function createSeafloorScene(
       if (view === 'dive') {
         const fxF = fx ?? selectedFx()
         const target = focusPoint(fxF)
-        target.y = terrainHeight(fxF, 0) + LABEL_LIFT
+        target.y = terrainHeight(fxF, 0) + DIVE_FOCUS_LIFT
         beginFlight(target.clone().add(DIVE_OFFSET), target, durationMs)
         return
       }
