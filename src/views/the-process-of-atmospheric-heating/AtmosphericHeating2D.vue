@@ -56,22 +56,25 @@
             <template v-else><path d="M-10 5L0-3L11 5" /><circle cy="-3" r="5" class="atom oxygen" /><circle cx="-10" cy="5" r="3" class="atom" /><circle cx="11" cy="5" r="3" class="atom" /></template>
           </g>
         </g>
-        <text v-if="showLabels" :x="has('solarAirAbsorption') ? 450 : 980" :y="has('solarAirAbsorption') ? 515 : 490" class="gas-label">水汽 · CO₂（分子放大示意）</text>
+        <text v-if="showLabels && !overview" :x="has('solarAirAbsorption') ? 450 : 980" :y="has('solarAirAbsorption') ? 515 : 490" class="gas-label">水汽 · CO₂（分子放大示意）</text>
       </g>
 
-      <g v-for="flow in radiativeFlows" :key="flow.id" class="energy-flow" :class="{ 'thermal-flow': !!flow.wave }" :data-flow="flow.id" :style="{ '--energy': colors[flow.color], '--travel-time': `${flow.duration || 4.8}s` }">
-        <g v-if="flow.wave" class="radiation-bundle" mask="url(#thermal-envelope)">
+      <g v-for="flow in radiativeFlows" :key="flow.id" class="energy-flow" :class="{ 'thermal-flow': !!flow.wave, 'focused-flow': isFocused(flow.id) }" :data-flow="flow.id" :style="{ '--energy': colors[flow.color], '--travel-time': `${flow.duration || 4.8}s` }">
+        <g v-if="flow.wave && !overview" class="radiation-bundle" mask="url(#thermal-envelope)">
           <g v-for="(strand,index) in flow.strands" :key="index">
             <path :d="strand" class="strand-bloom" />
             <path :d="strand" class="strand-track" />
             <path v-if="motion" :d="strand" class="strand-traveller" pathLength="1000" :style="{ animationDelay: `${index * -2.3}s` }" />
           </g>
         </g>
-        <path :d="flow.path" class="flow-haze" />
-        <path :d="flow.path" class="flow-bloom" />
-        <path :d="flow.path" class="flow-track" :marker-end="flow.node ? undefined : `url(#tip-${flow.color})`" />
-        <path :d="flow.path" class="flow-core" />
-        <path v-if="motion" :d="flow.path" class="flow-traveller" pathLength="1000" />
+        <!-- Absorbers share the incoming beam; keep their nodes without painting it repeatedly. -->
+        <g v-if="!sharesSolarBeam(flow.id)">
+          <path :d="flow.path" class="flow-haze" />
+          <path :d="flow.path" class="flow-bloom" />
+          <path :d="flow.path" class="flow-track" :marker-end="flow.node ? undefined : `url(#tip-${flow.color})`" />
+          <path :d="flow.path" class="flow-core" />
+          <path v-if="motion" :d="flow.path" class="flow-traveller" pathLength="1000" />
+        </g>
         <g v-if="flow.node" class="absorption-node" :class="{ 'ground-node': flow.node[1] > 650 }" :transform="`translate(${flow.node[0]} ${flow.node[1]})`">
           <ellipse v-if="flow.node[1] > 650" class="ground-aura" rx="88" ry="32" fill="url(#absorption-glow)" />
           <circle v-else class="node-aura" r="58" fill="url(#absorption-glow)" />
@@ -87,7 +90,7 @@
       </g>
 
       <!-- Material transport has no radiation bundle, glowing wave or light traveller. -->
-      <g v-for="flow in transportFlows" :key="flow.id" class="material-transport" :class="flow.id" :data-flow="flow.id" :style="{ '--transport': colors[flow.color] }">
+      <g v-for="flow in transportFlows" :key="flow.id" class="material-transport" :class="flow.id" :data-flow="flow.id" :transform="overview ? `translate(${flow.id === 'latent' ? 140 : -75} 0)` : undefined" :style="{ '--transport': colors[flow.color] }">
         <path :d="flow.path" class="transport-route" :marker-end="`url(#tip-${flow.color})`" />
         <g v-if="flow.id === 'sensible'" aria-label="暖空气上升输送感热">
           <g v-for="index in 4" :key="index" class="air-parcel" :style="{ '--parcel-start': `${(index - 1) * -48}px`, animationDelay: `${index * -1.3}s` }">
@@ -103,7 +106,7 @@
         </g>
       </g>
 
-      <g v-if="has('scatter')" class="scattering" aria-label="散射向多个方向分散">
+      <g v-if="has('scatter')" class="scattering" :class="{ 'focused-flow': isFocused('scatter') }" aria-label="散射向多个方向分散">
         <g v-for="(ray, index) in scatteringRays" :key="ray"><path :d="ray" class="scatter-bloom" /><path :d="ray" class="scatter-line" marker-end="url(#tip-cool)" /><path v-if="motion" :d="ray" class="scatter-pulse" pathLength="100" :style="{ animationDelay: `${index * -.3}s` }" /></g>
         <circle :cx="scatterPoint[0]" :cy="scatterPoint[1]" r="25" fill="url(#absorption-glow)" /><circle :cx="scatterPoint[0]" :cy="scatterPoint[1]" r="4" fill="#defaff" />
       </g>
@@ -112,11 +115,12 @@
 
       <!-- All labels are painted last so a moving light cannot erase its explanation. -->
       <g v-if="showLabels" class="flow-labels">
-        <g v-for="flow in shownFlows" :key="flow.id" class="flow-label" :data-label="flow.id" :transform="`translate(${flow.label[0]} ${flow.label[1]})`" :style="{ '--energy': colors[flow.color] }">
+        <g v-for="flow in shownFlows" :key="flow.id" class="flow-label" :class="{ 'focused-label': isFocused(flow.id) }" :data-label="flow.id" :transform="`translate(${flow.label[0]} ${flow.label[1]})`" :style="{ '--energy': colors[flow.color] }">
+          <rect v-if="overview || isFocused(flow.id)" class="label-backing" x="4" y="-23" :width="Math.max(flow.title.length * 19, flow.subtitle.length * 12) + 20" height="55" rx="6" />
           <path d="M0-8V30" class="label-rule" /><text class="label-title" x="12">{{ flow.title }}</text><text class="label-subtitle" x="12" y="23">{{ flow.subtitle }}</text>
         </g>
         <g v-for="(flow, index) in shownFlows" :key="`compact-${flow.id}`" class="compact-flow-number" :data-number="flow.id" :transform="`translate(${(flow.compactLabel || flow.label)[0]} ${(flow.compactLabel || flow.label)[1]})`" :style="{ '--energy': colors[flow.color] }" aria-hidden="true"><circle r="24" /><text dy=".35em">{{ index + 1 }}</text></g>
-        <g v-if="has('solar')" class="surface-label" transform="translate(465 758)"><text>地表吸收</text><text class="label-subtitle" y="22">太阳能转化为内能</text></g>
+        <g v-if="has('solar')" class="surface-label" transform="translate(465 758)"><text>{{ overview ? '海洋吸收短波' : '地表吸收' }}</text><text class="label-subtitle" y="22">太阳能转化为内能</text></g>
         <g v-if="has('absorption')" class="absorption-label" transform="translate(930 402)"><text>温室气体吸收</text><text class="label-subtitle" y="23">地面长波使大气增温</text></g>
       </g>
       <text x="53" y="757" class="terrain-name">海洋<tspan dx="14">储热 · 蒸发</tspan></text>
@@ -153,7 +157,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { visibleFlows, type FlowId } from './heatingModel'
+import { visibleFlows, focusedAttenuationFlow, type FlowId } from './heatingModel'
 
 const imageBase = '/geo-resources-folder/images/the-process-of-atmospheric-heating'
 const landscape = `${imageBase}/atmosphere-landscape.png`
@@ -208,8 +212,8 @@ function wavePath(wave: Wave, spread = 0, phase = 0): string {
 
 const flowDefinitions: Flow[] = [
   { id: 'solar', path: 'M330 200L500 706', title: '太阳辐射', subtitle: '短波进入地球系统', color: 'solar', label: [445, 194], compactLabel: [405, 280], node: [500, 706] },
-  { id: 'ozone', path: 'M330 200L365 305', title: '臭氧吸收', subtitle: '平流层吸收部分太阳紫外线', color: 'ultraviolet', label: [400, 290], node: ozonePoint },
-  { id: 'solarAirAbsorption', path: 'M330 200L405 425', title: '大气吸收太阳红外线', subtitle: '水汽、CO₂ 选择性吸收', color: 'solar', label: [445, 403], node: solarAirPoint },
+  { id: 'ozone', path: 'M330 200L365 305', title: '臭氧吸收', subtitle: '吸收部分太阳紫外线', color: 'ultraviolet', label: [190, 290], compactLabel: [325, 305], node: ozonePoint },
+  { id: 'solarAirAbsorption', path: 'M330 200L405 425', title: '大气吸收太阳红外线', subtitle: '水汽、CO₂ 选择性吸收', color: 'solar', label: [175, 435], compactLabel: [350, 420], node: solarAirPoint },
   { id: 'reflection', path: 'M420 468L606 160', title: '云层反射', subtitle: '对流层云将部分短波返回太空', color: 'solar', label: [625, 245] },
   { id: 'scatter', path: 'M330 200L435 515', title: '分子与微粒散射', subtitle: '部分光向四周分散', color: 'cool', label: [246, 622], compactLabel: [330, 620] },
   { id: 'ocean', path: 'M330 200L470 710', title: '海洋吸收短波', subtitle: '反射一部分，其余吸收', color: 'solar', label: [510, 666], node: [470, 710] },
@@ -231,22 +235,45 @@ const flows = flowDefinitions.map(flow => ({
   strands: flow.wave ? [wavePath(flow.wave, -17, .8), wavePath(flow.wave, 17, -.8)] : [],
 }))
 const activeIds = computed(() => visibleFlows(props.stageIndex, props.progress, props.includeExtensions))
-const shownFlows = computed(() => flows.filter(flow => activeIds.value.includes(flow.id)).map(flow => {
+const overview = computed(() => props.stageIndex === 8 || props.progress >= 91)
+const overviewLabels: Partial<Record<FlowId, Point>> = {
+  scatter: [35, 625], land: [740, 748], surfaceReflection: [665, 510],
+  absorption: [925, 620], returnOcean: [40, 675], sensible: [650, 575], latent: [645, 660],
+}
+const shownFlows = computed(() => flows.filter(flow => activeIds.value.includes(flow.id)).map(source => {
+  const flow = overview.value && overviewLabels[source.id]
+    ? { ...source, label: overviewLabels[source.id]! }
+    : source
+  if (overview.value && flow.id === 'solar') {
+    return { ...flow, subtitle: '短波输入 · 海洋吸收示例' }
+  }
+  if (overview.value && flow.id === 'returnOcean') {
+    const wave: Wave = { from: [270, 435], to: [300, 710], cycles: 3.5 }
+    return { ...flow, wave, path: wavePath(wave), node: wave.to, compactLabel: [260, 655] as Point }
+  }
+  if (overview.value && flow.transport) {
+    return { ...flow, compactLabel: [flow.id === 'latent' ? 620 : 790, 560] as Point }
+  }
   if (flow.id !== 'surfaceReflection') return flow
   // The reflection always shares the active shortwave impact point.
   const origin: Point = props.stageIndex === 2 ? (props.progress < 28 ? [470, 710] : [875, 680]) : [500, 706]
   return {
     ...flow,
     path: `M${origin[0]} ${origin[1]}L${origin[0] + 200} 370`,
-    label: [origin[0] + 135, 535] as Point,
+    label: overview.value ? flow.label : [origin[0] + 135, 535] as Point,
   }
 }))
 const radiativeFlows = computed(() => shownFlows.value.filter(flow => !flow.transport))
 const transportFlows = computed(() => shownFlows.value.filter(flow => flow.transport))
-const overview = computed(() => props.progress >= 91)
 const has = (id: FlowId) => activeIds.value.includes(id)
+const isFocused = (id: FlowId) => props.stageIndex === 1 && focusedAttenuationFlow(props.progress) === id
+const sharesSolarBeam = (id: FlowId) =>
+  ((id === 'ozone' || id === 'solarAirAbsorption') && (has('scatter') || has('solar')))
+  || (id === 'scatter' && has('solar'))
 const hasSunlight = computed(() => props.stageIndex <= 2 || overview.value)
 const solarTarget = computed<Point>(() => {
+  // In overview the main beam still passes through both atmospheric absorption nodes.
+  if (overview.value) return [500, 706]
   if (has('land')) return [875, 680]
   if (has('ocean')) return [470, 710]
   if (props.stageIndex === 1) {
@@ -261,9 +288,11 @@ const beamLength = computed(() => Math.hypot(solarTarget.value[0] - sunSource[0]
 const beamAngle = computed(() => Math.atan2(solarTarget.value[1] - sunSource[1], solarTarget.value[0] - sunSource[0]) * 180 / Math.PI - 90)
 const emittingSurfaces = computed<Point[]>(() => shownFlows.value.filter(flow => flow.wave && flow.wave.from[1] > 650).map(flow => flow.wave!.from))
 const scatteringRays = ['M435 515Q392 482 342 470', 'M435 515Q375 510 310 515', 'M435 515Q382 550 327 560', 'M435 515Q410 562 382 600']
-const molecules = computed(() => has('solarAirAbsorption')
-  ? [[355, 410], [400, 465], [465, 465], [535, 466]]
-  : [[690, 439], [780, 460], [875, 439], [950, 416], [1030, 448], [1177, 429]])
+const molecules = computed(() => [
+  ...(has('solarAirAbsorption') ? [[355, 410], [400, 465], [465, 465], [535, 466]] : []),
+  ...(has('absorption') || has('airUp') || has('airDown')
+    ? [[690, 439], [780, 460], [875, 439], [950, 416], [1030, 448], [1177, 429]] : []),
+])
 const absorptionSpecks: Point[] = [[-36, -24], [29, -35], [-22, 31], [42, 15], [3, -45], [-43, 4]]
 </script>
 
@@ -333,6 +362,15 @@ svg { width: 100%; height: 100%; display: block; font-family: 'Microsoft YaHei',
 .molecule-drift { animation: molecular-motion 5s ease-in-out infinite alternate }
 .gas-label { fill: #b0d7c5; font-size: 12px; paint-order: stroke; stroke: #153c4a; stroke-width: 2.5px }
 .flow-label { pointer-events: none }
+.label-backing { fill: #071b2b; fill-opacity: .72 }
+.focused-label .label-backing { stroke: var(--energy); stroke-opacity: .55 }
+.focused-label .label-rule { stroke-width: 3; opacity: 1 }
+.focused-flow .node-ring { stroke-width: 1.8 }
+.focused-flow .flow-track, .focused-flow .scatter-line { stroke-width: 3 }
+.is-overview .flow-haze { opacity: .045 }
+.is-overview .flow-bloom { opacity: .2; stroke-width: 6 }
+.is-overview .energy-flow[data-flow=land] .flow-track { stroke-width: 2 }
+.is-overview .energy-flow[data-flow=land] .flow-core { stroke-width: .8 }
 .label-rule { stroke: var(--energy); stroke-width: 1.4; opacity: .6 }
 .label-title, .absorption-label > text, .surface-label > text { fill: #fff2dc; font-size: 19px; font-weight: 600; paint-order: stroke; stroke: #091d2b; stroke-opacity: .75; stroke-width: 2.8px; stroke-linejoin: round }
 .label-subtitle, .absorption-label .label-subtitle, .surface-label .label-subtitle { fill: #d5e0e3; font-size: 12px; font-weight: 400; paint-order: stroke; stroke: #091d2b; stroke-width: 2.5px; stroke-opacity: .7 }
@@ -353,7 +391,7 @@ svg { width: 100%; height: 100%; display: block; font-family: 'Microsoft YaHei',
 @media (max-width: 960px) and (orientation: portrait) {
   .atmosphere-scene { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
   svg { min-width: 0; min-height: 0; }
-  .flow-label > .label-rule, .flow-label > text, .surface-label, .absorption-label,
+  .flow-label > .label-rule, .flow-label > text, .label-backing, .surface-label, .absorption-label,
   .gas-label, .transport-note, .sun-caption tspan, .terrain-name tspan,
   .layer-range, .altitude-boundary, .layer-note { display: none; }
   .layer-name { font-size: 26px; }

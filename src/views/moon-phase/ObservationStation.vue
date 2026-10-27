@@ -1,7 +1,7 @@
 <template>
   <FloatingFeatureCard class="observation-station" :class="{ 'is-active': active, 'is-compact': compact }"
-    :style="stationStyle" :title="station.name" variant="data" :collapsed="collapsed"
-    :initial-right="initialRight" :initial-top="initialTop" :bottom-inset="bottomInset"
+    :style="stationStyle" :title="station.name" variant="data" layer="observation" :collapsed="collapsed"
+    :initial-right="initialRight" :initial-top="initialTop" :initial-width="initialWidth" :follow-initial-position="true" :bottom-inset="bottomInset"
     :resizable="true" :draggable="!compact" :min-width="240" :min-height="260"
     @update:collapsed="emit('update:collapsed', $event)">
     <template #title-prefix><span class="station-color" aria-hidden="true"></span></template>
@@ -29,8 +29,9 @@
       </div>
       <div class="observation-status" :class="{ unavailable: !observation.aboveHorizon }" aria-live="polite">
         <h3>{{ observation.aboveHorizon ? currentPhaseName : '当前不可见' }}</h3>
+        <p v-if="observation.aboveHorizon" class="lunar-date-reference" :title="LUNAR_DATE_NOTE">农历参考 · {{ lunarDateReference(currentPhaseName) }}</p>
         <p>{{ observation.aboveHorizon ? '月球在当地地平线上方' : '月球在当地地平线以下' }}</p>
-        <span v-if="!observation.aboveHorizon" class="phase-reference">月相原理：{{ currentPhaseName }}</span>
+        <span v-if="!observation.aboveHorizon" class="phase-reference">月相原理：{{ currentPhaseName }}<small class="lunar-date-reference" :title="LUNAR_DATE_NOTE">农历参考 · {{ lunarDateReference(currentPhaseName) }}</small></span>
       </div>
 
       <dl class="station-statistics">
@@ -63,10 +64,14 @@
           </div>
         </template>
         <div class="parameter-block time-parameter">
-          <div class="parameter-heading"><span>当地太阳时</span><output>{{ localTimeLabel }}</output></div>
+          <div class="parameter-heading time-heading" :title="stationTime.description">
+            <span>{{ stationTime.label }} <small>{{ stationTime.offsetLabel }}</small></span>
+            <output>{{ stationTime.localTime }}<small v-if="stationTime.dayLabel" title="相对于 UTC 日期">{{ stationTime.dayLabel }}</small></output>
+          </div>
           <ElSlider v-model="localMinutes" :min="0" :max="1439" :step="1" :show-tooltip="false"
-            :aria-label="`${station.name}当地太阳时`" />
+            :aria-label="`${station.name}${stationTime.label}（${stationTime.offsetLabel}），联动统一UTC时刻`" />
           <div class="parameter-scale"><span>00:00</span><span>12:00</span><span>23:59</span></div>
+          <p class="time-sync-note">调整此时刻会同步所有观测点。</p>
           <div class="daylight-state"><span>{{ daylightLabel }}</span><span>太阳高度 {{ signedAngle(observation.sunAltitude) }}</span></div>
         </div>
       </div>
@@ -87,13 +92,16 @@
 import { computed } from 'vue'
 import { ElSlider } from 'element-plus'
 import 'element-plus/es/components/slider/style/css'
-import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+import FloatingFeatureCard from './MoonFloatingPanel.vue'
 import MoonDisc from './MoonDisc.vue'
+import { lunarDateReference, LUNAR_DATE_NOTE } from './phase-calendar'
 import { phaseIllumination, phaseName, SYNODIC_MONTH, type MoonLighting, type Observation } from './moon-geometry'
+import { getStationTime, utcHourFromStationMinutes } from './station-time'
 
 const props = withDefaults(defineProps<{
   station: { id: string; name: string; latitude: number; longitude: number; color: string; readonly: boolean }
   observation: Observation
+  utcHour: number
   phase: number
   lighting: MoonLighting
   active: boolean
@@ -101,6 +109,7 @@ const props = withDefaults(defineProps<{
   compact: boolean
   initialRight: number
   initialTop: number
+  initialWidth?: number
   bottomInset: number
   canRemove?: boolean
   selectedInBothViews?: boolean
@@ -110,7 +119,7 @@ const emit = defineEmits<{
   remove: []
   'update:latitude': [value: number]
   'update:longitude': [value: number]
-  'update:localSolarHour': [value: number]
+  'update:utcHour': [value: number]
   'update:collapsed': [value: boolean]
   locate: []
   syncView: []
@@ -134,11 +143,17 @@ const longitudeValue = computed({
   get: () => props.station.longitude,
   set: (value: number) => { if (!props.station.readonly && Number.isFinite(value)) emit('update:longitude', Math.max(-180, Math.min(180, value))) },
 })
+const stationTime = computed(() => getStationTime(props.utcHour, props.station))
 const localMinutes = computed({
-  get: () => ((Math.round(props.observation.localSolarHour * 60) % 1440) + 1440) % 1440,
-  set: (value: number) => { if (Number.isFinite(value)) emit('update:localSolarHour', Math.max(0, Math.min(1439, value)) / 60) },
+  // Already rounded and wrapped to 0..1439: playback cannot trigger slider clamping edits at midnight.
+  get: () => stationTime.value.localMinutes,
+  set: (value: number) => {
+    if (!Number.isFinite(value)) return
+    const minutes = Math.round(Math.max(0, Math.min(1439, value)))
+    // Ignore a slider echo of its current prop value; only an actual edit changes shared UTC.
+    if (minutes !== stationTime.value.localMinutes) emit('update:utcHour', utcHourFromStationMinutes(minutes, props.station))
+  },
 })
-const localTimeLabel = computed(() => `${String(Math.floor(localMinutes.value / 60)).padStart(2, '0')}:${String(localMinutes.value % 60).padStart(2, '0')}`)
 const daylightLabel = computed(() => props.observation.sunAltitude > 1 ? '白天' : props.observation.sunAltitude < -6 ? '夜间' : '晨昏时分')
 function signedAngle(value: number) { return `${value > 0 ? '+' : ''}${value.toFixed(1)}°` }
 function compassName(value: number) { return ['北', '东北', '东', '东南', '南', '西南', '西', '西北'][Math.round(((value % 360) + 360) % 360 / 45) % 8] }
@@ -187,6 +202,7 @@ function compassName(value: number) { return ['北', '东北', '东', '东南', 
 .observation-status p { margin: 0; color: var(--text-secondary, #b8ccda); font-size: 11px; line-height: 1.6; }
 .observation-status.unavailable h3 { color: var(--theme-warning, #e6a928); }
 .phase-reference { display: block; margin-top: 5px; color: var(--text-muted, #7894a8); font-size: 10px; }
+.observation-status .lunar-date-reference { display: block; margin: 4px 0 7px; color: #a9cecf; font-size: 11px; line-height: 1.5; }
 .station-statistics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 8px; margin: 17px 0; padding: 13px 8px; background: rgba(109, 156, 185, .06); border: 1px solid var(--feature-divider); border-radius: 9px; }
 .station-statistics > div { min-width: 0; text-align: center; }
 .station-statistics dt { color: var(--text-muted, #7894a8); font-size: 10px; }
@@ -205,6 +221,10 @@ function compassName(value: number) { return ['北', '东北', '东', '东南', 
 .parameter-block :deep(.el-slider__runway) { margin: 0; }
 .parameter-scale { display: flex; justify-content: space-between; gap: 6px; color: var(--text-muted, #7894a8); font-size: 9px; }
 .time-parameter { padding-top: 14px; border-top: 1px solid var(--feature-divider); }
+.time-heading { flex-wrap: wrap; gap: 4px 10px; }
+.time-heading > span, .time-heading output { display: flex; align-items: baseline; gap: 6px; }
+.time-heading small { color: var(--text-muted, #7894a8); font-size: 10px; font-weight: 400; }
+.time-sync-note { margin: 8px 0 0; color: var(--text-muted, #7894a8); font-size: 10px; line-height: 1.5; }
 .daylight-state { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; margin-top: 10px; color: var(--text-muted, #7894a8); font-size: 10px; }
 .station-actions { display: flex; flex-direction: column; gap: 5px; margin-top: 15px; }
 .station-actions button { width: 100%; padding: 6px 8px; font-size: 11px; line-height: 1.4; white-space: nowrap; }

@@ -2,8 +2,10 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createEarthSurfaceMaterial, createEarthAtmosphereMaterial, type EarthUniforms } from '../tidal-phenomenon/earth-material'
 import { getObservation, getEarthFrame, phaseElongation } from './moon-geometry'
+import { lunarDateReference } from './phase-calendar'
 import { MOON_SPACE_SCALE, MOON_SPHERE_UV_GLSL, MOON_DISC_ANGULAR_RADIUS } from './moon-texture'
 import { getSpaceMoonPresentation } from './moon-view-geometry'
+import { createEarthGraticule } from './earth-graticule'
 
 export type SceneMode = 'orbit' | 'observer'
 
@@ -25,6 +27,7 @@ export interface SceneState {
   activeStationId?: string
   mode: SceneMode
   showGuides: boolean
+  showGraticule?: boolean
   showOrbitAngle?: boolean
 }
 
@@ -62,6 +65,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   let hasSize = false
   let renderingLost = false
   let surfaceView = false
+  let overheadView = false
   let lastFrameTime = 0
   let resizePending = true
   let drawnWidth = 0
@@ -84,6 +88,9 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   let bodyFlight: {
     elapsed: number
     body: 'earth' | 'moon'
+    northOverview: boolean
+    earthPicking: boolean
+    duration: number
     startPosition: THREE.Vector3
     startTarget: THREE.Vector3
     startRotation: THREE.Quaternion
@@ -100,7 +107,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   let pointerY = 0
   let pickCandidate: { pointerId: number; x: number; y: number; started: number } | null = null
   const orbitPointers = new Set<number>()
-  let state: SceneState = { phase: 90, latitude: 31.23, longitude: 121.47, utcHour: 10, dayOfYear: 80, mode: 'orbit', showGuides: true }
+  let state: SceneState = { phase: 90, latitude: 31.23, longitude: 121.47, utcHour: 10, dayOfYear: 80, mode: 'orbit', showGuides: true, showGraticule: false }
   const textures = new Set<THREE.Texture>()
   const geometries = new Set<THREE.BufferGeometry>()
   const materials = new Set<THREE.Material>()
@@ -130,16 +137,42 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   const orbitCamera = new THREE.PerspectiveCamera(46, 1, 0.1, 1500)
   const observerCamera = new THREE.PerspectiveCamera(92, 1, 0.1, 4000)
   observerCamera.position.set(0, EYE_HEIGHT, 0)
-  const controls = new OrbitControls(orbitCamera, canvas)
-  controls.enableDamping = true
-  controls.dampingFactor = 0.08
-  controls.enablePan = false
-  controls.minDistance = 22
-  controls.maxDistance = 125
-  controls.minPolarAngle = 0.02
-  controls.maxPolarAngle = Math.PI - 0.02
-  controls.rotateSpeed = 0.5
-  controls.zoomSpeed = 0.7
+  function onOrbitControlStart() {
+    // Once the user orbits or zooms, resizing should preserve their chosen pose.
+    overheadView = false
+  }
+  function createOrbitControls() {
+    const next = new OrbitControls(orbitCamera, canvas)
+    next.enableDamping = true
+    next.dampingFactor = 0.08
+    next.enablePan = false
+    next.minDistance = 22
+    next.maxDistance = 125
+    next.minPolarAngle = 0.02
+    next.maxPolarAngle = Math.PI - 0.02
+    next.rotateSpeed = 0.5
+    next.zoomSpeed = 0.7
+    next.addEventListener('start', onOrbitControlStart)
+    return next
+  }
+  let controls = createOrbitControls()
+  function setOrbitControlsUp(up: THREE.Vector3) {
+    const position = orbitCamera.position.clone()
+    const target = controls.target.clone()
+    const minDistance = controls.minDistance
+    const maxDistance = controls.maxDistance
+    controls.removeEventListener('start', onOrbitControlStart)
+    controls.dispose()
+    orbitCamera.up.copy(up)
+    // OrbitControls caches its up-axis basis at construction. Rebuild that
+    // basis only at a preset handoff; changing camera.up alone leaves a pole snap.
+    controls = createOrbitControls()
+    orbitCamera.position.copy(position)
+    controls.target.copy(target)
+    controls.minDistance = minDistance
+    controls.maxDistance = maxDistance
+    controls.update()
+  }
   const isSkyView = () => state.mode === 'observer'
   const isLocalControl = () => isSkyView() || surfaceView
   const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -214,11 +247,23 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   }
   const earth = new THREE.Mesh(keepGeometry(new THREE.SphereGeometry(EARTH_RADIUS, 128, 64)), keepMaterial(createEarthSurfaceMaterial(earthUniforms)))
   const atmosphere = new THREE.Mesh(keepGeometry(new THREE.SphereGeometry(EARTH_RADIUS * 1.055, 96, 48)), keepMaterial(createEarthAtmosphereMaterial(earthUniforms)))
+  const earthGraticule = createEarthGraticule(EARTH_RADIUS)
+  earthGraticule.visible = false
+  earthGraticule.traverse(object => {
+    if (!(object instanceof THREE.Line || object instanceof THREE.Mesh)) return
+    keepGeometry(object.geometry)
+    const objectMaterials = Array.isArray(object.material) ? object.material : [object.material]
+    for (const material of objectMaterials) keepMaterial(material)
+  })
+  // Inherit the same seasonal axis and daily spin as the Earth texture.
+  earth.add(earthGraticule)
   space.add(earth, atmosphere)
   loadTexture('earth.jpg', texture => { earthUniforms.uMap.value = texture })
   loadTexture('emissive.jpg', texture => { earthUniforms.uNightMap.value = texture })
 
-  const moonMaterial = keepMaterial(new THREE.MeshStandardMaterial({ color: '#f2f0e8', roughness: 1, metalness: 0, emissive: '#080b10', emissiveIntensity: 0.3 }))
+  // A faint textured fill keeps the teaching model's night side distinct from
+  // the star field without competing with the sunlit side or moving its terminator.
+  const moonMaterial = keepMaterial(new THREE.MeshStandardMaterial({ color: '#f2f0e8', roughness: 1, metalness: 0, emissive: '#e8edf5', emissiveIntensity: 0.075 }))
   const moonBillboardVertex = `
     uniform float radius;
     varying vec2 vUv;
@@ -344,6 +389,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   groundScene.add(moonGlow, localMoon)
   loadTexture('moon.jpg', texture => {
     moonMaterial.map = texture
+    moonMaterial.emissiveMap = texture
     localMoonMaterial.uniforms.moonMap!.value = texture
     moonMaterial.needsUpdate = true
   })
@@ -419,15 +465,14 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   reducedMotionQuery.addEventListener('change', reducedMotionChange)
   const orbitPoints = Array.from({ length: 240 }, (_, i) => new THREE.Vector3(Math.cos(i / 240 * Math.PI * 2) * ORBIT_RADIUS, 0, -Math.sin(i / 240 * Math.PI * 2) * ORBIT_RADIUS))
   spaceGuides.add(line(orbitPoints, '#8babca', 0.34, true))
-  const equator = line(Array.from({ length: 160 }, (_, i) => new THREE.Vector3(Math.cos(i / 160 * Math.PI * 2) * EARTH_RADIUS * 1.008, 0, Math.sin(i / 160 * Math.PI * 2) * EARTH_RADIUS * 1.008)), '#67c5e8', 0.28, true)
-  spaceGuides.add(equator)
   const axis = line([new THREE.Vector3(0, -(EARTH_RADIUS + 1.35), 0), new THREE.Vector3(0, EARTH_RADIUS + 1.35, 0)], '#7fb8da', 0.5)
   spaceGuides.add(axis)
   const moonRay = line([new THREE.Vector3(), new THREE.Vector3(ORBIT_RADIUS, 0, 0)], '#a0c5e4', 0.19)
   spaceGuides.add(moonRay)
 
   const spaceLabels = new Set<THREE.Sprite>()
-  function label(text: string, color: string, scale = 2.5, badge = true) {
+  const cardinalLabels = new Set<THREE.Sprite>()
+  function label(text: string, color: string, scale = 2.5, badge = true, subtitle = '') {
     const c = document.createElement('canvas')
     c.width = 512
     c.height = 128
@@ -437,43 +482,60 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     sprite.userData.labelBadge = badge
     sprite.userData.labelScale = scale
     if (badge) spaceLabels.add(sprite)
+    else cardinalLabels.add(sprite)
     sprite.scale.set(scale * 4, scale, 1)
-    updateLabel(sprite, text, color)
+    updateLabel(sprite, text, color, subtitle)
     return sprite
   }
-  function updateLabel(sprite: THREE.Sprite, text: string, color: string) {
-    const signature = `${text}|${color}`
+  function observationLabel(text: string, color: string, scale: number, subtitle = '') {
+    const sprite = label(text, color, scale, true, subtitle)
+    sprite.userData.compactObservationLabel = true
+    return sprite
+  }
+  function updateLabel(sprite: THREE.Sprite, text: string, color: string, subtitle = '') {
+    const signature = `${text}|${color}|${subtitle}`
     if (sprite.userData.labelSignature === signature) return
     sprite.userData.labelSignature = signature
     const texture = sprite.material.map!
     const c = texture.image as HTMLCanvasElement
+    c.height = subtitle ? 192 : 128
+    sprite.userData.labelAspect = c.width / c.height
+    sprite.userData.labelHeightRatio = c.height / 128
     const ctx = c.getContext('2d')!
     ctx.clearRect(0, 0, c.width, c.height)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    const baseSize = sprite.userData.labelBadge ? 46 : 42
-    ctx.font = `500 ${baseSize}px "Microsoft YaHei", sans-serif`
+    const badge = Boolean(sprite.userData.labelBadge)
+    const baseSize = badge ? 56 : 64
+    ctx.font = `600 ${baseSize}px "Microsoft YaHei", sans-serif`
     const title = text.slice(0, 18)
     const fontSize = Math.min(baseSize, 432 / Math.max(ctx.measureText(title).width, 1) * baseSize)
-    ctx.font = `500 ${fontSize}px "Microsoft YaHei", sans-serif`
+    ctx.font = `600 ${fontSize}px "Microsoft YaHei", sans-serif`
     ctx.shadowBlur = 0
-    if (sprite.userData.labelBadge) {
-      const width = Math.min(484, ctx.measureText(title).width + 42)
-      ctx.beginPath()
-      ctx.roundRect((512 - width) / 2, 25, width, 78, 15)
-      ctx.fillStyle = 'rgba(7, 17, 29, 0.78)'
-      ctx.fill()
-      ctx.strokeStyle = color
-      ctx.globalAlpha = 0.3
-      ctx.lineWidth = 2
-      ctx.stroke()
-      ctx.globalAlpha = 1
-    } else {
-      ctx.shadowColor = '#000000'
-      ctx.shadowBlur = 14
-    }
-    ctx.fillStyle = color
+    const titleWidth = ctx.measureText(title).width
+    ctx.font = '500 40px "Microsoft YaHei", sans-serif'
+    const subtitleWidth = subtitle ? ctx.measureText(subtitle).width : 0
+    const width = Math.min(484, Math.max(titleWidth, subtitleWidth) + 42)
+    sprite.userData.labelContentWidth = width / c.width
+    sprite.userData.labelContentHeight = (c.height - 40) / c.height
+    const ink = new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.32).getStyle()
+    ctx.beginPath()
+    ctx.roundRect((512 - width) / 2, 20, width, c.height - 40, 15)
+    ctx.fillStyle = badge ? 'rgba(5, 15, 26, 0.93)' : 'rgba(5, 18, 28, 0.88)'
+    ctx.fill()
+    ctx.strokeStyle = ink
+    ctx.globalAlpha = 0.65
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.globalAlpha = 1
+    ctx.fillStyle = ink
+    ctx.font = `600 ${fontSize}px "Microsoft YaHei", sans-serif`
     ctx.fillText(title, 256, 64)
+    if (subtitle) {
+      ctx.font = '500 40px "Microsoft YaHei", sans-serif'
+      ctx.fillStyle = '#bcd1dd'
+      ctx.fillText(subtitle, 256, 129)
+    }
     texture.needsUpdate = true
   }
   const labelViewPosition = new THREE.Vector3()
@@ -484,24 +546,39 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
       sprite.getWorldPosition(labelViewPosition).applyMatrix4(orbitCamera.matrixWorldInverse)
       const depth = -labelViewPosition.z
       if (depth <= 0) continue
-      // Retain the restrained world size from an overview, and cap close-up
-      // badges at 22 CSS pixels high (36 pixels including transparent padding).
+      // A screen-space minimum keeps a projected lesson legible when zoomed out;
+      // cap close-ups so labels never fill the viewport or overwhelm the model.
       const worldPerPixel = 2 * depth / (drawnHeight * orbitCamera.projectionMatrix.elements[5]!)
-      const scale = Math.min(Number(sprite.userData.labelScale), 36 * worldPerPixel)
+      const heightRatio = Number(sprite.userData.labelHeightRatio)
+      // Observation annotations stay compact (~13 px text) while orbital phase
+      // labels retain their larger teaching size. Two-line cities keep both rows.
+      const baseScale = sprite.userData.compactObservationLabel
+        ? 30 * worldPerPixel
+        : THREE.MathUtils.clamp(Number(sprite.userData.labelScale) * 1.3, 42 * worldPerPixel, 52 * worldPerPixel)
+      const scale = baseScale * heightRatio
+      sprite.scale.set(scale * Number(sprite.userData.labelAspect), scale, 1)
+    }
+  }
+  function updateCardinalLabelScales() {
+    if (!drawnHeight) return
+    observerCamera.updateMatrixWorld()
+    for (const sprite of cardinalLabels) {
+      sprite.getWorldPosition(labelViewPosition).applyMatrix4(observerCamera.matrixWorldInverse)
+      const depth = -labelViewPosition.z
+      if (depth <= 0) continue
+      const worldPerPixel = 2 * depth / (drawnHeight * observerCamera.projectionMatrix.elements[5]!)
+      const scale = 48 * worldPerPixel
       sprite.scale.set(scale * 4, scale, 1)
     }
   }
-  const earthLabel = label('地 球', '#c9dfe9', 2.1)
-  earthLabel.position.set(0, -(EARTH_RADIUS + 1.2), 0)
-  spaceGuides.add(earthLabel)
-  const moonLabel = label('月 球', '#e4e8ed', 1.9)
-  spaceGuides.add(moonLabel)
   const orbitNames = ['新月', '蛾眉月', '上弦月', '盈凸月', '满月', '亏凸月', '下弦月', '残月']
+  const orbitLabels: THREE.Sprite[] = []
   orbitNames.forEach((name, i) => {
-    const marker = label(name, i % 2 === 0 ? '#afc2d7' : '#99aec4', 1.65)
+    const marker = label(name, i % 2 === 0 ? '#e1f3ff' : '#b9e2f6', 1.65, true, `农历${lunarDateReference(name)}`)
     const angle = i * Math.PI / 4
-    marker.position.set(Math.cos(angle) * (ORBIT_RADIUS + 3), 0, -Math.sin(angle) * (ORBIT_RADIUS + 3))
-    const stem = line([new THREE.Vector3(Math.cos(angle) * (ORBIT_RADIUS + 0.35), 0, -Math.sin(angle) * (ORBIT_RADIUS + 0.35)), new THREE.Vector3(Math.cos(angle) * (ORBIT_RADIUS + 1.65), 0, -Math.sin(angle) * (ORBIT_RADIUS + 1.65))], '#9bb5ce', 0.42)
+    marker.position.set(Math.cos(angle) * (ORBIT_RADIUS + 6), 0, -Math.sin(angle) * (ORBIT_RADIUS + 6))
+    orbitLabels.push(marker)
+    const stem = line([new THREE.Vector3(Math.cos(angle) * (ORBIT_RADIUS + 0.35), 0, -Math.sin(angle) * (ORBIT_RADIUS + 0.35)), new THREE.Vector3(Math.cos(angle) * (ORBIT_RADIUS + 4.5), 0, -Math.sin(angle) * (ORBIT_RADIUS + 4.5))], '#9bb5ce', 0.42)
     spaceGuides.add(marker, stem)
   })
 
@@ -571,10 +648,10 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   observerMarker.renderOrder = 5
   spaceGuides.add(observerMarker)
 
-  const observerLabel = label('观测点', '#9cead9', 2.2)
-  const observerBackLabel = label('观测点（背面）', '#87b6bd', 2.2)
-  const normalLabel = label('地表法线', '#88d4c4', 2)
-  const sightlineLabel = label('观测连线', '#afd3ed', 2)
+  const observerLabel = observationLabel('观测点', '#9cead9', 2.2, '正面')
+  const observerBackLabel = observationLabel('观测点', '#87b6bd', 2.2, '背面')
+  const normalLabel = observationLabel('地表法线', '#88d4c4', 2)
+  const sightlineLabel = observationLabel('观测连线', '#afd3ed', 2)
   for (const sprite of [observerLabel, observerBackLabel, normalLabel, sightlineLabel]) {
     sprite.material.depthTest = true
     sprite.material.alphaTest = 0.02
@@ -620,8 +697,8 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
       material.depthWrite = false
     }
     normal.line.renderOrder = normal.cone.renderOrder = 4
-    const normalName = label('地表法线', color, 1.8)
-    const rayName = label('观测连线', color, 1.8)
+    const normalName = observationLabel('地表法线', color, 1.8)
+    const rayName = observationLabel('观测连线', color, 1.8)
     normalName.material.opacity = rayName.material.opacity = 0.7
     normalName.material.alphaTest = rayName.material.alphaTest = 0.02
     normalName.renderOrder = rayName.renderOrder = 6
@@ -695,7 +772,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
         const dot = new THREE.Mesh(stationDotGeometry, keepMaterial(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, depthTest: true, depthWrite: false })))
         dot.renderOrder = 5
         dot.userData.stationId = station.id
-        const stationLabel = label(station.name, color, 1.8)
+        const stationLabel = observationLabel(station.name, color, 1.8, '正面')
         stationLabel.material.alphaTest = 0.02
         stationLabel.renderOrder = 6
         const guides = createStationGuides(color)
@@ -707,12 +784,13 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
       }
       record.station = station
       record.dot.material.color.set(color)
-      updateLabel(record.label, station.name, color)
       const local = getObservation({ ...state, latitude: station.latitude, longitude: station.longitude })
       const up = new THREE.Vector3(local.up.x, local.up.y, local.up.z)
       const east = new THREE.Vector3(local.east.x, local.east.y, local.east.z)
       const anchor = up.clone().multiplyScalar(EARTH_RADIUS * 1.008)
       record.dot.position.copy(anchor).addScaledVector(up, 0.28)
+      const backSide = orbitCamera.position.dot(record.dot.position) < record.dot.position.lengthSq()
+      updateLabel(record.label, station.name, color, backSide ? '背面' : '正面')
       record.label.position.copy(up).multiplyScalar(EARTH_RADIUS + 0.48)
       record.label.position.addScaledVector(east, 2.45)
       record.dot.visible = record.label.visible = station.id !== state.activeStationId
@@ -747,8 +825,8 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     const activeColor = active ? stationColor(active) : '#7af5d8'
     markerDot.material.color.set(activeColor)
     markerRing.material.color.set(activeColor)
-    updateLabel(observerLabel, active?.name ?? '观测点', activeColor)
-    updateLabel(observerBackLabel, `${active?.name ?? '观测点'}（背面）`, activeColor)
+    updateLabel(observerLabel, active?.name ?? '观测点', activeColor, '正面')
+    updateLabel(observerBackLabel, active?.name ?? '观测点', activeColor, '背面')
     if (activeGuideColor !== activeColor) {
       activeGuideColor = activeColor
       normalArrow.setColor(activeColor)
@@ -975,8 +1053,8 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
 
   ;['北 N', '东 E', '南 S', '西 W'].forEach((name, i) => {
     const bearing = i * Math.PI / 2
-    const mark = label(name, '#9daeb5', 8, false)
-    mark.position.set(Math.sin(bearing) * 180, 6.7, -Math.cos(bearing) * 180)
+    const mark = label(name, '#c6f7ee', 8, false)
+    mark.position.set(Math.sin(bearing) * 180, 8, -Math.cos(bearing) * 180)
     localGuides.add(mark)
   })
 
@@ -1013,7 +1091,6 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     moon.position.set(Math.cos(phase) * ORBIT_RADIUS, 0, -Math.sin(phase) * ORBIT_RADIUS)
     moon.rotation.y = phase
     followFocusedBody()
-    moonLabel.position.copy(moon.position).add(new THREE.Vector3(0, 3, 0))
     const rayAttribute = moonRay.geometry.getAttribute('position') as THREE.BufferAttribute
     rayAttribute.setXYZ(1, moon.position.x, 0, moon.position.z)
     rayAttribute.needsUpdate = true
@@ -1025,7 +1102,6 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     earthFrameQuaternion.setFromRotationMatrix(earthFrameMatrix)
     dailyRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (state.utcHour - 12) * 15 * RAD)
     earth.quaternion.copy(earthFrameQuaternion).multiply(dailyRotation)
-    equator.quaternion.copy(earthFrameQuaternion)
     axis.quaternion.copy(earthFrameQuaternion)
     observation = getObservation(state)
     const up = asVector(observation.up)
@@ -1082,6 +1158,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
       : 0
     localStarMaterial.opacity = (1 - daylight) * 0.3
     spaceGuides.visible = state.showGuides && !surfaceView && !flight
+    earthGraticule.visible = Boolean(state.showGraticule) && !surfaceView && !flight
     localGuides.visible = state.showGuides
     updateStations()
     if (surfaceView) updateObserverCamera()
@@ -1153,10 +1230,34 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     orbitCamera.updateProjectionMatrix()
     observerCamera.clearViewOffset()
     observerCamera.updateProjectionMatrix()
+    if (overheadView && state.mode === 'orbit' && !surfaceView && !flight && !bodyFlight) {
+      const distance = overheadDistance()
+      controls.target.set(0, 0, 0)
+      orbitCamera.position.set(0, distance, 0)
+      controls.maxDistance = Math.max(125, distance * 1.25)
+      controls.update()
+    }
   }
 
   function overviewFov() {
     return 2 * Math.atan(Math.tan(23 * RAD) / Math.min(1, orbitCamera.aspect)) / RAD
+  }
+
+  function overheadDistance() {
+    const width = drawnWidth || container.clientWidth || 640
+    const height = drawnHeight || container.clientHeight || 720
+    const focalLength = height / (2 * Math.tan(overviewFov() * RAD / 2))
+    let distance = 76
+    for (const marker of orbitLabels) {
+      // Include the actual two-line badge, at its maximum CSS size, rather
+      // than fitting only its anchor and clipping the text on narrow panes.
+      const halfWidth = 52 * 4 * Number(marker.userData.labelContentWidth) / 2
+      const halfHeight = 52 * Number(marker.userData.labelHeightRatio) * Number(marker.userData.labelContentHeight) / 2
+      const availableX = Math.max(12, width / 2 - halfWidth - 14)
+      const availableY = Math.max(12, height / 2 - halfHeight - 14)
+      distance = Math.max(distance, Math.abs(marker.position.x) * focalLength / availableX, Math.abs(marker.position.z) * focalLength / availableY)
+    }
+    return distance
   }
 
   function synchronizeControls() {
@@ -1168,6 +1269,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   function leaveSurfaceView() {
     const wasActive = surfaceView
     surfaceView = false
+    overheadView = false
     flight = null
     bodyFlight = null
     setMoonFollow(false)
@@ -1217,17 +1319,16 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     focusedBody = 'earth'
     controls.minDistance = 22
     if (state.mode === 'observer') { setLocalViewDefault(); setMoonFollowing(true); return }
-    // Consume any remaining damping before placing a preset camera. Otherwise
-    // a reset immediately after a drag can keep rotating the new view.
-    controls.enableDamping = false
-    controls.update()
-    controls.enableDamping = true
+    // Establish the real viewport before fitting the initial/default overview.
+    // The rebuilt controls also discard any remaining drag or zoom momentum.
+    applyPendingResize()
+    const distance = overheadDistance()
+    overheadView = true
     controls.target.set(0, 0, 0)
-    orbitCamera.up.set(0, 1, 0)
-    controls.minPolarAngle = 0.02
-    controls.maxPolarAngle = Math.PI - 0.02
-    orbitCamera.position.set(0, 33, 55)
-    controls.update()
+    orbitCamera.position.set(0, distance, 0)
+    controls.maxDistance = Math.max(125, distance * 1.25)
+    setOrbitControlsUp(new THREE.Vector3(0, 0, -1))
+    synchronizeControls()
   }
 
   /** Rotate an orbital overview toward the selected surface point. */
@@ -1246,7 +1347,8 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     orbitCamera.position.copy(asVector(observation.up)).multiplyScalar(0.88)
       .addScaledVector(asVector(observation.east), 0.42)
       .addScaledVector(asVector(observation.north), 0.2).normalize().multiplyScalar(62)
-    controls.update()
+    setOrbitControlsUp(new THREE.Vector3(0, 1, 0))
+    synchronizeControls()
   }
 
   // Clearing OrbitControls inertia must not move an in-progress preset camera.
@@ -1262,6 +1364,20 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
 
   /** Smoothly center the original space camera on Earth or the moving Moon. */
   function focusBody(body: 'earth' | 'moon') {
+    beginBodyFlight(body, false)
+  }
+
+  /** Bring Earth close enough to select a geographic point, without snapping. */
+  function focusEarthForPicking() {
+    beginBodyFlight('earth', false, true)
+  }
+
+  /** Look straight down on the lunar orbital plane: first quarter up, new Moon right. */
+  function showOverview() {
+    beginBodyFlight('earth', true)
+  }
+
+  function beginBodyFlight(body: 'earth' | 'moon', northOverview: boolean, earthPicking = false) {
     if (disposed || state.mode !== 'orbit') return
     clearOrbitMomentum()
     const startPosition = orbitCamera.position.clone()
@@ -1271,7 +1387,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     const startTarget = surfaceView || flight
       ? orbitCamera.getWorldDirection(new THREE.Vector3()).multiplyScalar(12).add(startPosition)
       : controls.target.clone()
-    const direction = startPosition.clone().sub(startTarget)
+    const direction = earthPicking ? startPosition.clone() : startPosition.clone().sub(startTarget)
     if (direction.lengthSq() < 1e-8) direction.set(0, 0.52, 0.85)
     direction.normalize()
     // A tiny pole offset lets OrbitControls take over without an endpoint snap.
@@ -1280,7 +1396,9 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     focusedBody = body
     pickCandidate = null
     orbitPointers.clear()
-    bodyFlight = { elapsed: 0, body, startPosition, startTarget, startRotation, startUp, startFov, endOffset: direction.multiplyScalar(body === 'earth' ? 62 : 14) }
+    const shortHalfFovTangent = Math.tan(overviewFov() * RAD / 2) * Math.min(1, orbitCamera.aspect)
+    const pickingDistance = Math.max(EARTH_RADIUS * 2 + 0.35, EARTH_RADIUS / Math.sin(Math.atan(shortHalfFovTangent * 0.65)))
+    bodyFlight = { elapsed: 0, body, northOverview, earthPicking, duration: northOverview ? 1900 : earthPicking ? 1350 : 1100, startPosition, startTarget, startRotation, startUp, startFov, endOffset: northOverview ? new THREE.Vector3(0, overheadDistance(), 0) : direction.multiplyScalar(earthPicking ? pickingDistance : body === 'earth' ? 62 : 14) }
     orbitCamera.near = 0.002
     orbitCamera.fov = startFov
     orbitCamera.updateProjectionMatrix()
@@ -1320,9 +1438,10 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   function advanceBodyFlight(delta: number) {
     if (!bodyFlight) return
     bodyFlight.elapsed += delta
-    const progress = reducedMotion ? 1 : Math.min(bodyFlight.elapsed / 1100, 1)
+    const progress = reducedMotion ? 1 : Math.min(bodyFlight.elapsed / bodyFlight.duration, 1)
     const travel = ease(progress)
     bodyCenter.copy(bodyFlight.body === 'moon' ? moon.position : earth.position)
+    if (bodyFlight.northOverview) bodyFlight.endOffset.set(0, overheadDistance(), 0)
     bodyDestination.copy(bodyCenter).add(bodyFlight.endOffset)
     bodyStartDirection.copy(bodyFlight.startPosition).normalize()
     bodyEndDirection.copy(bodyDestination).normalize()
@@ -1333,25 +1452,36 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     // Follow an arc outside the globe, including when leaving a far-side station.
     orbitCamera.position.copy(bodyStartDirection).applyQuaternion(bodyRotation).multiplyScalar(Math.max(radius, EARTH_RADIUS + SURFACE_EYE_HEIGHT))
     controls.target.copy(bodyFlight.startTarget).lerp(bodyCenter, travel)
-    bodyUpRotation.setFromUnitVectors(bodyFlight.startUp, new THREE.Vector3(0, 1, 0))
-    bodyRotation.identity().slerp(bodyUpRotation, travel)
-    orbitCamera.up.copy(bodyFlight.startUp).applyQuaternion(bodyRotation)
-    bodyLookMatrix.lookAt(orbitCamera.position, controls.target, orbitCamera.up)
+    if (bodyFlight.northOverview || bodyFlight.earthPicking) {
+      // Interpolate toward one stable polar pose, not a lookAt from every point
+      // along the path: its temporary up/forward alignment can otherwise roll.
+      // Screen-up is -Z, so the lunar path is circular, first quarter is above
+      // Earth and the new Moon is to its right, independent of Earth's tilt.
+      bodyLookMatrix.lookAt(bodyDestination, bodyCenter, bodyFlight.northOverview ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0))
+    } else {
+      bodyUpRotation.setFromUnitVectors(bodyFlight.startUp, new THREE.Vector3(0, 1, 0))
+      bodyRotation.identity().slerp(bodyUpRotation, travel)
+      orbitCamera.up.copy(bodyFlight.startUp).applyQuaternion(bodyRotation)
+      bodyLookMatrix.lookAt(orbitCamera.position, controls.target, orbitCamera.up)
+    }
     bodyRotation.setFromRotationMatrix(bodyLookMatrix)
     orbitCamera.quaternion.copy(bodyFlight.startRotation).slerp(bodyRotation, travel)
+    if (bodyFlight.northOverview || bodyFlight.earthPicking) orbitCamera.up.set(0, 1, 0).applyQuaternion(orbitCamera.quaternion)
     orbitCamera.fov = THREE.MathUtils.lerp(bodyFlight.startFov, overviewFov(), travel)
     orbitCamera.updateProjectionMatrix()
     spaceGuides.visible = state.showGuides && radius > EARTH_RADIUS * 1.2
     atmosphere.visible = radius > EARTH_RADIUS * 1.07
     if (progress >= 1) {
+      const overhead = bodyFlight.northOverview
+      overheadView = overhead
       orbitCamera.position.copy(bodyDestination)
-      orbitCamera.up.set(0, 1, 0)
       controls.target.copy(bodyCenter)
-      controls.minDistance = bodyFlight.body === 'moon' ? 4 : 22
+      controls.minDistance = bodyFlight.body === 'moon' ? 4 : bodyFlight.earthPicking ? EARTH_RADIUS * 2 + 0.35 : 22
+      controls.maxDistance = overhead ? Math.max(125, bodyDestination.length() * 1.25) : 125
       bodyFlight = null
       orbitCamera.near = 0.1
       orbitCamera.updateProjectionMatrix()
-      controls.update()
+      setOrbitControlsUp(overhead ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0))
       synchronizeControls()
       spaceGuides.visible = state.showGuides
       atmosphere.visible = true
@@ -1372,6 +1502,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     clearOrbitMomentum()
     const wasSurface = surfaceView
     surfaceView = false
+    overheadView = false
     bodyFlight = null
     focusedBody = 'earth'
     activePointer = null
@@ -1380,7 +1511,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
       startDirection: orbitCamera.position.clone().normalize(),
       startRadius: Math.max(orbitCamera.position.length(), EARTH_RADIUS + SURFACE_EYE_HEIGHT),
       startFov: orbitCamera.fov,
-      approachDuration: transfer ? 2200 : 1650,
+      approachDuration: transfer ? 3200 : 2400,
       // Lift transfers above the globe instead of skimming between surface eyes.
       arcLift: transfer ? EARTH_RADIUS * 1.4 : 0,
       startRotation: orbitCamera.quaternion.clone(),
@@ -1411,10 +1542,9 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     if (!flight) return
     flight.elapsed += delta
     const progress = Math.min(flight.elapsed / flight.approachDuration, 1)
-    // Keep the approach to the surface at its original speed. The second,
-    // upward turn starts at the same moment but takes twice as long, continuing
-    // gently after the camera has reached the ground instead of slowing both.
-    const turnProgress = THREE.MathUtils.clamp((flight.elapsed - flight.approachDuration * 0.48) / 1720, 0, 1)
+    // Slow both the geographic approach and the upward turn while retaining the
+    // overlap and observer-frame transport that make moving targets stable.
+    const turnProgress = THREE.MathUtils.clamp((flight.elapsed - flight.approachDuration * 0.48) / 2600, 0, 1)
     const travel = ease(progress)
     flightUp.copy(asVector(observation.up))
     flightArc.setFromUnitVectors(flight.startDirection, flightUp)
@@ -1483,6 +1613,8 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     sightlineLabel.material.opacity = backSide ? 0.6 : 0.85
     for (const record of stationRecords.values()) {
       record.label.visible = record.dot.visible
+      const stationBackSide = orbitCamera.position.dot(record.dot.position) < record.dot.position.lengthSq()
+      updateLabel(record.label, record.station.name, stationColor(record.station), stationBackSide ? '背面' : '正面')
     }
   }
 
@@ -1721,6 +1853,8 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   const overviewMoonPosition = new THREE.Vector3()
   function renderSpaceScene() {
     const presentation = getSpaceMoonPresentation(state.phase, orbitCamera.position)
+    earthGraticule.visible = Boolean(state.showGraticule) && !surfaceView && !flight
+      && presentation.correction === 0 && orbitCamera.position.length() > EARTH_RADIUS * 1.2
     const guidesVisible = spaceGuides.visible
     const angleVisible = orbitAngleGuide.visible
     overviewMoonPosition.copy(moon.position)
@@ -1764,6 +1898,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
       updateObserverGuideVisibility()
     }
     if (!isSkyView()) updateSpaceLabelScales()
+    else updateCardinalLabelScales()
     if (isSkyView()) updateLocalMoonProjection()
     if (isSkyView()) renderer.render(groundScene, observerCamera)
     else renderSpaceScene()
@@ -1788,8 +1923,9 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
   })
   intersectionObserver.observe(container)
   applyGeometry()
-  resetView()
   resize()
+  applyPendingResize()
+  resetView()
 
   function dispose() {
     if (disposed) return
@@ -1803,6 +1939,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     reducedMotionQuery.removeEventListener('change', reducedMotionChange)
     rippleSets.clear()
     spaceLabels.clear()
+    cardinalLabels.clear()
     pickCandidate = null
     orbitPointers.clear()
     cancelAnimationFrame(frame)
@@ -1817,6 +1954,7 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     canvas.removeEventListener('keydown', keyDown)
     canvas.removeEventListener('wheel', wheel)
     canvas.removeEventListener('webglcontextlost', contextLost)
+    controls.removeEventListener('start', onOrbitControlStart)
     controls.dispose()
     geometries.forEach(geometry => geometry.dispose())
     materials.forEach(material => material.dispose())
@@ -1828,5 +1966,5 @@ export function createMoonScene(container: HTMLElement, callbacks: SceneCallback
     canvas.remove()
   }
 
-  return { update, resize, resetView, setMoonFollowing, focusBody, focusObserver, flyToObserver, lookAtMoon, dispose }
+  return { update, resize, resetView, showOverview, focusEarthForPicking, setMoonFollowing, focusBody, focusObserver, flyToObserver, lookAtMoon, dispose }
 }

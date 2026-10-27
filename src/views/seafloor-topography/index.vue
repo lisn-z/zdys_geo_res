@@ -1,16 +1,10 @@
 <template>
-  <div
-    ref="pageRef"
-    class="seafloor-topography-container geo-template-page geo-page theme-dark"
-    :class="'layout-' + layoutMode"
-  >
+  <div ref="pageRef" class="seafloor-topography-container geo-template-page geo-page theme-light"
+    :class="'layout-' + layoutMode">
     <header class="top-toolbar">
       <div class="brand-area">
-        <img
-          class="brand-logo"
-          src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
-          alt="logo"
-        />
+        <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+          alt="智地有申" />
       </div>
 
       <h1 class="page-title">海底地形</h1>
@@ -24,65 +18,33 @@
           <div ref="threeContainerRef" class="scene-host three-host"></div>
 
           <div class="overlay-layer">
-            <button
-              v-for="item in LANDFORMS"
-              :key="item.id"
-              type="button"
-              class="seafloor-label"
-              :class="{
-                active: selectedId === item.id,
-                hidden: !overlayVisible('label-' + item.id),
-              }"
-              :style="overlayStyle('label-' + item.id)"
-              @click="selectLandform(item.id)"
-            >
-              {{ item.name }}
+            <svg class="overlay-svg label-leaders" aria-hidden="true">
+              <g v-for="line in labelLeaders" :key="line.id"
+                :class="{ active: line.landform && selectedId === line.landform }">
+                <polyline :points="line.points" />
+                <circle :cx="line.anchorX" :cy="line.anchorY" r="3" />
+              </g>
+            </svg>
+            <span class="seafloor-label continent-label" :class="{ hidden: !overlayVisible('label-continent') }"
+              :style="overlayStyle('label-continent')">大陆</span>
+            <span class="seafloor-label section-label" :class="{ hidden: !overlayVisible('label-trench-section') }"
+              :style="overlayStyle('label-trench-section')">海沟</span>
+            <button v-for="item in LANDFORMS" :key="item.id" type="button" class="seafloor-label" :class="{
+              active: selectedId === item.id,
+              hidden: !overlayVisible('label-' + item.id),
+            }" :style="overlayStyle('label-' + item.id)" :aria-pressed="selectedId === item.id"
+              @click="selectLandform(item.id)">
+              <span>{{ item.name }}</span>
+              <small v-if="rulerVisible && item.depthLine">{{ item.depthLine }}</small>
             </button>
 
-            <svg class="overlay-svg" :class="{ hidden: !rulerVisible }">
-              <line
-                v-if="rulerLine"
-                :x1="rulerLine.x1"
-                :y1="rulerLine.y1"
-                :x2="rulerLine.x2"
-                :y2="rulerLine.y2"
-                class="ruler-line"
-              />
-              <g
-                v-for="tick in rulerTicks"
-                :key="tick.id"
-                :class="{ hidden: !tick.visible }"
-              >
-                <line
-                  :x1="tick.x - 6"
-                  :y1="tick.y"
-                  :x2="tick.x + 6"
-                  :y2="tick.y"
-                  class="ruler-tick"
-                />
-                <text :x="tick.x + 10" :y="tick.y + 4" class="ruler-text">
-                  {{ tick.label }}
-                </text>
-              </g>
-              <text
-                v-if="rulerLine"
-                :x="rulerLine.x1 + 10"
-                :y="rulerLine.y1 - 8"
-                class="ruler-text ruler-note"
-              >
-                示意·非等比
-              </text>
-            </svg>
+            <p v-if="rulerVisible" class="depth-note">地形纵向夸张 · 深度为教材概念范围</p>
 
             <aside v-if="selectedDef" class="info-card">
               <div class="info-card-head">
-                <strong>{{ selectedDef.name }}</strong>
-                <button
-                  type="button"
-                  class="info-card-close"
-                  aria-label="收起说明"
-                  @click="selectLandform(null)"
-                >
+                <strong>{{ selectedDef.id === 'ridge' ? '海岭（大洋中脊）' : selectedDef.name }}</strong>
+                <button type="button" class="info-card-close"
+                  :aria-label="currentView === 'dive' ? '返回总览并收起说明' : '收起说明'" @click="closeInfo">
                   ×
                 </button>
               </div>
@@ -93,18 +55,23 @@
               <p v-if="selectedDef.depthLine" class="info-card-depth">
                 {{ selectedDef.depthLine }}
               </p>
+              <button v-if="currentView !== 'dive'" type="button" class="dive-button" @click="diveToSelected">
+                下潜至此处
+              </button>
+              <template v-else>
+                <nav class="dive-destinations" aria-label="切换下潜地形">
+                  <button v-for="item in LANDFORMS" :key="item.id" type="button"
+                    :class="{ active: selectedId === item.id }" :aria-pressed="selectedId === item.id"
+                    @click="selectLandform(item.id)">{{ item.name }}</button>
+                </nav>
+                <button type="button" class="overview-button" @click="changeView('oblique')">返回总览</button>
+              </template>
             </aside>
           </div>
 
           <div class="timeline-dock seafloor-dock">
-            <button
-              type="button"
-              class="timeline-icon-btn"
-              :class="{ active: isPlaying }"
-              :aria-label="isPlaying ? '暂停' : '播放'"
-              :title="isPlaying ? '暂停' : '播放'"
-              @click="togglePlay"
-            >
+            <button type="button" class="timeline-icon-btn" :class="{ active: isPlaying }"
+              :aria-label="isPlaying ? '暂停' : '播放'" :title="isPlaying ? '暂停' : '播放'" @click="togglePlay">
               <el-icon>
                 <VideoPause v-if="isPlaying" />
                 <VideoPlay v-else />
@@ -117,24 +84,14 @@
                 <strong>{{ Math.round(progress) }}%</strong>
               </div>
 
-              <el-slider
-                v-model="progress"
-                :min="0"
-                :max="100"
-                :show-tooltip="false"
-                @input="syncStopFromProgress"
-              />
+              <el-slider v-model="progress" :min="0" :max="100" :show-tooltip="false" aria-label="海底地形演示进度"
+                @input="syncStopFromProgress" />
             </div>
 
             <div class="speed-options">
-              <button
-                v-for="item in speedOptions"
-                :key="item"
-                type="button"
-                class="theme-btn speed-btn"
-                :class="{ active: playbackSpeed === item }"
-                @click="playbackSpeed = item"
-              >
+              <button v-for="item in speedOptions" :key="item" type="button" class="theme-btn speed-btn"
+                :class="{ active: playbackSpeed === item }" :aria-pressed="playbackSpeed === item"
+                @click="playbackSpeed = item">
                 {{ item }}×
               </button>
             </div>
@@ -147,19 +104,14 @@
             </label>
 
             <label class="dock-switch">
-              <span>水深尺</span>
+              <span>深度提示</span>
               <el-switch v-model="rulerVisible" size="small" />
             </label>
 
             <div class="view-options">
-              <button
-                v-for="item in viewOptions"
-                :key="item.value"
-                type="button"
-                class="theme-btn option-btn"
-                :class="{ active: currentView === item.value }"
-                @click="changeView(item.value)"
-              >
+              <button v-for="item in viewOptions" :key="item.value" type="button" class="theme-btn option-btn"
+                :class="{ active: currentView === item.value }" :aria-pressed="currentView === item.value"
+                @click="changeView(item.value)">
                 {{ item.label }}
               </button>
             </div>
@@ -218,7 +170,7 @@ const threeContainerRef = ref<HTMLElement | null>(null)
 
 const progress = ref(0)
 const playbackSpeed = ref(1)
-const isPlaying = ref(true)
+const isPlaying = ref(false)
 const speedOptions = [1, 1.5, 2]
 const labelsVisible = ref(true)
 const rulerVisible = ref(true)
@@ -254,40 +206,33 @@ function overlayStyle(id: string): Record<string, string> {
   return { left: item.x + 'px', top: item.y + 'px' }
 }
 
-const RULER_TICK_DEFS = [
-  { id: 'ruler-shelf', label: '200 米以内' },
-  { id: 'ruler-ridge', label: '高出两侧 3000 ~ 4000 米' },
-  { id: 'ruler-slope', label: '数千米' },
-  { id: 'ruler-trench', label: '1 万多米' },
-]
-
-const rulerTicks = computed(() =>
-  RULER_TICK_DEFS.map((def) => {
-    const item = overlayItems.value[def.id]
-    return {
-      ...def,
-      x: item?.x ?? 0,
-      y: item?.y ?? 0,
-      visible: item?.visible ?? false,
-    }
-  }),
-)
-
-const rulerLine = computed(() => {
-  const top = overlayItems.value['ruler-top']
-  const bottom = overlayItems.value['ruler-bottom']
-  if (!top?.visible || !bottom?.visible) {
-    return null
-  }
-  return { x1: top.x, y1: top.y, x2: bottom.x, y2: bottom.y }
+const labelLeaders = computed(() => {
+  const labels = LANDFORMS.filter((landform) => landform.depthLine).map((landform) => ({ id: 'label-' + landform.id, landform: landform.id }))
+  return labels.flatMap((label) => {
+    const item = overlayItems.value[label.id]
+    if (!labelsVisible.value || !item?.visible || item.anchorX == null || item.anchorY == null) return []
+    const startY = item.y + (rulerVisible.value ? 24 : 15)
+    const elbowY = startY + (item.anchorY - startY) * .5
+    return [{ ...item, landform: label.landform, anchorX: item.anchorX, anchorY: item.anchorY, points: `${item.x},${startY} ${item.x},${elbowY} ${item.anchorX},${item.anchorY}` }]
+  })
 })
 
 function selectLandform(id: LandformId | null): void {
+  isPlaying.value = false
+  controller?.pauseFlight()
   selectedId.value = id
   controller?.setSelected(id)
-  if (id) {
-    isPlaying.value = false
-  }
+}
+
+function diveToSelected(): void {
+  changeView('dive')
+  controller?.setSelected(selectedId.value)
+}
+
+function closeInfo(): void {
+  if (currentView.value === 'dive') changeView('oblique')
+  selectedId.value = null
+  controller?.setSelected(null)
 }
 
 let pointerDownX = 0
@@ -312,7 +257,13 @@ function onHostPointerUp(event: PointerEvent): void {
 }
 
 function changeView(view: ViewId): void {
+  isPlaying.value = false
+  controller?.pauseFlight()
   currentView.value = view
+  if (view === 'dive' && !selectedId.value) {
+    selectedId.value = 'shelf'
+    controller?.setSelected('shelf')
+  }
   controller?.setView(view)
 }
 
@@ -346,6 +297,7 @@ function togglePlay(): void {
     currentStop = -1
   }
   isPlaying.value = !isPlaying.value
+  if (!isPlaying.value) controller?.pauseFlight()
   if (isPlaying.value) {
     syncStopFromProgress()
   }
@@ -354,6 +306,7 @@ function togglePlay(): void {
 function resetAll(): void {
   progress.value = 0
   isPlaying.value = false
+  controller?.pauseFlight()
   currentStop = -1
   selectedId.value = null
   currentView.value = 'oblique'
@@ -434,7 +387,7 @@ onMounted(async () => {
     onOverlay(items) {
       let sig = ''
       for (const item of items) {
-        sig += item.id + Math.round(item.x) + ',' + Math.round(item.y) + ',' + (item.visible ? 1 : 0) + ';'
+        sig += item.id + Math.round(item.x) + ',' + Math.round(item.y) + ',' + Math.round(item.anchorX ?? 0) + ',' + Math.round(item.anchorY ?? 0) + ',' + (item.visible ? 1 : 0) + ';'
       }
       if (sig === lastOverlaySig) {
         return
@@ -480,12 +433,121 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.stage-content {
-  position: relative;
+.seafloor-topography-container {
+  --theme-primary: #2d6b70;
+  --theme-primary-rgb: 45, 107, 112;
+  --theme-secondary: #2d6b70;
+  --theme-secondary-rgb: 45, 107, 112;
+  --theme-primary-hover: #245b60;
+  --theme-secondary-hover: #245b60;
+  --theme-slider-middle: #5f9691;
+  --theme-slider-end: #5f9691;
+  --theme-on-primary: #fffefa;
+  --page-background: #f5f4ee;
+  --stage-background: #f5f4ee;
+  --panel-background: rgba(255, 254, 250, .95);
+  --panel-border: #d8dfda;
+  --panel-shadow: 0 8px 24px rgba(42, 65, 62, .07);
+  --text-primary: #294b50;
+  --text-secondary: #526a6b;
+  --text-muted: #7c8c8b;
+  --inactive-background: #fbfbf7;
+  --inactive-border: #dce3dd;
+  --hover-background: #edf2ec;
+  --hover-border: #a8c2bc;
+  --slider-runway: #dce5df;
+  display: grid;
+  grid-template-rows: 64px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  color: #294b50;
+  background: #f5f4ee;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.seafloor-topography-container .top-toolbar {
+  padding: 0 24px;
+  background: #fbfaf6;
+  border-bottom: 1px solid #dfe4dd;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.seafloor-topography-container .brand-area {
+  display: grid;
+  place-items: center;
+  flex: 0 0 168px;
+  width: 168px;
+  height: 52px;
+  max-width: none;
+  overflow: hidden;
+}
+
+.seafloor-topography-container .brand-logo {
+  display: block;
+  width: 120px;
+  height: 40px;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  object-position: center;
+  transform: scale(2.15);
+  transform-origin: center;
+}
+
+.seafloor-topography-container .page-title {
+  max-width: calc(100% - 350px);
+  color: transparent;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  background: linear-gradient(90deg, #2ec4b6, #247cff);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.seafloor-topography-container .workspace,
+.seafloor-topography-container .center-stage {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.seafloor-topography-container .stage-content {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #f5f4ee;
+}
+
+.seafloor-topography-container .scene-host {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  touch-action: none;
+}
+
+.scene-host :deep(canvas) {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .overlay-layer {
   position: absolute;
+  z-index: 2;
   inset: 0;
   pointer-events: none;
   overflow: hidden;
@@ -497,138 +559,621 @@ onBeforeUnmount(() => {
 
 .seafloor-label {
   position: absolute;
-  transform: translate(-50%, -130%);
-  pointer-events: auto;
-  padding: 2px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(126, 195, 224, 0.55);
-  background: rgba(9, 26, 38, 0.78);
-  color: #d9eef8;
-  font-size: 13px;
-  line-height: 1.4;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  max-width: 180px;
+  padding: 7px 11px;
+  border: 1px solid #c7d4cd;
+  border-radius: 5px;
+  background: rgba(255, 254, 249, .96);
+  box-shadow: 0 2px 8px rgba(53, 79, 70, .05);
+  color: #31555b;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
   cursor: pointer;
+  pointer-events: auto;
+  transition: border-color .18s, background .18s;
 }
 
-.seafloor-label.active {
-  border-color: #7ec3e0;
-  color: #ffffff;
-  background: rgba(23, 62, 84, 0.9);
+.seafloor-label small {
+  font-size: 10px;
+  font-weight: 400;
+  color: #5a7477;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
-.overlay-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+.continent-label,
+.section-label {
   pointer-events: none;
 }
 
-.ruler-line {
-  stroke: rgba(217, 238, 248, 0.75);
+.seafloor-label:hover,
+.seafloor-label.active {
+  border-color: #2d6b70;
+  background: #edf5ed;
+}
+
+.seafloor-label:focus-visible,
+.seafloor-topography-container button:focus-visible {
+  outline: 2px solid #2d6b70;
+  outline-offset: 3px;
+}
+
+.seafloor-topography-container .overlay-svg.label-leaders {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  max-width: none;
+  max-height: none;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.seafloor-topography-container .label-leaders g,
+.seafloor-topography-container .label-leaders polyline,
+.seafloor-topography-container .label-leaders circle {
+  opacity: 1;
+  visibility: visible;
+}
+
+.seafloor-topography-container .label-leaders polyline {
+  stroke: #b65340;
   stroke-width: 1.5;
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+  fill: none;
+  vector-effect: non-scaling-stroke;
 }
 
-.ruler-tick {
-  stroke: rgba(217, 238, 248, 0.9);
-  stroke-width: 1.5;
+.label-leaders circle {
+  fill: #b65340;
+  stroke: #fffaf0;
+  stroke-width: 1.3;
 }
 
-.ruler-text {
-  fill: #d9eef8;
-  font-size: 11px;
+.label-leaders .active polyline,
+.label-leaders .active circle {
+  stroke: #a14332;
+  stroke-width: 1.8;
 }
 
-.ruler-note {
-  fill: rgba(217, 238, 248, 0.6);
+.depth-note {
+  position: absolute;
+  left: 24px;
+  bottom: 94px;
+  margin: 0;
+  color: #71847d;
+  font-size: 10px;
+  letter-spacing: .03em;
 }
 
 .info-card {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  z-index: 4;
+  top: 18px;
+  right: 22px;
   width: 268px;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
   pointer-events: auto;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(126, 195, 224, 0.35);
-  background: rgba(9, 26, 38, 0.86);
-  color: #d9eef8;
+  padding: 17px 18px 15px;
+  border-radius: 9px;
+  border: 1px solid #d9e0d8;
+  background: rgba(255, 254, 249, .96);
+  box-shadow: 0 8px 24px rgba(53, 79, 70, .06);
+  color: #38585a;
 }
 
 .info-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 15px;
+  gap: 10px;
+  font-size: 17px;
+  letter-spacing: .04em;
+}
+
+.info-card-head strong {
+  font-weight: 600;
 }
 
 .info-card-close {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border: 0;
+  border-radius: 4px;
   background: transparent;
-  color: rgba(217, 238, 248, 0.7);
-  font-size: 16px;
+  color: #7b8e89;
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
 }
 
+.info-card-close:hover {
+  background: #eef2eb;
+}
+
 .info-card-tag {
-  margin-top: 4px;
-  font-size: 11px;
-  color: rgba(217, 238, 248, 0.55);
+  margin: 7px 0 0;
+  font-size: 10px;
+  color: #8b9691;
 }
 
 .info-card-desc {
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.7;
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.85;
+  color: #637875;
 }
 
 .info-card-depth {
-  margin-top: 6px;
+  margin: 11px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #e6ebe4;
   font-size: 12px;
-  color: #7ec3e0;
+  color: #356a70;
+}
+
+.dive-button,
+.overview-button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid #c9d8d0;
+  border-radius: 5px;
+  color: #315f63;
+  background: #eef4ed;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dive-button:hover,
+.overview-button:hover {
+  background: #e1ece3;
+}
+
+.dive-destinations {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 14px;
+}
+
+.dive-destinations button {
+  padding: 7px 2px;
+  border: 1px solid #dce4db;
+  border-radius: 4px;
+  background: #fbfcf7;
+  color: #72837c;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dive-destinations button.active {
+  border-color: #7b9f92;
+  background: #e9f1e8;
+  color: #285c60;
+}
+
+.seafloor-topography-container .seafloor-dock {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  right: auto;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+  width: min(1120px, calc(100% - 36px));
+  min-width: 0;
+  max-width: calc(100% - 36px);
+  height: auto;
+  box-sizing: border-box;
+  padding: 12px 16px;
+  transform: translateX(-50%);
+  border: 1px solid #d5dfd5;
+  border-radius: 12px;
+  background: rgba(255, 254, 249, .96);
+  box-shadow: 0 5px 22px rgba(49, 75, 64, .08);
+  backdrop-filter: blur(12px);
+}
+
+.seafloor-dock>* {
+  flex: 0 0 auto;
+}
+
+.seafloor-topography-container .timeline-icon-btn {
+  width: 40px;
+  height: 40px;
+  color: #fffefa;
+  background: #2d6b70;
+  border: 1px solid #2d6b70;
+  box-shadow: none;
+  font-size: 20px;
+}
+
+.seafloor-topography-container .timeline-icon-btn:hover {
+  background: #245b60;
+}
+
+.seafloor-topography-container .timeline-main {
+  flex: 1 1 170px;
+  width: auto;
+  min-width: 110px;
+  max-width: 260px;
+}
+
+.seafloor-topography-container .timeline-copy {
+  margin-bottom: 1px;
+  color: #7c8c86;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.seafloor-topography-container .timeline-copy strong {
+  color: #476f70;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.seafloor-topography-container .theme-btn {
+  width: auto;
+  min-height: 36px;
+  padding: 7px 12px;
+  color: #697c77;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  border: 1px solid #dce4dc;
+  border-radius: 6px;
+  background: #fafbf6;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.seafloor-topography-container .theme-btn:hover {
+  background: #edf3eb;
+}
+
+/* The shared template uses !important glow styles; keep this lesson matte. */
+.seafloor-topography-container .theme-btn:not(.active) {
+  background: #fafbf6 !important;
+  border-color: #dce4dc !important;
+  box-shadow: none !important;
+}
+
+.seafloor-topography-container .theme-btn:not(.active):hover {
+  background: #edf3eb !important;
+  border-color: #b7cabe !important;
+  box-shadow: none !important;
+}
+
+.seafloor-topography-container .theme-btn.active {
+  color: #fffefa;
+  background: #2d6b70;
+  border-color: #2d6b70;
+  box-shadow: none !important;
+}
+
+.seafloor-topography-container .timeline-icon-btn.active {
+  box-shadow: none !important;
+}
+
+.seafloor-topography-container .speed-options {
+  display: flex;
+  gap: 4px;
+}
+
+.seafloor-topography-container .speed-btn {
+  min-width: 38px;
+  padding: 7px 8px;
+  font-variant-numeric: tabular-nums;
 }
 
 .dock-divider {
   width: 1px;
-  align-self: stretch;
-  margin: 2px 4px;
-  background: rgba(126, 195, 224, 0.25);
+  height: 30px;
+  margin: 0 1px;
+  background: #e0e6dd;
 }
 
 .dock-switch {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #cfe8f5;
+  gap: 7px;
+  font-size: 12px;
+  color: #6d8078;
   white-space: nowrap;
+}
+
+.seafloor-topography-container :deep(.el-switch__core) {
+  min-width: 32px;
+  height: 18px;
+  border: 1px solid #c4d3ca;
+  background: #dde5dc;
+  box-shadow: none;
+}
+
+.seafloor-topography-container :deep(.el-switch.is-checked .el-switch__core) {
+  background: #4c8381 !important;
+  border-color: #4c8381 !important;
+  box-shadow: none;
+}
+
+.seafloor-topography-container :deep(.el-switch__action) {
+  width: 14px;
+  height: 14px;
+  background: #fffefa;
+  box-shadow: none;
+}
+
+.seafloor-topography-container :deep(.el-slider) {
+  height: 20px;
+}
+
+.seafloor-topography-container :deep(.el-slider__runway) {
+  height: 3px;
+  margin: 9px 0;
+  background: #e0e7dd;
+}
+
+.seafloor-topography-container :deep(.el-slider__bar) {
+  height: 3px;
+  background: #5f9691 !important;
+}
+
+.seafloor-topography-container :deep(.el-slider__button-wrapper) {
+  top: -17px;
+}
+
+.seafloor-topography-container :deep(.el-slider__button) {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #5f9691;
+  background: #fffefa;
+  box-shadow: none;
 }
 
 .view-options {
   display: inline-flex;
-  gap: 6px;
+  gap: 4px;
 }
 
-.seafloor-dock {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 10px;
-  width: min(1200px, calc(100% - 28px));
-}
-
-.seafloor-dock > * {
+.seafloor-topography-container .reset-scene-btn {
   flex: 0 0 auto;
+  width: auto;
+  min-width: 50px;
+  margin: 0;
+  padding: 7px 10px;
 }
 
-.seafloor-dock .timeline-main {
-  flex: 1 1 auto;
-  min-width: 120px;
+@media (max-width: 1100px) {
+  .seafloor-topography-container .seafloor-dock {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .seafloor-topography-container .theme-btn {
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+
+  .dock-switch {
+    gap: 5px;
+    font-size: 11px;
+  }
 }
 
-.layout-small .seafloor-dock {
-  flex-wrap: wrap;
-  width: calc(100% - 20px);
+@media (max-width: 850px) {
+  .seafloor-topography-container .seafloor-dock {
+    flex-wrap: wrap;
+    bottom: 10px;
+  }
+
+  .seafloor-topography-container .timeline-main {
+    flex: 1 1 180px;
+    max-width: none;
+  }
+
+  .seafloor-topography-container .top-toolbar {
+    padding: 0 16px;
+  }
+
+  .info-card {
+    top: 12px;
+    right: 16px;
+    width: 240px;
+    padding: 13px 14px;
+  }
+
+  .dock-divider {
+    display: none;
+  }
+
+  .depth-note {
+    left: 18px;
+    bottom: 132px;
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 540px) {
+  .seafloor-topography-container {
+    grid-template-rows: 56px minmax(0, 1fr);
+  }
+
+  .seafloor-topography-container .brand-area {
+    width: 132px;
+    height: 44px;
+    flex-basis: 132px;
+  }
+
+  .seafloor-topography-container .brand-logo {
+    width: 132px;
+    height: 44px;
+  }
+
+  .seafloor-topography-container .page-title {
+    max-width: none;
+    font-size: 19px;
+    left: auto;
+    right: 16px;
+    transform: translateY(-50%);
+  }
+
+  .seafloor-topography-container .seafloor-dock {
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+    gap: 7px;
+    padding: 10px;
+  }
+
+  .seafloor-topography-container .timeline-main {
+    flex-basis: 90px;
+    min-width: 70px;
+  }
+
+  .seafloor-topography-container .timeline-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .seafloor-topography-container .speed-btn {
+    min-width: 33px;
+    padding: 6px;
+  }
+
+  .seafloor-topography-container .theme-btn {
+    min-height: 32px;
+  }
+
+  .seafloor-label {
+    max-width: 145px;
+    padding: 5px 7px;
+    font-size: 12px;
+  }
+
+  .seafloor-label small {
+    font-size: 9px;
+    white-space: normal;
+  }
+
+  .info-card {
+    width: 220px;
+  }
+
+  .depth-note {
+    bottom: 158px;
+  }
+}
+
+@media (min-width: 2200px) and (min-height: 1200px) {
+  .seafloor-topography-container {
+    grid-template-rows: 76px minmax(0, 1fr);
+  }
+
+  .seafloor-topography-container .brand-area {
+    width: 208px;
+    height: 64px;
+    flex-basis: 208px;
+  }
+
+  .seafloor-topography-container .brand-logo {
+    width: 208px;
+    height: 64px;
+  }
+
+  .seafloor-topography-container .page-title {
+    font-size: 30px;
+  }
+
+  .seafloor-topography-container .seafloor-dock {
+    width: min(1500px, calc(100% - 60px));
+    padding: 16px 24px;
+    gap: 18px;
+  }
+
+  .seafloor-topography-container .theme-btn {
+    font-size: 15px !important;
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+
+  .seafloor-topography-container .timeline-icon-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .seafloor-topography-container .timeline-copy {
+    font-size: 13px !important;
+  }
+
+  .seafloor-topography-container .timeline-copy strong {
+    font-size: 14px !important;
+  }
+
+  .dock-switch {
+    font-size: 15px;
+  }
+
+  .seafloor-label {
+    max-width: 230px;
+    padding: 10px 16px;
+    font-size: 18px;
+  }
+
+  .seafloor-label small {
+    font-size: 13px;
+  }
+
+  .info-card {
+    width: 330px;
+    padding: 21px 22px;
+  }
+
+  .info-card-head {
+    font-size: 21px;
+  }
+
+  .info-card-desc {
+    font-size: 15px;
+  }
+
+  .info-card-depth,
+  .dive-button,
+  .overview-button {
+    font-size: 15px;
+  }
+
+  .dive-destinations button {
+    font-size: 13px;
+  }
 }
 </style>

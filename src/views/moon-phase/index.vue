@@ -1,7 +1,6 @@
 <template>
   <div class="lunar-lab geo-template-page theme-dark"
-    :class="{ 'is-split': splitView, 'panels-hidden': !panelsVisible, 'is-resizing': resizing }"
-    :style="{ '--timeline-height': `${timelineHeight}px` }">
+    :class="{ 'is-split': splitView, 'panels-hidden': !panelsVisible, 'is-resizing': resizing }">
     <header class="lab-header">
       <div class="lab-brand">
         <img class="brand-logo" src="https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
@@ -25,6 +24,12 @@
         </button>
       </nav>
       <div class="header-tools">
+        <button class="theme-btn active play-button page-play-button" type="button"
+          :aria-label="playing ? '暂停月相动画' : '播放月相动画'" :aria-pressed="playing" @click="playing = !playing">
+          <svg v-if="!playing" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="m7 4 9 6-9 6Z" /></svg>
+          <svg v-else viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="4" height="12" rx="1" /><rect x="11" y="4" width="4" height="12" rx="1" /></svg>
+          <span>{{ playing ? '暂停' : '播放' }}</span>
+        </button>
         <button class="theme-btn quiet-button reset-button" type="button" title="恢复初始观测参数和视角" @click="resetAll">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
             <path d="M4 10a8 8 0 1 1 1 7M4 4v6h6" />
@@ -63,7 +68,8 @@
               <dl class="model-info-list">
                 <div><dt>地月比例</dt><dd>空间总览中的地月大小、距离与辅助线采用示意比例。进入观测点地表视角后，月球高度、方位及地平线上下的判断与同一观测点的第一人称视图、面板读数一致。</dd></div>
                 <div><dt>教学近似</dt><dd>地球与月球按简化的匀速轨道运行，月面适度放大以便观察。当前参数用于教学演示，不自动对应当天的真实天空。</dd></div>
-                <div><dt>统一时刻</dt><dd>UTC 是协调世界时，所有观测点共用这一时刻。当地太阳时按经度换算，可能与当地钟表时间不同。</dd></div>
+                <div><dt>农历日期参考</dt><dd>{{ LUNAR_DATE_NOTE }}这里标注的是各类月相常见的农历日期，不由月龄直接换算。</dd></div>
+                <div><dt>统一时刻与当地时间</dt><dd>所有观测点共用同一个 UTC 时刻。场景同时显示城市标准时区的当地时间，例如上海 10:17 UTC 对应 18:17（UTC+8）。教学模型不模拟夏令时；自定义点位显示按经度推算的区时。前一日、次日均相对于 UTC 日期。</dd></div>
                 <div><dt>可见性</dt><dd>以月心高于地平线作为可见判断，未计入大气折射。实际能否看清月亮，还受日光、天气和地面遮挡影响。</dd></div>
               </dl>
             </section>
@@ -85,8 +91,11 @@
         <div class="scene-heading">
           <div class="eyebrow"><span class="live-dot"></span>{{ view.value === 'orbit' ? surfaceView ? '空间视角 · 已抵达观测点' :
             '空间视角' : '第一人称' }}</div>
-          <p>{{ view.value === 'orbit' ? spaceStation.name : locationLabel }} · 当地太阳时 {{ formatHour(view.value ===
-            'orbit' ? spaceObservation.localSolarHour : observation.localSolarHour) }}</p>
+          <p class="scene-clock" :title="sceneTimes[view.value].description">
+            <span>{{ view.value === 'orbit' ? spaceStation.name : locationLabel }} · {{ sceneTimes[view.value].label }}
+              <strong>{{ sceneTimes[view.value].localTime }}</strong>（{{ sceneTimes[view.value].offsetLabel }}）<em v-if="sceneTimes[view.value].dayLabel">{{ sceneTimes[view.value].dayLabel }}</em></span>
+            <span class="scene-clock-utc">统一时刻 {{ sceneTimes[view.value].utcTime }} UTC</span>
+          </p>
           <div v-if="isGroundView(view.value)" class="observer-visibility"
             :class="{ 'below-horizon': !observation.aboveHorizon }" aria-label="月球观测状态">
             <strong><span class="visibility-dot" aria-hidden="true"></span>{{ visibilityTitle }}</strong>
@@ -202,30 +211,53 @@
         <p>最多同时观测三个点。组合会替换当前点位，预设城市坐标固定。</p>
       </div>
     </div>
-    <div v-if="pickingPoint" class="point-picking-note" role="status"><span>点击 3D 地球表面，添加观测点</span><button
-        class="theme-btn" type="button" @click="pickingPoint = false">取消</button></div>
+    <div v-if="pickingPoint || preparingPoint" class="point-picking-note" role="status"><span>{{ preparingPoint ? '正在靠近地球…' : '点击 3D 地球表面，添加观测点' }}</span><button
+        class="theme-btn" type="button" @click="cancelPicking">取消</button></div>
     <div class="station-layer" v-show="panelsVisible">
-      <ObservationStation v-for="item in stationObservations" :key="`${item.station.id}-${compactView}`"
-        v-show="panelsVisible && (!compactView || item.station.id === activeStationId)"
+      <ObservationStation v-for="item in stationObservations" :key="item.station.id"
+        v-show="panelsVisible && (!stationLayout.activeOnly || item.station.id === activeStationId)"
         :style="{ '--station-order': item.station.order }" @pointerdown.capture="bringStationToFront(item.station.id)"
         :station="item.station" :observation="item.observation" :lighting="item.lighting" :phase="phase"
         :can-remove="stations.length > 1" :active="item.station.id === activeStationId"
-        :collapsed="item.station.collapsed" :compact="compactView"
+        :collapsed="item.station.collapsed" :compact="stationLayout.activeOnly || panelSpace.width < 420"
         :selected-in-both-views="splitView && surfaceView && spaceStation.id === item.station.id && activeStationId === item.station.id"
-        :initial-right="stationRight(item.station.slot)" :initial-top="stationTop(item.station.slot)"
-        :bottom-inset="timelineHeight + 54" @select="applyStationToFirstPerson(item.station.id)"
+        :initial-right="stationRight(item.station.slot)" :initial-top="stationTop()" :initial-width="stationLayout.width"
+        :bottom-inset="24" :utc-hour="utcHour" @select="applyStationToFirstPerson(item.station.id)"
         @remove="removeStation(item.station.id)"
         @update:latitude="updateCoordinate(item.station.id, 'latitude', $event)"
         @update:longitude="updateCoordinate(item.station.id, 'longitude', $event)"
-        @update:local-solar-hour="setStationTime(item.station.id, $event)"
+        @update:utc-hour="setUtcHour"
         @update:collapsed="item.station.collapsed = $event" @locate="locateStation(item.station.id)"
         @sync-view="syncStationViews(item.station.id)" />
     </div>
 
-    <section ref="timelineRef" v-show="panelsVisible" class="timeline-card" aria-label="月相周期控制">
-      <div v-if="motionPanelOpen" id="earth-motion-panel" class="earth-motion-panel">
-        <div class="motion-heading"><strong>地球运动</strong><button class="theme-btn" type="button" aria-label="收起地球运动"
-            @click="motionPanelOpen = false">×</button></div>
+    <FloatingFeatureCard v-show="panelsVisible" class="moon-control-panel" title="控制面板"
+      variant="control" :initial-right="24" :initial-top="panelBaseTop()" :bottom-inset="16" :min-width="380" :min-height="260"
+      :collapsed="controlCollapsed" @update:collapsed="controlCollapsed = $event">
+      <template #title-prefix>
+        <svg class="control-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h8m4 0h4M4 17h4m4 0h8" /><circle cx="14" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
+        </svg>
+      </template>
+      <div class="control-modules">
+        <section class="control-module" aria-labelledby="control-time-title">
+          <div class="control-module-heading"><h2 id="control-time-title">时间与播放</h2>
+        <div class="playback-tools">
+          <button type="button" class="theme-btn speed-button" aria-label="切换播放速度" @click="cycleSpeed">{{ speed
+          }}×</button>
+        </div>
+
+          </div>
+          <div class="control-clock">
+            <div class="motion-clock"><span>统一观测时刻</span><span class="utc-tag"><span>UTC</span><strong>{{ formatHour(utcHour) }}</strong></span></div>
+            <el-slider :model-value="utcSliderMinutes" :min="0" :max="1439" :step="1" :show-tooltip="false"
+              aria-label="统一UTC时刻" @update:model-value="setUtcMinutes" />
+            <div class="clock-ticks"><span>00:00</span><span>12:00</span><span>23:59</span></div>
+            <p class="control-module-caption">调整统一 UTC 时刻，各地点的当地时间会同步换算。</p>
+          </div>
+        </section>
+        <section class="control-module" aria-labelledby="control-earth-title">
+          <div class="control-module-heading"><h2 id="control-earth-title">地球运动</h2><span>公转与季节</span></div>
         <div class="annual-position">
           <svg viewBox="0 0 140 118" aria-label="从黄道北侧看：春分在上，夏至在左，秋分在下，冬至在右，逆时针公转">
             <defs>
@@ -243,7 +275,7 @@
             <circle class="annual-earth" :cx="70 - 44 * Math.sin(earthFrame.solarLongitude * Math.PI / 180)"
               :cy="59 - 35 * Math.cos(earthFrame.solarLongitude * Math.PI / 180)" r="6" fill="#56bdcf" />
           </svg>
-          <div><strong>{{ seasonLabel }}</strong><span>太阳直射纬度 {{ signedAngle(earthFrame.declination)
+          <div><strong>{{ seasonLabel }}</strong><span>太阳直射纬度 {{ formatLatitude(earthFrame.declination)
           }}</span><span>从黄道北侧看 · 逆时针公转</span></div>
         </div>
         <el-slider :model-value="annualAngle" :min="0" :max="360" :step="0.1" :show-tooltip="false" aria-label="地球公转位置"
@@ -251,43 +283,24 @@
         <div class="season-stops"><button v-for="(season, index) in seasons" :key="season" class="theme-btn"
             type="button" :class="{ active: Math.abs(annualAngle - index * 90) < 1 }"
             @click="setAnnualAngle(index * 90)">{{ season }}</button></div>
-        <div class="motion-clock"><span>统一时刻 <strong>{{ formatHour(utcHour) }}
-              UTC</strong></span><span>年内第 {{ Math.floor(dayOfYear) }} 天</span></div>
-        <el-slider :model-value="utcSliderMinutes" :min="0" :max="1439" :step="1" :show-tooltip="false"
-          aria-label="统一UTC时刻" @update:model-value="setUtcMinutes" />
-      </div>
-      <div class="timeline-toolbar">
-        <div class="timeline-status">
-          <MoonDisc :phase="phase" />
-          <div class="timeline-title"><strong>{{ currentPhaseName }}</strong><span>月龄 {{ phaseAge.toFixed(1) }} 天</span>
+        <p>年内第 {{ Math.floor(dayOfYear) }} 天 · 改变公转位置可比较不同季节</p>
+
+        </section>
+        <section class="control-module current-phase-module" aria-labelledby="control-current-phase-title">
+          <div class="control-module-heading"><h2 id="control-current-phase-title">当前月相</h2><span>随场景同步</span></div>
+          <div class="current-phase-preview">
+            <MoonDisc :phase="phase" />
+            <div class="current-phase-copy">
+              <strong>{{ currentPhaseName }}</strong>
+              <span class="lunar-date" :title="LUNAR_DATE_NOTE">农历参考 · {{ lunarDateReference(currentPhaseName) }}</span>
+              <span class="current-phase-age">月龄 {{ phaseAge.toFixed(1) }} 天</span>
+            </div>
           </div>
-        </div>
-        <div class="observation-tools" aria-label="空间观测控制">
-          <span class="utc-tag" :aria-label="`统一观测时刻 ${formatHour(utcHour)} UTC`"
-            title="所有观测点共用的协调世界时"><span>UTC</span><strong>{{ formatHour(utcHour) }}</strong></span>
-          <button type="button" class="theme-btn motion-toggle" :class="{ active: motionPanelOpen }"
-            :aria-expanded="motionPanelOpen" aria-controls="earth-motion-panel"
-            :title="motionPanelOpen ? '收起地球运动' : '展开地球运动'" @click="motionPanelOpen = !motionPanelOpen">
-            <span>地球运动</span><svg class="motion-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-              stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg>
-          </button>
-          <button type="button" class="theme-btn" :class="{ active: showOrbitAngle }" :aria-pressed="showOrbitAngle"
-            title="以地球为顶点，显示太阳与月球方向之间的较小夹角（0°～180°）" @click="showOrbitAngle = !showOrbitAngle">日地月夹角</button>
-          <button type="button" class="theme-btn" :class="{ active: showGuides }" :aria-pressed="showGuides"
-            @click="showGuides = !showGuides"><span class="guide-symbol">◎</span>观测辅助线</button>
-        </div>
-        <div class="playback-tools">
-          <button type="button" class="theme-btn speed-button" aria-label="切换播放速度" @click="cycleSpeed">{{ speed
-          }}×</button>
-          <button class="theme-btn active play-button" type="button"
-            :aria-label="playing ? '暂停月相动画' : '播放月相动画'" @click="playing = !playing">
-            <svg v-if="!playing" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="m7 4 9 6-9 6Z" /></svg>
-            <svg v-else viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="4" height="12" rx="1" /><rect x="11" y="4" width="4" height="12" rx="1" /></svg>
-            <span>{{ playing ? '暂停' : '播放' }}</span>
-          </button>
-        </div>
-      </div>
+        </section>
+        <section class="control-module" aria-labelledby="control-phase-title">
+          <div class="control-module-heading"><h2 id="control-phase-title">月相演变</h2><span>区间与快捷跳转</span></div>
       <div class="phase-timeline" role="group" aria-label="月相区间时间轴">
+        <div class="control-section-title">月相区间<span>一个周期约 29.53 天</span></div>
         <div class="phase-milestones" aria-hidden="true">
           <span v-for="mark in phaseMilestones" :key="mark.angle" :style="{ left: `${mark.angle / 3.6}%` }"
             :class="{ active: currentPhaseInterval.principal && mark.angle >= currentPhaseInterval.start && mark.angle <= currentPhaseInterval.end, 'at-start': mark.angle === 0, 'at-end': mark.angle === 360 }">{{ mark.name }}</span>
@@ -308,17 +321,42 @@
         </div>
       </div>
       <div class="phase-shortcuts" role="group" aria-label="快捷跳转到代表月相">
-        <div class="phase-shortcuts-caption"><strong>快捷跳转</strong><span>代表月相</span></div>
+        <div class="phase-shortcuts-caption"><strong>快捷跳转</strong><span>代表月相 · 农历日期参考</span></div>
         <div class="phase-stops">
           <button v-for="stop in phaseStops" :key="stop.angle" type="button" class="theme-btn"
             :class="{ active: isRepresentativePhase(stop.angle) }" :aria-label="`跳转至${stop.name}代表位置`"
             :title="`${stop.name}代表位置 · 周期进度 ${stop.angle}°`"
             :aria-pressed="isRepresentativePhase(stop.angle)" @click="selectPhase(stop.angle)">
-            <MoonDisc :phase="stop.angle" /><span>{{ stop.name }}</span>
+            <MoonDisc :phase="stop.angle" /><span class="phase-stop-label"><span>{{ stop.name }}</span><small>{{ lunarDateReference(stop.name) }}</small></span>
           </button>
         </div>
       </div>
-    </section>
+      <p class="control-module-caption">{{ LUNAR_DATE_NOTE }}</p>
+
+        </section>
+        <section class="control-module" aria-labelledby="control-guides-title">
+          <div class="control-module-heading"><h2 id="control-guides-title">空间辅助</h2><span>显示设置</span></div>
+          <div class="control-switch-row">
+            <div><label for="orbit-angle-switch">日地月夹角</label><p>以地球为顶点，取 0°～180° 的较小夹角</p></div>
+            <ElSwitch id="orbit-angle-switch" v-model="showOrbitAngle" aria-label="显示日地月夹角" />
+          </div>
+          <div class="control-switch-row">
+            <div><label for="observation-guides-switch">观测辅助线</label><p>观测点与月球连线、地表法线</p></div>
+            <ElSwitch id="observation-guides-switch" v-model="showGuides" aria-label="显示观测辅助线" />
+          </div>
+          <div class="control-switch-row">
+            <div><label for="earth-graticule-switch">地球经纬网</label><p>含赤道、南北回归线与南北极圈</p></div>
+            <ElSwitch id="earth-graticule-switch" v-model="showGraticule" aria-label="显示地球经纬网及重要纬线" />
+          </div>
+          <div v-if="showGraticule" class="graticule-legend" aria-label="重要纬线图例">
+            <span><i class="equator-line"></i>赤道</span><span><i class="tropic-line"></i>回归线</span><span><i class="polar-line"></i>极圈</span>
+          </div>
+        </section>
+      </div>
+    </FloatingFeatureCard>
+    <PhaseLearningPanel v-show="panelsVisible" :phase="phase" :utc-hour="utcHour" :day-of-year="dayOfYear" :initial-top="panelBaseTop() + 58"
+      :collapsed="learningCollapsed" :active="panelsVisible" @update:collapsed="learningCollapsed = $event"
+      @apply-observation="applyLearningObservation" />
 
     <Transition name="page-loading">
       <div v-if="pageLoading" class="page-loading-overlay" role="status" aria-live="polite" aria-label="页面加载中">
@@ -334,13 +372,20 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
-import { ElPopover, ElSlider } from 'element-plus'
+import { ElPopover, ElSlider, ElSwitch } from 'element-plus'
 import 'element-plus/es/components/popover/style/css'
 import 'element-plus/es/components/slider/style/css'
+import 'element-plus/es/components/switch/style/css'
 import ObservationStation from './ObservationStation.vue'
 import MoonDisc from './MoonDisc.vue'
+import FloatingFeatureCard from './MoonFloatingPanel.vue'
+import PhaseLearningPanel from './PhaseLearningPanel.vue'
+import { lunarDateReference, LUNAR_DATE_NOTE } from './phase-calendar'
+import { getStationPanelLayout } from './station-layout'
+import { getStationTime } from './station-time'
 import { getMoonLighting, getObservation, phaseIllumination, phaseName, PHASE_INTERVALS, SYNODIC_MONTH, TROPICAL_YEAR, VERNAL_EQUINOX_DAY, getEarthFrame, utcHourFromLocalSolarHour } from './moon-geometry'
 import { createMoonScene, type SceneMode } from './moon-scene'
+import { formatLatitude } from '@/hooks/useDegreeFormat'
 import '@/styles/geo-page-template.css'
 import './moon-phase.css'
 
@@ -404,8 +449,10 @@ const phaseStops = [
 const phaseMilestones = [0, 90, 180, 270, 360].map(angle => ({ angle, name: phaseName(angle) }))
 const intermediatePhaseIntervals = PHASE_INTERVALS.filter(interval => !interval.principal)
 const stageRef = ref<HTMLElement | null>(null)
-const timelineRef = ref<HTMLElement | null>(null)
-const timelineHeight = ref(104)
+const panelSpace = ref({ left: 0, width: window.innerWidth, pageWidth: window.innerWidth, headerHeight: window.innerWidth <= 820 ? 146 : window.innerWidth <= 1280 ? 110 : 72 })
+let panelSpaceObserver: ResizeObserver | null = null
+const controlCollapsed = ref(true)
+const learningCollapsed = ref(true)
 const sceneElements: Partial<Record<SceneMode, HTMLElement>> = {}
 const selectedViews = ref<SceneMode[]>(['orbit', 'observer'])
 const splitView = computed(() => selectedViews.value.length === 2)
@@ -420,8 +467,9 @@ type Station = { id: string; name: string; latitude: number; longitude: number; 
 const stationColors = ['#4ad2cd', '#f2c079', '#b89cff']
 let stationSequence = 1
 let stationOrder = 1
-const stations = ref<Station[]>([{ ...places[0]!, id: 'station-1', color: stationColors[0]!, readonly: true, collapsed: window.innerWidth <= 820, slot: 0, order: ++stationOrder }])
+const stations = ref<Station[]>([{ ...places[0]!, id: 'station-1', color: stationColors[0]!, readonly: true, collapsed: true, slot: 0, order: ++stationOrder }])
 const activeStationId = ref('station-1')
+const stationLayout = computed(() => getStationPanelLayout(panelSpace.value.width, stations.value.length))
 const spaceObserverId = ref<string | null>(null)
 const activeStation = computed(() => stations.value.find(station => station.id === activeStationId.value) ?? stations.value[0]!)
 const latitude = computed(() => activeStation.value.latitude)
@@ -440,12 +488,13 @@ const seasonLabel = computed(() => {
 })
 const stationMenuOpen = ref(false)
 const pickingPoint = ref(false)
-const motionPanelOpen = ref(false)
+const preparingPoint = ref(false)
 const modelInfoOpen = ref(false)
 const modelInfoTrigger = ref<HTMLButtonElement | null>(null)
 const playing = ref(false)
 const speed = ref(1)
 const showGuides = ref(true)
+const showGraticule = ref(false)
 const showOrbitAngle = ref(false)
 const panelsVisible = ref(true)
 const compactView = ref(window.innerWidth <= 820)
@@ -461,10 +510,13 @@ let resizeHandle: HTMLElement | null = null
 let resizePointer: number | null = null
 let animationId = 0
 let lastTime = 0
-let timelineObserver: ResizeObserver | null = null
 
 const observationInput = computed(() => ({ phase: phase.value, latitude: latitude.value, longitude: longitude.value, utcHour: utcHour.value, dayOfYear: dayOfYear.value }))
 const spaceStation = computed(() => stations.value.find(station => station.id === spaceObserverId.value) ?? activeStation.value)
+const sceneTimes = computed(() => ({
+  orbit: getStationTime(utcHour.value, spaceStation.value),
+  observer: getStationTime(utcHour.value, activeStation.value),
+}))
 const spaceObservationInput = computed(() => ({ ...observationInput.value, latitude: spaceStation.value.latitude, longitude: spaceStation.value.longitude }))
 const spaceObservation = computed(() => getObservation(spaceObservationInput.value))
 const observation = computed(() => getObservation(observationInput.value))
@@ -480,16 +532,22 @@ const illumination = computed(() => phaseIllumination(phase.value) * 100)
 const locationLabel = computed(() => activeStation.value.name)
 const visibilityTitle = computed(() => !observation.value.aboveHorizon ? '当地不可见 · 月球在地平线以下' : observation.value.altitude < 2 ? '月亮正经过地平线' : illumination.value < 0.1 ? '新月 · 亮面背向我们' : observation.value.sunAltitude > 1 ? '白昼中的月亮' : '月亮在地平线上方')
 
-function stationRight(slot: number) { return compactView.value ? 14 : 24 + (slot % Math.max(1, Math.min(3, Math.floor((window.innerWidth - 48) / 342)))) * 342 }
-function stationTop(slot: number) { return compactView.value ? 164 : 148 + Math.floor(slot / Math.max(1, Math.min(3, Math.floor((window.innerWidth - 48) / 342)))) * 48 }
+function stationRight(slot: number) {
+  const index = Math.max(0, stations.value.findIndex(station => station.slot === slot))
+  const space = panelSpace.value
+  return space.pageWidth - space.left - space.width + (stationLayout.value.rightOffsets[index] ?? stationLayout.value.margin)
+}
+function panelBaseTop() { return panelSpace.value.headerHeight + (panelSpace.value.width <= 820 ? 58 : panelSpace.value.width <= 1280 ? 66 : 76) }
+function stationTop() { return panelBaseTop() + 116 }
 function bringStationToFront(id: string) { const station = stations.value.find(item => item.id === id); if (station) station.order = ++stationOrder }
 function selectStation(id: string, startFollowing = true) {
   if (!stations.value.some(station => station.id === id)) return
+  if (pickingPoint.value || preparingPoint.value) cancelPicking()
   bringStationToFront(id)
   activeStationId.value = id
   for (const station of stations.value) {
     if (station.id === id) station.collapsed = false
-    else if (compactView.value) station.collapsed = true
+    else if (stationLayout.value.activeOnly) station.collapsed = true
   }
   if (startFollowing) void nextTick(() => {
     if (activeStationId.value !== id) return
@@ -512,10 +570,12 @@ function isComparisonSelected(group: typeof comparisonGroups[number]) {
   return stations.value.length === 3 && stations.value.every(station => station.readonly) && group.places.every(hasPreset)
 }
 function comparePresets(group: typeof comparisonGroups[number]) {
+  syncViewport()
+  const comparisonLayout = getStationPanelLayout(panelSpace.value.width, group.places.length)
   spaceViewRequest++
   const wasSurface = surfaceView.value
-  pickingPoint.value = false
-  stations.value = group.places.map((place, slot) => ({ ...place, id: `station-${++stationSequence}`, color: stationColors[slot]!, readonly: true, collapsed: compactView.value && slot !== 0, slot, order: ++stationOrder }))
+  clearPickingState()
+  stations.value = group.places.map((place, slot) => ({ ...place, id: `station-${++stationSequence}`, color: stationColors[slot]!, readonly: true, collapsed: comparisonLayout.activeOnly && slot !== 0, slot, order: ++stationOrder }))
   activeStationId.value = stations.value[0]!.id
   spaceObserverId.value = wasSurface ? activeStationId.value : null
   bringStationToFront(activeStationId.value)
@@ -537,9 +597,15 @@ function updateCoordinate(id: string, coordinate: 'latitude' | 'longitude', valu
     station.name = places.find(place => Math.abs(place.latitude - station.latitude) < 0.01 && Math.abs(place.longitude - station.longitude) < 0.01)?.name ?? `观测点 ${station.slot + 1}`
   }
 }
-function setStationTime(id: string, hour: number) {
-  const station = stations.value.find(item => item.id === id)
-  if (station) { playing.value = false; utcHour.value = utcHourFromLocalSolarHour(hour, station.longitude) }
+function setUtcHour(hour: number) { if (Number.isFinite(hour)) { playing.value = false; utcHour.value = Math.max(0, Math.min(1439 / 60, hour)) } }
+function applyLearningObservation(example: { latitude: number; longitude: number; phase: number; utcHour: number; dayOfYear?: number; name?: string }) {
+  playing.value = false
+  phase.value = example.phase
+  utcHour.value = example.utcHour
+  if (example.dayOfYear !== undefined) dayOfYear.value = example.dayOfYear
+  const station = activeStation.value
+  station.latitude = example.latitude; station.longitude = example.longitude; station.name = example.name ?? '规律示例'; station.readonly = false
+  syncStationViews(station.id)
 }
 function setUtcMinutes(value: number | number[]) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return
@@ -551,10 +617,24 @@ function setAnnualAngle(value: number | number[]) {
   playing.value = false
   dayOfYear.value = ((VERNAL_EQUINOX_DAY - 1 + value / 360 * TROPICAL_YEAR) % TROPICAL_YEAR) + 1
 }
+function clearPickingState() { pickingPoint.value = false; preparingPoint.value = false }
+function cancelPicking() { spaceViewRequest++; clearPickingState() }
 async function startPicking() {
+  if (stations.value.length >= 3) return
+  const request = ++spaceViewRequest
   stationMenuOpen.value = false
+  pickingPoint.value = false
+  preparingPoint.value = true
   await ensureSpaceView()
-  returnToOverview()
+  if (request !== spaceViewRequest) return
+  if (!selectedViews.value.includes('orbit') || stations.value.length >= 3 || !scenes.orbit) { clearPickingState(); return }
+  // Detach the old surface camera before changing its selected observer.
+  // The scene ignores picking while this close-up flight is in progress.
+  scenes.orbit.focusEarthForPicking()
+  spaceObserverId.value = null
+  spaceFocus.value = 'earth'
+  syncScene()
+  preparingPoint.value = false
   pickingPoint.value = true
 }
 function onObserverPick(lat: number, lon: number) {
@@ -564,7 +644,7 @@ function onObserverPick(lat: number, lon: number) {
     return
   }
   addStation(`观测点 ${stations.value.length + 1}`, Math.round(lat * 100) / 100, Math.round(lon * 100) / 100)
-  pickingPoint.value = false
+  clearPickingState()
 }
 function formatHour(value: number) { const minutes = ((Math.round(value * 60) % 1440) + 1440) % 1440; return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}` }
 function signedAngle(value: number) { return `${value > 0 ? '+' : ''}${value.toFixed(1)}°` }
@@ -582,6 +662,7 @@ function setSceneRef(view: SceneMode, element: Element | ComponentPublicInstance
 function toggleView(view: SceneMode) {
   if (selectedViews.value.includes(view)) {
     if (selectedViews.value.length === 1) return
+    if (view === 'orbit') cancelPicking()
     selectedViews.value = selectedViews.value.filter(value => value !== view)
   } else selectedViews.value = [...selectedViews.value, view]
   stopResize()
@@ -594,7 +675,7 @@ async function ensureSpaceView() {
 async function viewFromStation(id: string) {
   if (!stations.value.some(station => station.id === id)) return
   const request = ++spaceViewRequest
-  pickingPoint.value = false
+  clearPickingState()
   spaceObserverId.value = id
   spaceFocus.value = null
   await ensureSpaceView()
@@ -604,7 +685,7 @@ async function viewFromStation(id: string) {
 }
 async function focusSpaceBody(body: 'earth' | 'moon') {
   const request = ++spaceViewRequest
-  pickingPoint.value = false
+  clearPickingState()
   // Leave the old surface attachment before changing the selected station.
   scenes.orbit?.focusBody(body)
   spaceObserverId.value = null
@@ -613,7 +694,15 @@ async function focusSpaceBody(body: 'earth' | 'moon') {
   if (request !== spaceViewRequest) return
   syncScene()
 }
-function returnToOverview() { spaceViewRequest++; spaceObserverId.value = null; spaceFocus.value = null; scenes.orbit?.resetView(); syncScene() }
+function returnToOverview() {
+  spaceViewRequest++
+  clearPickingState()
+  // Detach the previous surface camera before updating the selected station.
+  scenes.orbit?.showOverview()
+  spaceObserverId.value = null
+  spaceFocus.value = null
+  syncScene()
+}
 function resetView(view: SceneMode) { if (view === 'orbit') returnToOverview(); else scenes[view]?.resetView() }
 function toggleMoonFollowing() { scenes.observer?.setMoonFollowing(!moonFollowing.value.observer) }
 async function applyStationToFirstPerson(id: string) {
@@ -628,12 +717,12 @@ async function applyStationToFirstPerson(id: string) {
 }
 async function locateStation(id: string) {
   await applyStationToFirstPerson(id)
-  if (compactView.value) activeStation.value.collapsed = true
+  if (stationLayout.value.activeOnly) activeStation.value.collapsed = true
 }
 async function syncStationViews(id: string) {
   if (!stations.value.some(station => station.id === id)) return
   const request = ++spaceViewRequest
-  pickingPoint.value = false
+  clearPickingState()
   stationMenuOpen.value = false
   selectStation(id, false)
   spaceObserverId.value = id
@@ -647,7 +736,7 @@ async function syncStationViews(id: string) {
   scenes.observer?.resize()
   scenes.orbit?.flyToObserver()
   scenes.observer?.setMoonFollowing(true)
-  if (compactView.value) activeStation.value.collapsed = true
+  if (stationLayout.value.activeOnly) activeStation.value.collapsed = true
 }
 function clampSplit(value: number) { return Math.max(splitMin.value, Math.min(100 - splitMin.value, value)) }
 function startResize(event: PointerEvent) {
@@ -679,9 +768,28 @@ function resizeWithKeyboard(event: KeyboardEvent) {
   splitPercent.value = clampSplit(value)
 }
 function syncViewport() {
-  const compact = window.innerWidth <= 820
-  if (compact && !compactView.value) stations.value.forEach(station => { station.collapsed = true })
-  compactView.value = compact
+  const page = stageRef.value?.closest<HTMLElement>('.lunar-lab')
+  if (page && page.clientWidth > 0) {
+    const rect = page.getBoundingClientRect()
+    const scale = rect.width / (page.offsetWidth || rect.width || 1)
+    const origin = rect.left + page.clientLeft * scale
+    let left = Math.max(origin, window.visualViewport?.offsetLeft ?? 0)
+    let right = Math.min(origin + page.clientWidth * scale, (window.visualViewport?.offsetLeft ?? 0) + (window.visualViewport?.width ?? document.documentElement.clientWidth))
+    for (let ancestor = page.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      if (!/(auto|scroll|hidden|clip)/.test(getComputedStyle(ancestor).overflowX)) continue
+      const box = ancestor.getBoundingClientRect()
+      const ancestorScale = box.width / (ancestor.offsetWidth || box.width || 1)
+      const ancestorLeft = box.left + ancestor.clientLeft * ancestorScale
+      left = Math.max(left, ancestorLeft)
+      right = Math.min(right, ancestorLeft + ancestor.clientWidth * ancestorScale)
+    }
+    if (right > left && scale > 0) {
+      const next = { left: (left - origin) / scale, width: (right - left) / scale, pageWidth: page.clientWidth,
+        headerHeight: page.querySelector<HTMLElement>(':scope > .lab-header')?.offsetHeight ?? 72 }
+      if (Object.keys(next).some(key => Math.abs(next[key as keyof typeof next] - panelSpace.value[key as keyof typeof next]) > 0.1)) panelSpace.value = next
+    }
+  }
+  compactView.value = panelSpace.value.width <= 820
   splitPercent.value = clampSplit(splitPercent.value)
 }
 function closeModelInfo() { modelInfoOpen.value = false; modelInfoTrigger.value?.focus() }
@@ -690,15 +798,17 @@ function onModelInfoKeydown(event: KeyboardEvent) {
 }
 function resetAll() {
   modelInfoOpen.value = false
+  controlCollapsed.value = true; learningCollapsed.value = true
   spaceViewRequest++
+  clearPickingState()
   playing.value = false; phase.value = 90; utcHour.value = utcHourFromLocalSolarHour(18, 121.47); dayOfYear.value = VERNAL_EQUINOX_DAY
-  stations.value = [{ ...places[0]!, id: `station-${++stationSequence}`, color: stationColors[0]!, readonly: true, collapsed: compactView.value, slot: 0, order: ++stationOrder }]
-  activeStationId.value = stations.value[0]!.id; spaceObserverId.value = null; spaceFocus.value = null; motionPanelOpen.value = false; stationMenuOpen.value = false; presetRegion.value = placeGroups[0]!.label; pickingPoint.value = false
-  speed.value = 1; showGuides.value = true; showOrbitAngle.value = false; selectedViews.value = ['orbit', 'observer']; splitPercent.value = 50; panelsVisible.value = true
+  stations.value = [{ ...places[0]!, id: `station-${++stationSequence}`, color: stationColors[0]!, readonly: true, collapsed: true, slot: 0, order: ++stationOrder }]
+  activeStationId.value = stations.value[0]!.id; spaceObserverId.value = null; spaceFocus.value = null; stationMenuOpen.value = false; presetRegion.value = placeGroups[0]!.label; pickingPoint.value = false
+  speed.value = 1; showGuides.value = true; showGraticule.value = false; showOrbitAngle.value = false; selectedViews.value = ['orbit', 'observer']; splitPercent.value = 50; panelsVisible.value = true
   stopResize(); syncScene(); scenes.orbit?.resetView(); scenes.observer?.resetView()
 }
 function syncScene() {
-  for (const view of views) scenes[view.value]?.update({ ...(view.value === 'orbit' ? spaceObservationInput.value : observationInput.value), mode: view.value, showGuides: showGuides.value, showOrbitAngle: showOrbitAngle.value, stations: stations.value, activeStationId: view.value === 'orbit' ? spaceStation.value.id : activeStationId.value })
+  for (const view of views) scenes[view.value]?.update({ ...(view.value === 'orbit' ? spaceObservationInput.value : observationInput.value), mode: view.value, showGuides: showGuides.value, showGraticule: showGraticule.value, showOrbitAngle: showOrbitAngle.value, stations: stations.value, activeStationId: view.value === 'orbit' ? spaceStation.value.id : activeStationId.value })
 }
 function initializeScene(view: SceneMode) {
   const element = sceneElements[view]
@@ -729,18 +839,24 @@ function animate(time: number) {
   }
   animationId = requestAnimationFrame(animate)
 }
-watch([observationInput, spaceObservationInput, showGuides, showOrbitAngle, stations, activeStationId], syncScene, { deep: true })
+watch([observationInput, spaceObservationInput, showGuides, showGraticule, showOrbitAngle, stations, activeStationId], syncScene, { deep: true })
 watch(selectedViews, async () => { await nextTick(); scenes.orbit?.resize(); scenes.observer?.resize() })
 onMounted(() => {
+  syncViewport()
+  panelSpaceObserver = new ResizeObserver(syncViewport)
+  const page = stageRef.value?.closest<HTMLElement>('.lunar-lab')
+  if (page) {
+    for (let element: HTMLElement | null = page; element; element = element.parentElement) panelSpaceObserver.observe(element)
+    const header = page.querySelector<HTMLElement>(':scope > .lab-header')
+    if (header) panelSpaceObserver.observe(header)
+  }
+  if (stageRef.value) panelSpaceObserver.observe(stageRef.value)
   for (const view of views) initializeScene(view.value)
-  timelineObserver = new ResizeObserver(entries => {
-    const height = entries[0]?.target.getBoundingClientRect().height ?? 0
-    if (height > 0) timelineHeight.value = Math.ceil(height)
-  })
-  if (timelineRef.value) timelineObserver.observe(timelineRef.value)
   animationId = requestAnimationFrame(animate)
   window.addEventListener('resize', syncViewport)
+  window.addEventListener('scroll', syncViewport, true)
+  window.visualViewport?.addEventListener('resize', syncViewport)
   document.addEventListener('keydown', onModelInfoKeydown)
 })
-onBeforeUnmount(() => { stopResize(); cancelAnimationFrame(animationId); timelineObserver?.disconnect(); scenes.orbit?.dispose(); scenes.observer?.dispose(); window.removeEventListener('resize', syncViewport); document.removeEventListener('keydown', onModelInfoKeydown) })
+onBeforeUnmount(() => { cancelPicking(); stopResize(); cancelAnimationFrame(animationId); panelSpaceObserver?.disconnect(); scenes.orbit?.dispose(); scenes.observer?.dispose(); window.removeEventListener('resize', syncViewport); window.removeEventListener('scroll', syncViewport, true); window.visualViewport?.removeEventListener('resize', syncViewport); document.removeEventListener('keydown', onModelInfoKeydown) })
 </script>

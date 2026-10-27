@@ -87,6 +87,14 @@
         </div>
         <div class="stage-summary"><span>{{ isOverview ? lessonModeName + ' · 总览' : currentGroup.name + ' · 第 ' +
           stepNumber + ' 步' }}</span><strong>{{ currentStage.title }}</strong></div>
+        <section v-if="currentStageIndex === 1" class="attenuation-controls" aria-label="大气削弱的四个过程">
+          <p>四种过程同时保留，点击选择当前讲解重点。</p>
+          <div>
+            <button v-for="item in attenuationSteps" :key="item.id"
+              :aria-pressed="focusedAttenuationFlow(sceneProgress) === item.id"
+              @click="focusAttenuation(item.start)">{{ item.name }}</button>
+          </div>
+        </section>
         <div class="stage-actions">
           <button :disabled="currentPlanIndex === 0" aria-label="转到上一步" @click="goToAdjacentStage(-1)">
             <ArrowLeft />上一步
@@ -113,7 +121,7 @@
         <Reading class="panel-title-icon" />
       </template>
       <div class="panel-body insight-body" aria-live="polite">
-        <p class="insight-phase">{{ lessonModeName }} · {{ isOverview ? '主要路径总览' : '第 ' + stepNumber + ' 步 / 共 ' + lessonPlan.length + ' 步' }}</p>
+        <p class="insight-phase">{{ lessonModeName }} · {{ isOverview ? '全过程总览' : '第 ' + stepNumber + ' 步 / 共 ' + lessonPlan.length + ' 步' }}</p>
         <h2>{{ currentStage.title }}</h2>
         <div class="core-takeaway"><span>本步重点</span><p class="insight-takeaway">{{ currentStage.takeaway }}</p></div>
         <p class="insight-description">{{ currentStage.description }}</p>
@@ -127,7 +135,7 @@
           <summary>观察提示与读图说明</summary>
           <div class="observation"><span>观察提示</span><p>{{ currentStage.focus }}</p></div>
           <div class="mini-legend" aria-label="光线颜色图例"><span><i class="solar-dot"></i>太阳短波</span><span><i class="ground-dot"></i>地面长波</span><span><i class="air-dot"></i>大气长波</span></div>
-          <div class="teaching-note"><p>分步为教学拆解，实际过程同时、持续发生。光色、波线与吸收光球为示意，不是肉眼可见的光迹；线条粗细不代表能量大小。总览精选主要路径，不是完整的定量收支图。</p></div>
+          <div class="teaching-note"><p>分步为教学拆解，实际过程同时、持续发生。光色、波线与吸收光球为示意，不是肉眼可见的光迹；线条粗细不代表能量大小。总览保留当前讲解范围内的全部机制，同一过程的重复光路合并绘制，不是定量收支图。</p></div>
         </details>
         <TextbookExtension />
       </div>
@@ -170,7 +178,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AtmosphericHeating2D from './AtmosphericHeating2D.vue'
 import TextbookExtension from './TextbookExtension.vue'
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
-import { processGroups, createLessonPlan, sceneProgressFor } from './heatingModel'
+import { processGroups, createLessonPlan, sceneProgressFor, attenuationSteps, focusedAttenuationFlow, stages } from './heatingModel'
 import { VideoPlay, VideoPause, RefreshLeft, Refresh, FullScreen, PriceTag, MagicStick, Reading, Operation, Grid, ArrowLeft, ArrowRight, Hide, View } from '@element-plus/icons-vue'
 
 type PlaybackMode = 'all' | 'stage'
@@ -190,7 +198,6 @@ const panelsVisible = ref(true)
 const compactLayout = ref(typeof window !== 'undefined' && window.innerWidth <= 960)
 const isFullscreen = ref(false)
 const fullscreenError = ref('')
-const isOverview = computed(() => progress.value >= 100)
 const lessonModeName = computed(() => extendedMode.value ? '拓展演示' : '基础讲解')
 const lessonPlan = computed(() => createLessonPlan(extendedMode.value))
 const lessonGroups = computed(() => processGroups.map((group, index) => ({
@@ -204,6 +211,7 @@ const currentPlanIndex = computed(() => {
 const currentStage = computed(() => lessonPlan.value[currentPlanIndex.value]!)
 const currentGroup = computed(() => processGroups[currentStage.value.group] || processGroups[0])
 const currentStageIndex = computed(() => currentStage.value.id)
+const isOverview = computed(() => currentStageIndex.value === 8)
 const stepNumber = computed(() => currentPlanIndex.value + 1)
 const sceneProgress = computed(() => sceneProgressFor(currentStage.value, progress.value))
 
@@ -236,6 +244,14 @@ function goToStage(index: number) {
   pause()
   const step = lessonPlan.value.find(stage => stage.id === index) || lessonPlan.value[0]!
   progress.value = step.start
+}
+function focusAttenuation(sceneStart: number) {
+  pause()
+  const step = lessonPlan.value.find(stage => stage.id === 1)!
+  const scene = stages[1]
+  // Seek just inside a substep so floating-point rounding cannot select its predecessor.
+  const fraction = (sceneStart + .001 - scene.start) / (scene.end - scene.start)
+  progress.value = step.start + fraction * (step.end - step.start)
 }
 function goToAdjacentStage(offset: number) {
   const index = Math.max(0, Math.min(lessonPlan.value.length - 1, currentPlanIndex.value + offset))
@@ -787,6 +803,42 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 1fr 1.1fr 1fr;
   gap: 6px
+}
+
+.attenuation-controls {
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #edf2e9;
+}
+
+.attenuation-controls p {
+  margin: 0 0 9px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.attenuation-controls > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.attenuation-controls button {
+  padding: 8px 5px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 12px;
+}
+
+.attenuation-controls button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: #fff;
+  background: var(--accent);
 }
 
 .stage-actions button {

@@ -63,6 +63,7 @@ export const routes = [
     },
     component: () => import('@/views/put-it-together/index.vue'),
   },
+
   {
     path: '/threeD-terrain',
     name: '3D-terrain',
@@ -211,7 +212,7 @@ export const routes = [
     path: '/the-twenty-four-solar-term',
     name: 'the-twenty-four-solar-term',
     meta: {
-      title: '24节气',
+      title: '二十四节气 · 地球公转',
       tags: ['第二批'],
     },
     component: () =>
@@ -457,6 +458,53 @@ export const routes = [
       tags: ['第四批'],
     },
     component: () => import('@/views/geological-time/index.vue'),
+  },
+
+  {
+    path: '/find-capitals',
+    name: 'find-capitals',
+    meta: {
+      title: '找省会 · 识首府',
+      tags: ['第四批'],
+    },
+    component: () => import('@/views/find-capitals/index.vue'),
+  },
+  {
+    path: '/continental-drift',
+    name: 'continental-drift',
+    meta: {
+      title: '海陆变迁 · 大陆漂移',
+      tags: ['第五批'],
+    },
+    component: () => import('@/views/continental-drift/index.vue'),
+  },
+  {
+    path: '/earthquake-house',
+    name: 'earthquake-house',
+    meta: {
+      title: '抗震小屋的启示',
+      tags: ['第五批'],
+    },
+    component: () => import('@/views/earthquake-house/index.vue'),
+  },
+  {
+    path: '/seafloor-topography',
+    name: 'seafloor-topography',
+    meta: {
+      title: '海底地形',
+      tags: ['第五批'],
+    },
+    component: () =>
+      import('@/views/seafloor-topography/index.vue'),
+  },
+  {
+    path: '/weather-observation',
+    name: 'weather-observation',
+    meta: {
+      title: '气象观测活动',
+      tags: ['第五批']
+    },
+    component: () => import('@/views/weather-observation/index.vue'),
   },
 ]
 

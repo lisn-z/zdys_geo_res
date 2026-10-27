@@ -27,22 +27,9 @@ export interface LandformDef {
 export const WORLD = {
   length: 26,
   width: 12,
-  bottom: -9,
+  bottom: -6.55,
   waterY: 0,
   shoreFx: 0.16,
-} as const
-
-export const PALETTE = {
-  land: 0x7fb069,
-  shelf: 0xbfe3ef,
-  slope: 0x5d8ea6,
-  basin: 0x3d7d9c,
-  ridge: 0x6fa8bf,
-  trench: 0x123c52,
-  cut: 0xa97c50,
-  water: 0x7ec3e0,
-  fog: 0x0b1622,
-  underwater: 0x06222b,
 } as const
 
 export const LANDFORMS: ReadonlyArray<Readonly<LandformDef>> = [
@@ -103,7 +90,7 @@ export const LANDFORMS: ReadonlyArray<Readonly<LandformDef>> = [
   },
   {
     id: 'ridge',
-    name: '海岭',
+    name: '大洋中脊',
     description: '海岭是狭长绵延的大洋底部高地，一般高出两侧海底 3000 ~ 4000 米。位于大洋中央部分的海岭，也称大洋中脊。',
     supplement: false,
     depthLine: '高出两侧海底 3000 ~ 4000 米',
@@ -123,57 +110,6 @@ export const TOUR_STOPS: readonly (LandformId | null)[] = [
   'basin',
   'ridge',
 ]
-
-export type ProfilePoint = readonly [fx: number, y: number]
-
-export const PROFILE: ReadonlyArray<ProfilePoint> = [
-  [0, 1.2],
-  [0.13, 1.0],
-  [0.16, 0.12],
-  [0.24, -0.35],
-  [0.3, -0.6],
-  [0.34, -1.3],
-  [0.42, -3.0],
-  [0.47, -3.2],
-  [0.5, -7.5],
-  [0.53, -4.6],
-  [0.6, -5.0],
-  [0.8, -5.0],
-  [0.86, -2.2],
-  [0.885, -2.7],
-  [0.92, -4.8],
-  [1, -5.0],
-]
-
-function smoothstep(t: number): number {
-  const c = Math.min(1, Math.max(0, t))
-  return c * c * (3 - 2 * c)
-}
-
-export function profileY(fx: number): number {
-  const x = Number.isFinite(fx) ? Math.min(1, Math.max(0, fx)) : 0
-  let prev = PROFILE[0]!
-  for (let i = 1; i < PROFILE.length; i++) {
-    const cur = PROFILE[i]!
-    if (x <= cur[0]) {
-      const span = cur[0] - prev[0]
-      const t = span <= 0 ? 0 : (x - prev[0]) / span
-      return prev[1] + (cur[1] - prev[1]) * smoothstep(t)
-    }
-    prev = cur
-  }
-  return prev[1]
-}
-
-// 返回 null 的两种情况都不属于六类地形：fx 小于岸线（陆地），或 fx >= 0.92（海岭以外的盆尾）。
-export function landformAt(fx: number): LandformId | null {
-  for (const item of LANDFORMS) {
-    if (fx >= item.x0 && fx < item.x1) {
-      return item.id
-    }
-  }
-  return null
-}
 
 export function landformById(id: LandformId): Readonly<LandformDef> {
   const found = LANDFORMS.find((item) => item.id === id)

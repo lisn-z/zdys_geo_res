@@ -113,6 +113,14 @@
 
             <div class="switch-row">
               <div class="control-copy">
+                <strong>季节与月份</strong>
+                <span>公历月份示意，四季以四立划分</span>
+              </div>
+              <el-switch v-model="showOrbitCalendar" />
+            </div>
+
+            <div class="switch-row">
+              <div class="control-copy">
                 <strong>地轴与赤道</strong>
                 <span>地轴与黄道面法线夹角约23°26′，显示赤道环</span>
               </div>
@@ -198,6 +206,64 @@
           </el-collapse>
         </div>
       </FloatingFeatureCard>
+      <FloatingFeatureCard v-show="panelsVisible" v-model:collapsed="learningPanelCollapsed"
+        class="solar-terms-floating-card solar-learning-card" title="学习目标" subtitle="知节气 · 懂农时 · 品食俗"
+        variant="data" :initial-top="212" :initial-right="18" :bottom-inset="96" :min-width="320" :min-height="280"
+        draggable resizable>
+        <div class="learning-panel-body">
+          <p class="learning-intro">从天时走进生活，读懂二十四节气。</p>
+          <details class="learning-section">
+            <summary>
+              <span class="learning-number">01</span>
+              <span><strong>追溯节气历史</strong><small>通过梳理二十四节气的发展历史，体会我国古代劳动人民的智慧。</small></span>
+            </summary>
+            <ol class="learning-history">
+              <li v-for="item in solarTermHistory" :key="item.period">
+                <strong>{{ item.period }}</strong><p>{{ item.content }}</p>
+                <a :href="item.source" target="_blank" rel="noopener noreferrer" class="learning-source"
+                  :aria-label="`查看${item.period}的资料出处`">资料出处 ↗</a>
+              </li>
+            </ol>
+            <div class="learning-science-note">
+              <strong>今天怎样划分节气？</strong>
+              <p>以太阳地心视黄经每增加15°确定一个节气，相邻节气不一定正好相隔15天。节气是天文时刻，天气和物候还会随地区、年份而变化。</p>
+              <a href="https://www.cas.cn/cm/202602/t20260204_5099673.shtml" target="_blank"
+                rel="noopener noreferrer" class="learning-source">查看天文科普资料 ↗</a>
+            </div>
+          </details>
+          <details class="learning-section">
+            <summary>
+              <span class="learning-number">02</span>
+              <span><strong>联系生产生活</strong><small>通过资料搜集，发现二十四节气与生产生活及民俗活动的关联。</small></span>
+            </summary>
+            <div class="learning-life">
+              <span class="learning-term-tag">正在观察 · {{ currentTerm.name }}</span>
+              <h4>顺应农时</h4><p>{{ currentTerm.agriculture }}</p>
+              <h4>民俗与生活</h4><p>{{ currentTerm.culture }}</p>
+              <p class="learning-question">你的家乡在这个节气有哪些习俗？试着与其他节气比较。</p>
+            </div>
+          </details>
+          <details class="learning-section" open>
+            <summary>
+              <span class="learning-number">03</span>
+              <span><strong>认识节令美食</strong><small>了解几个节气的代表性美食，感受节令美食文化。</small></span>
+            </summary>
+            <div class="solar-food-list">
+              <p class="food-region-note">各地食俗不同，以下为部分地区的代表性食物。</p>
+              <article v-for="food in solarTermFoods" :key="food.term" class="solar-food-card"
+                :class="{ 'is-current': currentTerm.index === food.termIndex }">
+                <div class="solar-food-heading">
+                  <button type="button" class="food-term-link" :aria-label="`观察${food.term}的地球位置`"
+                    @click="selectTerm(food.termIndex)">{{ food.term }} <span aria-hidden="true">↗</span></button>
+                  <strong>{{ food.name }}</strong>
+                </div>
+                <span class="food-region">{{ food.region }}</span>
+                <p>{{ food.description }}</p>
+              </article>
+            </div>
+          </details>
+        </div>
+      </FloatingFeatureCard>
       <section class="center-stage">
         <div class="stage-content solar-stage-content" :class="'season-' + currentTerm.season">
           <div ref="threeContainerRef" class="scene-host three-host"></div>
@@ -245,6 +311,11 @@
 
 
 
+          <div v-if="showOrbitCalendar" class="orbit-calendar-note">
+            <span>月份为公历位置示意</span>
+            <span>四季以立春、立夏、立秋、立冬划分</span>
+          </div>
+
           <div class="scene-legend">
             <span>
               <span class="legend-season-markers">
@@ -273,8 +344,8 @@
               <strong>{{ currentTerm.date }} · {{ currentTerm.name }}</strong>
             </div>
 
-            <el-slider v-model="orbitProgress" :min="0" :max="23.999" :step="0.01" :show-tooltip="false"
-              @change="handleTimelineChange" />
+            <el-slider :model-value="Math.min(orbitProgress, 23.999)" :min="0" :max="23.999" :step="0.01"
+              :show-tooltip="false" @update:model-value="handleTimelineInput" />
 
             <div class="timeline-season-scale" aria-hidden="true">
               <span class="spring-scale">春</span>
@@ -631,6 +702,48 @@ const seasonOptions = [
   { label: '夏季', value: 'summer' as SeasonKey },
   { label: '秋季', value: 'autumn' as SeasonKey },
   { label: '冬季', value: 'winter' as SeasonKey },
+]
+
+const solarTermHistory = [
+  {
+    period: '先秦 · 观察积累',
+    content: '先民长期观察天象、日影和物候，逐步认识四时变化与农时规律。',
+    source: 'https://jgs.agri.gov.cn/twenty/zh/four_solar_terms.html',
+  },
+  {
+    period: '战国晚期 · 八个节点',
+    content: '《吕氏春秋》记载了对应今天“四立、二分、二至”的八个岁时节点。',
+    source: 'https://agri-history.ihns.ac.cn/history/chapter42.htm',
+  },
+  {
+    period: '西汉 · 完整记载',
+    content: '《淮南子·天文训》完整记载二十四节气，主要名称与次序沿用至今。',
+    source: 'https://www.ihchina.cn/solarzx_details/25532.html',
+  },
+  {
+    period: '公元前104年 · 历法应用',
+    content: '《太初历》将二十四节气与月份、置闰规则相结合，协调农历与季节。',
+    source: 'https://agri-history.ihns.ac.cn/history/chapter111.htm',
+  },
+  {
+    period: '1645年 · 定气注历',
+    content: '《时宪历》按太阳在黄道上的位置安排节气，相邻节气的时间间隔不再等长。这是注历制度的改变，定气知识的出现早于清初。',
+    source: 'https://english.ihns.ac.cn/Publications/Ra/201310/W020131014609393228612.pdf',
+  },
+  {
+    period: '2016年 · 文化传承',
+    content: '二十四节气列入联合国教科文组织人类非物质文化遗产代表作名录。',
+    source: 'https://ich.unesco.org/en/Decisions/11.COM/10.b.6',
+  },
+]
+
+// 地方食俗资料：北京农业农村局、上海市政府、无锡档案史志、中国气象局、苏州地方志。
+const solarTermFoods = [
+  { term: '立春', termIndex: 0, name: '春饼', region: '北京等地', description: '薄饼卷入合菜，在“咬春”中迎接春天的到来。' },
+  { term: '清明', termIndex: 4, name: '青团', region: '上海一带', description: '糯米粉拌入艾草或麦青汁，包馅成团，品尝清明时节的春味。' },
+  { term: '立夏', termIndex: 6, name: '乌米饭', region: '无锡等江南地区', description: '用乌饭树叶汁浸染糯米，蒸成清香的乌米饭，品味迎夏食俗。' },
+  { term: '夏至', termIndex: 9, name: '过水面', region: '山东等地', description: '夏至吃过水面，民间有“冬至饺子夏至面”的说法。' },
+  { term: '冬至', termIndex: 21, name: '饺子 · 冬至团', region: '北京 / 苏州', description: '北京等地吃饺子，苏州一带吃冬至团，同一节气有不同的乡土滋味。' },
 ]
 
 const viewOptions = [
@@ -1012,11 +1125,13 @@ const isPlaying = ref(false)
 const autoEarthRotation = ref(true)
 const showOrbitLabels = ref(true)
 const showSeasonArcs = ref(true)
+const showOrbitCalendar = ref(true)
 const showEarthAxis = ref(true)
 const activeView = ref<ViewKey>('orbit')
 const panelsVisible = ref(true)
 const controlPanelCollapsed = ref(true)
 const infoPanelCollapsed = ref(true)
+const learningPanelCollapsed = ref(true)
 const pageLoading = ref(true)
 const activeInfoSections = ref<string[]>([])
 const hoveredTermIndex = ref<number | null>(null)
@@ -1029,7 +1144,7 @@ const currentTermIndex = computed(() => {
   return Math.floor(value + 0.000001) % 24
 })
 
-const currentTerm = computed(() => solarTerms[currentTermIndex.value])
+const currentTerm = computed(() => solarTerms[currentTermIndex.value] ?? solarTerms[3]!)
 const currentTermPoeticLine = computed(() =>
   poeticLineMap[currentTerm.value.name] || '循日而行，四时有序。',
 )
@@ -1095,19 +1210,13 @@ function selectSeason(season: SeasonKey) {
 
 function selectTerm(index: number) {
   const safeIndex = ((index % 24) + 24) % 24
+  isPlaying.value = false
   orbitProgress.value = safeIndex
   activeSeason.value = solarTerms[safeIndex].season
   activeInfoSections.value = []
   hoveredTermIndex.value = null
 
-  // 二至是轨道的精确位置，选中时立即对齐地球与标记。
-  if (solarTerms[safeIndex].solarLongitude === 90 || solarTerms[safeIndex].solarLongitude === 270) {
-    displayedOrbitProgress = safeIndex
-    termSelectionTransition = null
-    updateEarthPosition()
-  } else {
-    startTermSelectionTransition(safeIndex)
-  }
+  startTermSelectionTransition(safeIndex)
   updateSelectedMarker()
 }
 
@@ -1117,26 +1226,20 @@ function togglePlay() {
 
   if (nextPlaying) {
     termSelectionTransition = null
-    displayedOrbitProgress = orbitProgress.value
+    orbitProgress.value = ((displayedOrbitProgress % 24) + 24) % 24
   }
 }
 
-function handleTimelineChange() {
-  const rawTarget = orbitProgress.value
-  const wrappedTarget = ((rawTarget % 24) + 24) % 24
-  const baseCycle = Math.round((displayedOrbitProgress - wrappedTarget) / 24)
-  const candidates = [
-    wrappedTarget + (baseCycle - 1) * 24,
-    wrappedTarget + baseCycle * 24,
-    wrappedTarget + (baseCycle + 1) * 24,
-  ]
-  const target = candidates.reduce((nearest, candidate) =>
-    Math.abs(candidate - displayedOrbitProgress) < Math.abs(nearest - displayedOrbitProgress) ? candidate : nearest,
-  )
+function handleTimelineInput(value: number | number[]) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return
+
+  // 与滑块输入同步启动过渡，避免等待 change 时渲染帧已直接采用新进度。
+  isPlaying.value = false
+  orbitProgress.value = value
   activeSeason.value = currentTerm.value.season
   activeInfoSections.value = []
   hoveredTermIndex.value = null
-  startOrbitProgressTransition(target)
+  startTermSelectionTransition(value)
   updateSelectedMarker()
 }
 
@@ -1183,6 +1286,7 @@ let sunMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = nul
 let atmosphereMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> | null = null
 let orbitGroup: THREE.Group | null = null
 let seasonArcGroup: THREE.Group | null = null
+let orbitCalendarGroup: THREE.Group | null = null
 let markersGroup: THREE.Group | null = null
 let stars: THREE.Group | null = null
 let spaceBackdrop: THREE.Mesh | null = null
@@ -1639,6 +1743,87 @@ function createSeasonArcs() {
     group.add(seasonGroup)
   })
 
+  return group
+}
+
+function createOrbitCalendarLabel(text: string, color: number, isSeason = false) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 128
+  const context = canvas.getContext('2d')
+  if (!context) return null
+
+  const accent = `#${color.toString(16).padStart(6, '0')}`
+  if (!isSeason) {
+    context.beginPath()
+    context.ellipse(128, 64, 112, 49, 0, 0, Math.PI * 2)
+    context.fillStyle = 'rgba(4, 22, 32, 0.88)'
+    context.fill()
+    context.strokeStyle = accent
+    context.lineWidth = 3
+    context.stroke()
+  }
+  context.textAlign = 'center'
+  context.textBaseline = 'middle'
+  context.font = `${isSeason ? 700 : 600} ${isSeason ? 66 : 54}px "KaiTi", "Microsoft YaHei", sans-serif`
+  context.fillStyle = isSeason ? accent : '#f2f8f5'
+  context.shadowColor = '#03151c'
+  context.shadowBlur = isSeason ? 10 : 3
+  context.fillText(text, 128, 66)
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  loadedTextures.push(texture)
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+    toneMapped: false,
+  })
+  disposableMaterials.push(material)
+  const label = new THREE.Sprite(material)
+  label.scale.set(isSeason ? 2.6 : 2.1, isSeason ? 1.3 : 1.05, 1)
+  return label
+}
+
+function createOrbitCalendar() {
+  const group = new THREE.Group()
+  group.name = 'orbit-calendar'
+  const addLine = (points: THREE.Vector3[], color: number, opacity: number) => {
+    const geometry = new THREE.BufferGeometry().setFromPoints(points)
+    const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false })
+    disposableGeometries.push(geometry)
+    disposableMaterials.push(material)
+    group.add(new THREE.Line(geometry, material))
+  }
+
+  addLine(Array.from({ length: 129 }, (_, i) => getOrbitPosition(i / 128 * 24, 0.93)), 0x91bfb7, 0.22)
+
+  // 公历月份取该月两个节气的中点，表示对应关系，不作为精确日期刻度。
+  for (let month = 1; month <= 12; month += 1) {
+    const progress = ((month + 10) % 12) * 2 + 0.5
+    const season = seasonOptions[Math.floor(progress / 6)]!.value
+    const label = createOrbitCalendarLabel(`${month}月`, seasonColors[season])
+    if (label) {
+      label.name = `month-${month}`
+      label.position.copy(getOrbitPosition(progress, 0.82))
+      label.position.y = 0.08
+      group.add(label)
+    }
+  }
+
+  seasonOptions.forEach((season, index) => {
+    // 四季从立春、立夏、立秋、立冬开始；文字放在各季节分段的中央。
+    const label = createOrbitCalendarLabel(season.label, seasonColors[season.value], true)
+    if (label) {
+      label.name = `season-${season.value}`
+      label.position.copy(getOrbitPosition(index * 6 + 3, 0.60))
+      label.position.y = 0.08
+      group.add(label)
+    }
+    addLine([getOrbitPosition(index * 6, 0.45), getOrbitPosition(index * 6, 0.93)], seasonColors[season.value], 0.16)
+  })
   return group
 }
 
@@ -2477,6 +2662,7 @@ function updateEarthPosition() {
 
 function updateSceneVisibility() {
   if (seasonArcGroup) seasonArcGroup.visible = showSeasonArcs.value
+  if (orbitCalendarGroup) orbitCalendarGroup.visible = showOrbitCalendar.value
   if (earthAxisGroup) earthAxisGroup.visible = showEarthAxis.value && currentTerm.value.major
   termLabelElements.forEach(element => {
     if (element) element.style.display = showOrbitLabels.value ? '' : 'none'
@@ -2625,7 +2811,7 @@ function applyView(view: ViewKey) {
   cameraTransitionActive = true
 
   if (view === 'top') {
-    targetCameraPosition.set(0, 28.5, 0.01)
+    targetCameraPosition.set(0, 36.5, 0.01)
     targetControlsTarget.set(0, 0, 0)
     if (camera) camera.up.set(0, 0, -1)
   } else {
@@ -2802,6 +2988,9 @@ async function initScene() {
 
   seasonArcGroup = createSeasonArcs()
   scene.add(seasonArcGroup)
+
+  orbitCalendarGroup = createOrbitCalendar()
+  scene.add(orbitCalendarGroup)
 
   markersGroup = createMarkers()
   scene.add(markersGroup)
@@ -3046,6 +3235,7 @@ function resetControls() {
   autoEarthRotation.value = true
   showOrbitLabels.value = true
   showSeasonArcs.value = true
+  showOrbitCalendar.value = true
   showEarthAxis.value = true
   activeSeason.value = 'spring'
   activeInfoSections.value = []
@@ -3057,7 +3247,7 @@ function resetControls() {
   scheduleSceneResize(90)
 }
 
-watch([showOrbitLabels, showSeasonArcs, showEarthAxis], updateSceneVisibility)
+watch([showOrbitLabels, showSeasonArcs, showOrbitCalendar, showEarthAxis], updateSceneVisibility)
 
 function disposeScene() {
   cancelAnimationFrame(sceneAnimationFrameId)
@@ -3106,6 +3296,7 @@ function disposeScene() {
   atmosphereMesh = null
   orbitGroup = null
   seasonArcGroup = null
+  orbitCalendarGroup = null
   markersGroup = null
   stars = null
   spaceBackdrop = null
@@ -3489,6 +3680,23 @@ onBeforeUnmount(() => {
   color: rgba(230, 242, 246, 0.82);
   font-size: 12px;
   line-height: 1.72;
+}
+
+.orbit-calendar-note {
+  position: absolute;
+  z-index: 6;
+  bottom: 104px;
+  left: 22px;
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  color: rgba(218, 236, 230, 0.78);
+  font-size: 12px;
+  line-height: 1.6;
+  background: rgba(3, 16, 26, 0.64);
+  border: 1px solid rgba(148, 221, 232, 0.14);
+  border-radius: 8px;
+  pointer-events: none;
 }
 
 .scene-legend {
@@ -4869,8 +5077,304 @@ onBeforeUnmount(() => {
   height: min(58vh, 620px);
 }
 
+.solar-terms-container .solar-learning-card {
+  width: 380px;
+  max-width: calc(100vw - 20px);
+  height: min(640px, calc(100vh - 322px));
+  min-height: 260px;
+}
+
+.learning-panel-body {
+  height: 100%;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.solar-terms-floating-card :deep(*) {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--season-ui-accent-rgb), 0.65) rgba(var(--season-ui-accent-rgb), 0.07);
+}
+
+.solar-terms-floating-card :deep(*::-webkit-scrollbar) {
+  width: 6px;
+  height: 6px;
+}
+
+.solar-terms-floating-card :deep(*::-webkit-scrollbar-track) {
+  background: rgba(var(--season-ui-accent-rgb), 0.07);
+  border-radius: 999px;
+}
+
+.solar-terms-floating-card :deep(*::-webkit-scrollbar-thumb) {
+  background: rgba(var(--season-ui-accent-rgb), 0.65);
+  border-radius: 999px;
+}
+
+.solar-terms-floating-card :deep(*::-webkit-scrollbar-thumb:hover) {
+  background: var(--season-ui-accent);
+}
+
+.learning-intro {
+  margin: 0 0 12px;
+  color: var(--season-ui-accent);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.learning-section {
+  margin-bottom: 10px;
+  border: 1px solid rgba(var(--season-ui-accent-rgb), 0.2);
+  border-radius: 10px;
+  background: rgba(4, 20, 29, 0.36);
+  overflow: hidden;
+}
+
+.learning-section > summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.learning-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.learning-section > summary::after {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--season-ui-accent);
+  content: '+';
+  font-size: 18px;
+}
+
+.learning-section[open] > summary::after {
+  content: '−';
+}
+
+.learning-section > summary:focus-visible,
+.food-term-link:focus-visible {
+  outline: 2px solid var(--season-ui-accent);
+  outline-offset: -2px;
+}
+
+.learning-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 25px;
+  height: 25px;
+  color: var(--season-ui-accent);
+  background: rgba(var(--season-ui-accent-rgb), 0.12);
+  border-radius: 6px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+.learning-section summary strong {
+  display: block;
+  color: #f2f8ef;
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.learning-section summary small {
+  display: block;
+  margin-top: 4px;
+  color: rgba(224, 239, 233, 0.8);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.learning-history {
+  margin: 0 14px 16px 23px;
+  padding: 0 0 0 16px;
+  border-left: 1px solid rgba(var(--season-ui-accent-rgb), 0.38);
+  list-style: none;
+}
+
+.learning-history li {
+  position: relative;
+  margin-top: 12px;
+}
+
+.learning-history li::before {
+  position: absolute;
+  top: 7px;
+  left: -20px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--season-ui-accent);
+  content: '';
+}
+
+.learning-history strong,
+.learning-life h4,
+.learning-science-note strong {
+  color: var(--season-ui-accent);
+  font-size: 16px;
+}
+
+.learning-history p,
+.learning-life p,
+.learning-science-note p,
+.solar-food-card p {
+  margin: 5px 0 0;
+  color: rgba(229, 242, 236, 0.86);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.learning-science-note {
+  margin: 0 12px 14px;
+  padding: 12px;
+  border-left: 2px solid var(--season-ui-accent);
+  background: rgba(var(--season-ui-accent-rgb), 0.07);
+}
+
+.learning-source {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--season-ui-accent);
+  font-size: 13px;
+  text-underline-offset: 3px;
+}
+
+.learning-life,
+.solar-food-list {
+  padding: 0 12px 14px;
+}
+
+.learning-term-tag {
+  display: inline-block;
+  padding: 4px 8px;
+  color: var(--season-ui-accent);
+  background: rgba(var(--season-ui-accent-rgb), 0.1);
+  border-radius: 5px;
+  font-size: 14px;
+}
+
+.learning-life h4 {
+  margin: 12px 0 0;
+}
+
+.learning-life .learning-question {
+  margin-top: 12px;
+  padding: 10px;
+  border-left: 2px solid var(--season-ui-accent);
+  background: rgba(var(--season-ui-accent-rgb), 0.06);
+}
+
+.food-region-note {
+  margin: 0 0 10px;
+  color: rgba(213, 232, 224, 0.65);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.solar-food-card {
+  margin-top: 8px;
+  padding: 11px;
+  border: 1px solid rgba(var(--season-ui-accent-rgb), 0.13);
+  border-radius: 8px;
+  background: rgba(var(--season-ui-accent-rgb), 0.05);
+}
+
+.solar-food-card.is-current {
+  border-color: rgba(var(--season-ui-accent-rgb), 0.6);
+  background: rgba(var(--season-ui-accent-rgb), 0.12);
+}
+
+.solar-food-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.solar-food-heading strong {
+  color: #fff0cf;
+  font-size: 19px;
+}
+
+.food-term-link {
+  padding: 3px 7px;
+  color: var(--season-ui-accent);
+  border: 1px solid rgba(var(--season-ui-accent-rgb), 0.35);
+  border-radius: 5px;
+  background: rgba(var(--season-ui-accent-rgb), 0.1);
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+}
+
+.food-term-link:hover {
+  background: rgba(var(--season-ui-accent-rgb), 0.22);
+}
+
+.food-region {
+  display: block;
+  margin-top: 7px;
+  color: rgba(213, 232, 224, 0.6);
+  font-size: 14px;
+}
+
 .solar-terms-container .solar-terms-floating-card.collapsed {
   height: auto !important;
+  min-height: 0;
+}
+
+.solar-terms-container .solar-learning-card.collapsed {
+  width: 158px;
+  min-width: 0;
+}
+
+.solar-terms-floating-card :deep(.feature-card-title-label) {
+  font-size: 17px;
+}
+
+.solar-terms-floating-card :deep(.feature-card-title strong) {
+  font-size: 14px;
+}
+
+.solar-terms-container .solar-terms-floating-card .section-title {
+  font-size: 17px;
+}
+
+.solar-terms-container .solar-terms-floating-card .control-copy strong,
+.solar-terms-container .solar-terms-floating-card .term-info-body h3,
+.solar-terms-container .solar-terms-floating-card .term-collapse-title {
+  font-size: 16px;
+}
+
+.solar-terms-container .solar-terms-floating-card .control-copy span,
+.solar-terms-container .solar-terms-floating-card .control-value {
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.solar-terms-container .solar-terms-floating-card .option-btn {
+  font-size: 15px;
+}
+
+.solar-terms-container .solar-terms-floating-card .term-option-btn small {
+  font-size: 13px;
+}
+
+.solar-terms-container .solar-terms-floating-card .term-info-body p,
+.solar-terms-container .solar-terms-floating-card .term-collapse-content p {
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.solar-terms-container .solar-terms-floating-card .term-info-metrics span {
+  font-size: 14px;
+}
+
+.solar-terms-container .solar-terms-floating-card .term-info-metrics strong {
+  font-size: 16px;
 }
 
 .solar-terms-container .solar-terms-floating-card .panel-scroll {
