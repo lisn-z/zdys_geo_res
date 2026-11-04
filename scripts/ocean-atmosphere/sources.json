@@ -1,0 +1,107 @@
+{
+  "title": "海—气相互作用教学资源 · 历史月平均资料",
+  "processedAt": "2026-10-28T07:42:43.407208+00:00",
+  "scenarios": {
+    "normal": {
+      "date": "2013-12",
+      "sstUrl": "https://www.ncei.noaa.gov/pub/data/cmb/ersst/v5/netcdf/ersst.v5.201312.nc",
+      "pressureUrl": "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis.derived/surface/slp.mon.mean.nc.ascii?slp[791:1:791][0:1:72][0:1:143]"
+    },
+    "elnino": {
+      "date": "2015-12",
+      "sstUrl": "https://www.ncei.noaa.gov/pub/data/cmb/ersst/v5/netcdf/ersst.v5.201512.nc",
+      "pressureUrl": "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis.derived/surface/slp.mon.mean.nc.ascii?slp[815:1:815][0:1:72][0:1:143]"
+    },
+    "lanina": {
+      "date": "2010-12",
+      "sstUrl": "https://www.ncei.noaa.gov/pub/data/cmb/ersst/v5/netcdf/ersst.v5.201012.nc",
+      "pressureUrl": "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis.derived/surface/slp.mon.mean.nc.ascii?slp[755:1:755][0:1:72][0:1:143]"
+    }
+  },
+  "method": "保留 NOAA 原格网；逐格转换为 JSON，四舍五入至 0.01；缺测转 null；未生成或补造观测。",
+  "limitations": [
+    "资料为历史月平均分析/再分析，不是实时观测，也不是教学动画每一步的天气预报。",
+    "SST 为 ERSST v5 2° 格网，海平面气压为 NCEP/NCAR Reanalysis 1 2.5° 格网。",
+    "距平直接来自 ERSST v5 ssta，基准期为 1971—2000；并非 CPC 使用滑动基准期的 ONI。",
+    "三种 ENSO 示例均取 12 月，减少季节差异；单月案例不能代表所有 ENSO 事件或所有区域的固定影响。",
+    "气流、洋流、云雨和垂直剖面为教学机制示意，没有把这些动画标为实测流场。",
+    "大陆轮廓来自 Natural Earth 1:110m；陆地高程沿用诗境山河 Open-Elevation 2° 格网。",
+    "高程范围为 60°S—84°N；没有真实海底地形；陆地高程在展示中可能进行垂直夸张。"
+  ],
+  "sources": [
+    {
+      "name": "NOAA ERSST v5",
+      "url": "https://www.ncei.noaa.gov/products/extended-reconstructed-sst",
+      "doi": "https://doi.org/10.7289/V5T72FNM",
+      "resolution": "2° × 2°",
+      "baseline": "1971—2000"
+    },
+    {
+      "name": "NCEP/NCAR Reanalysis 1, NOAA PSL",
+      "url": "https://psl.noaa.gov/data/gridded/data.ncep.reanalysis.html",
+      "resolution": "2.5° × 2.5°",
+      "units": "hPa (source: millibars)"
+    },
+    {
+      "name": "Natural Earth",
+      "url": "https://www.naturalearthdata.com/",
+      "license": "Public domain",
+      "copiedFrom": "world-literature-atlas-vue3/public/data/world-countries.geojson"
+    },
+    {
+      "name": "Open-Elevation",
+      "url": "https://www.open-elevation.com/",
+      "copiedFrom": "world-literature-atlas-vue3/public/data/world-elevation.json"
+    }
+  ],
+  "assetDelivery": "教学格网、地形与背景从 /geo-resources-folder/images/ocean-atmosphere/ 加载；水体法线、太阳纹理和 Logo 保留原有 OSS 地址；public 不再保留副本。",
+  "runtimeAssetDirectory": "/geo-resources-folder/images/ocean-atmosphere/",
+  "assets": {
+    "climate-snapshots.json": "https://zdys.szjx.ai-study.net/geo-resources-folder/images/ocean-atmosphere/climate-snapshots.json",
+    "world-countries.geojson": "https://zdys.szjx.ai-study.net/geo-resources-folder/images/ocean-atmosphere/world-countries.geojson",
+    "world-elevation.json": "https://zdys.szjx.ai-study.net/geo-resources-folder/images/ocean-atmosphere/world-elevation.json",
+    "ocean-atmosphere-backdrop.png": "https://zdys.szjx.ai-study.net/geo-resources-folder/images/ocean-atmosphere/ocean-atmosphere-backdrop.png",
+    "waternormals.jpg": "https://zdys.szjx.ai-study.net/geo-resources-folder/images/waternormals.jpg",
+    "sun.png": "https://zdys.szjx.ai-study.net/geo-resources-folder/images/sun.png",
+    "logo.png": "https://jingan-deploy-test.oss-cn-shanghai.aliyuncs.com/geo/image/logo01.png"
+  },
+  "rawFiles": {
+    "background-prompt.txt": {
+      "bytes": 1120,
+      "sha256": "5cd8f29d77113d2d85da0f0903f24a9df15a9cd2823be13e548654433595a7cd"
+    },
+    "build-climate-data.py": {
+      "bytes": 8091,
+      "sha256": "a85ba1edb431c0a9e9dd2bdcb3f9f821739ce5f839da0c59b63f2dcee7fec3c8"
+    },
+    "ersst.v5.201012.nc": {
+      "bytes": 168249,
+      "sha256": "712fc35dced0f05123ff3aa2bdc6962b96a81ac87476bcff321bdd2a499e6303"
+    },
+    "ersst.v5.201312.nc": {
+      "bytes": 168249,
+      "sha256": "690922b6fd97f079fe31129a797ce52983e0b7c4d05cecd4201e54aa4cb91d66"
+    },
+    "ersst.v5.201512.nc": {
+      "bytes": 168249,
+      "sha256": "194c4ac6fdfbbd2cd96351236ba44fb16aa30252d5af6a11c44c4de2350d93b2"
+    },
+    "slp.201012.ascii": {
+      "bytes": 119007,
+      "sha256": "b7a095cbfef382523a3dad693bb667d4fb9db9d638cf66f1900cbf79d5097acf"
+    },
+    "slp.201312.ascii": {
+      "bytes": 118909,
+      "sha256": "7a169feb01cd41eefb211fd87670f9c5b8c02c1bb1eb397866efad9e77e3a187"
+    },
+    "slp.201512.ascii": {
+      "bytes": 118439,
+      "sha256": "3eed8c38745c8135581b23e57a8ee7ac085ec35e85f3ed3b69724e9e9238cfb4"
+    },
+    "slp.metadata.das": {
+      "bytes": 2491,
+      "sha256": "071a228009c8abd93065f2f7c204a50f3bc61b60a19efc41cd1cc726077a1c4e"
+    }
+  },
+  "rawFilesDirectory": "scripts/ocean-atmosphere/source-data"
+}

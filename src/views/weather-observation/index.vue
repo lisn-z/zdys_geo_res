@@ -24,10 +24,12 @@
           <strong v-if="view === 'overview' || view === 'walk'">{{ instrumentById(point.id).name }}</strong>
         </button>
         <button v-for="point in visibleActions" :key="point.id" type="button" class="model-action"
-          :style="{ left: point.x + 'px', top: point.y + 'px' }"
-          :aria-label="actionLabel(point.id)" :aria-pressed="point.id === 'screen-door' ? weather.screenOpen : weather.rainCutaway"
-          @pointerdown.stop @click.stop="activateModelAction(point.id)">
-          <span class="model-action-hand"><Pointer /></span>
+          :style="{ left: point.x + 'px', top: point.y + 'px' }" :aria-label="actionLabel(point.id)"
+          :aria-pressed="point.id === 'screen-door' ? weather.screenOpen : weather.rainCutaway" @pointerdown.stop
+          @click.stop="activateModelAction(point.id)">
+          <span class="model-action-hand">
+            <Pointer />
+          </span>
           <span class="model-action-label">{{ actionLabel(point.id) }}</span>
         </button>
       </div>
@@ -94,7 +96,7 @@
           <button id="weather-record-tab" type="button" role="tab" :aria-selected="panelTab === 'record'"
             aria-controls="weather-record-panel" :class="{ active: panelTab === 'record' }"
             @click="panelTab = 'record'">观测记录<span v-if="records.length" class="record-badge">{{ records.length
-            }}</span></button>
+              }}</span></button>
         </div>
 
         <section v-if="panelTab === 'instruments'" id="weather-instruments-panel" role="tabpanel"
@@ -154,7 +156,9 @@
 
             <template v-else-if="selected === 'rain'">
               <p class="instrument-description">承雨口收集雨水，经漏斗进入储水瓶。把雨水倒入配套量杯，视线与液面持平后读数。</p>
-              <p class="model-action-hint"><Pointer />{{ weather.rainCutaway ? '点击量杯旁的小手，可收起量杯。' : '点击雨量器旁的小手，取出量杯读数。' }}</p>
+              <p class="model-action-hint">
+                <Pointer />{{ weather.rainCutaway ? '点击量杯旁的小手，可收起量杯。' : '点击雨量器旁的小手，取出量杯读数。' }}
+              </p>
               <div class="reading-block rain-reading"><span class="reading-caption">观测时段累计降水量</span><strong>{{
                 fixed(weather.rainfall) }}<small> mm</small></strong>
                 <p>量杯刻度直接对应降水深度。</p>
@@ -188,7 +192,7 @@
               </div>
               <p v-if="weather.windSpeed <= 0.2" class="instrument-tip">此时为静风，风杯停止。风向标停留的位置不能作为有效风向。</p>
               <p v-else class="instrument-tip">{{ currentWind }}是从{{ currentWind.replace('风', '')
-              }}方吹来的风，风向标尖端迎风，尾翼在下风侧。</p>
+                }}方吹来的风，风向标尖端迎风，尾翼在下风侧。</p>
               <dl class="instrument-facts">
                 <div>
                   <dt>风速仪</dt>
@@ -249,7 +253,7 @@
                         ? '正确' : '再看风速读数' }}</small></label></div>
             </div>
             <p v-if="checkMessage" class="check-message" :class="{ success: allCorrect }" role="status">{{ checkMessage
-            }}</p>
+              }}</p>
             <div class="record-form-actions"><button type="submit" class="primary-button">核对记录</button><button
                 type="button" class="secondary-button" :disabled="!allCorrect" @click="saveRecord">保存记录</button></div>
           </form>
@@ -265,7 +269,7 @@
             <ol>
               <li v-for="record in records.slice().reverse()" :key="record.id"><strong>{{ record.date }} · {{
                 record.location
-              }}</strong><span>{{ record.maximum }} / {{ record.minimum }} °C · {{ record.rainfall }}
+                  }}</strong><span>{{ record.maximum }} / {{ record.minimum }} °C · {{ record.rainfall }}
                   mm</span><span>{{
                     record.direction }} · {{ record.speed }} m/s</span></li>
             </ol>
@@ -423,7 +427,7 @@ async function initialize() {
         if (signature !== lastActionSignature) { lastActionSignature = signature; actionPoints.value = value }
       },
       onSelect: selectInstrument,
-      onReady() { loading.value = false },
+      onReady() { loading.value = false; error.value = '' },
       onError(message) { loading.value = false; error.value = message || '暂时无法显示观测场，请重新加载。' },
     })
     scene.setWeather({ ...weather })
@@ -795,6 +799,11 @@ onBeforeUnmount(() => { disposed = true; ++revision; scene?.dispose(); scene = u
   max-width: calc(100vw - 20px);
   height: auto;
   max-height: calc(100dvh - 185px);
+}
+
+/* Override the shared light theme regardless of production CSS chunk order.
+   Keep sizing separate so the responsive rules below retain their priority. */
+.weather-observation-page .weather-panel.theme-light {
   --feature-bg: rgba(255, 254, 249, .96);
   --feature-head-bg: #fbfcf7;
   --feature-border: #d8e1d4;
@@ -1643,12 +1652,6 @@ onBeforeUnmount(() => { disposed = true; ++revision; scene?.dispose(); scene = u
   .weather-header h1 {
     font-size: 27px
   }
-
-  .weather-brand,
-  .weather-brand img {
-    width: 190px;
-    height: 58px
-  }
 }
 
 @media(max-width:1000px) {
@@ -1692,12 +1695,6 @@ onBeforeUnmount(() => { disposed = true; ++revision; scene?.dispose(); scene = u
 @media(max-width:760px) {
   .weather-observation-page {
     grid-template-rows: 58px minmax(0, 1fr)
-  }
-
-  .weather-brand,
-  .weather-brand img {
-    width: 130px;
-    height: 45px
   }
 
   .weather-header h1 {
@@ -1787,24 +1784,71 @@ onBeforeUnmount(() => { disposed = true; ++revision; scene?.dispose(); scene = u
 }
 
 .model-action {
-  position:absolute; display:flex; flex-direction:column; align-items:center; gap:6px;
-  padding:0; border:0; background:transparent; transform:translate(-50%,-50%);
-  pointer-events:auto; touch-action:manipulation; z-index:1;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  touch-action: manipulation;
+  z-index: 1;
 }
+
 .model-action-hand {
-  display:grid; place-items:center; width:46px; height:46px; border:2px solid #fffdf5;
-  border-radius:50%; background:#ad623b; color:#fff; box-shadow:0 2px 10px #46332438;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 2px solid #fffdf5;
+  border-radius: 50%;
+  background: #ad623b;
+  color: #fff;
+  box-shadow: 0 2px 10px #46332438;
 }
-.weather-observation-page .model-action-hand svg { width:26px; height:26px; }
+
+.weather-observation-page .model-action-hand svg {
+  width: 26px;
+  height: 26px;
+}
+
 .model-action-label {
-  padding:4px 9px; border:1px solid #e0c9b7; border-radius:5px; background:#fffdf4f5;
-  color:#794c30; font-size:14px; font-weight:600; line-height:1.5; white-space:nowrap;
-  box-shadow:0 2px 8px #473b2815;
+  padding: 4px 9px;
+  border: 1px solid #e0c9b7;
+  border-radius: 5px;
+  background: #fffdf4f5;
+  color: #794c30;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px #473b2815;
 }
-.model-action:hover .model-action-hand { background:#96512f; }
-.model-action:active .model-action-hand { background:#7f4429; }
-.model-action-hint { display:flex; align-items:flex-start; gap:7px; margin:0 0 14px; color:#796342; font-size:14px; line-height:1.8; }
-.model-action-hint svg { margin-top:4px; }
+
+.model-action:hover .model-action-hand {
+  background: #96512f;
+}
+
+.model-action:active .model-action-hand {
+  background: #7f4429;
+}
+
+.model-action-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 14px;
+  color: #796342;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.model-action-hint svg {
+  margin-top: 4px;
+}
 
 /* Classroom panel: readable text and a persistent, distinct weather action. */
 .panel-weather-toolbar {
@@ -2121,6 +2165,35 @@ onBeforeUnmount(() => { disposed = true; ++revision; scene?.dispose(); scene = u
 @media(max-width:560px) {
   .weather-dock .view-controls button svg {
     display: none
+  }
+}
+
+@media(max-width:400px) {
+  .weather-header {
+    padding: 0 12px
+  }
+
+  .weather-brand {
+    width: 112px
+  }
+
+  .weather-brand img {
+    width: 92px;
+    height: 32px;
+    transform: scale(1.9)
+  }
+
+  .brand-fallback {
+    font-size: 18px
+  }
+
+  .weather-header h1 {
+    right: 12px;
+    font-size: 18px
+  }
+
+  .weather-observation-page .weather-panel {
+    bottom: 164px !important
   }
 }
 

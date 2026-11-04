@@ -530,6 +530,11 @@ let dropTimer: number | null = null
 let countdownTimer: number | null = null
 let startTime = 0
 
+const INITIAL_MAP_ZOOM = 1.8
+const MIN_MAP_ZOOM = 0.7
+const MAX_MAP_ZOOM = 64
+const MAP_ZOOM_STEP = 1.5
+
 /*
  * Chrome / Edge 会把触控板双指缩放转换成 ctrl + wheel。
  * ECharts 的 roam 也监听 wheel；在捕获阶段放行浏览器缩放手势，
@@ -557,13 +562,13 @@ function zoomMap(direction: 'in' | 'out') {
   )
   const currentZoom = Number.isFinite(optionZoom)
     ? optionZoom
-    : 1.8
+    : INITIAL_MAP_ZOOM
   const zoomFactor = direction === 'in'
-    ? 1.25
-    : 0.8
+    ? MAP_ZOOM_STEP
+    : 1 / MAP_ZOOM_STEP
   const nextZoom = Math.min(
-    8,
-    Math.max(0.7, currentZoom * zoomFactor)
+    MAX_MAP_ZOOM,
+    Math.max(MIN_MAP_ZOOM, currentZoom * zoomFactor)
   )
 
   chart.setOption(
@@ -1106,10 +1111,10 @@ onMounted(async () => {
       roam: true,
       silent: true,
       center: [104, 35],
-      zoom: 1.8,
+      zoom: INITIAL_MAP_ZOOM,
       scaleLimit: {
-        min: 0.7,
-        max: 8,
+        min: MIN_MAP_ZOOM,
+        max: MAX_MAP_ZOOM,
       },
       label: { show: false },
       itemStyle: {

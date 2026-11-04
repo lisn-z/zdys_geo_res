@@ -1035,11 +1035,6 @@ onBeforeUnmount(() => {
     flex-basis: 132px;
   }
 
-  .seafloor-topography-container .brand-logo {
-    width: 132px;
-    height: 44px;
-  }
-
   .seafloor-topography-container .page-title {
     max-width: none;
     font-size: 19px;
@@ -1103,11 +1098,6 @@ onBeforeUnmount(() => {
     width: 208px;
     height: 64px;
     flex-basis: 208px;
-  }
-
-  .seafloor-topography-container .brand-logo {
-    width: 208px;
-    height: 64px;
   }
 
   .seafloor-topography-container .page-title {

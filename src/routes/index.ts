@@ -506,6 +506,33 @@ export const routes = [
     },
     component: () => import('@/views/weather-observation/index.vue'),
   },
+  {
+    path: '/ocean-atmosphere-interaction',
+    name: 'ocean-atmosphere-interaction',
+    meta: {
+      title: '海—气相互作用',
+      tags: ['第五批'],
+    },
+    component: () => import('@/views/ocean-atmosphere-interaction/index.vue'),
+  },
+  {
+    path: '/mineral-resources-house',
+    name: 'mineral-resources-house',
+    meta: { title: '矿产资源与我们的生活', tags: ['第五批'] },
+    component: () => import('@/views/mineral-resources-house/index.vue'),
+  },
+  {
+    path: '/yellow-river-perched-channel',
+    name: 'yellow-river-perched-channel',
+    meta: { title: '黄河地上河', tags: ['第五批'] },
+    component: () => import('@/views/yellow-river-perched-channel/index.vue'),
+  },
+  {
+    path: '/deep-sea-hydrates',
+    name: 'deep-sea-hydrates',
+    meta: { title: '深海可燃冰开采', tags: ['第五批'] },
+    component: () => import('@/views/deep-sea-hydrates/index.vue'),
+  },
 ]
 
 export const routesNav = routes.map((route) => {

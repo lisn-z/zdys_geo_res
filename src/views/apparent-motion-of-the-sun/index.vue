@@ -18,7 +18,7 @@
 
     <main class="workspace" v-bind="workspaceAttrs">
       <aside class="sun-panel-stack" aria-label="观测控制与数据">
-        <FloatingFeatureCard v-show="panelsVisible" class="control-floating-card" title="控制面板" subtitle="调整观测纬度、日期与场景图层" variant="control"
+        <FloatingFeatureCard v-show="panelsVisible" class="control-floating-card" title="控制面板" subtitle="调整观测位置、日期与场景图层" variant="control"
           :initial-top="floatingPanelTop" :initial-right="18" :bottom-inset="floatingPanelBottomInset" :min-height="120"
           draggable resizable light v-model:collapsed="controlCardCollapsed">
           <div class="panel-scroll">
@@ -26,13 +26,13 @@
               <div class="section-title-row">
                 <h3 class="section-title">观测位置</h3>
                 <strong class="control-value">
-                  {{ latDisplay }}
+                  {{ activeCity || '自定义位置' }}
                 </strong>
               </div>
 
               <div class="option-grid city-grid">
                 <button v-for="city in cities" :key="city.name" type="button" class="theme-btn option-btn"
-                  :class="{ active: activeCity === city.name }" @click="setLocation(city.lat, city.name)">
+                  :class="{ active: activeCity === city.name }" @click="setLocation(city.lat, city.name, city.lon)">
                   {{ city.name }}
                 </button>
               </div>
@@ -40,11 +40,11 @@
               <div class="section-title-row compact-title-row">
                 <span class="mini-control-label">纬度微调</span>
                 <strong class="control-value">
-                  -90° ～ 90°
+                  {{ latDisplay }}
                 </strong>
               </div>
 
-              <el-slider :model-value="currentLatitude" :min="-90" :max="90" :step="0.5" :show-tooltip="false"
+              <el-slider :model-value="currentLatitude" :min="-90" :max="90" :step="0.01" :show-tooltip="false"
                 aria-label="观测纬度" @input="handleLatitudeSlider" />
 
               <div class="scale-labels latitude-scale" role="group" aria-label="关键纬度快捷选择">
@@ -55,6 +55,18 @@
                   {{ mark.label }}
                 </button>
               </div>
+              <div class="section-title-row compact-title-row longitude-title-row">
+                <span class="mini-control-label">经度微调</span>
+                <strong class="control-value">{{ lonDisplay }}</strong>
+              </div>
+              <el-slider :model-value="currentLongitude" :min="-180" :max="180" :step="0.01" :show-tooltip="false"
+                aria-label="观测经度" @input="handleLongitudeSlider" />
+              <div class="scale-labels longitude-scale" role="group" aria-label="关键经度快捷选择">
+                <button v-for="mark in longitudeMarks" :key="mark.value" type="button" class="longitude-mark"
+                  :aria-label="`选择${mark.name}`" :title="`选择${mark.name}`" :aria-pressed="currentLongitude === mark.value"
+                  @click="handleLongitudeSlider(mark.value)">{{ mark.label }}</button>
+              </div>
+              <p class="coordinate-hint">{{ atPole ? '极点处，经度作为方向与计时参考。' : '时间轴表示所选地点的地方时。' }}</p>
             </section>
 
             <section class="geo-card control-section">
@@ -193,11 +205,11 @@
           </div>
           <details class="model-note">
             <summary>模型说明</summary>
-            <p>采用2026年代表节气日期与近似直射纬度，城市纬度作教学取整。一天内保持直射纬度不变，以太阳中心经过地平线为日出、日落，未计入大气折射和太阳视半径。</p>
+            <p>采用2026年代表节气日期与近似直射纬度，城市坐标为近似代表点。一天内保持直射纬度不变，以太阳中心经过地平线为日出、日落，未计入大气折射和太阳视半径。</p>
             <p v-if="atPole">极点沿所选参考经线计时，用于两窗同步对照；在一天内赤纬不变的模型中，太阳高度全天不变，不存在唯一的正午最高点。二分日太阳中心全天位于地平线上。</p>
             <p v-else>地方时12:00表示太阳经过当地子午线、升到最高，不等于北京时间12:00。</p>
             <p>参考节气为距离所选日期最近的八个预设节气之一。</p>
-            <p>左侧太空视角为参考经线上的纬度示意，不表示所选城市的真实经度。小人和地平面均放大展示；右侧当地天空中的轨迹是视运动，不是太阳绕地球的实体轨道。</p>
+            <p>左侧按所选经纬度标示观测位置，小人和地平面均放大展示。在纬度、日期和地方时相同时，改变经度不改变右侧的太阳视运动。右侧轨迹是视运动，不是太阳绕地球的实体轨道。</p>
             <p>地球绕地轴自转，太阳日周轨迹所在平面与赤道面平行。紫色轨迹参考面平移到小人脚下，用于和青色地平面对比；两面的夹角 β 为轨迹倾角，β = 90° − |纬度|。橙色 h 为当前太阳高度，随地方时变化。</p>
             <p v-if="atPole">{{ poleDirectionNote }}。两窗保留的十字线和转角只用于比较视角，不表示唯一的地理东、西方向。</p>
           </details>
@@ -209,9 +221,9 @@
       <section id="sun-space-pane" class="space-stage" aria-label="太空视角">
         <header class="space-stage-heading">
           <strong>太空视角 · 地球上的观测者</strong>
-          <span>{{ latDisplay }} · {{ monthDayDisplay }} · 地方时 {{ solarTimeStr }}</span>
+          <span>{{ latDisplay }} · {{ lonDisplay }} · 地方时 {{ solarTimeStr }}</span>
         </header>
-        <SpaceObserverWindow ref="spaceObserverRef" :latitude="currentLatitude" :declination="currentDeclination" :hour-angle="currentHourAngle"
+        <SpaceObserverWindow ref="spaceObserverRef" :latitude="currentLatitude" :longitude="currentLongitude" :declination="currentDeclination" :hour-angle="currentHourAngle"
           :correspondence-highlight="correspondenceHighlight" @request-correspondence="toggleCorrespondence"
           @correspondence-ready="handleCorrespondenceReady" @correspondence-end="stopCorrespondence()" />
         <div v-if="correspondenceActive" class="correspondence-note" :class="{ 'is-altitude': correspondencePhase === 'altitude' }" role="status" aria-live="polite">
@@ -328,7 +340,8 @@ import { getSkyAppearance } from './sky-appearance'
 import SpaceObserverWindow from './SpaceObserverWindow.vue'
 import { createObserverFigure, faceObserverTowardSun } from './observer-figure'
 import { createObserverLookControls } from './observer-look-controls'
-import { formatAngleDMS as formatDegrees, formatLatitudeDMS as formatLatitude } from './latitude-format'
+import { formatAngleDMS as formatDegrees, formatLatitudeDMS as formatLatitude, formatLongitudeDMS as formatLongitude } from './latitude-format'
+import { observationLocations as cities, locationNameAt } from './observer-locations'
 import { HORIZONTAL_DIRECTIONS, getDirectionLabel, getPoleDirectionNote, isGeographicPole, type CardinalDirection } from './observer-directions'
 
 
@@ -369,21 +382,6 @@ function applySky(
   setColor(groundMaterial.color, appearance.groundColor.map(channel => Math.max(channel * 0.55, 22)))
 }
 // --- 城市与节气预设数据 ---
-const cities = [
-  { lat: 90, name: '北极' },
-  { lat: 66.56, name: '北极圈' },
-  { lat: 45, name: '哈尔滨' },
-  { lat: 40, name: '北京' },
-  { lat: 31, name: '上海' },
-  { lat: 23, name: '广州' },
-  { lat: 0, name: '赤道' },
-  { lat: -6, name: '雅加达' },
-  { lat: -23, name: '圣保罗' },
-  { lat: -34, name: '悉尼' },
-  { lat: -43, name: '霍巴特' },
-  { lat: -66.56, name: '南极圈' },
-  { lat: -90, name: '南极' },
-]
 
 
 const viewPresets = [
@@ -406,8 +404,15 @@ const latitudeMarks = [
   label: formatLatitude(mark.value),
 }))
 
+const longitudeMarks = [
+  { value: -180, label: '180°W', name: '西经180°' },
+  { value: 0, label: '0°', name: '本初子午线（0°）' },
+  { value: 180, label: '180°E', name: '东经180°' },
+]
+
 // --- 核心状态 ---
-const currentLatitude = ref(40)
+const currentLatitude = ref(39.90)
+const currentLongitude = ref(116.41)
 const atPole = computed(() => isGeographicPole(currentLatitude.value))
 const poleDirectionNote = computed(() => getPoleDirectionNote(currentLatitude.value))
 const views = computed(() => viewPresets.map(view => ({
@@ -549,6 +554,7 @@ const decHemisphere = computed(() => {
 const noonHeight = computed(() => 90 - Math.abs(currentLatitude.value - currentDeclination.value))
 
 const latDisplay = computed(() => formatLatitude(currentLatitude.value))
+const lonDisplay = computed(() => formatLongitude(currentLongitude.value))
 
 const latRad = computed(() => currentLatitude.value * Math.PI / 180)
 const decRad = computed(() => currentDeclination.value * Math.PI / 180)
@@ -642,6 +648,12 @@ const sunDataCards = computed(() => [
     label: '观测纬度 φ',
     value: latDisplay.value,
     description: '当前观测点纬度',
+    className: 'cyan-card',
+  },
+  {
+    label: '观测经度 λ',
+    value: lonDisplay.value,
+    description: atPole.value ? '方向与计时的参考经线' : '当前观测点经度',
     className: 'cyan-card',
   },
   {
@@ -1166,19 +1178,20 @@ function updateSkyBackground() {
 }
 
 // --- 交互控制函数 ---
-function setLocation(lat: number, name: string) {
+function setLocation(lat: number, name: string, longitude: number | null = null) {
   currentLatitude.value = lat
+  if (longitude !== null) currentLongitude.value = longitude
   activeCity.value = name
   drawSunPath()
 }
 
 function selectLatitudeMark(latitude: number) {
-  setLocation(latitude, cities.find(city => city.lat === latitude)?.name ?? '')
+  setLocation(latitude, locationNameAt(latitude, currentLongitude.value))
 }
 
 function updateLatitude(val: string) {
   currentLatitude.value = parseFloat(val)
-  activeCity.value = ''
+  activeCity.value = locationNameAt(currentLatitude.value, currentLongitude.value)
   drawSunPath()
 }
 
@@ -1316,7 +1329,7 @@ function cancelHiddenCorrespondence() {
   if (document.hidden) stopCorrespondence()
 }
 
-watch([currentLatitude, currentDeclination, currentDate, currentHourAngle, splitPercent], () => stopCorrespondence(), { flush: 'sync' })
+watch([currentLatitude, currentLongitude, currentDeclination, currentDate, currentHourAngle, splitPercent], () => stopCorrespondence(), { flush: 'sync' })
 
 function toggleAnimation() {
   stopCorrespondence()
@@ -1337,6 +1350,12 @@ function handleLatitudeSlider(value: number | number[]) {
   if (typeof value === 'number') {
     updateLatitude(String(value))
   }
+}
+
+function handleLongitudeSlider(value: number | number[]) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return
+  currentLongitude.value = Math.max(-180, Math.min(180, value))
+  activeCity.value = locationNameAt(currentLatitude.value, currentLongitude.value)
 }
 
 function handleDaySlider(value: number | number[]) {
@@ -1450,7 +1469,7 @@ function locateSun() {
 function startDayLesson() {
   isAnimating.value = false
   resetAnimationClock()
-  setLocation(40, '北京')
+  setLocation(40, '', 116.41)
   setSeason('chunfen')
   updateHourAngle(-90)
   animSpeed.value = 1
@@ -2391,9 +2410,7 @@ onUnmounted(() => {
 }
 
 .city-grid {
-  grid-template-columns:
-    repeat(3,
-      minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
 }
 
 .season-grid,
@@ -2810,6 +2827,13 @@ onUnmounted(() => {
   margin-top: 4px;
   font-size: 12px;
 }
+
+.longitude-title-row { margin-top: 8px; }
+.sun-panel-stack .longitude-scale { font-size: 12px; margin-top: 4px; }
+.coordinate-hint { margin: 8px 0 0; color: var(--text-muted); font-size: 11px; line-height: 1.5; }
+.longitude-mark { min-height: 28px; padding: 3px 2px; border: 0; border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.longitude-mark:hover, .longitude-mark[aria-pressed="true"] { color: #087c80; background: #087c8012; }
+.longitude-mark:focus-visible { outline: 2px solid #087c80; outline-offset: 2px; }
 
 .latitude-mark {
   position: absolute;

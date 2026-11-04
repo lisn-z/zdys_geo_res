@@ -19,7 +19,7 @@
         <p class="highlight-coord">{{ formatLng(targetLng) }}</p>
       </div>
       <div class="tip-box" v-if="gameState === 'playing'">
-        提示：利用地图上的经纬网线与度数，找出最符合上方描述的数字。
+        提示：利用地图上的经纬网线与度数，点击符合目标位置的字母点。
       </div>
     </div>
 
@@ -500,7 +500,7 @@ const generateRound = () => {
   feedbackMsg.value = '';
   countdown.value = 20;
 
-  // 按题组顺序取目标，但候选点编号随机，避免答案固定在同一编号。
+  // 按题组顺序取目标，但候选点字母随机，避免答案固定在同一字母。
   const targetIndex = Math.floor(Math.random() * 20);
   const question = sessionSettings.value.mode === 'custom' ? sessionSettings.value.questions[round.value - 1] : null;
   const customTarget = question ? questionToPoint(question) : null;
@@ -517,7 +517,7 @@ const generateRound = () => {
       } while (usedCoordinates.has(coordinateKey(point)));
       usedCoordinates.add(coordinateKey(point));
     }
-    points.push({ ...point, id: i + 1 });
+    points.push({ ...point, id: i + 1, label: String.fromCharCode(65 + i) });
   }
 
   const targetPoint = points[targetIndex];
@@ -526,14 +526,14 @@ const generateRound = () => {
 
   // 将 20 个候选点渲染到地图上。
   points.forEach((pt) => {
-    const numberIcon = L.divIcon({
-      className: 'custom-number-icon',
-      html: `<div class="marker-peer">${pt.id}</div>`,
+    const letterIcon = L.divIcon({
+      className: 'custom-letter-icon',
+      html: `<div class="marker-peer">${pt.label}</div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 16]
     });
 
-    const marker = L.marker([pt.lat, pt.lng], { icon: numberIcon }).addTo(map);
+    const marker = L.marker([pt.lat, pt.lng], { icon: letterIcon }).addTo(map);
 
     marker.on('click', () => {
       if (gameState.value === 'playing' && !settingsOpen.value) {
@@ -580,8 +580,8 @@ const handleRoundEnd = (isCorrect, reason, chosenPoint) => {
     }
 
     marker.setIcon(L.divIcon({
-      className: 'custom-number-icon',
-      html: `<div class="marker-peer ${bgClass}">${pt.id}</div>`,
+      className: 'custom-letter-icon',
+      html: `<div class="marker-peer ${bgClass}">${pt.label}</div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 16]
     }));
@@ -589,14 +589,14 @@ const handleRoundEnd = (isCorrect, reason, chosenPoint) => {
 
   if (reason === 'timeout') {
     feedbackStatus.value = 'error';
-    feedbackMsg.value = `超时啦！正确答案是标绿的数字。`;
+    feedbackMsg.value = '超时啦！正确答案是标绿的字母点。';
   } else if (isCorrect) {
     score.value++;
     feedbackStatus.value = 'success';
     feedbackMsg.value = '极其精准！恭喜你答对了！';
   } else {
     feedbackStatus.value = 'error';
-    feedbackMsg.value = `答错了！你选的是 ${chosenPoint.id} 号，正确答案是标绿的那个。`;
+    feedbackMsg.value = `答错了！你选的是 ${chosenPoint.label} 点，正确答案是标绿的字母点。`;
 
     const chosenLatLng = L.latLng(chosenPoint.lat, chosenPoint.lng);
     resultLine = L.polyline([chosenLatLng, targetLatLng], {
@@ -633,7 +633,7 @@ const clearRoundLayers = () => {
 </script>
 
 <style>
-/* Leaflet 地图文字标签及数字图标的全局样式 */
+/* Leaflet 地图文字标签及字母图标的全局样式 */
 .graticule-text-label {
   background: none !important;
   border: none !important;
@@ -654,7 +654,7 @@ const clearRoundLayers = () => {
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
 }
 
-.custom-number-icon {
+.custom-letter-icon {
   background: none !important;
   border: none !important;
 }

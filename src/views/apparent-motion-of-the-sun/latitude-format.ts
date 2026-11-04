@@ -25,3 +25,11 @@ export function formatLatitudeDMS(value: number): string {
   if (magnitude === UNAVAILABLE_ANGLE || magnitude === '0°00′') return magnitude
   return `${magnitude}${value < 0 ? 'S' : 'N'}`
 }
+
+/** 经度用 E、W 表方向；本初子午线和 180° 经线不分东西，非法经度显示破折号。 */
+export function formatLongitudeDMS(value: number): string {
+  if (!Number.isFinite(value) || Math.abs(value) > 180) return UNAVAILABLE_ANGLE
+  const magnitude = formatAngleDMS(Math.abs(value))
+  if (magnitude === '0°00′' || magnitude === '180°00′') return magnitude
+  return `${magnitude}${value < 0 ? 'W' : 'E'}`
+}

@@ -325,9 +325,15 @@ function handleViewportResize() {
 watch(() => props.bottomInset, () => nextTick(applyRelativePosition))
 
 watch(collapsed, (isCollapsed, wasCollapsed) => {
-  if (wasCollapsed && !isCollapsed) {
-    nextTick(bringToFront)
-  }
+  nextTick(() => {
+    const currentY = position.y
+    const { width, height } = getCardSize()
+    const bounds = getPositionBounds(width, height)
+    position.x = bounds.minX + (bounds.maxX - bounds.minX) * relativePosition.x
+    position.y = Math.max(bounds.minY, Math.min(currentY, bounds.maxY))
+    updateRelativePosition()
+    if (wasCollapsed && !isCollapsed) bringToFront()
+  })
 })
 
 onUnmounted(() => {

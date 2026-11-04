@@ -15,11 +15,22 @@ interface Pose { eye: THREE.Vector3; target: THREE.Vector3 }
 interface Flight { from: Pose; to: Pose; startedAt: number }
 
 export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks): WeatherScene {
+  const cleanup: (() => void)[] = []
+  try {
+    return buildWeatherScene(host, callbacks, cleanup)
+  } catch (cause) {
+    for (const dispose of cleanup.reverse()) dispose()
+    throw cause
+  }
+}
+
+function buildWeatherScene(host: HTMLElement, callbacks: SceneCallbacks, cleanup: (() => void)[]): WeatherScene {
   const scene = new THREE.Scene()
   scene.background = new THREE.Color('#f4f3ed')
   scene.fog = new THREE.Fog('#f4f3ed', 38, 110)
   const camera = new THREE.PerspectiveCamera(39, 1, 0.012, 160)
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
+  cleanup.push(() => { renderer.dispose(); renderer.domElement.remove() })
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.12
@@ -29,16 +40,19 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
   renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;outline:none;'
   renderer.domElement.tabIndex = 0
   renderer.domElement.setAttribute('aria-label', '三维气象观测场。进入观测场后，可用方向键或 W、A、S、D 行走。')
-  host.appendChild(renderer.domElement)
-
-  const pmrem = new THREE.PMREMGenerator(renderer)
-  const room = new RoomEnvironment()
-  const environmentMap = pmrem.fromScene(room, 0.04)
+  function createEnvironmentMap() {
+    const pmrem = new THREE.PMREMGenerator(renderer)
+    const room = new RoomEnvironment()
+    try { return pmrem.fromScene(room, 0.04) }
+    finally { room.dispose(); pmrem.dispose() }
+  }
+  let environmentMap = createEnvironmentMap()
+  cleanup.push(() => environmentMap.dispose())
   scene.environment = environmentMap.texture
   scene.environmentIntensity = 0.42
-  room.dispose(); pmrem.dispose()
   scene.add(new THREE.HemisphereLight(0xecf3f8, 0x777962, 1.35))
   const sun = new THREE.DirectionalLight(0xfff2d9, 2.25)
+  cleanup.push(() => sun.shadow.dispose())
   sun.position.set(-6, 14, -8)
   sun.target.position.set(0, 1.3, 1)
   sun.castShadow = true
@@ -52,20 +66,27 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
   fill.position.set(3, 6, 12); scene.add(fill)
   const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xe8e6dd, roughness: 1 })
   const floorGeometry = new THREE.PlaneGeometry(200, 200)
+  cleanup.push(() => { floorGeometry.dispose(); floorMaterial.dispose() })
   const floor = new THREE.Mesh(floorGeometry, floorMaterial)
   floor.rotation.x = -Math.PI / 2; floor.position.y = -0.4; floor.receiveShadow = true; scene.add(floor)
 
   const station = createStationEnvironment()
+  cleanup.push(() => station.dispose())
   const instruments = createWeatherInstruments()
+  cleanup.push(() => instruments.dispose())
   const windVisuals = createWindVisuals()
+  cleanup.push(() => windVisuals.dispose())
   scene.add(station.group, instruments.group, windVisuals.group)
+  host.appendChild(renderer.domElement)
   const controls = new OrbitControls(camera, renderer.domElement)
+  cleanup.push(() => controls.dispose())
   controls.enableDamping = true; controls.dampingFactor = 0.085
   controls.maxPolarAngle = Math.PI * 0.492
   controls.minDistance = 0.35; controls.maxDistance = 55
   controls.enablePan = true
   controls.screenSpacePanning = true
   let width = 1, height = 1, disposed = false, lost = false, frame = 0
+  let resizePending = true, resizePose: Pose | null = null
   let mode: ViewMode = 'overview', weather = { ...INITIAL }, flight: Flight | null = null
   let lastTime = performance.now(), elapsed = 0, lastOverlay = 0, ready = false, pointerMoved = false
   const pointerStart = new THREE.Vector2(), pointerLast = new THREE.Vector2()
@@ -74,10 +95,11 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
   const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2(), projected = new THREE.Vector3(), actionWorld = new THREE.Vector3()
   const keys = new Set<string>()
 
+  function panelReserve() { return 340 * THREE.MathUtils.smoothstep(width, 760, 1100) }
   function overviewPose(): Pose {
     const target = vec(0, 3.4, 0.7)
     const direction = vec(-0.42, 0.48, 0.85).normalize()
-    const reserve = width > 950 ? 340 : 0
+    const reserve = panelReserve()
     const fit = new THREE.PerspectiveCamera(39, Math.max(0.25, (width - reserve) / height), 0.01, 160)
     let distance = 24
     for (let attempt = 0; attempt < 35; attempt++) {
@@ -96,7 +118,7 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
   }
 
   function poseFor(view: ViewMode): Pose {
-    const narrow = width < 700 ? 1.2 : 1
+    const narrow = THREE.MathUtils.clamp(700 / width, 1, 1.2)
     if (view === 'screen') {
       // Include the open door and its handle as well as the thermometer cabinet.
       const target = vec(-3.22, 1.65, 0.36)
@@ -146,41 +168,65 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
   }
   function applyControlLimits() {
     controls.minDistance = mode === 'overview' ? 5 : mode === 'rain' ? 0.25 : 0.45
-    controls.maxDistance = mode === 'overview' ? 55 : mode === 'walk' ? 12 : mode === 'wind' ? 12 : 7
+    const pose = poseFor(mode)
+    controls.maxDistance = Math.max(mode === 'overview' ? 55 : mode === 'walk' || mode === 'wind' ? 12 : 7, pose.eye.distanceTo(pose.target))
     controls.enabled = mode !== 'walk' && !flight
     controls.enablePan = mode !== 'walk'
   }
   function flyTo(view: ViewMode, immediate = false) {
     clearOrbitMotion()
+    resizePose = null
     mode = view; keys.clear(); userMoved = false
     if (view === 'walk') renderer.domElement.focus({ preventScroll: true })
     if (activePointer !== null && renderer.domElement.hasPointerCapture(activePointer)) renderer.domElement.releasePointerCapture(activePointer)
     activePointer = null
-    controls.minDistance = 0.1; controls.maxDistance = 60
     controls.enabled = false
     const pose = poseFor(view)
+    controls.minDistance = 0.1; controls.maxDistance = Math.max(60, pose.eye.distanceTo(pose.target))
     if (immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       flight = null; jump(pose); applyControlLimits()
     } else flight = { from: { eye: camera.position.clone(), target: controls.target.clone() }, to: pose, startedAt: performance.now() }
   }
 
-  function resize() {
-    if (disposed) return
+  function resize() { resizePending = true }
+  function updateViewport(): boolean {
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.7)
+    const pixelRatioChanged = pixelRatio !== renderer.getPixelRatio()
+    if (!resizePending && !pixelRatioChanged) return false
+    resizePending = false
     const rect = host.getBoundingClientRect()
-    width = Math.max(1, rect.width); height = Math.max(1, rect.height)
-    renderer.setSize(width, height, false)
+    // A hidden host must not replace the last usable frame with a 1px buffer.
+    if (rect.width <= 0 || rect.height <= 0) return false
+    const nextWidth = Math.max(1, Math.round(rect.width)), nextHeight = Math.max(1, Math.round(rect.height))
+    const sizeChanged = nextWidth !== width || nextHeight !== height
+    if (!sizeChanged && !pixelRatioChanged) return false
+    width = nextWidth; height = nextHeight
+    // Canvas resizing clears WebGL's drawing buffer. Only do it immediately
+    // before rendering, never from ResizeObserver after the frame was drawn.
+    if (pixelRatioChanged) renderer.setPixelRatio(pixelRatio)
+    if (sizeChanged) renderer.setSize(width, height, false)
     camera.aspect = width / height
     // Place the scene in the open area left of the floating observation card.
-    camera.setViewOffset(width, height, width > 950 ? 170 : 0, 0, width, height)
+    camera.setViewOffset(width, height, panelReserve() / 2, 0, width, height)
     camera.updateProjectionMatrix()
-    if (!userMoved) flyTo(mode, true)
+    if (sizeChanged) {
+      if (flight || (!userMoved && mode !== 'walk')) {
+        const pose = poseFor(mode)
+        controls.maxDistance = Math.max(controls.maxDistance, pose.eye.distanceTo(pose.target))
+        if (flight) flight.to = pose
+        else resizePose = pose
+      }
+    }
+    return true
   }
   const observer = new ResizeObserver(resize)
+  cleanup.push(() => observer.disconnect())
   observer.observe(host)
 
   function getHit(event: PointerEvent): InstrumentId | null {
     const rect = renderer.domElement.getBoundingClientRect()
-    ndc.set((event.clientX - rect.left) / width * 2 - 1, -(event.clientY - rect.top) / height * 2 + 1)
+    if (rect.width <= 0 || rect.height <= 0) return null
+    ndc.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1)
     raycaster.setFromCamera(ndc, camera)
     const hits = raycaster.intersectObject(instruments.group, true)
     for (const hit of hits) {
@@ -221,7 +267,7 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
     if (!pointerMoved && !flight) { const id = getHit(event); if (id) callbacks.onSelect(id) }
   }
   function pointerCancel(event: PointerEvent) { if (event.pointerId === activePointer) activePointer = null }
-  function userInteract() { flight = null; userMoved = true; applyControlLimits() }
+  function userInteract() { flight = null; resizePose = null; userMoved = true; applyControlLimits() }
   function keyDown(event: KeyboardEvent) {
     if (mode !== 'walk' || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) return
     event.preventDefault()
@@ -230,6 +276,12 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
   }
   function keyUp(event: KeyboardEvent) { keys.delete(event.code) }
   function clearKeys() { keys.clear() }
+  function clearInput() {
+    clearKeys()
+    if (activePointer !== null && renderer.domElement.hasPointerCapture(activePointer)) renderer.domElement.releasePointerCapture(activePointer)
+    activePointer = null
+  }
+  function visibilityChanged() { if (document.hidden) clearInput() }
   function walkBlocked(x: number, z: number): boolean {
     // The body and the opened door both need clearance, not just the eye point.
     if (x > -3.72 && x < -2.28 && z > -0.7 && z < 0.74) return true
@@ -280,10 +332,19 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
     moveWalk(movement)
   }
   function onLost(event: Event) {
-    event.preventDefault(); lost = true
+    event.preventDefault(); lost = true; clearInput()
     callbacks.onError?.('三维画面暂时中断，正在等待恢复。')
   }
-  function onRestored() { lost = false; ready = false }
+  function onRestored() {
+    try {
+      const restoredEnvironment = createEnvironmentMap()
+      environmentMap.dispose(); environmentMap = restoredEnvironment
+      scene.environment = environmentMap.texture
+      lost = false; ready = false; resizePending = true
+    } catch {
+      callbacks.onError?.('三维画面恢复失败，请重新加载。')
+    }
+  }
   renderer.domElement.addEventListener('pointerdown', pointerDown)
   renderer.domElement.addEventListener('pointermove', pointerMove)
   renderer.domElement.addEventListener('pointerup', pointerUp)
@@ -294,13 +355,33 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
   renderer.domElement.addEventListener('blur', clearKeys)
   renderer.domElement.addEventListener('webglcontextlost', onLost)
   renderer.domElement.addEventListener('webglcontextrestored', onRestored)
+  window.addEventListener('blur', clearInput)
+  document.addEventListener('visibilitychange', visibilityChanged)
   controls.addEventListener('start', userInteract)
+  cleanup.push(() => {
+    disposed = true; cancelAnimationFrame(frame)
+    renderer.domElement.removeEventListener('pointerdown', pointerDown)
+    renderer.domElement.removeEventListener('pointermove', pointerMove)
+    renderer.domElement.removeEventListener('pointerup', pointerUp)
+    renderer.domElement.removeEventListener('pointercancel', pointerCancel)
+    renderer.domElement.removeEventListener('wheel', wheel)
+    renderer.domElement.removeEventListener('keydown', keyDown)
+    renderer.domElement.removeEventListener('keyup', keyUp)
+    renderer.domElement.removeEventListener('blur', clearKeys)
+    renderer.domElement.removeEventListener('webglcontextlost', onLost)
+    renderer.domElement.removeEventListener('webglcontextrestored', onRestored)
+    window.removeEventListener('blur', clearInput)
+    document.removeEventListener('visibilitychange', visibilityChanged)
+    controls.removeEventListener('start', userInteract)
+  })
 
   function render(now: number) {
     if (disposed) return
     frame = requestAnimationFrame(render)
     const delta = Math.min((now - lastTime) / 1000, 0.05); lastTime = now
     if (lost || document.hidden) return
+    const viewportChanged = updateViewport()
+    const cameraMoving = !!flight || !!resizePose
     elapsed += delta
     if (flight) {
       const progress = Math.min(1, Math.max(0, (now - flight.startedAt) / 1150))
@@ -312,6 +393,14 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
         flight = null
         if (mode === 'walk') { syncWalkDirection(); applyWalkDirection() }
         applyControlLimits()
+      }
+    } else if (resizePose) {
+      const blend = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 1 - Math.exp(-12 * delta)
+      camera.position.lerp(resizePose.eye, blend)
+      controls.target.lerp(resizePose.target, blend)
+      camera.lookAt(controls.target)
+      if (camera.position.distanceToSquared(resizePose.eye) + controls.target.distanceToSquared(resizePose.target) < 0.000001) {
+        jump(resizePose); resizePose = null
       }
     }
     walk(delta)
@@ -325,7 +414,7 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
     windVisuals.update(weather, delta, elapsed, mode, camera)
     renderer.render(scene, camera)
     if (!ready) { ready = true; callbacks.onReady?.() }
-    if (now - lastOverlay > 45) {
+    if (viewportChanged || cameraMoving || now - lastOverlay > 45) {
       lastOverlay = now
       callbacks.onOverlay((Object.entries(instruments.anchors) as [InstrumentId, THREE.Vector3][]).map(([id, point]) => {
         projected.copy(point).project(camera)
@@ -347,7 +436,8 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
       }))
     }
   }
-  resize(); flyTo('overview', true); frame = requestAnimationFrame(render)
+  updateViewport(); flyTo('overview', true)
+  frame = requestAnimationFrame(render)
 
   return {
     setWeather(state) {
@@ -360,21 +450,8 @@ export function createWeatherScene(host: HTMLElement, callbacks: SceneCallbacks)
     reset() { flyTo('overview') },
     dispose() {
       if (disposed) return
-      disposed = true; cancelAnimationFrame(frame); observer.disconnect()
-      renderer.domElement.removeEventListener('pointerdown', pointerDown)
-      renderer.domElement.removeEventListener('pointermove', pointerMove)
-      renderer.domElement.removeEventListener('pointerup', pointerUp)
-      renderer.domElement.removeEventListener('pointercancel', pointerCancel)
-      renderer.domElement.removeEventListener('wheel', wheel)
-      renderer.domElement.removeEventListener('keydown', keyDown)
-      renderer.domElement.removeEventListener('keyup', keyUp)
-      renderer.domElement.removeEventListener('blur', clearKeys)
-      renderer.domElement.removeEventListener('webglcontextlost', onLost)
-      renderer.domElement.removeEventListener('webglcontextrestored', onRestored)
-      controls.removeEventListener('start', userInteract); controls.dispose()
-      station.dispose(); instruments.dispose(); windVisuals.dispose(); environmentMap.dispose()
-      floorGeometry.dispose(); floorMaterial.dispose(); sun.shadow.dispose()
-      renderer.dispose(); renderer.domElement.remove()
+      for (const dispose of cleanup.reverse()) dispose()
+      cleanup.length = 0
     },
   }
 }

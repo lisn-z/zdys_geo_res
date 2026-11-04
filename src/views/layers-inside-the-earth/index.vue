@@ -992,10 +992,10 @@ function addWedgeLabels(root: THREE.Group) {
     fontSize?: number
     stroke?: string
   }> = [
-      { text: '海平面', position: [4.35, 4.82, 2.18], scale: 0.62, color: '#0072cc' },
-      { text: '莫霍面', position: [-4.56, 3.63, 2.18], scale: 0.56, color: '#0049d8' },
-      { text: '平均约17千米', position: [-4.34, 3.94, 2.18], scale: 0.52 },
-      { text: '50～150千米', position: [-4.05, 3.32, 2.18], scale: 0.46 },
+      { text: '海平面', position: [4.25, 4.36, 2.18], scale: 0.58, color: '#0072cc' },
+      { text: '莫霍面', position: [-3.62, 3.64, 2.18], scale: 0.48, color: '#0049d8' },
+      { text: '平均约17千米', position: [-4.72, 4.2, 2.18], scale: 0.46 },
+      { text: '50～150千米', position: [-4.62, 3.28, 2.18], scale: 0.42 },
       { text: '250～400千米', position: [-3.8, 2.52, 2.18], scale: 0.46 },
       { text: '1 000千米', position: [-3.3, 1.15, 2.18], scale: 0.56 },
       { text: '古登堡面', position: [-2.68, -1.43, 2.18], scale: 0.56, color: '#0049d8' },
@@ -1017,7 +1017,7 @@ function addWedgeLabels(root: THREE.Group) {
     const label = createModelLabel(item.text, {
       color: item.color ?? '#17110c',
       fontSize: item.fontSize ?? 84,
-      scale: (item.scale ?? 0.55) * 1.42,
+      scale: (item.scale ?? 0.55) * 0.86,
       stroke: item.stroke ?? 'rgba(255,255,255,.8)',
     })
     label.position.set(...item.position)

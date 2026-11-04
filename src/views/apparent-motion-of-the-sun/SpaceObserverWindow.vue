@@ -27,7 +27,7 @@
       </div>
     </div>
     <div ref="host" class="space-observer-canvas" role="img"
-      :aria-label="`地球自转示意，观测点${latitudeText}，${visibilityText}。拖动旋转，滚轮缩放。`">
+      :aria-label="`地球自转示意，观测点${latitudeText}、${longitudeText}，${visibilityText}。拖动旋转，滚轮缩放。`">
       <p v-if="errorMessage" class="space-observer-error" role="status">{{ errorMessage }}</p>
       <div v-else ref="legendElement" class="space-legend" aria-label="晨昏线与观测辅助线图例">
         <span :style="{ '--key-color': DAWN_COLOR }"><i></i>晨线 · 日出</span>
@@ -54,7 +54,8 @@ import { getObserverFrame } from './observer-frame'
 import { getObserverGuideGeometry, getTrackInclinationGuide } from './observer-guides'
 import { createObserverFigure, faceObserverTowardSun } from './observer-figure'
 import { calculateSunPosition, OBLIQUITY } from './solar-model'
-import { formatLatitudeDMS, formatAngleDMS } from './latitude-format'
+import { formatLatitudeDMS, formatLongitudeDMS, formatAngleDMS } from './latitude-format'
+import { getEarthSpinAngle } from './observer-longitude'
 import { getDirectionLabel, type CardinalDirection } from './observer-directions'
 import { createEarthMotionSurfaceMaterial, createEarthAtmosphereMaterial, EARTH_TEXTURE_PATH, EARTH_REMOTE_TEXTURE_PATH, EARTH_DAY_TEXTURE, EARTH_NIGHT_TEXTURE, type EarthUniforms } from './space-earth-material'
 import { GALAXY_BACKGROUND_COLOR, loadEarthMotionGalaxySky } from './space-galaxy-sky'
@@ -63,11 +64,12 @@ import { createScreenGuideLine, writeScreenGuidePoints } from './screen-guide-li
 
 const props = withDefaults(defineProps<{
   latitude: number
+  longitude?: number
   declination: number
   hourAngle: number
   active?: boolean
   correspondenceHighlight?: 'ground' | 'altitude' | null
-}>(), { active: true })
+}>(), { active: true, longitude: 0 })
 const emit = defineEmits<{
   'request-correspondence': []
   'correspondence-ready': []
@@ -80,6 +82,7 @@ const legendElement = ref<HTMLElement | null>(null)
 const errorMessage = ref('')
 const textureState = ref<'loading' | 'ready' | 'fallback'>('loading')
 const latitudeText = computed(() => formatLatitudeDMS(props.latitude))
+const longitudeText = computed(() => formatLongitudeDMS(props.longitude))
 const altitude = computed(() => calculateSunPosition(props.latitude, props.declination, props.hourAngle, 1).alt)
 const visibilityText = computed(() => Math.abs(altitude.value) < 0.005
   ? '太阳中心位于当地地平线'
@@ -645,7 +648,8 @@ function updateGeometry() {
   const east = new THREE.Vector3(frame.east.x, frame.east.y, frame.east.z)
   const south = new THREE.Vector3(frame.south.x, frame.south.y, frame.south.z)
   const sunlight = new THREE.Vector3(frame.sunDirection.x, frame.sunDirection.y, frame.sunDirection.z)
-  earth.rotation.y = props.hourAngle * Math.PI / 180
+  // 时间轴采用当地地方时。调整地球朝向，让该时角对应所选地理经线。
+  earth.rotation.y = getEarthSpinAngle(props.hourAngle, props.longitude)
   observer.position.copy(up).multiplyScalar(EARTH_RADIUS + 0.022)
   observer.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(east, up, south))
   for (const child of observer.children) {
@@ -1274,7 +1278,7 @@ function syncRendering() {
   else if (!animationFrame && renderer && scene) animationFrame = requestAnimationFrame(render)
 }
 
-watch(() => [props.latitude, props.declination, props.hourAngle], () => { endCorrespondence(); updateGeometry() })
+watch(() => [props.latitude, props.longitude, props.declination, props.hourAngle], () => { endCorrespondence(); updateGeometry() })
 watch(() => props.latitude, updateLatitudeCircle)
 watch(() => props.correspondenceHighlight, updateCorrespondenceHighlight)
 watch(() => props.active, () => { if (!props.active) { endCorrespondence(); cancelCameraFlight() }; resize(); syncRendering() }, { flush: 'post' })
