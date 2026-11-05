@@ -1,0 +1,218 @@
+#machu-guardian{--mg-ink:#243d38;--mg-muted:#63756a;--mg-green:#315b49;--mg-paper:#fbfaf3;--mg-line:#d9dfd2;position:fixed;inset:0;z-index:100;background:#d3dfdf;color:var(--mg-ink);font-family:"Microsoft YaHei","PingFang SC",sans-serif;isolation:isolate;overflow:hidden;font-size:15px;line-height:1.65;color-scheme:light}
+#machu-guardian *,#machu-guardian *:before,#machu-guardian *:after{box-sizing:border-box}
+#machu-guardian h1,#machu-guardian h2,#machu-guardian h3,#machu-guardian p{margin:0;color:inherit}
+#machu-guardian button,#machu-guardian input,#machu-guardian textarea{font:inherit;color:inherit;letter-spacing:inherit}
+#machu-guardian button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:42px;padding:9px 15px;border:1px solid var(--mg-line);border-radius:9px;background:var(--mg-paper);color:var(--mg-ink);line-height:1.35;cursor:pointer;text-transform:none;box-shadow:none;transition:background .18s,box-shadow .18s;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#machu-guardian button:hover{background:#e9eee0;border-color:#91a58b}
+#machu-guardian button:disabled{opacity:.5;cursor:wait}
+#machu-guardian button.primary{background:var(--mg-green);color:#fffef4;border-color:var(--mg-green)}
+#machu-guardian button.primary:hover{background:#244735}
+#machu-guardian button.icon{width:42px;padding:0;flex-shrink:0}
+#machu-guardian button:focus-visible,#machu-guardian a:focus-visible,#machu-guardian textarea:focus-visible,#machu-guardian input:focus-visible{outline:3px solid #b9873a;outline-offset:3px}
+#machu-guardian svg{flex-shrink:0;display:block}
+#machu-guardian a{color:#326d60;text-decoration:underline;text-underline-offset:3px}
+#machu-guardian .mg-scene{position:absolute;inset:0;touch-action:none;background:#c7dce2}
+#machu-guardian .mg-scene canvas{display:block;width:100%;height:100%;outline:none}
+#machu-guardian .mg-header{position:absolute;inset:0 0 auto;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:20px 28px;gap:24px;background:linear-gradient(#f9f9efd9,#f9f9ef85,transparent);pointer-events:none}
+#machu-guardian .mg-brand{display:flex;gap:20px;align-items:center;flex-shrink:0;pointer-events:none}
+#machu-guardian .mg-brand img{width:177px;height:65px;object-fit:contain;user-select:none;-webkit-user-drag:none}
+#machu-guardian .mg-brand-rule{height:42px;width:1px;background:#7a958066}
+#machu-guardian .mg-brand small{font-size:11px;letter-spacing:2px;color:#55746a}
+#machu-guardian .mg-brand h1{font-size:22px;font-weight:500;line-height:1.4;font-family:"Noto Serif SC","Songti SC",SimSun,serif;letter-spacing:2px}
+#machu-guardian .mg-brand h1 span{margin-left:12px;font-size:15px;letter-spacing:1px;color:#637267}
+#machu-guardian .mg-top-actions{display:flex;gap:8px;pointer-events:auto}
+#machu-guardian .mg-top-actions button{background:#fffdf3e8;box-shadow:0 3px 20px #19362b0b}
+#machu-guardian .mg-top-actions .primary{background:var(--mg-green)}
+#machu-guardian .mg-top-actions b{display:grid;place-items:center;min-width:20px;height:20px;border-radius:50%;background:#ffffff20;font-size:11px}
+#machu-guardian .mg-objective{position:absolute;top:116px;left:28px;display:flex;align-items:flex-start;flex-direction:column;gap:5px;width:305px;padding:17px 20px;background:#fffdf3f2;box-shadow:0 9px 32px #16342c15;z-index:5;text-align:left}
+#machu-guardian .mg-eyebrow{font-size:11px;font-weight:600;letter-spacing:1.4px;color:#7b886b}
+#machu-guardian .mg-objective strong{font-family:"Songti SC",SimSun,serif;font-size:22px;font-weight:600}
+#machu-guardian .mg-objective>span:last-child{display:flex;align-items:center;font-size:12px;color:var(--mg-muted);line-height:1.6}
+#machu-guardian .mg-compass{position:absolute;top:115px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:11px;padding:5px 14px;border-radius:30px;background:#fafaf0d6;font-size:13px;z-index:4;pointer-events:none}
+#machu-guardian .mg-compass i{font-size:11px;font-style:normal;color:#788472}
+#machu-guardian .mg-markers{position:absolute;inset:0;pointer-events:none}
+#machu-guardian .mg-marker{position:absolute;transform:translate(-50%,-100%);background:none;border:0;box-shadow:none;padding:0;min-height:0;gap:0;flex-direction:column;pointer-events:auto;filter:drop-shadow(0 2px 5px #16271d3b)}
+#machu-guardian .mg-marker:hover{background:none;border:0}
+#machu-guardian .mg-marker>span{display:grid;place-items:center;width:29px;height:29px;border:2px solid #fffef7;background:#a37638;color:white;border-radius:50%}
+#machu-guardian .mg-marker.visited>span{background:#426851}
+#machu-guardian .mg-marker b{margin-top:5px;padding:5px 10px;border-radius:5px;background:#fffef3e8;color:#2e4b3e;font-size:12px;font-weight:500;white-space:nowrap}
+#machu-guardian .mg-marker.nearby>span{width:35px;height:35px;box-shadow:0 0 0 5px #f7f5d555}
+#machu-guardian .mg-view-switch{position:absolute;left:28px;bottom:206px}
+#machu-guardian .mg-view-switch button{font-size:13px;background:#fffef1ec}
+#machu-guardian .mg-switch-hint{border-left:1px solid #c9d4c6;padding-left:8px;font-size:11px;color:#7e897b}
+#machu-guardian .mg-movement{position:absolute;bottom:45px;left:32px;display:grid;grid-template:repeat(2,49px)/repeat(3,49px);gap:5px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#machu-guardian .mg-movement>span{position:absolute;top:-26px;left:5px;font-size:11px;color:#f9fff3;text-shadow:0 1px 4px #263e2e}
+#machu-guardian .mg-movement button{position:relative;padding:0;border-color:#fbfff3a1;background:#fbfff1df;touch-action:none}
+#machu-guardian .mg-movement button:active{background:#315b49;color:#fff}
+#machu-guardian .mg-movement button small{position:absolute;right:5px;bottom:2px;font-size:9px;opacity:.65}
+#machu-guardian .mg-movement .up{grid-area:1/2}#machu-guardian .mg-movement .left{grid-area:2/1}#machu-guardian .mg-movement .down{grid-area:2/2}#machu-guardian .mg-movement .right{grid-area:2/3}
+#machu-guardian .mg-field-actions{position:absolute;bottom:48px;right:30px;display:flex;align-items:flex-end;gap:14px}
+#machu-guardian .mg-camera{width:75px;min-height:81px;flex-direction:column;gap:3px!important;background:#fffdf1ef}
+#machu-guardian .mg-camera small{font-size:10px;color:#82917c}
+#machu-guardian .mg-camera span{font-size:12px}
+#machu-guardian .mg-interact{min-height:54px;padding:14px 20px}
+#machu-guardian kbd{background:#ffffff21;border:1px solid #ffffff42;border-radius:4px;font:11px sans-serif;padding:3px 5px}
+#machu-guardian .mg-help-hint{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:12px;align-items:center;white-space:nowrap;color:#f9fff2;text-shadow:0 1px 5px #1c3d2f;font-size:12px;padding:5px 12px;background:#20392c78;border-radius:20px}
+#machu-guardian .mg-help-hint button{width:24px;min-height:24px;padding:0;background:none;color:white;border:0}
+#machu-guardian .mg-save{position:absolute;bottom:13px;left:32px;display:flex;gap:6px;align-items:center;color:#f5fff1;font-size:10px;text-shadow:0 1px 4px #1a3024;pointer-events:none}
+#machu-guardian .mg-save>span{width:5px;height:5px;border-radius:50%;background:#bbd5ac}#machu-guardian .mg-save>span.warn{background:#f2bd79}
+#machu-guardian .mg-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;flex-direction:column;background:#e8eee5e8;z-index:15;text-align:center;padding:30px}
+#machu-guardian .mg-loading h2{font:26px "Songti SC",SimSun,serif}#machu-guardian .mg-loading p{font-size:14px;color:#6c7c70}
+#machu-guardian .mg-loader{width:28px;height:28px;border:2px solid #c8d5c6;border-top-color:#315b49;border-radius:50%;animation:mg-spin 1s linear infinite}
+@keyframes mg-spin{to{transform:rotate(360deg)}}
+#machu-guardian .mg-intro{position:absolute;inset:0;z-index:8;background:linear-gradient(90deg,#f7f7eefa 0%,#f7f7eec7 33%,transparent 75%)}
+#machu-guardian .mg-skip{position:absolute;right:35px;top:32px;background:#fffdf1c9}
+#machu-guardian .mg-intro-copy{position:absolute;top:50%;left:8%;transform:translateY(-39%);width:min(470px,50vw)}
+#machu-guardian .mg-intro-copy h2{margin:20px 0 25px;white-space:pre-line;font:44px/1.5 "Songti SC",SimSun,serif;font-weight:500;letter-spacing:2px}
+#machu-guardian .mg-intro-copy p{font-size:16px;line-height:2.1;color:#566658;max-width:420px}
+#machu-guardian .mg-intro-copy>small{display:block;margin-top:14px;color:#788372;font-size:11px}
+#machu-guardian .mg-intro-copy footer{display:flex;align-items:center;gap:32px;margin-top:34px}
+#machu-guardian .mg-dots{display:flex;gap:7px}#machu-guardian .mg-dots i{width:6px;height:6px;border-radius:4px;background:#bac8b4}#machu-guardian .mg-dots i.active{width:23px;background:#496c53}
+#machu-guardian .mg-intro-caption{position:absolute;bottom:36px;right:40px;text-align:right;color:#fffef2;text-shadow:0 1px 8px #203929;font-size:14px;line-height:2}#machu-guardian .mg-intro-caption span{font-size:11px}
+#machu-guardian .mg-overlay{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:28px;background:#15271f52;backdrop-filter:blur(3px)}
+#machu-guardian .mg-dialog{width:min(890px,94vw);max-height:calc(100dvh - 56px);display:flex;flex-direction:column;background:var(--mg-paper);border:1px solid #e5e8d9;border-radius:17px;box-shadow:0 25px 100px #12241d4d;overflow:hidden;outline:none}
+#machu-guardian .mg-dialog-header{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:23px 30px 20px;border-bottom:1px solid var(--mg-line);flex-shrink:0}
+#machu-guardian .mg-dialog h2{font:28px/1.5 "Songti SC",SimSun,serif;margin-top:4px}
+#machu-guardian .mg-dialog-header button{background:transparent}
+#machu-guardian .mg-dialog-body{padding:25px 30px;overflow:auto;overscroll-behavior:contain;min-height:0}
+#machu-guardian .mg-dialog h3{font-size:18px;line-height:1.65;font-weight:600}
+#machu-guardian .mg-dialog-body>p,#machu-guardian .mg-source p{margin-bottom:16px;font-size:14px;line-height:1.95;color:#5e7061}
+#machu-guardian .mg-dialog-body .mg-lead{font-size:15px;margin-bottom:22px;color:#5f725f}
+#machu-guardian .mg-dialog-body .mg-small,#machu-guardian .mg-small{font-size:12px;color:#788772;line-height:1.7}
+#machu-guardian .mg-dialog-footer{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:17px 30px;border-top:1px solid var(--mg-line);background:#f3f5eb;flex-shrink:0}
+#machu-guardian .mg-side-overlay{justify-content:flex-end;align-items:center;background:transparent;backdrop-filter:none;padding:100px 25px 25px;pointer-events:none}
+#machu-guardian .mg-dialog-site{width:440px;max-height:100%;pointer-events:auto}
+#machu-guardian .mg-dialog-site .mg-dialog-body{padding:23px 25px}
+#machu-guardian .mg-question{font:22px/1.7 "Songti SC",SimSun,serif!important;margin-bottom:20px!important}
+#machu-guardian .mg-facts{margin:0 0 22px;border-block:1px solid #d9dfd2;padding:12px 0}
+#machu-guardian .mg-facts>div{display:grid;grid-template-columns:80px 1fr;padding:5px 0;font-size:12px;gap:10px}
+#machu-guardian dt{color:#87917e}#machu-guardian dd{margin:0;color:#415a48}
+#machu-guardian .mg-note-tip{padding:15px 17px;background:#edf1e3;border-left:3px solid #97ac7c;color:#5c7052;font-size:13px;line-height:1.9;margin:18px 0 0}
+#machu-guardian .mg-source-links{font-size:11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:18px}
+#machu-guardian .mg-source-links button{min-height:0;padding:2px 5px;border:0;background:transparent;text-decoration:underline;text-underline-offset:3px;font-size:11px;color:#6e8270}
+#machu-guardian .mg-simulation{border:1px solid #d2dbc7;background:#f1f3e8;padding:15px;border-radius:10px;margin-bottom:22px}
+#machu-guardian .mg-simulation p{font-size:12px;color:#78866c;margin-top:12px}
+#machu-guardian .mg-segment{display:flex;margin-top:12px;border:1px solid #c8d5bd;border-radius:7px;padding:3px;gap:3px}
+#machu-guardian .mg-segment button{flex:1;min-height:34px;padding:7px;font-size:13px;background:transparent;border:0;border-radius:5px}
+#machu-guardian .mg-segment button.active{background:#416448;color:white}
+#machu-guardian .mg-button-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+#machu-guardian .mg-button-row button{font-size:12px;min-height:34px;padding:7px 10px}
+#machu-guardian .mg-map-route{display:flex;align-items:center;gap:12px;margin:8px 0 26px;color:#7b8b6b;font-size:12px}
+#machu-guardian .mg-map-route i{height:1px;flex:1;background:#c8d3b9}
+#machu-guardian .mg-site-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+#machu-guardian .mg-site-grid button{align-items:flex-start;text-align:left;padding:20px 17px;gap:13px;background:#f5f6ed}
+#machu-guardian .mg-site-grid button>svg{align-self:center}
+#machu-guardian .mg-site-grid h3{font:21px/1.5 "Songti SC",SimSun,serif;margin:4px 0 8px}
+#machu-guardian .mg-site-grid small{font-size:10px;color:#819172}
+#machu-guardian .mg-site-grid p{font-size:12px;color:#708269;line-height:1.7}
+#machu-guardian .mg-site-number{flex-shrink:0;font-family:Georgia,serif;font-size:24px;font-style:italic;color:#a0aa8d}
+#machu-guardian .mg-visit-state{display:flex;align-items:center;gap:6px;font-size:11px;color:#447751;margin-top:15px}
+#machu-guardian .mg-mission{display:flex;gap:24px;padding:21px 0;border-bottom:1px solid var(--mg-line)}
+#machu-guardian .mg-mission:first-of-type{padding-top:0}
+#machu-guardian .mg-mission small{font-size:11px;color:#879375}
+#machu-guardian .mg-mission h3{margin:5px 0}
+#machu-guardian .mg-mission p{font-size:14px;color:#62745f}
+#machu-guardian .mg-mission .mg-small{margin-top:7px}
+#machu-guardian .mg-notebook-tabs{display:flex;border-bottom:1px solid var(--mg-line);gap:6px;margin:-10px 0 23px}
+#machu-guardian .mg-notebook-tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:12px 16px;font-size:14px;color:#86907c}
+#machu-guardian .mg-notebook-tabs button.active{color:#365e45;border-bottom-color:#496d4d}
+#machu-guardian .mg-notebook-tabs small{font-size:10px;opacity:.7}
+#machu-guardian .mg-notes-layout{display:grid;grid-template-columns:180px 1fr;gap:25px}
+#machu-guardian .mg-site-nav{display:flex;flex-direction:column;gap:5px}
+#machu-guardian .mg-site-nav button{justify-content:flex-start;text-align:left;font-size:12px;background:none;border-color:transparent;padding:10px 9px;gap:8px}
+#machu-guardian .mg-site-nav button.active{background:#e9eedc;color:#3b5c40}
+#machu-guardian .mg-site-nav button span{color:#9ba68c;font:15px Georgia,serif}
+#machu-guardian .mg-site-nav svg{margin-left:auto}
+#machu-guardian .mg-writing>h3{font-size:17px;margin-bottom:8px}
+#machu-guardian label{display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:600;margin-top:19px;color:#476047}
+#machu-guardian input,#machu-guardian textarea{width:100%;padding:12px 14px;background:#fffef9;border:1px solid #d6ddcc;border-radius:7px;color:#354d37;font-size:14px;font-weight:400;line-height:1.8;resize:vertical;box-shadow:none}
+#machu-guardian textarea{min-height:94px;max-height:420px}
+#machu-guardian input::placeholder,#machu-guardian textarea::placeholder{color:#a1aa95;font-size:12px}
+#machu-guardian .mg-proposal{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+#machu-guardian .mg-proposal>p{grid-column:1/-1}
+#machu-guardian .mg-proposal label{margin-top:10px;margin-bottom:15px}
+#machu-guardian .mg-empty{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:35px;color:#718269;text-align:center}
+#machu-guardian .mg-empty p{font-size:13px;max-width:400px}
+#machu-guardian .mg-photos{display:grid;grid-template-columns:1fr 1fr;gap:23px}
+#machu-guardian .mg-photos article{padding-bottom:16px;border-bottom:1px solid var(--mg-line)}
+#machu-guardian .mg-photos img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:9px}
+#machu-guardian .mg-photos label{margin-top:12px}
+#machu-guardian .mg-delete{font-size:11px;min-height:28px;margin-top:8px;padding:5px 8px;background:none;color:#9a7354;border-color:transparent}
+#machu-guardian .mg-source{padding-bottom:18px;margin-bottom:19px;border-bottom:1px solid var(--mg-line)}
+#machu-guardian .mg-source h3{font-size:16px;margin-bottom:9px}
+#machu-guardian .mg-source p{margin-bottom:0}
+#machu-guardian .mg-dialog-help{max-width:600px}
+#machu-guardian .mg-control-guide{margin-bottom:25px}
+#machu-guardian .mg-control-guide>div{display:grid;grid-template-columns:90px 1fr;padding:13px 0;border-bottom:1px solid var(--mg-line);font-size:14px;gap:15px}
+#machu-guardian .mg-toast{position:absolute;z-index:60;bottom:35px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 40px);padding:12px 23px;border:1px solid #93a489;background:#fafff1f5;border-radius:10px;box-shadow:0 6px 25px #22382833;color:#35573c;text-align:center;font-size:13px;pointer-events:none}
+#machu-guardian .mg-flash{position:absolute;inset:0;z-index:55;background:#fff;pointer-events:none;animation:mg-flash .18s ease-out forwards}
+@keyframes mg-flash{from{opacity:.7}to{opacity:0}}
+@media(max-width:1100px){#machu-guardian .mg-header{padding:16px 20px}#machu-guardian .mg-brand{gap:13px}#machu-guardian .mg-brand img{width:140px;height:52px}#machu-guardian .mg-brand h1{font-size:19px}#machu-guardian .mg-brand h1 span{display:block;margin-left:0;font-size:12px}#machu-guardian .mg-top-actions{gap:5px}#machu-guardian .mg-top-actions button{font-size:12px;padding:9px 11px}#machu-guardian .mg-top-actions button.icon{padding:0;width:38px}#machu-guardian .mg-fullscreen{display:none}#machu-guardian .mg-objective{top:104px;left:20px;width:270px;padding:14px 16px}#machu-guardian .mg-compass{top:106px}#machu-guardian .mg-intro-copy h2{font-size:37px}#machu-guardian .mg-side-overlay{padding:94px 18px 20px}#machu-guardian .mg-dialog-site{width:390px}}
+@media(max-width:760px){#machu-guardian .mg-header{padding:10px 12px;gap:9px;align-items:flex-start}#machu-guardian .mg-brand{gap:9px}#machu-guardian .mg-brand img{width:103px;height:44px}#machu-guardian .mg-brand-rule{display:none}#machu-guardian .mg-brand small{display:none}#machu-guardian .mg-brand h1{font-size:16px;letter-spacing:0}#machu-guardian .mg-brand h1 span{font-size:11px}#machu-guardian .mg-top-actions button{width:36px;min-height:36px;padding:0}#machu-guardian .mg-top-actions button.icon{width:33px}#machu-guardian .mg-top-actions button>span,#machu-guardian .mg-top-actions button>b{display:none}#machu-guardian .mg-objective{top:76px;left:12px;width:230px;padding:10px 13px;gap:3px}#machu-guardian .mg-objective strong{font-size:19px}#machu-guardian .mg-objective>span:last-child{font-size:10px}#machu-guardian .mg-eyebrow{font-size:9px}#machu-guardian .mg-compass{top:80px;right:12px;left:auto;transform:none;font-size:11px;padding:4px 9px;gap:7px}#machu-guardian .mg-compass i{display:none}#machu-guardian .mg-movement{left:17px;bottom:40px;grid-template:repeat(2,43px)/repeat(3,43px)}#machu-guardian .mg-view-switch{left:17px;bottom:170px}#machu-guardian .mg-view-switch button{font-size:11px;padding:7px 10px;min-height:35px}#machu-guardian .mg-field-actions{right:15px;bottom:40px;flex-direction:column;gap:9px}#machu-guardian .mg-camera{width:62px;min-height:68px}#machu-guardian .mg-interact{font-size:11px;min-height:43px;padding:10px}#machu-guardian .mg-interact kbd{display:none}#machu-guardian .mg-save{left:17px;bottom:12px;font-size:9px}#machu-guardian .mg-help-hint{bottom:8px;left:auto;right:10px;transform:none;font-size:9px}#machu-guardian .mg-intro-copy{width:85vw;left:7%;top:50%}#machu-guardian .mg-intro-copy h2{font-size:33px;line-height:1.55;margin:12px 0 18px}#machu-guardian .mg-intro-copy p{font-size:14px;line-height:1.9;max-width:390px}#machu-guardian .mg-intro{background:linear-gradient(90deg,#f8f8eefa,#f8f8eea6 65%,#f8f8ee45)}#machu-guardian .mg-intro-caption{bottom:15px;right:20px;font-size:10px}#machu-guardian .mg-intro-caption span{font-size:8px}#machu-guardian .mg-skip{top:70px;right:15px;font-size:11px;min-height:33px}#machu-guardian .mg-dialog{width:100%;max-height:calc(100dvh - 28px);border-radius:12px}#machu-guardian .mg-overlay{padding:14px}#machu-guardian .mg-dialog-header{padding:17px 19px}#machu-guardian .mg-dialog h2{font-size:23px}#machu-guardian .mg-dialog-body{padding:20px}#machu-guardian .mg-dialog-footer{padding:13px 19px}#machu-guardian .mg-dialog-footer button{font-size:12px;padding:10px}#machu-guardian .mg-side-overlay{padding-top:76px}#machu-guardian .mg-dialog-site{width:min(380px,100%);max-height:100%}#machu-guardian .mg-site-grid{grid-template-columns:1fr}#machu-guardian .mg-site-grid button{padding:15px}#machu-guardian .mg-site-grid h3{font-size:19px}#machu-guardian .mg-notes-layout{grid-template-columns:1fr;gap:17px}#machu-guardian .mg-site-nav{flex-direction:row;overflow:auto;flex-wrap:nowrap;padding-bottom:4px}#machu-guardian .mg-site-nav button{white-space:nowrap;flex-shrink:0}#machu-guardian .mg-notebook-tabs{gap:0;overflow:auto;white-space:nowrap}#machu-guardian .mg-notebook-tabs button{padding:11px 10px;font-size:12px}#machu-guardian .mg-notebook-tabs small{display:none}#machu-guardian .mg-proposal{grid-template-columns:1fr}#machu-guardian .mg-photos{grid-template-columns:1fr}#machu-guardian .mg-mission{gap:15px}#machu-guardian .mg-control-guide>div{grid-template-columns:70px 1fr;font-size:12px}#machu-guardian .mg-map-route{font-size:10px}}
+@media(prefers-reduced-motion:reduce){#machu-guardian button{transition:none}#machu-guardian .mg-flash{display:none}}
+#machu-guardian{z-index:1001}#machu-guardian .mg-reset-note{margin-top:26px;border-top:1px solid var(--mg-line);padding-top:16px;font-size:12px;color:#827359}#machu-guardian .mg-reset-note button{margin:8px 8px 0 0;font-size:12px;background:transparent}
+#machu-guardian .mg-report-links{display:flex;flex-wrap:wrap;gap:7px 14px;margin-top:6px}#machu-guardian .mg-report-links a{font-size:12px;line-height:1.6}
+
+#machu-guardian .mg-objective{border:1px solid #d4ddc9;border-radius:12px;line-height:1.55;gap:5px}
+#machu-guardian .mg-next-site{font-size:12px;font-weight:600;color:#526b4d;margin-top:4px}
+#machu-guardian .mg-next-detail{font-size:12px;color:#718067;line-height:1.7}
+#machu-guardian .mg-objective-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+#machu-guardian .mg-objective-actions button{min-height:34px;font-size:11px;padding:7px 10px;gap:4px}
+#machu-guardian .mg-intro-trigger{border-color:#9cae8b;background:#eef2df}
+#machu-guardian .mg-intro{display:flex;align-items:center;padding:108px 8% 76px;overflow:auto;outline:none}
+#machu-guardian .mg-intro-copy{position:relative;top:auto;left:auto;transform:none;width:min(540px,58vw);max-height:100%;overflow:auto;padding:8px 3px}
+#machu-guardian .mg-intro-copy h2{font-size:40px;line-height:1.45;margin:16px 0 20px}
+#machu-guardian .mg-intro-copy .mg-commission{font-size:17px;color:#3f5948;line-height:1.95;max-width:none}
+#machu-guardian .mg-intro-copy footer{margin-top:24px;gap:10px;flex-wrap:wrap}
+#machu-guardian .mg-textbook-background{margin-top:20px;border-top:1px solid #aab99b70;padding-top:12px;color:#75806c}
+#machu-guardian .mg-textbook-background summary{cursor:pointer;font-size:12px;line-height:1.8}
+#machu-guardian .mg-textbook-background p{font-size:12px;line-height:1.85;white-space:pre-line;margin-top:8px;max-width:none}
+#machu-guardian .mg-intro-missions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+#machu-guardian .mg-intro-missions span{display:flex;gap:7px;align-items:center;padding:8px 10px;border:1px solid #b9c7a7;border-radius:7px;background:#f8faedc9;font-size:12px}
+#machu-guardian .mg-intro-missions b{color:#8e9e75;font:italic 18px Georgia,serif}
+#machu-guardian .mg-intro-copy .mg-intro-preserved{font-size:12px;color:#43674c;margin-top:16px;line-height:1.7}
+#machu-guardian .mg-evidence-list{padding:0;margin:15px 0;list-style:none;display:grid;gap:8px}
+#machu-guardian .mg-evidence-list li{display:flex;align-items:flex-start;gap:8px;color:#7a826b;font-size:12px;line-height:1.8}
+#machu-guardian .mg-evidence-list svg{margin-top:3px;color:#a89b78}
+#machu-guardian .mg-evidence-list .complete,#machu-guardian .mg-evidence-list .complete svg{color:#3b7352}
+#machu-guardian .mg-review-button{margin-top:15px;background:#edf1e3;font-size:12px}
+#machu-guardian .mg-review-button:disabled{cursor:not-allowed;opacity:.58}
+#machu-guardian .mg-replay-task{margin-bottom:20px;font-size:12px}
+#machu-guardian .mg-return-experiment{font-size:12px;margin:12px 0 16px;background:#eef2e5}
+#machu-guardian .mg-simulation>button{margin-top:13px;font-size:13px}
+#machu-guardian .mg-experiment{position:absolute;z-index:6;left:28px;top:116px;width:355px;padding:15px 17px;border:1px solid #b9c9a8;border-radius:12px;background:#fcfdf1f5;box-shadow:0 9px 32px #16342c20}
+#machu-guardian .mg-experiment header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#machu-guardian .mg-experiment header button{min-height:27px;width:27px;background:none;border:0}
+#machu-guardian .mg-experiment h3{font:19px/1.6 "Songti SC",SimSun,serif;margin-top:3px}
+#machu-guardian .mg-experiment p{font-size:12px;line-height:1.75;color:#667b5b;margin-top:11px}
+#machu-guardian .mg-experiment small{display:block;font-size:11px;color:#7b8c6a;margin-top:9px}
+#machu-guardian .mg-experiment footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:13px;padding-top:12px;border-top:1px solid #d8e0cb}
+#machu-guardian .mg-experiment footer span{font-size:10px;color:#8a917c;max-width:125px;line-height:1.6}
+#machu-guardian .mg-experiment footer button{font-size:12px;min-height:35px;padding:8px 10px}
+@media(max-width:1100px){#machu-guardian .mg-experiment{top:104px;left:20px;width:330px}#machu-guardian .mg-intro-copy h2{font-size:35px}}
+@media(max-width:760px){
+ #machu-guardian .mg-header{display:grid;grid-template-columns:1fr auto;gap:7px 10px}
+ #machu-guardian .mg-top-actions{grid-column:1/-1;justify-content:flex-end;gap:6px}
+ #machu-guardian .mg-top-actions button.mg-intro-trigger{width:auto;padding:0 10px;font-size:11px;margin-right:auto}
+ #machu-guardian .mg-top-actions .mg-intro-trigger>span{display:inline}
+ #machu-guardian .mg-objective{top:123px;left:12px;width:245px;padding:11px 13px}
+ #machu-guardian .mg-objective strong{font-size:18px}
+ #machu-guardian .mg-next-site,#machu-guardian .mg-next-detail{font-size:11px}
+ #machu-guardian .mg-compass{top:126px}
+ #machu-guardian .mg-intro{padding:103px 22px 60px;align-items:flex-start}
+ #machu-guardian .mg-intro-copy{width:100%;max-height:none;padding:0 3px}
+ #machu-guardian .mg-intro-copy h2{font-size:29px;line-height:1.5;margin:10px 0 15px}
+ #machu-guardian .mg-intro-copy .mg-commission{font-size:14px;line-height:1.9}
+ #machu-guardian .mg-intro-copy footer{margin-top:20px;gap:8px}
+ #machu-guardian .mg-intro-copy footer button{font-size:12px;padding:10px 12px}
+ #machu-guardian .mg-intro-caption{position:fixed;font-size:10px;right:18px;bottom:14px}
+ #machu-guardian .mg-intro-missions{gap:5px;margin-top:14px}
+ #machu-guardian .mg-intro-missions span{font-size:11px;padding:6px 8px}
+ #machu-guardian .mg-side-overlay{padding-top:123px}
+ #machu-guardian .mg-experiment{top:auto;bottom:132px;left:12px;width:calc(100% - 24px);max-height:45vh;overflow:auto;padding:11px 14px}
+ #machu-guardian .mg-experiment h3{font-size:17px}
+ #machu-guardian .mg-experiment p{font-size:11px;margin-top:8px}
+ #machu-guardian .mg-experiment .mg-segment{margin-top:8px}
+ #machu-guardian .mg-experiment footer{margin-top:9px;padding-top:9px}
+}
+@media(max-height:560px){#machu-guardian .mg-intro{padding-top:90px;padding-bottom:28px}#machu-guardian .mg-intro-copy{max-height:none}#machu-guardian .mg-intro-caption{display:none}#machu-guardian .mg-experiment{top:105px;bottom:auto;max-height:calc(100dvh - 125px);width:320px}}

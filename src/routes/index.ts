@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 export const routes = [
+
   {
     path: '/',
     name: '/',
@@ -532,6 +533,18 @@ export const routes = [
     name: 'deep-sea-hydrates',
     meta: { title: '深海可燃冰开采', tags: ['第五批'] },
     component: () => import('@/views/deep-sea-hydrates/index.vue'),
+  },
+  {
+    path: '/settlement-morphology',
+    name: 'settlement-morphology',
+    meta: { title: '聚落选址与形态', tags: ['第五批'] },
+    component: () => import('@/views/settlement-morphology/index.vue'),
+  },
+  {
+    path: '/machu-picchu-guardian',
+    name: 'machu-picchu-guardian',
+    meta: { title: '马丘比丘·古城守护者', tags: ['暂时不上'] },
+    component: () => import('@/views/machu-picchu-guardian/index.vue'),
   },
 ]
 
