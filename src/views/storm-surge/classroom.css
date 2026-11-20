@@ -1,0 +1,231 @@
+.surge-classroom {
+  --surge-accent:#315c4e; --surge-ink:#264c48; --surge-muted:#6d7b70; --surge-paper:#f5f3ec; --surge-line:#d9dfd3;
+  position:fixed; inset:0; isolation:isolate; display:grid; grid-template-rows:88px minmax(0,1fr) auto;
+  width:100%; height:100dvh; overflow:hidden; color:var(--surge-ink); background:var(--surge-paper);
+  font:16px/1.55 "PingFang SC","Microsoft YaHei",sans-serif; color-scheme:light;
+  user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; overscroll-behavior:none;
+}
+
+/* The same classroom shell and palette, with water readings kept over the scene. */
+.surge-water-card{position:absolute;top:84px;left:24px;width:238px;z-index:2;padding:14px 17px;background:#fffdf5ed;border:1px solid #d2dbca;border-radius:9px;box-shadow:0 6px 24px #29413915;pointer-events:none;backdrop-filter:blur(8px)}
+.surge-water-card>strong{display:block;font:400 35px/1.4 Georgia,serif;color:#315c4e;margin:3px 0 7px}.surge-water-card>strong small{font:13px "Microsoft YaHei",sans-serif;color:#6d7b70}
+.surge-water-breakdown{display:grid;gap:5px;padding:9px 0;border-top:1px solid #dce3d4;border-bottom:1px solid #dce3d4;font-size:11px;color:#6d7b70}.surge-water-breakdown>span{display:flex;justify-content:space-between;gap:8px}.surge-water-breakdown b{font-weight:500;color:#31574e}
+.surge-water-card>p{font-size:11px;margin-top:8px!important;color:#54705a}.surge-water-card>small{display:block;font-size:9px;color:#82907d;margin-top:5px}.surge-water-card em{font-style:normal;color:#996838;float:right}
+.surge-depth-key{position:absolute;left:24px;bottom:54px;padding:9px 12px;background:#fffdf5e8;border:1px solid #d2dbca;border-radius:7px;font-size:11px;display:flex;gap:9px;align-items:center;pointer-events:none}.surge-depth-key i{width:82px;height:8px;background:linear-gradient(90deg,#8dbbba,#326c78,#193e5a);border-radius:3px}.surge-depth-key small{font-size:9px;color:#6d7b70}
+.surge-classroom:fullscreen{width:100%;height:100dvh;overflow:hidden}
+.app-container:has(.surge-classroom)>.back-home-btn{display:none}
+.surge-classroom *,.surge-classroom *::before,.surge-classroom *::after{box-sizing:border-box}
+.surge-classroom p,.surge-classroom h1,.surge-classroom h2,.surge-classroom h3{margin:0}
+.surge-classroom button{font:inherit;color:inherit;background:transparent;border:0;cursor:pointer;min-height:40px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.surge-classroom button:disabled{opacity:.42;cursor:default}
+.surge-classroom button:focus-visible,.surge-classroom input:focus-visible,.surge-classroom textarea:focus-visible,.surge-classroom a:focus-visible{outline:3px solid #34848c;outline-offset:3px}
+.surge-classroom button:hover:not(:disabled){filter:brightness(.96)}
+.surge-classroom a{color:inherit;text-decoration:none;touch-action:manipulation}
+.surge-classroom input,.surge-classroom textarea{font:inherit}
+
+.surge-header{display:flex;align-items:center;gap:25px;padding:12px 28px;border-bottom:1px solid #dfe3d8;background:#f8f6f0;z-index:4}
+.surge-brand{width:180px;height:62px;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.surge-brand img{display:block;width:100%;height:60px;object-fit:contain;transform:scale(1.6);pointer-events:none}
+.surge-brand span,.surge-brand strong{color:#448aaa;font-size:26px;letter-spacing:2px}
+.surge-heading{border-left:1px solid var(--surge-line);padding-left:24px;flex-shrink:0}
+.surge-heading p{font-size:12px;letter-spacing:2px;color:var(--surge-muted)}
+.surge-heading h1{font:500 27px/1.5 "Noto Serif SC","Songti SC","SimSun",serif;letter-spacing:1px}
+.surge-mode-switch{display:flex;margin-left:auto;gap:23px;align-self:stretch;align-items:center}
+.surge-classroom .surge-mode-switch button{height:52px;border-bottom:2px solid transparent;padding:5px 2px;color:#75837b;font-size:16px;white-space:nowrap}
+.surge-classroom .surge-mode-switch button.active{border-color:#40756b;color:#244d48;font-weight:600}
+.surge-header-actions{display:flex;align-items:center;gap:6px}
+.surge-header-actions button{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px;border-radius:8px;white-space:nowrap;font-size:13px}
+.surge-header-actions button:hover{background:#e7ece1}
+.surge-classroom .surge-icon-btn{width:40px;height:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center;padding:0;border-radius:8px;flex-shrink:0}
+.surge-icon-btn svg{width:19px;height:19px}
+
+.surge-stage-area{position:relative;min-height:0;min-width:0;overflow:hidden;background:#e4e9de}
+.surge-toolbar{height:64px;display:flex;align-items:center;justify-content:center;gap:14px;padding:8px 20px;position:relative;z-index:3;background:var(--surge-paper)}
+.surge-view-tools{display:flex;align-items:center;padding:3px;border:1px solid #d5ded0;border-radius:30px;background:#fcfbf6;gap:2px;box-shadow:0 3px 14px #2f4c3710}
+.surge-view-tools button{display:flex;align-items:center;justify-content:center;gap:7px;padding:7px 16px;border-radius:24px;white-space:nowrap;font-size:14px}
+.surge-view-tools button.active{background:#2c554e;color:#fffdf5}
+.surge-toolbar>button{padding:6px 10px;border-radius:7px;font-size:14px;white-space:nowrap}
+.surge-divider{height:24px;width:1px;flex-shrink:0;background:#d5ded0;margin:0 3px}
+.surge-toolbar>label{display:flex;gap:6px;align-items:center;min-height:40px;font-size:13px;color:#54715e;cursor:pointer;white-space:nowrap}
+.surge-toolbar>label input{width:15px;height:15px;accent-color:#537760;cursor:pointer}
+.surge-toggles{display:flex;align-items:center;gap:17px;padding-left:14px;border-left:1px solid #d5ded0;font-size:13px;color:#54715e}
+.surge-toggles label{display:flex;gap:6px;align-items:center;min-height:40px;cursor:pointer;white-space:nowrap}
+.surge-toggles input{width:15px;height:15px;accent-color:#537760;cursor:pointer}
+.surge-scene{position:absolute;inset:64px 0 0;overflow:hidden;touch-action:none;overscroll-behavior:none}
+.surge-scene canvas{display:block;width:100%;height:100%;outline:none}
+.surge-scene-title{position:absolute;left:24px;top:80px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;max-width:calc(100% - 48px);padding:9px 13px;border:1px solid #ffffffb8;border-left:3px solid #728e7d;border-radius:3px 10px 10px 3px;background:#fffef2de;box-shadow:0 4px 18px #243a3510;backdrop-filter:blur(10px);font-size:15px;color:#305447;pointer-events:none}
+.surge-scene-title strong{font-weight:600}
+.surge-scene-title small{font-size:11px;line-height:1.6;color:#6d7d70}
+.surge-live-dot{width:6px;height:6px;flex-shrink:0;border-radius:50%;background:#728e7d}
+.surge-model-hint{position:absolute;left:24px;bottom:16px;background:#fcfbf4e8;border:1px solid #dbe2d4;padding:7px 11px;border-radius:7px;font-size:11px;color:#6c7b64;pointer-events:none}
+.surge-scene-error{position:absolute;inset:64px 0 0;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;background:#f5f3ed;color:#6e8070;font-size:17px;z-index:6}
+
+.surge-classroom .surge-lesson-card.floating-feature-card.theme-light {
+  --feature-bg:#fffdf7; --feature-head-bg:#ecefe5; --feature-border:#d2dbca; --feature-divider:#dce3d4;
+  --feature-title:#31574b; --feature-text:#36574b; --feature-muted:#74816d; --feature-button-bg:#f4f6ed; --feature-button-border:#cbd7c1;
+  width:310px;height:calc(100dvh - 370px);min-height:210px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 300px);
+  color:#36574b;background:#fffdf7;border:1px solid #d2dbca;border-radius:12px;box-shadow:0 8px 30px #34472a12;backdrop-filter:none;
+}
+.surge-classroom .surge-lesson-card.floating-feature-card.theme-light.collapsed{width:190px;min-height:0;height:auto}
+.surge-lesson-card .feature-card-head{padding:5px 9px 5px 16px;min-height:49px;background:#ecefe5;gap:4px}
+.surge-lesson-card .feature-card-title-label{font-size:16px;letter-spacing:.5px;font-weight:600;color:#31574b}
+.surge-lesson-card .feature-card-content{padding:0;height:100%;min-height:0;overflow:hidden}
+.surge-lesson-card .collapse-btn{min-height:34px;width:34px;height:34px;color:#31574b;background:#f4f6ed;border-color:#cbd7c1}
+.surge-lesson-card .feature-resize-handle{min-height:30px;width:30px;height:30px;background:#e7eddf;box-shadow:none;opacity:.8}
+.surge-classroom .surge-panel-reset{width:30px;height:30px;min-height:30px;padding:0;font-size:18px;color:#54705a}
+.surge-panel-body{height:100%;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:#cbd6c3 transparent;padding:18px 20px 32px}
+.surge-section-label{font-size:12px;letter-spacing:.6px;color:#8c7b5a}
+.surge-current-stage{padding-bottom:17px;margin-bottom:19px;border-bottom:1px solid #dce3d4}
+.surge-current-stage h2{font:500 22px/1.5 "Noto Serif SC","Songti SC","SimSun",serif;color:#2c5146;margin-top:9px}
+.surge-current-stage p{font-size:14px;line-height:1.85;color:#6c7a68;margin-top:12px}
+.surge-panel-body h3{font-size:14px;line-height:1.6;font-weight:600;color:#54705a;margin-bottom:8px}
+.surge-lesson-copy>p,.surge-record>p{font-size:14px;line-height:1.85;color:#6c7a68;margin-bottom:20px}
+.surge-lesson-copy ul{padding-left:18px;margin:8px 0 20px;color:#6c7a68;font-size:13px;line-height:1.8}
+.surge-lesson-copy li+li{margin-top:9px}
+.surge-prompt{border-left:3px solid #819e6c;background:#eef2e5;padding:11px 13px;margin-top:18px;color:#476143}
+.surge-prompt>span{font-size:12px;color:#7b8969;font-weight:600}
+.surge-prompt p{font-size:13px;line-height:1.8;margin-top:6px}
+.surge-classroom .surge-text-link{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:10px 0;margin-top:13px;min-height:44px;font-size:13px;color:#3d6b54;text-align:left}
+.surge-legend{display:grid;gap:7px;margin-top:13px;font-size:11px;color:#7c886e}
+.surge-legend span{display:flex;align-items:center;gap:7px}.surge-legend i{width:10px;height:8px;border-radius:2px;display:inline-block}.surge-legend .soil{background:#9b7449}.surge-legend .risk{background:#e79c4c70;border:1px solid #d58731}
+.surge-panel-footer{margin-top:20px;padding-top:13px;border-top:1px solid #dce3d4;color:#82907d;font-size:11px}
+
+.surge-question-top{display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:11px;color:#7c886e;margin-bottom:15px}
+.surge-question-top strong{font-weight:500;white-space:nowrap}
+.surge-inquiry h3{font-size:15px;line-height:1.8;margin-bottom:14px}
+.surge-options{display:grid;gap:8px}
+.surge-classroom .surge-options button{display:flex;align-items:flex-start;gap:9px;min-height:40px;padding:10px 11px;text-align:left;line-height:1.7;font-size:13px;background:#f6f5eb;border:1px solid #d8dfce;border-radius:6px}
+.surge-options button>span{flex-shrink:0;font-size:11px;line-height:22px;color:#83917e}
+.surge-classroom .surge-options .selected.correct{background:#e7efdd;border-color:#92ac78}
+.surge-classroom .surge-options .selected.incorrect{background:#f9efe0;border-color:#c6a580}
+.surge-feedback{font-size:13px;line-height:1.8;background:#f9efe0;color:#8f673c;padding:11px 13px;margin-top:12px;border-radius:6px}
+.surge-feedback.correct{background:#edf3e5;color:#4a6c42}.surge-feedback p{margin-top:5px}.surge-feedback strong{font-weight:600}
+.surge-question-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px}
+.surge-question-nav button{font-size:13px;color:#3d6b54;padding:5px 0}
+.surge-record textarea{width:100%;resize:vertical;min-height:130px;max-height:260px;border:1px solid #cbd7c1;border-radius:6px;padding:11px 12px;background:#fcfbf5;color:#36574b;font-size:14px;line-height:1.85;user-select:text;-webkit-user-select:text;touch-action:pan-y}
+.surge-record-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:#82907d;margin-top:5px}
+.surge-score{display:flex;align-items:center;gap:20px;padding:17px 0}
+.surge-score strong{font:400 30px/1.4 Georgia,serif;color:#3b6047}.surge-score small{font:12px/1.5 "Microsoft YaHei",sans-serif;color:#7c886e}.surge-score>span{font-size:12px;color:#7c886e}
+.surge-classroom .surge-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;border-radius:7px;border:1px solid #315c4e;background:#315c4e;color:#fffcf4;padding:9px 13px;font-size:13px}
+
+.surge-footer{z-index:6;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);column-gap:28px;row-gap:10px;padding:14px 28px 14px;background:#faf9f4;border-top:1px solid #d8dfd0;box-shadow:0 -6px 28px #2b493607}
+.surge-environment-group,.surge-controls{min-width:0}
+.surge-controls{padding-left:28px;border-left:1px solid #dce2d7}
+.surge-control-heading{display:flex;gap:12px;align-items:baseline;margin-bottom:9px;min-height:20px}
+.surge-control-heading h2,.surge-control-heading strong{font-size:14px;font-weight:600;letter-spacing:.3px;color:#31574e}
+.surge-control-heading>span{font-size:11px;color:#829184}
+.surge-kind-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.surge-classroom .surge-kind-switch button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:51px;padding:7px 12px;text-align:center;border:1px solid #d9e0d4;border-radius:7px;background:#fffef9;transition:background .15s,border-color .15s}
+.surge-kind-switch button>span:nth-child(2){display:flex;flex-direction:column;gap:2px;min-width:0}
+.surge-kind-switch strong{display:block;font-size:14px;line-height:1.4;font-weight:500;white-space:nowrap}
+.surge-kind-switch small{display:block;font-size:10px;line-height:1.4;color:#82907d;white-space:nowrap}
+.surge-kind-switch .surge-number{font-size:11px;color:#9aa58f;flex-shrink:0}
+.surge-kind-switch button>span:last-child:not(:nth-child(2)){font-size:13px;color:#83917e}
+.surge-classroom .surge-kind-switch button.active{background:#e5eee4;border-color:#76937c;box-shadow:inset 0 -2px #66856d}
+.surge-kind-switch button.active strong{font-weight:600;color:#315c47}
+.surge-playback{display:flex;align-items:center;gap:15px;min-height:51px}
+.surge-classroom .surge-play{display:flex;align-items:center;justify-content:center;border:1px solid #305a4c;background:#305a4c;color:#fffef6;border-radius:50%;width:40px;height:40px;min-height:40px;flex-shrink:0;padding:0;font-size:14px}
+.surge-timeline{flex:1;min-width:50px}
+.surge-timeline>input{display:block;width:100%;height:24px;margin:0;accent-color:#537760;cursor:pointer}
+.surge-timeline>div{display:flex;justify-content:space-between;gap:5px;line-height:1.3}
+.surge-classroom .surge-timeline button{min-height:22px;padding:2px 0;font-size:10px;white-space:nowrap;color:#84907d}
+.surge-classroom .surge-timeline button.active{color:#315c47;font-weight:600}
+.surge-classroom .surge-reset{border:1px solid #bbcab9;background:#fffef9;border-radius:7px;padding:7px 12px;min-height:40px;white-space:nowrap;font-size:13px;color:#315c4e}
+.surge-classroom .surge-control-heading .surge-reset{margin-left:auto;min-height:25px;padding:2px 8px;font-size:11px;line-height:20px}
+.surge-footer-note{grid-column:1/-1;font-size:10px;color:#82907d;line-height:1.6}
+.surge-model-note{font-size:10px;line-height:1.6;color:#82907d;margin-top:7px}
+
+.surge-notice{position:fixed;bottom:180px;left:50%;transform:translateX(-50%);z-index:100;max-width:calc(100vw - 32px);width:max-content;padding:11px 16px;background:#f4f8eff5;border:1px solid #c6d7bb;border-radius:9px;box-shadow:0 5px 20px #283f3120;color:#3c624c;font-size:14px;pointer-events:none}
+.surge-classroom .surge-source-dialog{position:fixed;inset:0;margin:auto;padding:24px 26px 26px;border:1px solid #cbd7c4;border-radius:14px;width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 40px);color:#2c5146;background:#fffdf6;box-shadow:0 24px 90px #14382c35;overflow:auto;user-select:text;-webkit-user-select:text}
+.surge-source-dialog::backdrop{background:#233b355e;backdrop-filter:blur(5px)}
+.surge-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:15px;padding-bottom:19px;border-bottom:1px solid #dbe3d2;margin-bottom:19px}
+.surge-dialog-header h2{font:500 24px/1.6 "Songti SC","SimSun",serif;color:#315346;margin-top:3px}
+.surge-dialog-header>button{font-size:27px;width:36px;flex-shrink:0}
+.surge-source-dialog h3{font-size:16px;font-weight:600;color:#345b46;margin-top:20px}
+.surge-source-dialog p,.surge-source-dialog li{font-size:14px;line-height:1.9;color:#6c7b64;margin-top:7px}
+.surge-source-dialog ul{padding-left:20px}
+.surge-source-dialog>a{display:block;padding:12px 0;border-bottom:1px solid #dce2d4;font-size:13px;color:#3d7a61;text-underline-offset:3px}
+.surge-source-dialog>a:hover{text-decoration:underline}.surge-source-dialog small{display:block;margin-top:4px;color:#87917e;font-size:12px;line-height:1.8}
+
+@media(min-width:1600px){
+  .surge-classroom .surge-lesson-card.floating-feature-card.theme-light{width:340px}
+  .surge-panel-body{padding:22px 24px 36px}.surge-current-stage h2{font-size:24px}.surge-current-stage p,.surge-lesson-copy>p,.surge-lesson-copy ul{font-size:16px}
+  .surge-footer{column-gap:40px;padding:18px 42px 17px}.surge-controls{padding-left:40px}.surge-kind-switch strong{font-size:16px}.surge-kind-switch small{font-size:12px}.surge-control-heading h2{font-size:16px}.surge-control-heading>span{font-size:12px}.surge-classroom .surge-kind-switch button,.surge-playback{min-height:56px}
+}
+@media(max-width:1100px){
+  .surge-header{gap:17px;padding:12px 20px}.surge-brand{width:154px}.surge-heading{padding-left:18px}.surge-heading h1{font-size:24px}.surge-mode-switch{gap:17px}
+  .surge-classroom .surge-lesson-card.floating-feature-card.theme-light{width:290px}.surge-footer{column-gap:16px;padding-left:18px;padding-right:18px}.surge-controls{padding-left:16px}.surge-kind-switch strong{font-size:13px}.surge-kind-switch small{font-size:9px}.surge-playback{gap:10px}
+}
+@media(max-width:959px){
+  .surge-classroom{grid-template-rows:78px minmax(0,1fr) auto}.surge-header{padding:9px 16px;gap:14px}.surge-brand{width:132px;height:55px}.surge-brand img{height:55px}.surge-heading{padding-left:14px}.surge-heading h1{font-size:22px}.surge-heading p{font-size:10px}.surge-mode-switch{gap:12px}.surge-classroom .surge-mode-switch button{font-size:14px}.surge-header-actions{gap:2px}.surge-header-actions button{font-size:12px;padding:5px}
+  .surge-footer{grid-template-columns:minmax(0,1fr);padding:10px 18px 11px;row-gap:8px}.surge-environment-group{display:flex;gap:16px;align-items:center}.surge-environment-group .surge-control-heading{width:70px;flex-shrink:0;margin:0}.surge-control-heading>span{display:none}.surge-kind-switch{flex:1}.surge-controls{padding:8px 0 0;border-left:0;border-top:1px solid #e2e7dc;display:flex;gap:16px;align-items:center}.surge-controls .surge-control-heading{width:70px;flex-shrink:0;margin:0}.surge-playback{flex:1;min-width:0;min-height:44px}.surge-classroom .surge-kind-switch button{min-height:44px}.surge-footer-note{font-size:9px}
+  .surge-classroom .surge-lesson-card.floating-feature-card.theme-light{height:min(380px,calc(100dvh - 370px));max-height:calc(100dvh - 300px)}
+}
+@media(max-width:640px){
+  .surge-classroom{grid-template-rows:108px minmax(0,1fr) auto}.surge-header{position:relative;align-items:flex-start;gap:12px;padding:9px 12px}.surge-brand{width:108px;height:47px}.surge-brand img{height:47px}.surge-heading{padding-left:12px;margin-top:1px}.surge-heading h1{font-size:20px;letter-spacing:0}.surge-heading p{font-size:9px;letter-spacing:1px}.surge-mode-switch{position:absolute;bottom:0;left:16px;gap:22px;height:42px}.surge-classroom .surge-mode-switch button{height:40px;min-height:40px;font-size:14px}.surge-header-actions{position:absolute;bottom:1px;right:10px;gap:0}.surge-header-actions button{padding:5px 7px;min-height:40px;font-size:12px}.surge-header-actions .surge-icon-btn{width:32px}
+  .surge-toolbar{height:56px;padding:6px 10px;gap:8px}.surge-view-tools button{font-size:12px;padding:6px 10px;min-height:36px}.surge-view-tools button:last-child{font-size:17px;padding-left:8px;padding-right:8px}.surge-toggles{gap:9px;padding-left:9px;font-size:11px}.surge-toggles label{gap:4px}.surge-toggles input{width:13px;height:13px}.surge-scene{top:56px}.surge-scene-error{top:56px}.surge-scene-title{left:12px;top:68px;padding:7px 10px;gap:6px;max-width:calc(100% - 24px);font-size:13px}.surge-scene-title small{font-size:9px}.surge-model-hint{left:10px;bottom:10px;font-size:9px;padding:5px 8px;max-width:calc(100% - 20px)}
+  .surge-footer{padding:8px 10px 9px;row-gap:7px}.surge-environment-group{gap:10px}.surge-environment-group .surge-control-heading{width:48px}.surge-control-heading h2,.surge-control-heading strong{font-size:12px}.surge-kind-switch{gap:5px}.surge-classroom .surge-kind-switch button{padding:6px;gap:5px;min-height:43px}.surge-kind-switch strong{font-size:12px}.surge-kind-switch small{font-size:8px}.surge-kind-switch .surge-number,.surge-kind-switch button>span:last-child:not(:nth-child(2)){display:none}.surge-controls{gap:10px;padding-top:7px}.surge-controls .surge-control-heading{width:48px}.surge-playback{gap:8px}.surge-classroom .surge-play{width:34px;height:34px;min-height:34px;font-size:12px}.surge-classroom .surge-reset{font-size:11px;padding:6px 8px;min-height:34px}.surge-classroom .surge-timeline button{font-size:8px;min-height:19px}.surge-timeline>input{height:22px}.surge-footer-note{font-size:8px;line-height:1.6}
+  .surge-classroom .surge-lesson-card.floating-feature-card.theme-light{width:280px;max-width:calc(100vw - 24px);min-height:210px;max-height:calc(100dvh - 300px)}.surge-classroom .surge-lesson-card.floating-feature-card.theme-light.collapsed{width:153px}.surge-lesson-card .feature-card-title-label{font-size:14px}.surge-panel-body{padding:15px 17px 30px}.surge-current-stage h2{font-size:21px}.surge-current-stage p,.surge-lesson-copy>p,.surge-record>p{font-size:13px}.surge-classroom .surge-source-dialog{padding:17px 19px 22px}.surge-dialog-header h2{font-size:21px}.surge-notice{bottom:180px;font-size:12px;padding:9px 12px}
+}
+@media(max-width:360px){.surge-brand{width:93px}.surge-heading{padding-left:9px}.surge-heading h1{font-size:18px}.surge-header{gap:9px}.surge-toolbar{gap:5px;padding-left:6px;padding-right:6px}.surge-view-tools button{padding-left:8px;padding-right:8px}.surge-toggles{gap:6px;padding-left:6px;font-size:10px}.surge-controls .surge-control-heading{width:40px}.surge-classroom .surge-timeline button{font-size:7px}.surge-playback{gap:6px}}
+@media(max-height:620px) and (min-width:960px){
+  .surge-classroom{grid-template-rows:68px minmax(0,1fr) auto}.surge-header{padding:5px 20px}.surge-brand{height:54px}.surge-heading h1{font-size:23px}.surge-toolbar{height:53px}.surge-scene{top:53px}.surge-scene-error{top:53px}.surge-scene-title{top:65px}.surge-footer{padding-top:8px;padding-bottom:9px;row-gap:5px}.surge-control-heading{margin-bottom:5px}.surge-classroom .surge-kind-switch button,.surge-playback{min-height:44px}.surge-kind-switch small{display:none}.surge-classroom .surge-lesson-card.floating-feature-card.theme-light{height:280px;max-height:calc(100dvh - 235px);min-height:160px}
+}
+@media(prefers-reduced-motion:reduce){.surge-classroom *{scroll-behavior:auto}.surge-kind-switch button{transition:none}}
+
+@media(max-width:959px){.surge-controls .surge-control-heading{flex-direction:column;align-items:flex-start;gap:2px}.surge-classroom .surge-controls .surge-reset{margin-left:0;padding:1px 6px;min-height:23px;font-size:10px;line-height:19px}}
+@media(max-width:640px){.surge-view-tools button:last-child{font-size:12px;padding:6px 10px}.surge-toolbar>button{padding:5px 4px;font-size:11px}.surge-divider{margin:0}.surge-toolbar>label{font-size:11px;gap:3px}.surge-toolbar>label input{width:12px;height:12px}.surge-toolbar{gap:8px}.surge-classroom .surge-kind-switch button{gap:2px}}
+@media(max-width:360px){.surge-toolbar{gap:5px}.surge-view-tools button,.surge-view-tools button:last-child{padding:6px;font-size:11px}.surge-toolbar>label{font-size:10px}.surge-toolbar>button{font-size:10px}}
+.surge-report-dialog>img{display:block;width:100%;height:auto;border:1px solid #d2dbca}.surge-report-dialog>a.surge-primary{display:block;text-align:center;margin-top:16px;color:white}
+.surge-icon-btn svg{width:20px;height:20px}.surge-classroom .surge-info-dialog{padding:0}.surge-info-dialog article>header{display:flex;align-items:center;justify-content:space-between;padding:22px 25px;border-bottom:1px solid #dbe3d2;background:#f5f6ec}.surge-info-dialog header p{font-size:12px;color:#859276;letter-spacing:1px;margin:0}.surge-info-dialog h2{font:500 24px/1.6 "Songti SC","SimSun",serif;color:#315346}.surge-source-body{padding:6px 26px 26px}.surge-source-body section{padding-top:20px}.surge-source-body h3{margin:0;font-size:16px;font-weight:600;color:#345b46}.surge-source-body p{font-size:14px;line-height:1.9;color:#6c7b64;margin-top:7px}.surge-source-body a{display:inline-block;margin-top:8px;font-size:13px;color:#3d7a61;text-underline-offset:3px}.surge-source-body .surge-model-note{padding:15px;background:#eff3e6;border-radius:8px;margin-top:20px}@media(max-width:640px){.surge-info-dialog article>header{padding:16px 18px}.surge-info-dialog h2{font-size:21px}}
+
+.surge-classroom .surge-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:356px}
+.surge-mode-switch{gap:18px}
+.surge-experiment{font-size:12px;line-height:1.65}
+.surge-experiment-intro h3{font-size:17px;margin:6px 0;color:#31574b}
+.surge-experiment-intro p{color:#74816d;font-size:12px}
+.surge-factor-heading{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;color:#74816d;font-size:11px}
+.surge-classroom .surge-factor-heading button{min-height:28px;padding:2px 0;font-size:11px;text-decoration:underline;text-underline-offset:3px}
+.surge-preset-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.surge-classroom .surge-preset-options button{min-height:35px;padding:5px 2px;border:1px solid #d7dfcf;border-radius:5px;background:#fafbf3;font-size:11px;line-height:1.4}
+.surge-classroom .surge-preset-options button.active{background:#e4edde;border-color:#809d73;color:#315b42;font-weight:600}
+.surge-preset-hint{font-size:10px;color:#859276;line-height:1.7;margin:7px 0 12px!important}
+.surge-variables{display:grid;gap:11px}
+.surge-variables fieldset{margin:0;padding:8px 10px 9px;min-width:0;border:1px solid #d9e1d0;border-radius:8px;background:#fafbf4}
+.surge-variables legend{padding:0 5px;font-size:12px;font-weight:600;color:#42614e}
+.surge-variables legend small{margin-left:9px;font-size:10px;font-weight:400;color:#859276}
+.surge-variables legend small.changed{color:#42684e}
+.surge-variables fieldset>p{font-size:10px;color:#859276;margin-top:5px}
+.surge-levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.surge-classroom .surge-levels button{min-height:31px;padding:4px 5px;border:1px solid #d8dfcf;background:#fffef8;border-radius:5px;font-size:12px}
+.surge-classroom .surge-levels button.active{background:#e4edde;border-color:#809d73;color:#315b42;font-weight:600}
+.surge-run-actions{display:grid;grid-template-columns:1.6fr 1fr;gap:8px;margin-top:16px}
+.surge-classroom .surge-secondary{border:1px solid #bacaaf;border-radius:7px;background:#f9faf2;padding:7px 8px;font-size:12px}
+.surge-run-status{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;margin-top:9px;color:#7a886d;font-size:10px}
+.surge-run-status strong{font-weight:500;color:#4d6b45}
+.surge-outcome{margin-top:12px;padding:11px 12px;background:#edf2e4;border-radius:7px}
+.surge-outcome p{font-size:11px;color:#66775c;line-height:1.8}
+.surge-outcome>div{display:flex;justify-content:space-between;gap:6px;border-top:1px solid #d6e0ca;margin-top:9px;padding-top:8px;font-size:10px;color:#526c46}
+.surge-outcome b{font-size:16px;font-weight:500}
+.surge-classroom .surge-save-baseline{width:100%;border:1px dashed #9eb78b;border-radius:7px;margin-top:12px;padding:8px;font-size:12px;background:#f3f7ec}
+.surge-comparison{margin-top:18px;padding-top:15px;border-top:1px solid #d9e1ce}
+.surge-comparison-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.surge-comparison-heading h3{margin:0;font-size:14px}
+.surge-comparison-heading>div{display:flex;gap:5px}
+.surge-classroom .surge-comparison-heading button{font-size:11px;min-height:28px;padding:2px 7px;border:1px solid #c6d5ba;border-radius:5px}
+.surge-baseline-conditions{font-size:10px;color:#78896b;margin-top:6px!important}
+.surge-comparison table{width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;table-layout:fixed}
+.surge-comparison th,.surge-comparison td{padding:8px 4px;text-align:center;border-bottom:1px solid #e0e6d8;overflow-wrap:anywhere}
+.surge-comparison th{font-weight:500}.surge-comparison th:first-child{text-align:left;width:34%}
+.surge-comparison thead{background:#edf2e5;color:#506b43}
+.surge-comparison .changed td:last-child{background:#e6eedc;font-weight:600;color:#3c613d}
+.surge-comparison-hint{font-size:10px;color:#7a886e;margin-top:9px!important;line-height:1.8}
+.surge-experiment-note{margin-top:16px!important;color:#8a947f;font-size:10px;line-height:1.8}
+.surge-run-history{margin-bottom:22px;border-bottom:1px solid #dce3d3;padding-bottom:16px}
+.surge-classroom .surge-run-history button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;padding:8px 0;border-bottom:1px solid #edf0e7;font-size:11px}
+.surge-run-history small{display:block;font-size:10px;color:#829079;margin-top:3px}.surge-run-history b{font-weight:400;color:#5b7b4d;white-space:nowrap}
+@media(min-width:1600px){.surge-classroom .surge-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:380px}}
+@media(max-width:1100px){.surge-mode-switch{gap:11px}.surge-classroom .surge-mode-switch button{font-size:14px}.surge-header{gap:14px}.surge-classroom .surge-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:326px}}
+@media(min-width:641px) and (max-width:959px){.surge-brand{width:110px}.surge-heading{padding-left:10px}.surge-heading h1{font-size:20px}.surge-mode-switch{gap:8px}.surge-classroom .surge-mode-switch button{font-size:12px}.surge-header{gap:10px;padding-left:12px;padding-right:12px}}
+@media(max-width:640px){.surge-mode-switch{left:12px;gap:12px}.surge-classroom .surge-mode-switch button{font-size:12px}.surge-classroom .surge-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:310px}.surge-experiment-intro h3{font-size:16px}.surge-panel-body{padding-left:15px;padding-right:15px}}
+@media(max-width:360px){.surge-mode-switch{gap:8px}.surge-classroom .surge-mode-switch button{font-size:11px}.surge-header-actions{right:6px}.surge-classroom .surge-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:296px}}

@@ -1187,7 +1187,7 @@ function getPlanetMeanAnomaly(
 
   return (
     def.meanAnomalyAtEpoch *
-    DEG_TO_RAD +
+    DEG_TO_RAD -
     TAU *
     simulatedDays /
     orbitalPeriodDays

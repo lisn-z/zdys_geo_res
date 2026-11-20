@@ -1,3 +1,5 @@
+import { seasonalLatitudeGLSL } from './seasonal-latitude.ts'
+
 // Original rendering treatment, grounded in earth-motion's ocean-mask and atmospheric-rim approach.
 export const globeVertex = `
 varying vec2 vUv; varying vec3 vNormal; varying vec3 vWorld;
@@ -26,12 +28,13 @@ void main(){ vec3 n=normalize(vNormal),v=normalize(cameraPosition-vWorld);float 
 `
 // Same latitude warp for every atmospheric layer. Geometry and uniforms survive month changes.
 export const flowVertex = `
+${seasonalLatitudeGLSL}
 uniform float shift; uniform float seasonal; varying vec2 vUv;
 attribute float verticalFlow; varying float vVerticalFlow;
 void main(){
  vVerticalFlow=verticalFlow;
  vUv=uv; vec3 p=position;float r=length(p);float lat=asin(clamp(p.y/r,-1.,1.));
- float next=clamp(lat+shift*.01745329252*cos(abs(lat)),-1.53588974,1.53588974);
+ float next=radians(shiftSeasonalLatitude(degrees(lat),shift));
  next=mix(lat,next,seasonal);float lon=atan(p.z,p.x);
  p=vec3(r*cos(next)*cos(lon),r*sin(next),r*cos(next)*sin(lon));
  gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
@@ -52,13 +55,14 @@ void main(){float feather=sin(vUv.y*3.14159265);float lines=pow(.5+.5*cos(vUv.y*
 `
 
 export const particleStreamVertex = `
+${seasonalLatitudeGLSL}
 uniform float shift; uniform float seasonal;
 attribute float verticalFlow; attribute float strandPhase; attribute float strandKind;
 varying vec2 vUv; varying float vVerticalFlow; varying float vPhase; varying float vKind;
 void main(){
  vUv=uv; vVerticalFlow=verticalFlow; vPhase=strandPhase; vKind=strandKind;
  vec3 p=position; float r=length(p), lat=asin(clamp(p.y/r,-1.,1.));
- float next=clamp(lat+shift*.01745329252*cos(abs(lat)),-1.53588974,1.53588974);
+ float next=radians(shiftSeasonalLatitude(degrees(lat),shift));
  next=mix(lat,next,seasonal); float lon=atan(p.z,p.x);
  p=vec3(r*cos(next)*cos(lon),r*sin(next),r*cos(next)*sin(lon));
  gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);

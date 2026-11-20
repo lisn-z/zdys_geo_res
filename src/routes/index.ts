@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 export const routes = [
 
+
   {
     path: '/',
     name: '/',
@@ -299,16 +300,7 @@ export const routes = [
     component: () =>
       import('@/views/foehn-effect/index.vue'),
   },
-  {
-    path: '/karst-landform',
-    name: 'karst-landform',
-    meta: {
-      title: '喀斯特地貌',
-      tags: ['第三批'],
-    },
-    component: () =>
-      import('@/views/karst-landform/index.vue'),
-  },
+
   {
     path: '/sponge-city',
     name: 'sponge-city',
@@ -330,25 +322,34 @@ export const routes = [
       import('@/views/fold-fault/index.vue'),
   },
   {
+    path: '/shijing-shanhe',
+    name: 'shijing-shanhe',
+    meta: {
+      title: '诗境·山河',
+      tags: ['第二批'],
+    },
+    component: () =>
+      import('@/views/shijing-shanhe/index.vue'),
+  },
+  {
     path: '/volcano',
     name: 'volcano',
     meta: {
       title: '火山',
       tags: ['第三批'],
-
     },
     component: () =>
       import('@/views/volcano/index.vue'),
   },
   {
-    path: '/shijing-shanhe',
-    name: 'shijing-shanhe',
+    path: '/karst-landform',
+    name: 'karst-landform',
     meta: {
-      title: '诗境·山河',
-      tags: ['第二批', '工具'],
+      title: '喀斯特地貌',
+      tags: ['第三批'],
     },
     component: () =>
-      import('@/views/shijing-shanhe/index.vue'),
+      import('@/views/karst-landform/index.vue'),
   },
   {
     path: '/thermal-circulation',
@@ -545,6 +546,42 @@ export const routes = [
     name: 'machu-picchu-guardian',
     meta: { title: '马丘比丘·古城守护者', tags: ['暂时不上'] },
     component: () => import('@/views/machu-picchu-guardian/index.vue'),
+  },
+  {
+    path: '/landslide-debris-flow',
+    name: 'landslide-debris-flow',
+    meta: { title: '滑坡泥石流与避险', tags: ['第五批'] },
+    component: () => import('@/views/landslide-debris-flow/index.vue'),
+  },
+  {
+    path: '/storm-surge',
+    name: 'storm-surge',
+    meta: { title: '风暴潮与沿岸淹没', tags: ['第六批'] },
+    component: () => import('@/views/storm-surge/index.vue'),
+  },
+  {
+    path: '/simple-seismograph',
+    name: 'simple-seismograph',
+    meta: { title: '制作简易地震仪', tags: ['第六批'] },
+    component: () => import('@/views/simple-seismograph/index.vue'),
+  },
+  {
+    path: '/simple-photovoltaic',
+    name: 'simple-photovoltaic',
+    meta: { title: '制作简易光伏发电装置', tags: ['第六批'] },
+    component: () => import('@/views/simple-photovoltaic/index.vue'),
+  },
+  {
+    path: '/roof-and-rainfall',
+    name: 'roof-and-rainfall',
+    meta: { title: '民居屋顶与降水', tags: ['第六批'] },
+    component: () => import('@/views/roof-and-rainfall/index.vue'),
+  },
+  {
+    path: '/seawater-properties',
+    name: 'seawater-properties',
+    meta: { title: '海水的性质', tags: ['第六批'] },
+    component: () => import('@/views/seawater-properties/index.vue'),
   },
 ]
 

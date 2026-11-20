@@ -1,5 +1,6 @@
 // Latitude, pressure widths and wind endpoints follow general-atmospheric-circulation.
 // Angles are stored in arcminutes at the application boundary; Three.js uses radians.
+import { shiftSeasonalLatitude } from './seasonal-latitude.ts'
 export const OBLIQUITY_MINUTES = 23 * 60 + 26
 export const OBLIQUITY = OBLIQUITY_MINUTES / 60
 export const POLAR_CIRCLE = 90 - OBLIQUITY
@@ -8,15 +9,18 @@ export const palette = {
   rising: '#ffa77a',
   sinking: '#79ccec',
   horizontalFlow: '#cbd3d5',
-  hadley: '#2ed9c3',
-  ferrel: '#ffb84d',
-  polar: '#75a7ff',
-  high: '#a6ead8',
-  low: '#c6b8ff',
+  hadley: '#65d9f5',
+  ferrel: '#ff843f',
+  polar: '#113fa8',
+  // Ideal latitude belts follow the seasonal-migration textbook diagram.
+  // The measured sea-level field retains its separate orange/violet scale.
+  high: '#e97ab8',
+  low: '#39c5eb',
   warm: '#ff5a47',
   cold: '#72b8ff',
   summerMonsoon: '#ff4f9a',
   southSummerMonsoon: '#c166ff',
+  australiaSummerMonsoon: '#c166ff',
   winterMonsoon: '#d6ff61',
   southWinterMonsoon: '#35c79a',
   solar: '#ffd66b',
@@ -29,7 +33,7 @@ export function seasonalShift(month: number) {
   return -7.5 * Math.cos(((month - 1) / 12) * Math.PI * 2)
 }
 export function shiftLatitude(lat: number, shift: number) {
-  return Math.max(-88, Math.min(88, lat + shift * Math.cos((Math.abs(lat) * Math.PI) / 180)))
+  return shiftSeasonalLatitude(lat, shift)
 }
 export const SOLAR_REFERENCE_YEAR = 2026
 // USNO approximate solar longitude; the app intentionally fixes obliquity at 23°26′.
@@ -97,11 +101,11 @@ export const cellDefinitions = [
 ]
 export const pressureDefinitions = [
   { lat: 88, name: '极地高气压带', high: true, halfWidth: 7 },
-  { lat: 60, name: '副极地低气压带', high: false, halfWidth: 5.5 },
-  { lat: 30, name: '副热带高气压带', high: true, halfWidth: 5.5 },
-  { lat: 0, name: '赤道低气压带', high: false, halfWidth: 7 },
-  { lat: -30, name: '副热带高气压带', high: true, halfWidth: 5.5 },
-  { lat: -60, name: '副极地低气压带', high: false, halfWidth: 5.5 },
+  { lat: 60, name: '副极地低气压带', high: false, halfWidth: 5 },
+  { lat: 30, name: '副热带高气压带', high: true, halfWidth: 5 },
+  { lat: 0, name: '赤道低气压带', high: false, halfWidth: 5 },
+  { lat: -30, name: '副热带高气压带', high: true, halfWidth: 5 },
+  { lat: -60, name: '副极地低气压带', high: false, halfWidth: 5 },
   { lat: -88, name: '极地高气压带', high: true, halfWidth: 7 },
 ]
 export const windDefinitions = [
@@ -150,7 +154,22 @@ export function monsoonStrength(direction: number, season: MonsoonSeason) {
   const strength = .25 + .75 * Math.abs(direction)
   return strength * (season === 'summer' ? blend : 1 - blend)
 }
-export const monsoonWinds: { name: string; season: MonsoonSeason; regime: SeasonalRegime; points: [number, number][]; note: string }[] = [
+export interface MonsoonDefinition {
+  name: string
+  label?: string
+  // Summer/winter refers to the destination region, not always the north.
+  season: MonsoonSeason
+  regime?: SeasonalRegime
+  color?: string
+  crossEquatorial?: {
+    destinationHemisphere: 'north' | 'south'
+    activeMonth: 1 | 7
+    labelLatitude: number
+  }
+  points: [number, number][]
+  note: string
+}
+export const monsoonWinds: MonsoonDefinition[] = [
   {
     name: '东亚夏季东南季风',
     regime: 'eastAsia',
@@ -166,14 +185,19 @@ export const monsoonWinds: { name: string; season: MonsoonSeason; regime: Season
   },
   {
     name: '南亚西南季风 · 阿拉伯海支流',
+    label: '西南季风\n阿拉伯海支',
     regime: 'southAsia',
     season: 'summer',
+    crossEquatorial: { destinationHemisphere: 'north', activeMonth: 7, labelLatitude: 12 },
     points: [
-      [-12, 65],
-      [-6, 57],
-      [0, 52],
-      [3, 54],
-      [7, 64],
+      [-18, 68],
+      [-12, 60],
+      [-6, 54],
+      [-2, 51],
+      [0, 50],
+      [2, 50],
+      [5, 53],
+      [8, 61],
       [16, 72],
       [25, 80],
     ],
@@ -181,17 +205,24 @@ export const monsoonWinds: { name: string; season: MonsoonSeason; regime: Season
   },
   {
     name: '南亚西南季风 · 孟加拉湾支流',
+    label: '西南季风\n孟加拉湾支',
     regime: 'southAsia',
     season: 'summer',
+    crossEquatorial: { destinationHemisphere: 'north', activeMonth: 7, labelLatitude: 12 },
     points: [
-      [3, 68],
-      [5, 78],
+      [-18, 94],
+      [-12, 86],
+      [-6, 80],
+      [-2, 78],
+      [0, 77],
+      [2, 77],
+      [5, 79],
       [8, 86],
       [13, 92],
       [22, 90],
       [26, 85],
     ],
-    note: '展示跨赤道气流转向后的北半球支流：西南季风经孟加拉湾输送水汽，受地形影响转向印度东北部和恒河平原。路径为教学示意。',
+    note: '南半球东南信风向西北吹，跨赤道后向右偏转为西南季风，经孟加拉湾输送水汽，再受地形影响转向印度东北部和恒河平原。示意跨赤道来源及北半球支流，不表示所有气流沿同一条实测轨迹。',
   },
   {
     name: '东亚冬季西北季风',
@@ -218,6 +249,26 @@ export const monsoonWinds: { name: string; season: MonsoonSeason; regime: Season
       [6, 78],
     ],
     note: '示意喜马拉雅山以南的东北季风，经孟加拉湾吹向印度东南部和斯里兰卡附近；海上增湿后可带来降水。不是从青藏高原穿越喜马拉雅山的近地面风路。',
+  },
+  {
+    name: '澳大利亚北部夏季西北季风',
+    label: '西北季风\n澳大利亚北部',
+    season: 'summer',
+    color: palette.australiaSummerMonsoon,
+    crossEquatorial: { destinationHemisphere: 'south', activeMonth: 1, labelLatitude: -12 },
+    points: [
+      [18, 138],
+      [12, 130],
+      [6, 124],
+      [2, 121],
+      [0, 120],
+      [-2, 120],
+      [-5, 123],
+      [-8, 127],
+      [-12, 131],
+      [-16, 135],
+    ],
+    note: '1月为南半球夏季。部分北半球东北信风向西南运动，越过赤道后向左偏转，形成吹向澳大利亚北部的西北季风。示意跨赤道来源与转向，不表示全部东北信风均越过赤道，也不是逐点实测轨迹。',
   },
 ]
 export interface OceanCurrent {

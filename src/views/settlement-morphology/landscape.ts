@@ -314,22 +314,22 @@ export function createBuilding(id: Landscape, variant = 0): THREE.Group {
     }
     if (k % 3 !== 0) group.add(box(.33, .22, .31, wall, -.14, height + .14, -.12))
   } else {
-  const points = [
-    -eave, height, -end, -eave, height, end, 0, height + rise, end, 0, height + rise, -end,
-    0, height + rise, -end, 0, height + rise, end, eave, height, end, eave, height, -end,
-  ]
-  const roofGeo = new THREE.BufferGeometry()
-  roofGeo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
-  roofGeo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0], 2))
-  roofGeo.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7])
-  roofGeo.computeVertexNormals()
-  const roofMesh = new THREE.Mesh(roofGeo, roof); roofMesh.castShadow = true; roofMesh.receiveShadow = true; group.add(roofMesh)
-  const gable = new THREE.BufferGeometry()
-  gable.setAttribute('position', new THREE.Float32BufferAttribute([-width / 2, height, -depth / 2, 0, height + rise - .014, -depth / 2, width / 2, height, -depth / 2, -width / 2, height, depth / 2, 0, height + rise - .014, depth / 2, width / 2, height, depth / 2], 3))
-  gable.setAttribute('uv', new THREE.Float32BufferAttribute([0, .1, .5, .4, 1, .1, 0, .1, .5, .4, 1, .1], 2))
-  gable.setIndex([0, 1, 2, 3, 5, 4]); gable.computeVertexNormals(); group.add(new THREE.Mesh(gable, wall))
-  group.add(box(.055, .035, end * 2, roof, 0, height + rise + .008))
-  group.add(box(eave * 2 - .025, 0.045, end * 2 - .025, wood, 0, height - .015))
+    const points = [
+      -eave, height, -end, -eave, height, end, 0, height + rise, end, 0, height + rise, -end,
+      0, height + rise, -end, 0, height + rise, end, eave, height, end, eave, height, -end,
+    ]
+    const roofGeo = new THREE.BufferGeometry()
+    roofGeo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
+    roofGeo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0], 2))
+    roofGeo.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7])
+    roofGeo.computeVertexNormals()
+    const roofMesh = new THREE.Mesh(roofGeo, roof); roofMesh.castShadow = true; roofMesh.receiveShadow = true; group.add(roofMesh)
+    const gable = new THREE.BufferGeometry()
+    gable.setAttribute('position', new THREE.Float32BufferAttribute([-width / 2, height, -depth / 2, 0, height + rise - .014, -depth / 2, width / 2, height, -depth / 2, -width / 2, height, depth / 2, 0, height + rise - .014, depth / 2, width / 2, height, depth / 2], 3))
+    gable.setAttribute('uv', new THREE.Float32BufferAttribute([0, .1, .5, .4, 1, .1, 0, .1, .5, .4, 1, .1], 2))
+    gable.setIndex([0, 1, 2, 3, 5, 4]); gable.computeVertexNormals(); group.add(new THREE.Mesh(gable, wall))
+    group.add(box(.055, .035, end * 2, roof, 0, height + rise + .008))
+    group.add(box(eave * 2 - .025, 0.045, end * 2 - .025, wood, 0, height - .015))
   }
   const floors = coast ? 4 + k % 2 : alpine ? 2 : riverTown ? 2 + k % 2 : 1
   for (let floor = 0; floor < floors; floor++) {
@@ -1046,7 +1046,7 @@ export function createLandscape(id: Landscape): {
   const label = (key: string, text: string, x: number, z: number, lift = .55) => ({ id: key, text, position: new THREE.Vector3(x, Math.max(height(x, z), wet(x, z) ? WATER : 0) + lift, z) })
   const labels = id === 'plain' ? [label('farmland', '开阔平原 · 耕地', -12, -4), label('settlement', '聚落向四周扩展', 1, 6.5, 1.3)] :
     id === 'valley' ? [label('mountain-west', '山地阻隔', -10, -3), label('valley', '谷地 · 较平缓', 0, -8.4), label('mountain-east', '山地阻隔', 10, 3)] :
-      id === 'river' ? [label('river', '宽阔河流', riverX(7), 7), label('bank', '沿河城镇带', -3.6, -8.5, 1.9), label('slope', '远处干旱缓丘', -15.6, 3), label('landing', '岸边停泊 · 小码头', 2.7, -5.4), label('islet', '低矮江渚', 6.25, -.9)] :
+      id === 'river' ? [label('river', '宽阔河流', riverX(7), 7), label('bank', '沿河城镇带', -3.6, -8.5, 1.9), label('slope', '远处干旱缓丘', -15.6, 3), label('landing', '岸边停泊 · 小码头', 2.7, -5.4)] :
         [label('sea', '海洋', 14, 2), label('terrace', '坡地梯田', -7.1, -5), label('coast-village', '陡岸彩色聚落 · 教学示意', 2, -6.5, 3.5), label('harbor', '小港湾 · 防波堤', 9.5, 7.8, .5)]
 
   // All furrows of a material are a single draw call.

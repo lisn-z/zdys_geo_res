@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { seasonalLatitudeGLSL } from './seasonal-latitude.ts'
 
 // Apply the reference project's latitude warp after local mesh transforms.
 // This also handles the pre-existing moving section arrows without rebuilding
@@ -24,18 +25,19 @@ export class SeasonalWarp {
           })
           const end = shader.vertexShader.lastIndexOf('}')
           shader.vertexShader = 'uniform float climateShift; uniform mat4 climateClipToEarth; uniform mat4 climateEarthToClip;\n'
+            + seasonalLatitudeGLSL
             + shader.vertexShader.slice(0, end) + `
               vec4 climatePosition = climateClipToEarth * gl_Position;
               vec3 climatePoint = climatePosition.xyz / climatePosition.w;
               float climateRadius = length(climatePoint);
               float climateLatitude = asin(clamp(climatePoint.y / climateRadius, -1., 1.));
-              float climateNext = clamp(climateLatitude + radians(climateShift) * cos(abs(climateLatitude)), -1.53589, 1.53589);
+              float climateNext = radians(shiftSeasonalLatitude(degrees(climateLatitude), climateShift));
               float climateLongitude = atan(climatePoint.z, climatePoint.x);
               climatePoint = climateRadius * vec3(cos(climateNext)*cos(climateLongitude), sin(climateNext), cos(climateNext)*sin(climateLongitude));
               gl_Position = climateEarthToClip * vec4(climatePoint, 1.);
             ` + shader.vertexShader.slice(end)
         }
-        mat.customProgramCacheKey = () => 'seasonal-world-warp-v1'
+        mat.customProgramCacheKey = () => 'seasonal-world-warp-v2'
         mat.needsUpdate = true
       }
       object.frustumCulled = false

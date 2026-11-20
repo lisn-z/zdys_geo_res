@@ -35,8 +35,16 @@
         <div class="stage-content">
           <div ref="threeContainerRef" class="scene-host three-host"></div>
           <div class="labels-overlay" ref="labelsOverlayRef">
-            <div v-for="(l, i) in labelScreenData" :key="i" v-show="l.visible" class="scene-label" :class="l.cls"
-              :style="{ left: l.x + 'px', top: l.y + 'px', color: l.color, opacity: l.opacity }">{{ l.text }}</div>
+            <div v-for="(l, i) in labelScreenData" :key="l.id ?? i" v-show="l.visible" class="scene-label"
+              :class="l.cls" :style="{ left: l.x + 'px', top: l.y + 'px', color: l.color, opacity: l.opacity }">{{
+                l.text }}</div>
+            <svg class="latitude-label-leaders" aria-hidden="true">
+              <path v-for="l in latitudeScreenData" :key="l.id" v-show="l.visible"
+                :d="`M ${l.x + 3} ${l.y} L ${l.anchorX} ${l.anchorY}`" :stroke="l.color" />
+            </svg>
+            <div v-for="l in latitudeScreenData" :key="l.id" v-show="l.visible" class="latitude-reference-label"
+              :style="{ left: l.x + 'px', top: l.y + 'px', color: l.color }">{{ l.text }}</div>
+            <SolarRayIndicator v-bind="solarScreenData" />
           </div>
 
         </div>
@@ -51,13 +59,21 @@
             </el-icon>
           </button>
           <div class="timeline-spacer" aria-hidden="true"></div>
-          <div class="month-control-group" :class="{ disabled: currentStage < 2 }">
-            <span class="month-control-label">季节月份</span>
+          <div v-if="currentStage === 2" class="month-control-group season-point-controls">
+            <span class="month-control-label">二分二至</span>
+            <div class="month-options" role="group" aria-label="选择二分二至">
+              <button v-for="point in seasonPoints" :key="point.id" type="button" class="theme-btn month-btn"
+                :class="{ active: seasonPoint === point.id }" :aria-pressed="seasonPoint === point.id"
+                @click="setSeasonPoint(point.id)">{{ point.label }}</button>
+            </div>
+          </div>
+          <div v-else class="month-control-group" :class="{ disabled: currentStage !== 3 }">
+            <span class="month-control-label">代表月份</span>
             <div class="month-options" role="group" aria-label="选择季节代表月份">
-              <button type="button" class="theme-btn month-btn" :class="{ active: month === 0 }"
-                :disabled="currentStage < 2" @click="setRepresentativeMonth(0)">1月</button>
-              <button type="button" class="theme-btn month-btn" :class="{ active: month === 6 }"
-                :disabled="currentStage < 2" @click="setRepresentativeMonth(6)">7月</button>
+              <button type="button" class="theme-btn month-btn" :class="{ active: !neutralSeason && month === 0 }"
+                :disabled="currentStage !== 3" @click="setRepresentativeMonth(0)">1月</button>
+              <button type="button" class="theme-btn month-btn" :class="{ active: !neutralSeason && month === 6 }"
+                :disabled="currentStage !== 3" @click="setRepresentativeMonth(6)">7月</button>
             </div>
           </div>
           <div class="speed-control-group">
@@ -71,110 +87,155 @@
       </section>
     </main>
 
-    <section v-if="visibleLegendGroups.length" class="corner-legend" aria-label="当前图例">
+    <section v-if="visibleLegendGroups.length" class="corner-legend"
+      :class="{ 'has-pressure-key': currentStage === 3 && layers.regionalPressureCenters }" aria-label="当前图例">
       <div class="corner-legend-heading">
         <strong>当前图例</strong>
         <span>{{ currentStageData?.shortName ?? '' }}</span>
       </div>
-      <div class="legend-groups">
-        <div v-for="group in visibleLegendGroups" :key="group.title" class="legend-group">
-          <div class="legend-group-title">{{ group.title }}</div>
-          <div class="legend-list">
-            <div v-for="item in group.items" :key="item.label" class="legend-item">
-              <span class="legend-symbol" :class="`legend-${item.symbol}`"
-                aria-hidden="true"
-                :style="{ background: item.symbol === 'high' || item.symbol === 'low' ? undefined : item.background,
-                  color: item.symbol === 'high' || item.symbol === 'low' ? item.background : undefined }"
-              >{{ item.symbol === 'high' ? 'H' : item.symbol === 'low' ? 'L' : '' }}</span>
-              <span>{{ item.label }}</span>
+      <p class="circulation-model-note" v-if="currentStage < 2">环流路径示意 · 大气厚度已夸大</p>
+      <p class="circulation-model-note" v-if="layers.windForces">{{ windForceDescription }}</p>
+      <div class="corner-legend-body">
+        <div class="legend-groups">
+          <div v-for="group in visibleLegendGroups" :key="group.title" class="legend-group">
+            <div class="legend-group-title">{{ group.title }}</div>
+            <div class="legend-list">
+              <div v-for="item in group.items" :key="item.label" class="legend-item">
+                <span class="legend-symbol" :class="`legend-${item.symbol}`" aria-hidden="true" :style="{
+                  background: ['high', 'low', 'curved-arrow'].includes(item.symbol) ? undefined : item.background,
+                  color: ['high', 'low', 'curved-arrow'].includes(item.symbol) ? item.background : undefined
+                }">
+                  <svg v-if="item.symbol === 'curved-arrow'" viewBox="0 0 32 18" focusable="false">
+                    <path d="M1 17 C7 4 17 4 24 5 L24 1 L32 7 L24 13 L24 9 C14 5 8 8 1 17Z" fill="currentColor" />
+                  </svg>
+                  <template v-else>{{ item.symbol === 'high' ? 'H' : item.symbol === 'low' ? 'L' : '' }}</template>
+                </span>
+                <span>{{ item.label }}</span>
+              </div>
             </div>
           </div>
         </div>
+        <div v-if="currentStage === 3 && layers.regionalPressureCenters" class="pressure-key">
+          <div class="pressure-key-title"><strong>{{ month === 0 ? '1月' : '7月' }}海平面气压</strong><span>hPa（百帕）</span>
+          </div>
+          <div class="pressure-key-colors" :style="{ height: monthlyPressureLegend.colors.length * 18 + 'px' }"
+            role="list" aria-label="教材气压分界值，从高压到低压">
+            <div class="pressure-key-ramp" aria-hidden="true">
+              <span v-for="(color, index) in monthlyPressureLegend.colors" :key="index" class="pressure-key-swatch"
+                :style="{ background: color }"></span>
+            </div>
+            <span v-for="(level, index) in monthlyPressureLegend.levels" :key="level" class="pressure-key-value"
+              :style="{ top: (index + 1) * 18 + 'px' }" role="listitem" :aria-label="`${level} hPa`">{{ level }}</span>
+          </div>
+        </div>
       </div>
-      <div v-if="currentStage === 3 && layers.regionalPressureCenters" class="pressure-key">
-        <span>海平面气压 / hPa（百帕）</span>
-        <div class="pressure-key-colors"><span v-for="(color, i) in pressurePalette" :key="i" :style="{ background: color }">{{ pressureLevels[i] }}</span></div>
-        <small>NOAA/NCEP · {{ ncepSlpMetadata.climatology }} · {{ month === 0 ? '1月' : '7月' }}气候平均</small>
-      </div>
+      <small v-if="currentStage === 3 && layers.regionalPressureCenters" class="pressure-key-source">NOAA/NCEP · {{
+        ncepSlpMetadata.climatology }} · {{ month === 0 ? '1月' : '7月' }}气候平均</small>
     </section>
 
     <FloatingFeatureCard v-show="floatingPanelsVisible" v-model:collapsed="layerCardCollapsed"
-      class="layer-feature-card" title="控制面板" subtitle="分层查看大气环流" variant="data"
-      :initial-top="196" :initial-right="16" :bottom-inset="82"
-      :min-width="320" :min-height="420">
+      class="layer-feature-card" title="图层面板" subtitle="分层查看大气环流" variant="data" :initial-top="90" :initial-right="16"
+      :bottom-inset="82" :min-width="320" :min-height="320">
       <div class="floating-layer-content">
-        <section v-if="visibleCellLayerDefs.length" class="geo-card control-section">
-          <h3 class="section-title">🌀 三圈环流</h3>
-          <div v-for="l in visibleCellLayerDefs" :key="l.key" class="switch-row"
-            :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
-            <div class="control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
-            <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)"
-              @change="handleCellLayerChange(l.key)" />
+        <section v-if="currentStage === 0 ? singleCellLayerDefs.length : visibleCellLayerDefs.length"
+          class="panel-control-group">
+          <h3>{{ currentStage === 0 ? '单圈环流' : '环流结构' }}</h3>
+          <div v-for="l in (currentStage === 0 ? singleCellLayerDefs : visibleCellLayerDefs)" :key="l.key"
+            class="panel-control-row" :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
+            <div class="panel-control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
+            <el-switch v-model="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
+              @change="handleLayerControlChange(l.key)" />
           </div>
         </section>
 
-        <section v-if="visibleWindLayerDefs.length" class="geo-card control-section">
-          <h3 class="section-title">💨 风向</h3>
-          <div v-for="l in visibleWindLayerDefs" :key="l.key" class="switch-row"
+        <section v-if="visibleWindLayerDefs.length" class="panel-control-group">
+          <h3>风与受力</h3>
+          <div v-for="l in visibleWindLayerDefs" :key="l.key" class="panel-control-row"
             :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
-            <div class="control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
-            <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
+            <div class="panel-control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
+            <el-switch v-model="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
+              @change="handleLayerControlChange(l.key)" />
           </div>
         </section>
 
-        <section v-if="visiblePressureLayerDefs.length" class="geo-card control-section">
-          <h3 class="section-title">📊 气压带</h3>
-          <div v-for="l in visiblePressureLayerDefs" :key="l.key" class="switch-row"
+        <section v-if="visiblePressureLayerDefs.length" class="panel-control-group">
+          <h3>气压分布</h3>
+          <div v-for="l in visiblePressureLayerDefs" :key="l.key" class="panel-control-row"
             :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
-            <div class="control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
-            <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
+            <div class="panel-control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
+            <el-switch v-model="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
+              @change="handleLayerControlChange(l.key)" />
           </div>
         </section>
 
-        <section v-if="visibleOtherLayerDefs.length" class="geo-card control-section">
-          <h3 class="section-title">🎨 其他</h3>
-          <div v-for="l in visibleOtherLayerDefs" :key="l.key" class="switch-row"
+        <section v-if="visibleOtherLayerDefs.length" class="panel-control-group">
+          <h3>参照线与标注</h3>
+          <div v-for="l in visibleOtherLayerDefs" :key="l.key" class="panel-control-row"
             :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
-            <div class="control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
-            <el-switch v-model="layers[l.key]" :disabled="!isLayerAvailable(l.key)" />
+            <div class="panel-control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
+            <el-switch v-model="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
+              @change="handleLayerControlChange(l.key)" />
+          </div>
+          <div class="panel-control-row">
+            <div class="panel-control-copy"><strong>纬度标注</strong><span>0°、30°、60°、回归线与极圈</span></div>
+            <el-switch v-model="latitudeLabelsEnabled" aria-label="纬度标注" @change="updateLabels" />
           </div>
         </section>
       </div>
     </FloatingFeatureCard>
 
     <FloatingFeatureCard v-show="floatingPanelsVisible" v-model:collapsed="teachingCardCollapsed" title="阶段面板"
-      :subtitle="currentStageData?.title ?? ''" variant="data" :initial-top="112" :initial-right="16" :bottom-inset="82"
-      :min-width="360" :min-height="360">
+      class="teaching-feature-card" subtitle="按步骤观察与推理" variant="data" :initial-top="160" :initial-right="16"
+      :bottom-inset="82" :min-width="320" :min-height="320">
       <div class="floating-teaching-content">
-        <div class="stage-nav floating-stage-nav">
-          <button v-for="(stage, i) in stages" :key="stage.id" type="button" class="stage-nav-item" :class="{
-            active: currentStage === i,
-            done: currentStage > i
-          }" @click="goToStage(i)">
-            <span class="stage-num">{{ i + 1 }}</span>
-            <span class="stage-name">{{ stage.shortName }}</span>
+        <nav class="lesson-stage-tabs" aria-label="选择教学阶段">
+          <button v-for="(stage, i) in stages" :key="stage.id" type="button" class="lesson-stage-tab"
+            :class="{ active: currentStage === i }" :aria-pressed="currentStage === i" @click="goToStage(i)">
+            <span class="lesson-stage-number">{{ i + 1 }}</span>
+            <span>{{ stage.shortName }}</span>
           </button>
-        </div>
+        </nav>
 
-        <section v-if="currentStageData" class="floating-stage-card">
-          <div class="stage-header">
-            <span class="stage-badge">阶段 {{ currentStage + 1 }}</span>
-            <h3 class="section-title">{{ currentStageData.title }}</h3>
+        <section v-if="currentStageData && currentStepData" class="lesson-current-step" aria-live="polite">
+          <div class="lesson-step-progress">
+            <span>步骤 {{ currentStep + 1 }} / {{ currentStageData.steps.length }}</span>
+            <span>{{ currentStageData.shortName }}</span>
           </div>
-          <p class="stage-desc">{{ currentStageData.desc }}</p>
-          <div class="stage-points">
-            <button v-for="(p, idx) in currentStageData.points" :key="idx" type="button" class="step-point"
-              :class="{ done: stepDone[idx] }" @click="toggleStep(idx)">
-              <span class="step-num">{{ idx + 1 }}</span>
-              <span class="step-text">{{ p }}</span>
-            </button>
-          </div>
-          <div class="stage-nav-buttons">
-            <button class="theme-btn option-btn" :disabled="currentStage === 0" @click="prevStage">← 上一步</button>
-            <button class="theme-btn primary" @click="nextStage">
-              {{ currentStage < stages.length - 1 ? '下一步 →' : '从头演示' }} </button>
-          </div>
+          <h3>{{ currentStepData.title }}</h3>
+          <p>{{ currentStepData.description }}</p>
         </section>
+
+        <ol v-if="currentStageData" class="lesson-step-list" aria-label="本阶段步骤">
+          <li v-for="(step, idx) in currentStageData.steps" :key="idx" class="lesson-step-row">
+            <button type="button" class="lesson-step-button"
+              :class="{ active: currentStep === idx, passed: currentStep > idx }"
+              :aria-current="currentStep === idx ? 'step' : undefined" @click="goToStep(idx)">
+              <span class="lesson-step-number">{{ idx + 1 }}</span>
+              <span class="lesson-step-copy">
+                <template v-if="step.focusCell && step.title.includes('：')">
+                  <strong>{{ step.title.split('：')[0] }}</strong>
+                  <span>{{ step.title.split('：')[1] }}</span>
+                </template>
+                <template v-else>{{ step.title }}</template>
+              </span>
+            </button>
+            <button v-if="step.focusCell" type="button" class="lesson-step-focus"
+              :title="`近景观看并重播${step.focusCell === 'single' ? '单圈环流' : step.title.split('：')[0]}`"
+              :aria-label="`近景观看并重播${step.focusCell === 'single' ? '单圈环流' : step.title.split('：')[0]}`"
+              @click="focusAndReplayStep(idx)">
+              <el-icon aria-hidden="true">
+                <ZoomIn />
+              </el-icon>
+            </button>
+          </li>
+        </ol>
+
+        <footer class="lesson-step-navigation">
+          <button type="button" :disabled="isFirstTeachingStep" @click="previousStep">← 上一步</button>
+          <button type="button" class="lesson-next-step" @click="nextStep">
+            {{ isLastTeachingStep ? '从头演示' : '下一步 →' }}
+          </button>
+        </footer>
       </div>
     </FloatingFeatureCard>
 
@@ -183,20 +244,35 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import { VideoPause, VideoPlay, ZoomIn } from '@element-plus/icons-vue'
 import '@/styles/geo-page-template.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
+import SolarRayIndicator from './components/SolarRayIndicator.vue'
 import { ncepSlpMetadata } from './ncep-slp-climatology'
 import { SurfaceClimate, type ClimateState } from './simulation/SurfaceClimate'
 import { SeasonalWarp } from './simulation/seasonal-warp'
-import { ensureAirflowCells } from './simulation/circulation-layers'
+import { stages, getNextTeachingPosition, getPreviousTeachingPosition } from './simulation/teaching-flow'
+import { createSingleCellTeachingVisuals, updateSingleCellTeachingVisuals } from './simulation/single-cell-teaching'
+import { createWindForceVisuals, updateWindForceVisuals, windForceColors, windForceDescription } from './simulation/wind-forces'
+import { createPolarEquatorReference, updatePolarEquatorReference } from './simulation/polar-reference'
+import { createRotationGuide, updateRotationGuide } from './simulation/rotation-guide'
+import { ensureAirflowCells, isCirculationEnvelopeVisible } from './simulation/circulation-layers'
 import { createReferenceLatitudes, latitudeStyles } from './simulation/graticule'
+import { projectLatitudeLabels, type LatitudeScreenLabel } from './simulation/latitude-labels'
+import { deflectCirculationCurve, createClosedCellRibbon } from './simulation/circulation-spatial'
+import { createCirculationVolumeGeometry } from './simulation/circulation-volume'
+import { createCirculationEdgeGlow } from './simulation/circulation-glow'
+import { createCirculationFormation } from './simulation/circulation-formation'
+import { createEarthRim } from './simulation/earth-rim'
+import { getCellFocusView } from './simulation/circulation-focus'
+import { CellFocusReplay } from './simulation/cell-focus-replay'
+import { resolveSeasonTargets, seasonPoints, type SeasonPoint } from './simulation/seasonal-controls'
 import { AtmosphericCellCurve, circulationCloseView, circulationTransitionProgress, interpolateCirculationCamera, insetSectionCurve, sectionPlaneNormal } from './simulation/circulation-section'
-import { palette } from './simulation/model'
-import { pressureColors, pressurePalette, pressureLevels } from './simulation/pressure-data'
+import { palette, shiftLatitude as shiftClimateLatitude } from './simulation/model'
+import { pressureColors, pressureScaleForMonth } from './simulation/pressure-data'
 
 const atmosphericSpaceBackgroundUrl = '/geo-resources-folder/images/atmospheric-space-bg.png'
 
@@ -226,15 +302,6 @@ type PressureType = 'high' | 'low'
 type WindType = 'trade' | 'westerly' | 'polar'
 type SeasonType = 'summer' | 'winter'
 
-interface Stage {
-  id: string
-  shortName: string
-  title: string
-  desc: string
-  points: string[]
-  knowledge: string
-  layers: Record<string, boolean>
-}
 
 interface CirculationDefinition {
   id: string
@@ -282,6 +349,7 @@ interface SceneLabel {
 }
 
 interface ScreenLabel {
+  id?: string
   color?: string
   opacity?: number
   text: string
@@ -407,146 +475,35 @@ const cellLayerDefs = [
   { key: 'ferrelCell', label: '中纬·费雷尔环流', desc: '30°~60°' },
   { key: 'polarCell', label: '高纬·极地环流', desc: '60°~90°' },
   { key: 'airflowRibbons', label: '环流气流', desc: '展示空气的流动路径与方向' },
+  { key: 'circulationEnvelope', label: '透明环流罩', desc: '独立显示环流的空间范围' },
+]
+
+const singleCellLayerDefs = [
+  { key: 'singleCell', label: '单圈环流', desc: '显示完整环流与近地面箭头' },
+  { key: 'airflowRibbons', label: '环流气流', desc: '显示环流内部的流动轨迹' },
+  { key: 'circulationEnvelope', label: '透明环流罩', desc: '独立显示或隐藏透明包络' },
 ]
 
 const windLayerDefs = [
+  { key: 'windForces', label: '风向与受力', desc: '水平气压梯度力 · 地转偏向力' },
   { key: 'surfaceWinds', label: '地面风向箭头', desc: '气压梯度·半球偏转·盛行风' },
-  { key: 'monsoonWinds', label: '季风动态箭头', desc: '东亚与南亚夏冬季风' },
+  { key: 'monsoonWinds', label: '季风动态箭头', desc: '东亚、南亚与澳北 · 跨赤道气流' },
   { key: 'oceanCurrents', label: '洋流', desc: '全球表层洋流 · 北印度洋季节换向' },
 ]
 
 const pressureLayerDefs = [
   { key: 'pressureBands', label: '气压带', desc: '贴球面的七个纬向气压带' },
   { key: 'regionalPressureCenters', label: '气压场与气压中心', desc: 'NOAA/NCEP 1981—2010年气候平均' },
-  { key: 'isobars', label: '等压线', desc: '真实海平面气压 · 每8 hPa一条' },
+  { key: 'isobars', label: '等压线', desc: '4 hPa主线 · 7月补充1026 hPa' },
 ]
 
 const otherLayerDefs = [
+  { key: 'rotationGuide', label: '自转方向示意圈', desc: '从北极俯视为逆时针' },
   { key: 'latLines', label: '经纬网', desc: '经度每15°·回归线·极圈' },
   { key: 'subsolarLine', label: '太阳直射纬线', desc: '每月15日参考纬度 · 非整圈同时直射' },
   { key: 'textAnnotations', label: '文字标注', desc: '环流/风带/气压带' },
 ]
 
-// ==================== 阶段化教学 ====================
-const stages: Stage[] = [
-  {
-    id: 'ideal',
-    shortName: '理想单圈',
-    title: '阶段一：理想单圈环流',
-    desc: '假设地表均匀、地球不自转并忽略地转偏向力，赤道与两极之间形成理想单圈环流。',
-    points: [
-      '假设地表均匀，无海陆热力差异',
-      '地球不自转，忽略地转偏向力',
-      '赤道受热上升，两极冷却下沉',
-      '高空：赤道→两极；近地面：两极→赤道',
-    ],
-    knowledge: '理想情况下，赤道受热形成上升气流，高空分别向南北两极流动；极地冷却下沉，近地面再流回赤道，南北半球各形成一个<strong>闭合单圈环流</strong>。',
-    layers: {
-      earth: true,
-      airflowRibbons: true,
-      hadleyCell: false,
-      ferrelCell: false,
-      polarCell: false,
-      surfaceWinds: false,
-      pressureBands: false,
-      regionalPressureCenters: false,
-      monsoonWinds: false,
-      latLines: true,
-      subsolarLine: false,
-      textAnnotations: true,
-    },
-  },
-  {
-    id: 'three',
-    shortName: '三圈环流',
-    title: '阶段二：三圈环流（地转偏向力）',
-    desc: '考虑地球自转和地转偏向力后，每个半球形成低纬、中纬和高纬三个环流圈。',
-    points: [
-      '0°附近受热上升，形成赤道低压',
-      '±30°附近空气下沉，形成副热带高压',
-      '30°→0°的近地面气流偏转为信风',
-      '30°→60°的近地面气流偏转为盛行西风',
-      '极地→60°的近地面气流偏转为极地东风',
-      '±60°附近气流辐合上升，形成副极地低压',
-      '两极附近冷却下沉，形成极地高压',
-    ],
-    knowledge: '<strong>地转偏向力</strong>使北半球运动气流向右偏、南半球向左偏。每个半球形成<strong>低纬环流（哈德莱）</strong>、<strong>中纬环流（费雷尔）</strong>和<strong>高纬环流（极地）</strong>。',
-    layers: {
-      earth: true,
-      airflowRibbons: true,
-      hadleyCell: true,
-      ferrelCell: true,
-      polarCell: true,
-      surfaceWinds: false,
-      pressureBands: false,
-      regionalPressureCenters: false,
-      monsoonWinds: false,
-      latLines: true,
-      subsolarLine: true,
-      textAnnotations: true,
-    },
-  },
-  {
-    id: 'pressure',
-    shortName: '气压带风带',
-    title: '阶段三：气压带和风带的季节移动',
-    desc: '随太阳直射点南北移动，气压带和风带也发生小幅度的南北移动。',
-    points: [
-      '七个气压带：3个低压带、4个高压带',
-      '六个风带：2个信风带、2个西风带、2个极地东风带',
-      '北半球夏季：气压带和风带整体北移',
-      '北半球冬季：气压带和风带整体南移',
-      '教学模型中的移动幅度约5°~10°',
-    ],
-    knowledge: '随<strong>太阳直射点</strong>南北移动，气压带和风带也会季节性移动。北半球夏季整体偏北，北半球冬季整体偏南，春秋分附近接近南北对称。',
-    layers: {
-      earth: true,
-      airflowRibbons: true,
-      hadleyCell: true,
-      ferrelCell: true,
-      polarCell: true,
-      surfaceWinds: true,
-      pressureBands: true,
-      regionalPressureCenters: false,
-      monsoonWinds: false,
-      latLines: true,
-      subsolarLine: true,
-      textAnnotations: true,
-    },
-  },
-  {
-    id: 'lat-lon',
-    shortName: '海陆与季风',
-    title: '阶段四：海陆气压、季风与洋流',
-    desc: '实际海陆热力差异会使纬向气压带发生断裂，形成块状气压中心和季风环流。',
-    points: [
-      '7月：亚洲低压、北太平洋副热带高压',
-      '1月：亚洲高压、阿留申低压',
-      '东亚季风：夏季东南季风、冬季西北季风',
-      '南亚夏季盛行西南季风，冬季盛行东北季风',
-      '北印度洋季风洋流随季节换向；洋流路径为教学示意',
-    ],
-    knowledge: '海陆热力性质差异使部分纬向气压带被分裂为<strong>块状气压中心</strong>。夏季陆地升温快，易形成低压；冬季陆地降温快，易形成高压，并进一步形成季风环流。',
-    layers: {
-      earth: true,
-      airflowRibbons: false,
-      hadleyCell: false,
-      ferrelCell: false,
-      polarCell: false,
-      surfaceWinds: true,
-      // 与实际海平面气压场叠加比较，仍可在控制面板单独关闭。
-      pressureBands: true,
-      regionalPressureCenters: true,
-      monsoonWinds: true,
-      oceanCurrents: false,
-      isobars: true,
-      latLines: true,
-      subsolarLine: true,
-      textAnnotations: true,
-    },
-  },
-
-]
 
 // ==================== 布局状态 ====================
 const {
@@ -584,8 +541,8 @@ const {
 
 const isPlaying = ref(true)
 const isAutoDemo = ref(false)
-const playbackSpeed = ref(1.5)
-const speedOptions = [0.5, 1, 1.5, 2, 5]
+const playbackSpeed = ref(1)
+const speedOptions = [0.5, 1, 1.5, 2]
 const isCloseView = ref(false)
 
 // ==================== 业务状态 ====================
@@ -593,6 +550,7 @@ const threeContainerRef = ref<HTMLElement | null>(null)
 const labelsOverlayRef = ref<HTMLElement | null>(null)
 const simMode = ref<SimMode>('single')
 const month = ref(6) // 0=1月，11=12月
+const seasonPoint = ref<SeasonPoint>('spring-equinox')
 const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
 
 const simModeLabel = computed(() => {
@@ -600,18 +558,23 @@ const simModeLabel = computed(() => {
 })
 
 const seasonalShiftDescription = computed(() => {
-  const offset = getSeasonalLatitudeOffset()
-  if (currentStage.value === 0 || Math.abs(offset) < 0.05) return '接近南北对称位置'
-  return `整体${offset > 0 ? '北移' : '南移'}约 ${Math.abs(offset).toFixed(1)}°`
+  const { latitudeShift } = resolveSeasonTargets(currentStage.value, month.value === 0 ? 1 : 7, seasonPoint.value)
+  if (Math.abs(latitudeShift) < 0.05) return '位于南北对称位置'
+  return `随太阳直射点${latitudeShift > 0 ? '北移' : '南移'}（中低纬示意约 ${Math.abs(latitudeShift).toFixed(0)}°）`
 })
 
 const simModeHint = computed(() => {
   if (simMode.value === 'single') return '赤道上升、两极下沉；近地面由两极流向赤道'
-  return `${monthNames[month.value]} · 三圈环流、气压带和风带${seasonalShiftDescription.value}`
+  const period = currentStage.value === 2 ? seasonPoints.find(point => point.id === seasonPoint.value)?.label : monthNames[month.value]
+  return `${period} · 三圈环流、气压带和风带${seasonalShiftDescription.value}`
 })
 
 const layers = reactive<Record<string, boolean>>({
   earth: true,
+  singleCell: false,
+  circulationEnvelope: false,
+  windForces: false,
+  rotationGuide: false,
   airflowRibbons: true,
   hadleyCell: true,
   ferrelCell: true,
@@ -628,7 +591,8 @@ const layers = reactive<Record<string, boolean>>({
 })
 
 const currentStage = ref(0)
-const stepDone = ref<Record<number, boolean>>({})
+const currentStep = ref(0)
+const neutralSeason = ref(true)
 const floatingPanelsVisible = ref(true)
 const teachingCardCollapsed = ref(true)
 const layerCardCollapsed = ref(true)
@@ -638,12 +602,18 @@ function toggleFloatingPanelsVisibility() {
 }
 
 const currentStageData = computed(() => stages[currentStage.value])
-const visibleCellLayerDefs = computed(() => cellLayerDefs)
-const visibleWindLayerDefs = computed(() => windLayerDefs.filter(layer => currentStage.value === 3 || layer.key === 'surfaceWinds'))
-const visiblePressureLayerDefs = computed(() => pressureLayerDefs.filter(layer => currentStage.value === 3 || !['regionalPressureCenters', 'isobars'].includes(layer.key)))
-const visibleOtherLayerDefs = computed(() => otherLayerDefs)
+const currentStepData = computed(() => currentStageData.value?.steps[currentStep.value])
+const isFirstTeachingStep = computed(() => currentStage.value === 0 && currentStep.value === 0)
+const isLastTeachingStep = computed(() => !getNextTeachingPosition(currentStage.value, currentStep.value))
+const visibleCellLayerDefs = computed(() => currentStage.value === 0 ? [] : cellLayerDefs)
+const visibleWindLayerDefs = computed(() => currentStage.value === 0 ? [] : windLayerDefs.filter(layer => currentStage.value === 3 || ['surfaceWinds', 'windForces'].includes(layer.key)))
+const visiblePressureLayerDefs = computed(() => currentStage.value === 0 ? [] : pressureLayerDefs.filter(layer => currentStage.value === 3 || !['regionalPressureCenters', 'isobars'].includes(layer.key)))
+const visibleOtherLayerDefs = computed(() => otherLayerDefs.map(layer =>
+  layer.key === 'subsolarLine' && currentStage.value === 2
+    ? { ...layer, desc: '春秋分直射赤道 · 夏至、冬至直射回归线' }
+    : layer))
 
-type LegendSymbol = 'arrow' | 'line' | 'band' | 'high' | 'low'
+type LegendSymbol = 'arrow' | 'curved-arrow' | 'line' | 'band' | 'high' | 'low'
 type LegendGroup = {
   title: string
   items: Array<{
@@ -653,29 +623,49 @@ type LegendGroup = {
   }>
 }
 
+const monthlyPressureScale = computed(() => pressureScaleForMonth(month.value === 0 ? 1 : 7))
+const monthlyPressureLegend = computed(() => ({
+  levels: [...monthlyPressureScale.value.levels].reverse(),
+  colors: [...monthlyPressureScale.value.colors].reverse(),
+}))
+
 const visibleLegendGroups = computed<LegendGroup[]>(() => {
   const groups: LegendGroup[] = []
   const add = (title: string, entries: [string, string][], symbol: LegendSymbol = 'arrow') =>
     groups.push({ title, items: entries.map(([label, background]) => ({ label, background, symbol })) })
-  if (currentStage.value === 0 || layers.airflowRibbons)
-    add(currentStage.value === 0 ? '理想单圈气流' : '环流气流', [
-      ['高空 / 上升暖气流', 'linear-gradient(90deg, #ff5a47, #ff98c8)'],
-      ['近地面 / 下沉冷气流', 'linear-gradient(90deg, #72b8ff, #9474ff)'],
+  if (currentStage.value === 0 && layers.singleCell)
+    add('单圈剖面气流', [
+      ['近地面支 · 向赤道', '#ff473b'],
+      ['高空支 · 向两极', '#45a3ff'],
+    ])
+  else if (currentStage.value > 0 && (layers.hadleyCell || layers.ferrelCell || layers.polarCell))
+    add('环流剖面箭头', [
+      ['近地面支', '#ff473b'],
+      ['高空支', '#45a3ff'],
     ])
   if (currentStage.value > 0 && layers.surfaceWinds)
-    add('盛行风', [['信风', palette.hadley], ['西风', palette.ferrel], ['极地东风', palette.polar]])
+    add('盛行风', [['信风', palette.hadley], ['西风', palette.ferrel], ['极地东风', palette.polar]], 'curved-arrow')
+  if (layers.windForces && currentStage.value > 0)
+    add('风向与受力', [['水平气压梯度力', windForceColors.pressure], ['风向', windForceColors.wind], ['地转偏向力', windForceColors.coriolis]])
+  if (currentStage.value === 0 && !layers.singleCell) {
+    const vertical = currentStepData.value?.singlePhase === 'vertical'
+    add(vertical ? '垂直运动' : '受热差异', [[vertical ? '赤道上升' : '赤道受热', '#ff915f'], [vertical ? '两极下沉' : '两极冷却', '#72caff']], vertical ? 'arrow' : 'band')
+  }
   if (currentStage.value > 0 && layers.pressureBands)
     add('理想气压带', [['高压带', palette.high], ['低压带', palette.low]], 'band')
   if (currentStage.value === 3 && layers.monsoonWinds)
-    add('季风', [
-      ['东亚夏季风', palette.summerMonsoon], ['南亚夏季风', palette.southSummerMonsoon],
+    add('季风与跨赤道气流', month.value === 0 ? [
       ['东亚冬季风', palette.winterMonsoon], ['南亚冬季风', palette.southWinterMonsoon],
-    ])
+      ['东北信风 · 跨赤道前', palette.hadley], ['澳北西北季风 · 跨赤道后', palette.australiaSummerMonsoon],
+    ] : [
+      ['东亚夏季风', palette.summerMonsoon], ['南亚西南季风 · 跨赤道后', palette.southSummerMonsoon],
+      ['东南信风 · 跨赤道前', palette.hadley],
+    ], 'curved-arrow')
   if (currentStage.value === 3 && layers.oceanCurrents)
     add('表层洋流', [['暖流', palette.warm], ['寒流', palette.cold]], 'arrow')
   if (currentStage.value === 3 && (layers.regionalPressureCenters || layers.isobars)) {
     const items: LegendGroup['items'] = []
-    if (layers.isobars) items.push({ label: '等压线 · 间隔8 hPa', background: pressureColors.line, symbol: 'line' })
+    if (layers.isobars) items.push({ label: '等压线 · 4 hPa主线 · 7月补充1026 hPa', background: pressureColors.line, symbol: 'line' })
     if (layers.regionalPressureCenters) items.push(
       { label: '高压中心', background: pressureColors.highText, symbol: 'high' },
       { label: '低压中心', background: pressureColors.lowText, symbol: 'low' },
@@ -727,18 +717,36 @@ const cellLabels: SceneLabel[] = [
 ]
 
 const allLabels = computed<SceneLabel[]>(() => {
-  if (simMode.value === 'single') return singleLabels
+  if (simMode.value === 'single') {
+    if (layers.singleCell) return singleLabels
+    return singleLabels.filter(label => !label.circulationId).map(label => ({
+      ...label,
+      text: currentStepData.value?.singlePhase === 'heating' ? label.text.replace('上升', '').replace('下沉', '') : label.text,
+    }))
+  }
   return cellLabels
 })
 
 const labelScreenData = ref<ScreenLabel[]>([])
+// A viewing preference, kept independently of stage/step layer presets.
+const latitudeLabelsEnabled = ref(true)
+const latitudeScreenData = ref<LatitudeScreenLabel[]>([])
+const solarScreenData = ref({ visible: false, x: 0, y: 0, reach: 100 })
 
 // ==================== Three.js 变量 ====================
 let surfaceClimate: SurfaceClimate | null = null
 let seasonalWarp: SeasonalWarp | null = null
 function climateState(): ClimateState {
-  return { stage: currentStage.value, month: month.value === 0 ? 1 : 7, playing: isPlaying.value, speed: playbackSpeed.value, layers }
+  return {
+    stage: currentStage.value, month: month.value === 0 ? 1 : 7, seasonPoint: seasonPoint.value,
+    playing: isPlaying.value, speed: playbackSpeed.value, layers, neutralSeason: neutralSeason.value
+  }
 }
+let singleTeaching: ReturnType<typeof createSingleCellTeachingVisuals> | null = null
+let windForces: ReturnType<typeof createWindForceVisuals> | null = null
+let windForceStartedAt = 0
+let polarReference: ReturnType<typeof createPolarEquatorReference> | null = null
+let rotationGuide: ReturnType<typeof createRotationGuide> | null = null
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let renderer: THREE.WebGLRenderer | null = null
@@ -765,6 +773,7 @@ let rotationAngle = DEFAULT_EARTH_ROTATION
 let animationId = 0
 const clock = new THREE.Clock()
 let timeAccum = 0
+let teachingStepStartedAt = 0
 let labelUpdateElapsed = 0
 
 let threeResizeObserver: ResizeObserver | null = null
@@ -776,6 +785,7 @@ let lastSceneWidth = 0
 let lastSceneHeight = 0
 let replayTimers: ReturnType<typeof setTimeout>[] = []
 let circulationRevealProgress = 0
+const cellFocusReplay = new CellFocusReplay()
 const defaultCameraPosition = new THREE.Vector3(0, 3.05, 10.25)
 const defaultOrbitTarget = new THREE.Vector3(0, 0, 0)
 const cameraBeforeCloseView = defaultCameraPosition.clone()
@@ -841,12 +851,10 @@ function getSeasonalLatitudeOffset() {
 }
 
 /**
- * 气压带和风带随季节移动，但越接近极点移动幅度越小，
- * 防止极地高压和极地环流被整体推离极点。
+ * 标签使用与气压带、风带和环流几何相同的季节位移，避免相互错位。
  */
 function shiftLatitude(lat: number, offset: number) {
-  const taper = Math.cos(THREE.MathUtils.degToRad(Math.abs(lat)))
-  return clamp(lat + offset * taper, -88, 88)
+  return shiftClimateLatitude(lat, offset)
 }
 
 function getCellCenterLon(_definition: CirculationDefinition) {
@@ -857,10 +865,12 @@ function getCellCenterLon(_definition: CirculationDefinition) {
 function resetCirculationFormation() {
   // 默认先显示一小段气流，避免进入阶段一时画面短暂完全空白。
   // 后续仍会按动画进度逐渐喷出并闭合。
-  circulationRevealProgress = currentStage.value === 0 ? 0.12 : 0.06
+  circulationRevealProgress = 0
 }
 
 function getCirculationCloseView() {
+  if (cellFocusReplay.kind) return getCellFocusView(camera?.aspect ?? 1,
+    CIRCULATION_CENTER_LON, cellFocusReplay.kind)
   return circulationCloseView(camera?.aspect ?? 1,
     CIRCULATION_CENTER_LON, simMode.value === 'single')
 }
@@ -891,6 +901,7 @@ function applyCloseViewImmediately() {
 
   camera.updateProjectionMatrix()
   orbitControls.update()
+  if (isCloseView.value) cellFocusReplay.arrive()
 }
 
 function startCloseViewTransition() {
@@ -1007,16 +1018,20 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uMap: { value: texture },
-      uBrightness: { value: 0.42 },
+      uBrightness: { value: 0.30 },
       uSaturation: { value: 0.72 },
       uContrast: { value: 1.04 },
       uCoolTint: { value: new THREE.Color(0x8cc9e8) },
     },
     vertexShader: `
       varying vec2 vUv;
+      varying vec3 vEarthNormal;
+      varying vec3 vEarthView;
 
       void main() {
         vUv = uv;
+        vEarthNormal = normalize(normalMatrix * normal);
+        vEarthView = -(modelViewMatrix * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -1028,6 +1043,8 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
       uniform vec3 uCoolTint;
 
       varying vec2 vUv;
+      varying vec3 vEarthNormal;
+      varying vec3 vEarthView;
 
       void main() {
         vec3 textureColor = texture2D(uMap, vUv).rgb;
@@ -1036,6 +1053,8 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
         color = (color - 0.5) * uContrast + 0.5;
         color = mix(color, color * uCoolTint, 0.24);
         color *= uBrightness;
+        float grazing = 1.0 - max(0.0, dot(normalize(vEarthNormal), normalize(vEarthView)));
+        color += vec3(.025, .20, .58) * pow(grazing, 5.0) * .72;
         gl_FragColor = vec4(color, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -1765,23 +1784,23 @@ function createOffsetSmokeCurve(
   const points: THREE.Vector3[] = []
   const center = new THREE.Vector3()
 
-  for (let index = 0; index <= samples; index++) {
+  for (let index = 0; index < samples; index++) {
     const t = index / samples
     baseCurve.getPointAt(t, center)
 
-    const slowCurl = Math.sin(t * Math.PI * 2 * 1.15 + phase * 0.63)
-    const fastCurl = Math.sin(t * Math.PI * 2 * 3.4 - phase * 1.31)
+    const slowCurl = Math.sin(t * Math.PI * 2 + phase * 0.63)
+    const fastCurl = Math.sin(t * Math.PI * 2 * 3 - phase * 1.31)
 
     const twist =
       phase +
-      t * Math.PI * 2 * twistCount +
+      t * Math.PI * 2 * Math.round(twistCount) +
       slowCurl * 0.46 +
       fastCurl * 0.16
 
     const breathing =
       0.58 +
-      0.30 * Math.sin(t * Math.PI * 2 * 1.9 + phase * 0.7) +
-      0.12 * Math.sin(t * Math.PI * 2 * 5.1 - phase)
+      0.30 * Math.sin(t * Math.PI * 2 * 2 + phase * 0.7) +
+      0.12 * Math.sin(t * Math.PI * 2 * 5 - phase)
 
     const meander = waviness * 0.34 * slowCurl
 
@@ -1851,6 +1870,9 @@ function createSmokeStreamMaterial(
       uniform float uWaveAmplitude;
       uniform float uWaveFrequency;
 
+      attribute float aFormation;
+      varying float vFormation;
+
       varying vec2 vUv;
       varying vec3 vViewNormal;
       varying vec3 vViewDirection;
@@ -1898,6 +1920,7 @@ function createSmokeStreamMaterial(
           uTime * uFlowSpeed * 0.16 +
           uPhase;
 
+        vFormation = aFormation;
         vec2 periodicCoord = vec2(
           cos(flow * TAU),
           sin(flow * TAU)
@@ -1943,6 +1966,8 @@ function createSmokeStreamMaterial(
       uniform vec3 uRiseColor;
       uniform vec3 uSinkColor;
       uniform float uReveal;
+
+      varying float vFormation;
 
       varying vec2 vUv;
       varying vec3 vViewNormal;
@@ -2090,11 +2115,12 @@ function createSmokeStreamMaterial(
         segmentColor = mix(segmentColor, uRiseColor, riseMask * 0.97);
         segmentColor = mix(segmentColor, uSinkColor, sinkMask * 0.94);
 
-        // 从路径起点逐步喷出，形成完整环流，而不是瞬间全部显示。
-        float revealAlpha = smoothstep(
+        // Ascent and descent form together, then both horizontal branches join.
+        if (uReveal <= 0.0) discard;
+        float revealAlpha = uReveal >= 1.0 ? 1.0 : smoothstep(
           -0.055,
           0.025,
-          uReveal - vUv.x
+          uReveal - vFormation
         );
 
         // 柔化外缘，并让局部烟丝自然断续、聚散。
@@ -2151,62 +2177,53 @@ function createSmokeStreamMaterial(
 function createCirculationEnvelope(
   curve: THREE.Curve<THREE.Vector3>,
   mode: 'single' | 'three',
+  longitudeWidth = 8,
 ) {
   const sampleCount = mode === 'single' ? 150 : 110
   const boundaryPoints = Array.from({ length: sampleCount }, (_, index) =>
     curve.getPointAt(index / sampleCount),
   )
-  const horizontalAxis = boundaryPoints
-    .reduce((axis, point) => axis.add(new THREE.Vector3(point.x, 0, point.z)), new THREE.Vector3())
-    .normalize()
-  const verticalAxis = new THREE.Vector3(0, 1, 0)
-  const normalAxis = horizontalAxis.clone().cross(verticalAxis).normalize()
-
-  const shape = new THREE.Shape()
-  boundaryPoints.forEach((point, index) => {
-    const x = point.dot(horizontalAxis)
-    const y = point.y
-    if (index === 0) shape.moveTo(x, y)
-    else shape.lineTo(x, y)
-  })
-  shape.closePath()
-
-  const geometry = new THREE.ShapeGeometry(shape, 16)
-  geometry.applyMatrix4(new THREE.Matrix4().makeBasis(
-    horizontalAxis,
-    verticalAxis,
-    normalAxis,
-  ))
-  geometry.computeVertexNormals()
+  const geometry = createCirculationVolumeGeometry(curve, longitudeWidth, sampleCount, 28)
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      uCoolColor: { value: new THREE.Color(0x55ddff) },
-      uVioletColor: { value: new THREE.Color(0x9b91ff) },
-      uWarmColor: { value: new THREE.Color(0xff6682) },
-      uOpacity: { value: mode === 'single' ? 0.62 : 0.52 },
+      uCoolColor: { value: new THREE.Color(0x6cbaff) },
+      uOpacity: { value: mode === 'single' ? 0.42 : 0.34 },
+      uMinRadius: { value: Math.min(...boundaryPoints.map(p => p.length())) },
+      uMaxRadius: { value: Math.max(...boundaryPoints.map(p => p.length())) },
     },
     vertexShader: `
-      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      varying float vHeight;
+      uniform float uMinRadius;
+      uniform float uMaxRadius;
 
       void main() {
-        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        vView = -(modelViewMatrix * vec4(position, 1.0)).xyz;
+        vHeight = clamp((length(position)-uMinRadius)/(uMaxRadius-uMinRadius),0.0,1.0);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: `
       uniform vec3 uCoolColor;
-      uniform vec3 uVioletColor;
-      uniform vec3 uWarmColor;
       uniform float uOpacity;
-      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      varying float vHeight;
 
       void main() {
-        float verticalGradient = smoothstep(0.02, 0.96, vUv.y);
-        float warmBand = smoothstep(0.32, 0.64, vUv.y) * (1.0 - smoothstep(0.76, 0.98, vUv.y));
-        vec3 color = mix(uCoolColor, uVioletColor, verticalGradient * 0.62);
-        color = mix(color, uWarmColor, warmBand * 0.10);
-        float centerGlow = 1.0 - abs(vUv.x - 0.5) * 2.0;
-        float alpha = uOpacity * (0.34 + verticalGradient * 0.18 + centerGlow * 0.14);
+        // Broad, luminous grazing highlights describe the curved shell itself.
+        // Keep its interior clear; stacking front/back faces must not become a blue slab.
+        float grazing = 1.0 - abs(dot(normalize(vNormal), normalize(vView)));
+        float rim = pow(grazing, 1.65);
+        float outerGlow = smoothstep(.22, 1., vHeight);
+        float sheen = max(rim, outerGlow * .72);
+        vec3 color = mix(vec3(.025,.07,.23), uCoolColor, .36 + sheen*.64);
+        color *= 1.28 + rim*.36;
+        color = mix(color, vec3(.67, .91, 1.2), pow(grazing, 5.0)*.24);
+        float alpha = uOpacity * (.065 + rim*.64 + outerGlow*.30);
+        alpha *= gl_FrontFacing ? 1.0 : .42;
         gl_FragColor = vec4(color, alpha);
       }
     `,
@@ -2231,7 +2248,7 @@ function createCirculationEnvelope(
     new THREE.LineBasicMaterial({
       color: mode === 'single' ? 0x7de8ff : 0x83d8ff,
       transparent: true,
-      opacity: mode === 'single' ? 0.82 : 0.66,
+      opacity: longitudeWidth >= 20 ? 0.025 : 0.10,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -2241,7 +2258,13 @@ function createCirculationEnvelope(
 
   const group = new THREE.Group()
   group.name = `${mode}-circulation-solid-envelope`
-  group.add(face, outline)
+  group.userData.isCirculationEnvelope = true
+  // Two end faces and connecting skin enclose a volume, not a flat mask or tube.
+  outline.rotation.y = THREE.MathUtils.degToRad(longitudeWidth / 2)
+  const oppositeOutline = outline.clone()
+  oppositeOutline.rotation.y = -outline.rotation.y
+  group.add(face, outline, oppositeOutline)
+  group.add(createCirculationEdgeGlow(geometry))
   return group
 }
 
@@ -2318,6 +2341,10 @@ function createSmokeStream(
     options.haze ? 8 : 6,
     true,
   )
+  const formation = createCirculationFormation(baseCurve)
+  const pathUV = geometry.getAttribute('uv')
+  geometry.setAttribute('aFormation', new THREE.Float32BufferAttribute(
+    Array.from({ length: pathUV.count }, (_, i) => formation(pathUV.getX(i))), 1))
 
   const material = createSmokeStreamMaterial(
     definition.color,
@@ -2363,10 +2390,9 @@ function createSmokeBundle(
     definition.hemisphere === 'south'
       ? 0.43
       : 0
-  const smokeCurve = createInsetCirculationCurve(
-    curve,
-    mode === 'single' ? 0.82 : 0.72,
-  )
+  const smokeCurve = deflectCirculationCurve(insetSectionCurve(
+    curve, mode === 'single' ? .105 : .085,
+  ), definition.type)
 
   // 一层宽而淡的体积烟雾，负责形成截图中柔和的空气团感。
   group.add(
@@ -2379,7 +2405,7 @@ function createSmokeBundle(
         normalOffset: 0,
         binormalOffset: 0,
         phase: hemispherePhase + 0.17,
-        radius: config.hazeRadius,
+        radius: config.hazeRadius * .42,
         opacity: config.hazeOpacity,
         flowSpeed: config.flowSpeed * 0.72,
         waveAmplitude: config.waveAmplitude * 1.55,
@@ -2402,7 +2428,7 @@ function createSmokeBundle(
         normalOffset: config.strandSpread * 0.12,
         binormalOffset: -config.strandSpread * 0.08,
         phase: hemispherePhase + 1.37,
-        radius: config.hazeRadius * 1.46,
+        radius: config.hazeRadius * .62,
         opacity: config.hazeOpacity * 0.48,
         flowSpeed: config.flowSpeed * 0.48,
         waveAmplitude: config.waveAmplitude * 2.15,
@@ -2415,7 +2441,7 @@ function createSmokeBundle(
   )
 
   // 多股细烟丝围绕主路径缓慢缠绕，形成类似参考图的束状烟流。
-  for (let index = 0; index < config.strandCount; index++) {
+  for (let index = 0; index < 6; index++) {
     const angle =
       (index / config.strandCount) * Math.PI * 2 +
       hemispherePhase +
@@ -2426,7 +2452,7 @@ function createSmokeBundle(
       0.34 * (0.5 + 0.5 * Math.sin(index * 1.71))
 
     const distance =
-      config.strandSpread * ringScale
+      config.strandSpread * ringScale * .34
 
     const normalOffset =
       Math.cos(angle) * distance
@@ -2450,7 +2476,7 @@ function createSmokeBundle(
           binormalOffset,
           phase: angle + index * 0.37,
           radius:
-            config.strandRadius *
+            config.strandRadius * .62 *
             centerBias *
             (0.88 + 0.18 * Math.sin(index * 2.13)),
           opacity:
@@ -2471,8 +2497,8 @@ function createSmokeBundle(
           haze: false,
           brightness:
             index === 0
-              ? 2.18
-              : 1.82 + (index % 3) * 0.10,
+              ? 1.42
+              : 1.18 + (index % 3) * 0.10,
         },
       ),
     )
@@ -2500,35 +2526,17 @@ function createSingleCellSystem() {
     CIRCULATION_SECTIONS.forEach((section, sectionIndex) => {
       const curve = new AtmosphericCellCurve(definition, section.longitude, 0)
       // 实体剖面属于环流结构，不随“环流气流”开关消失。
-      directionGroup.add(createCirculationEnvelope(curve, 'single'))
+      const envelope = createCirculationEnvelope(curve, 'single', section.fullEffect ? 50 : 8)
+      envelope.userData.cellKind = 'single'
+      root.add(envelope)
       if (section.fullEffect) {
         airflowGroup.add(createSmokeBundle(definition, curve, 'single'))
       }
 
-      if (section.fullEffect) {
-        ;[0.10, 0.34, 0.58, 0.82].forEach((progress, arrowIndex) => {
-          directionGroup.add(
-            createCurveDirectionArrow(
-              curve,
-              progress + sectionIndex * 0.025 + arrowIndex * 0.006,
-              definition,
-              1.06,
-              'single',
-            ),
-          )
-        })
-      } else {
-        ;[0.12, 0.58].forEach((progress, arrowIndex) => {
-          directionGroup.add(
-            createMovingInsetCirculationArrow(
-              curve,
-              definition,
-              progress + sectionIndex * 0.035,
-              sectionIndex * 0.23 + arrowIndex * 0.46,
-              'single',
-            ),
-          )
-        })
+      if (!section.fullEffect) {
+        const ribbon = createClosedCellRibbon(insetSectionCurve(curve, .15))
+        singleCellArrowMaterials.push(ribbon.material)
+        directionGroup.add(ribbon)
       }
     })
 
@@ -2594,37 +2602,24 @@ function createThreeCellSystem(latitudeOffset = 0) {
         latitudeOffset,
       )
 
-      directionGroups[definition.type].add(createCirculationEnvelope(curve, 'three'))
+      const spatialCurve = deflectCirculationCurve(curve, definition.type)
+      const envelope = createCirculationEnvelope(
+        section.fullEffect ? spatialCurve : curve, 'three', section.fullEffect ? 44 : 8,
+      )
+      envelope.userData.cellKind = definition.type
+      root.add(envelope)
       if (section.fullEffect) {
         airflowGroups[definition.type].add(
           createSmokeBundle(definition, curve, 'three'),
         )
       }
 
-      if (section.fullEffect) {
-        ;[0.12, 0.37, 0.62, 0.87].forEach((progress, arrowIndex) => {
-          directionGroups[definition.type].add(
-            createCurveDirectionArrow(
-              curve,
-              progress + sectionIndex * 0.018 + arrowIndex * 0.004,
-              definition,
-              1.0,
-              'three',
-            ),
-          )
-        })
-      } else {
-        ;[0.14, 0.60].forEach((progress, arrowIndex) => {
-          directionGroups[definition.type].add(
-            createMovingInsetCirculationArrow(
-              curve,
-              definition,
-              progress + sectionIndex * 0.028,
-              sectionIndex * 0.19 + arrowIndex * 0.43,
-              'three',
-            ),
-          )
-        })
+      if (!section.fullEffect) {
+        const ribbon = createClosedCellRibbon(insetSectionCurve(curve, .10), 2, .080)
+        ribbon.name = `${definition.id}-continuous-flat-arrow-loop`
+        ribbon.material.userData.cellType = definition.type
+        singleCellArrowMaterials.push(ribbon.material)
+        directionGroups[definition.type].add(ribbon)
       }
     })
   })
@@ -2710,7 +2705,7 @@ function createLatLines() {
       points.push(latLonToVec3(lat, lon, radius))
     }
 
-    group.add(createSimpleGridLine(points, regularLatitudeColor, 0.48, true, 0.0034))
+    group.add(createSimpleGridLine(points, regularLatitudeColor, 0.22, true, 0.0030))
   }
 
   // 普通经线每15°一根，0°和180°单独高亮。
@@ -2722,7 +2717,7 @@ function createLatLines() {
       points.push(latLonToVec3(lat, lon, radius))
     }
 
-    group.add(createSimpleGridLine(points, regularLongitudeColor, 0.72, false, 0.0048))
+    group.add(createSimpleGridLine(points, regularLongitudeColor, 0.34, false, 0.0035))
   }
 
   group.add(createReferenceLatitudes(EARTH_RADIUS))
@@ -2856,6 +2851,7 @@ function initScene() {
 
   earthMesh = new THREE.Mesh(earthGeometry, earthMaterial)
   earthGroup.add(earthMesh)
+  earthMesh.add(createEarthRim(EARTH_RADIUS))
 
   new THREE.TextureLoader().load(
     '/geo-resources-folder/images/Material.003_diffuse.jpg',
@@ -2898,9 +2894,15 @@ function initScene() {
   threeCellRoot = createThreeCellSystem(0)
   latLineGroup = createLatLines()
   surfaceClimate = new SurfaceClimate()
+  singleTeaching = createSingleCellTeachingVisuals(EARTH_RADIUS)
+  windForces = createWindForceVisuals(EARTH_RADIUS)
+  polarReference = createPolarEquatorReference(EARTH_RADIUS)
+  rotationGuide = createRotationGuide(EARTH_RADIUS)
   seasonalWarp = new SeasonalWarp(surfaceClimate.shift)
   seasonalWarp.attach(threeCellRoot)
   earthMesh.add(singleCellRoot, threeCellRoot, latLineGroup, surfaceClimate.group)
+  earthMesh.add(singleTeaching.heating, singleTeaching.vertical, windForces.group, polarReference.group)
+  earthMesh.add(rotationGuide.group)
 
   resizeThreeSceneNow()
 
@@ -2929,8 +2931,8 @@ function updateSmokeStreams() {
     if (stream.mode !== activeMode) return
     if (!stream.mesh.parent?.visible) return
 
-    stream.mesh.material.uniforms.uTime!.value = timeAccum
-    stream.mesh.material.uniforms.uReveal!.value = circulationRevealProgress
+    stream.mesh.material.uniforms.uTime!.value = cellFocusReplay.timeFor(stream.cellType, timeAccum)
+    stream.mesh.material.uniforms.uReveal!.value = cellFocusReplay.revealFor(stream.cellType, circulationRevealProgress)
   })
 
 }
@@ -2967,18 +2969,19 @@ function updateMovingArrowItem(
 }
 
 function updateAnimatedArrows(deltaTime: number) {
-  if (!isPlaying.value) return
-
   const activeCirculationMode = simMode.value === 'single' ? 'single' : 'three'
 
   circulationDirectionArrows.forEach(item => {
+    if (!isPlaying.value) return
     if (item.mode !== activeCirculationMode) return
     if (!item.mesh.parent?.visible) return
     updateMovingArrowItem(item, deltaTime)
   })
 
   singleCellArrowMaterials.forEach(material => {
-    material.uniforms.uTime!.value = timeAccum
+    const kind = material.userData.cellType ?? 'single'
+    material.uniforms.uTime!.value = cellFocusReplay.timeFor(kind, timeAccum)
+    if (material.uniforms.uReveal) material.uniforms.uReveal.value = cellFocusReplay.revealFor(kind, circulationRevealProgress)
   })
 
 }
@@ -3032,6 +3035,7 @@ function updateViewTransition(deltaTime: number) {
     orbitControls.enabled = true
     orbitControls.enableDamping = true
     orbitControls.minDistance = isCloseView.value ? .45 : 4.5
+    if (isCloseView.value) cellFocusReplay.arrive()
     if (!isCloseView.value) {
       rotationAngle = earthMesh.rotation.y
       hasOverviewSnapshot = false
@@ -3055,10 +3059,14 @@ function animate() {
       earthMesh.rotation.y = rotationAngle
     }
 
-    circulationRevealProgress = Math.min(1, circulationRevealProgress + deltaTime * 0.28 * Math.max(1, playbackSpeed.value * 0.8))
+    circulationRevealProgress = Math.min(1, circulationRevealProgress + deltaTime * 0.28 * playbackSpeed.value)
+    cellFocusReplay.advance(deltaTime * playbackSpeed.value)
   }
 
   surfaceClimate?.update(deltaTime, climateState())
+  if (singleTeaching) updateSingleCellTeachingVisuals(singleTeaching, timeAccum, Math.min(1, (timeAccum - teachingStepStartedAt) / 2.8))
+  if (windForces?.group.visible) updateWindForceVisuals(windForces, timeAccum - windForceStartedAt)
+  if (rotationGuide) updateRotationGuide(rotationGuide, timeAccum, currentStage.value > 0 && !!layers.rotationGuide)
   updateSmokeStreams()
   updateAnimatedArrows(deltaTime)
   updateViewTransition(deltaTime)
@@ -3070,6 +3078,11 @@ function animate() {
     }
   }
   if (camera) seasonalWarp?.update(camera, earthMesh)
+  if (camera && polarReference) {
+    earthMesh.updateWorldMatrix(true, false)
+    const localEye = earthMesh.worldToLocal(camera.getWorldPosition(new THREE.Vector3()))
+    updatePolarEquatorReference(polarReference, localEye, !!layers.latLines)
+  }
 
   if (renderer && scene && camera) {
     renderer.render(scene, camera)
@@ -3149,6 +3162,9 @@ function updateLabels() {
 
   const width = container.clientWidth
   const height = container.clientHeight
+  updateSolarIndicator(width, height)
+  latitudeScreenData.value = latitudeLabelsEnabled.value && layers.latLines
+    ? projectLatitudeLabels(earthMesh, camera, width, height, EARTH_RADIUS) : []
 
   if (!layers.textAnnotations) {
     labelScreenData.value = allLabels.value.map(label => ({
@@ -3182,9 +3198,14 @@ function updateLabels() {
       localPosition = getCirculationLabelPosition(label, seasonalOffset)
         ?? latLonToVec3(lat, label.lon, getLabelRadius(label))
     } else {
+      const thermalLabel = label.type === 'single' && !label.circulationId
+      const facingEye = thermalLabel
+        ? earthMesh!.worldToLocal(camera!.getWorldPosition(new THREE.Vector3())) : null
+      const visibleLongitude = facingEye
+        ? THREE.MathUtils.radToDeg(Math.atan2(-facingEye.z, facingEye.x)) : label.lon
       localPosition = latLonToVec3(
         lat,
-        label.lon,
+        visibleLongitude,
         getLabelRadius(label),
       )
     }
@@ -3221,10 +3242,82 @@ function updateLabels() {
     }
   })
   labelScreenData.value.push(...(surfaceClimate?.projectLabels(camera, width, height, climateState()) ?? []))
+  appendTeachingLabels(width, height)
+}
+
+function updateSolarIndicator(width: number, height: number) {
+  if (!camera || !earthMesh || !surfaceClimate || !layers.subsolarLine) {
+    solarScreenData.value.visible = false
+    return
+  }
+  earthMesh.updateWorldMatrix(true, false)
+  let edge: THREE.Vector3 | null = null
+  // Find the visible ring's rightmost projection, independent of Earth's spin.
+  for (let i = 0; i < 96; i++) {
+    const point = latLonToVec3(surfaceClimate.sunlight.latitude, i * 360 / 96, EARTH_RADIUS + .035)
+      .applyMatrix4(earthMesh.matrixWorld).project(camera)
+    if (Math.abs(point.z) <= 1 && (!edge || point.x > edge.x)) edge = point
+  }
+  if (!edge) { solarScreenData.value.visible = false; return }
+  const targetX = (edge.x + 1) * width / 2
+  const y = (1 - edge.y) * height / 2
+  const x = Math.min(width - 52, Math.max(width * .82, targetX + 115))
+  solarScreenData.value = {
+    visible: targetX < width - 90 && y > 42 && y < height - 100,
+    x, y, reach: Math.max(60, x - targetX - 3)
+  }
+}
+
+const teachingLabelOffsets = new Map<string, number>()
+function appendTeachingLabels(width: number, height: number) {
+  if (!camera || !earthMesh) return
+  const eye = camera.getWorldPosition(new THREE.Vector3())
+  const center = earthMesh.getWorldPosition(new THREE.Vector3())
+  const project = (position: THREE.Vector3, text: string, color: string, reference = false, opacity = 1, offsetX = 0, id = text) => {
+    const world = position.clone().applyMatrix4(earthMesh!.matrixWorld)
+    const p = world.clone().project(camera!)
+    if (Math.abs(p.x) > .96 || Math.abs(p.y) > .95 || Math.abs(p.z) > 1) return
+    const ray = new THREE.Ray(eye, world.clone().sub(eye).normalize())
+    const hit = ray.intersectSphere(new THREE.Sphere(center, EARTH_RADIUS + .015), new THREE.Vector3())
+    if (!reference && hit && eye.distanceTo(hit) < eye.distanceTo(world) - .06) return
+    const x = (p.x + 1) * width / 2 + offsetX, anchorY = (1 - p.y) * height / 2
+    const textWidth = Math.max(...text.split('\n').map(line => line.length)) * 12 + 12
+    const previous = teachingLabelOffsets.get(id) ?? 0
+    const offsets = [...new Set([previous, 0, -24, 24, -48, 48, -72, 72])]
+    const offsetY = offsets.find(offset => {
+      const y = anchorY + offset
+      return y > 12 && y < height - 24 && !labelScreenData.value.some(other => {
+        if (!other.visible || (other.opacity ?? 1) < .03) return false
+        const lines = other.text.split('\n')
+        const otherWidth = Math.max(...lines.map(line => line.length)) * 12 + 16
+        const otherHeight = lines.length * 18 + 10
+        return Math.abs(x - other.x) < (textWidth + otherWidth) / 2 && Math.abs(y - other.y) < (22 + otherHeight) / 2
+      })
+    })
+    if (offsetY === undefined) return
+    teachingLabelOffsets.set(id, offsetY)
+    labelScreenData.value.push({
+      id, text, color, x,
+      y: anchorY + offsetY, visible: true,
+      opacity: reference ? polarReference!.line.material.opacity / .72 : opacity,
+      cls: reference ? 'label-equator-reference' : 'label-wind-force'
+    })
+  }
+  if (windForces?.group.visible) {
+    const selected = new Set(windForces.clusters.filter(cluster => cluster.group.visible).map(cluster => cluster.id))
+    for (const label of windForces.labels) {
+      if (selected.has(label.cluster) && label.opacity > .01) project(label.position, label.text, label.color, false, label.opacity, label.kind === 'pressure' ? -48 : label.kind === 'wind' ? 17 : 42, `${label.cluster}-${label.kind}`)
+    }
+  }
+  if (polarReference?.group.visible) {
+    project(polarReference.labelPosition, '赤道位置参考（投影）', '#ff536b', true)
+  }
+  if (rotationGuide?.group.visible) project(rotationGuide.labelPosition, '自转方向', '#8dceff')
 }
 
 // ==================== 图层与模式 ====================
 function setCloseViewState(enabled: boolean, instant = false) {
+  if (!enabled) cellFocusReplay.clear()
   if (isCloseView.value === enabled && !viewTransitionActive) {
     if (instant) applyCloseViewImmediately()
     return
@@ -3244,7 +3337,11 @@ function syncStageView() {
   scheduleSceneResize(0)
 }
 
-function handleCellLayerChange(key: string) {
+function handleLayerControlChange(key: string) {
+  stopAutoDemo()
+  if (simMode.value === 'single' && layers[key] && key === 'airflowRibbons') {
+    layers.singleCell = true
+  }
   if (key === 'airflowRibbons') {
     ensureAirflowCells(layers, simMode.value === 'single')
     // A manually enabled layer must also be visible while playback is paused.
@@ -3262,8 +3359,37 @@ function applyLayerVisibility() {
   const singleMode = simMode.value === 'single'
 
   if (singleCellRoot) {
-    singleCellRoot.visible = singleMode
+    singleCellRoot.visible = singleMode && (!!layers.singleCell || !!layers.circulationEnvelope)
+    for (const name of ['single-cell-circulation-direction-arrows', 'single-cell-surface-direction-arrows']) {
+      const group = singleCellRoot.getObjectByName(name)
+      if (group) group.visible = !!layers.singleCell
+    }
   }
+  if (singleTeaching) {
+    singleTeaching.heating.visible = singleMode && !layers.singleCell && currentStepData.value?.singlePhase !== 'closed'
+    singleTeaching.vertical.visible = singleTeaching.heating.visible && currentStepData.value?.singlePhase === 'vertical'
+  }
+  if (windForces) {
+    const enabled = !singleMode && !!layers.windForces
+    // Choose geographic examples only when enabled, never replace them each frame
+    // with another front-facing longitude. They rotate with their Earth parent.
+    if (enabled && !windForces.group.visible && camera) {
+      windForceStartedAt = timeAccum
+      earthMesh.updateWorldMatrix(true, false)
+      const localEye = earthMesh.worldToLocal(camera.getWorldPosition(new THREE.Vector3())).normalize()
+      const selected = new Set<string>()
+      for (const hemisphere of ['north', 'south']) {
+        const facing = windForces.clusters.filter(cluster => cluster.hemisphere === hemisphere)
+          .sort((a, b) => b.origin.clone().normalize().dot(localEye) - a.origin.clone().normalize().dot(localEye))[0]
+        if (facing) selected.add(facing.id)
+      }
+      windForces.clusters.forEach(cluster => { cluster.group.visible = selected.has(cluster.id) })
+    }
+    windForces.group.visible = enabled
+  }
+  for (const root of [singleCellRoot, threeCellRoot]) root?.traverse(object => {
+    if (object.userData.isCirculationEnvelope) object.visible = isCirculationEnvelopeVisible(layers, object.userData.cellKind)
+  })
 
   if (threeCellRoot) {
     threeCellRoot.visible = !singleMode
@@ -3297,7 +3423,7 @@ function applyLayerVisibility() {
 
   if (singleCellAirflowGroup) {
     singleCellAirflowGroup.visible =
-      singleMode && !!layers.airflowRibbons
+      singleMode && !!layers.singleCell && !!layers.airflowRibbons
   }
 
   if (latLineGroup) latLineGroup.visible = !!layers.latLines
@@ -3306,30 +3432,43 @@ function applyLayerVisibility() {
 function isLayerAvailable(key: string) {
   if (['latLines', 'textAnnotations', 'subsolarLine', 'earth'].includes(key)) return true
   if (['regionalPressureCenters', 'isobars', 'monsoonWinds', 'oceanCurrents'].includes(key)) return currentStage.value === 3
-  if (key === 'airflowRibbons') return true
+  if (['airflowRibbons', 'circulationEnvelope'].includes(key)) return true
+  if (key === 'singleCell') return currentStage.value === 0
   return currentStage.value > 0
 }
 
-function applyStage(stageIndex: number) {
-  const stage = stages[stageIndex]
-  if (!stage) return
+function applyTeachingStep(index: number, keepFocus = false, preserveForceChoice = true) {
+  const step = stages[currentStage.value]?.steps[index]
+  if (!step) return
+  if (!keepFocus && cellFocusReplay.kind) setCloseViewState(false)
+  const retainedWindForces = currentStage.value === 1 && preserveForceChoice ? layers.windForces : undefined
+  currentStep.value = index
+  teachingStepStartedAt = isPlaying.value ? timeAccum : timeAccum - 2.8
+  Object.keys(layers).forEach(key => { layers[key] = !!step.layers[key] })
+  // Keep the teacher's force-illustration choice throughout this stage, including
+  // focus replays. Only entering the stage applies its default enabled preset.
+  if (retainedWindForces !== undefined) layers.windForces = retainedWindForces
+  if (step.month !== undefined) month.value = step.month
+  if (step.seasonPoint !== undefined) seasonPoint.value = step.seasonPoint
+  neutralSeason.value = !!step.neutralSeason
+  resetCirculationFormation()
+  if (!isPlaying.value) circulationRevealProgress = 1
+  applyLayerVisibility()
+}
+
+function applyStage(stageIndex: number, stepIndex = 0) {
+  if (!stages[stageIndex]) return
   simMode.value = stageIndex === 0 ? 'single' : 'three'
   if (stageIndex === 0 && earthMesh) {
     rotationAngle = DEFAULT_EARTH_ROTATION
     earthMesh.rotation.y = rotationAngle
   }
-  Object.keys(layers).forEach(key => { layers[key] = !!stage.layers[key] })
-  stepDone.value = {}
   syncStageView()
-  resetCirculationFormation()
-  applyLayerVisibility()
+  applyTeachingStep(stepIndex, false, false)
 }
 
 function setMode(mode: SimMode) {
-  const targetStage = mode === 'single' ? 0 : 1
-  simMode.value = targetStage === 0 ? 'single' : 'three'
-  currentStage.value = targetStage
-  applyStage(targetStage)
+  goToStage(mode === 'single' ? 0 : 1)
 }
 
 function clearReplayTimers() {
@@ -3342,115 +3481,108 @@ function stopAutoDemo() {
   isAutoDemo.value = false
 }
 
-function goToStage(
-  stageIndex: number,
-  options: { fromAutoDemo?: boolean } = {},
-) {
-  if (!options.fromAutoDemo && isAutoDemo.value) {
-    stopAutoDemo()
-  }
-
-  const nextIndex = clamp(stageIndex, 0, stages.length - 1)
-  currentStage.value = nextIndex
-
-  simMode.value = nextIndex === 0 ? 'single' : 'three'
-
-  applyStage(nextIndex)
+function goToStage(stageIndex: number, options: { fromAutoDemo?: boolean; step?: number } = {}) {
+  if (!options.fromAutoDemo) stopAutoDemo()
+  currentStage.value = clamp(stageIndex, 0, stages.length - 1)
+  applyStage(currentStage.value, options.step ?? 0)
 }
 
-const autoDemoStageDurations = [
-  9000,  // 阶段一：确保单圈烟流完成喷出并闭合
-  10000, // 阶段二
-  9000,  // 阶段三
-  10000, // 阶段四完整展示后自动结束
-]
+function goToStep(index: number) {
+  stopAutoDemo()
+  applyTeachingStep(index)
+}
 
-function scheduleNextAutoDemoStage() {
+function focusAndReplayStep(index: number) {
+  const kind = stages[currentStage.value]?.steps[index]?.focusCell
+  if (!kind || !sceneReady || !camera || !orbitControls) return
+  stopAutoDemo()
+  // Selecting the icon also selects its lesson, without jumping back to overview.
+  applyTeachingStep(index, true)
+  cellFocusReplay.begin(kind)
+  isPlaying.value = true
+  isCloseView.value = true
+  // Even repeated clicks replay; formation starts only when the flight arrives.
+  startCloseViewTransition()
+}
+
+function scheduleNextAutoDemoStep() {
   clearReplayTimers()
-
   if (!isAutoDemo.value || componentDestroyed) return
-
   const scheduledStage = currentStage.value
-  const duration = autoDemoStageDurations[scheduledStage] ?? 9000
-
+  const scheduledStep = currentStep.value
   const timer = setTimeout(() => {
     replayTimers = []
-
     if (!isAutoDemo.value || componentDestroyed) return
-
-    // 只处理创建该定时器时对应的阶段。
-    // 即使浏览器进入后台，恢复后也只会前进一步，不会连续跳过多个阶段。
-    if (currentStage.value !== scheduledStage) {
-      scheduleNextAutoDemoStage()
+    if (currentStage.value !== scheduledStage || currentStep.value !== scheduledStep) {
+      scheduleNextAutoDemoStep()
       return
     }
-
-    if (scheduledStage >= stages.length - 1) {
+    const next = getNextTeachingPosition(scheduledStage, scheduledStep)
+    if (!next) {
       stopAutoDemo()
       return
     }
-
-    goToStage(scheduledStage + 1, { fromAutoDemo: true })
-    scheduleNextAutoDemoStage()
-  }, duration)
-
+    if (next.stage === scheduledStage) applyTeachingStep(next.step)
+    else goToStage(next.stage, { fromAutoDemo: true, step: next.step })
+    scheduleNextAutoDemoStep()
+  }, currentStepData.value?.durationMs ?? 9000)
   replayTimers = [timer]
 }
 
-function startAutoDemo(
-  options: { restartFromBeginning?: boolean } = {},
-) {
+function startAutoDemo(options: { restartFromBeginning?: boolean } = {}) {
   clearReplayTimers()
   isAutoDemo.value = true
   isPlaying.value = true
-
-  const startStage = options.restartFromBeginning
-    ? 0
-    : currentStage.value
-
-  // 自动演示默认从当前激活阶段开始，并重新应用该阶段，
-  // 让该阶段的形成动画从头完整播放。
-  goToStage(startStage, { fromAutoDemo: true })
-  scheduleNextAutoDemoStage()
+  if (options.restartFromBeginning) goToStage(0, { fromAutoDemo: true })
+  else applyTeachingStep(currentStep.value)
+  scheduleNextAutoDemoStep()
 }
 
 function toggleAutoDemo() {
-  if (isAutoDemo.value) {
-    stopAutoDemo()
-    return
-  }
-
-  startAutoDemo()
+  if (isAutoDemo.value) stopAutoDemo()
+  else startAutoDemo()
 }
 
 function togglePlayback() {
-  // 手动播放或暂停意味着退出自动教学流程，后续不再自动跳转阶段。
   stopAutoDemo()
   isPlaying.value = !isPlaying.value
 }
 
+function setSeasonPoint(point: SeasonPoint) {
+  if (currentStage.value !== 2) return
+  stopAutoDemo()
+  const stepIndex = stages[2]!.steps.findIndex(step => step.seasonPoint === point && step.layers.subsolarLine)
+  if (stepIndex >= 0) applyTeachingStep(stepIndex)
+}
+
 function setRepresentativeMonth(nextMonth: 0 | 6) {
-  if (currentStage.value < 2) return
-  month.value = nextMonth
-}
-
-function nextStage() {
-  if (currentStage.value < stages.length - 1) {
-    goToStage(currentStage.value + 1)
+  if (currentStage.value !== 3) return
+  stopAutoDemo()
+  // Keep the active lesson description aligned with the displayed month.
+  if (currentStep.value < 2) {
+    applyTeachingStep(nextMonth === 0 ? 0 : 1)
+  } else if (currentStep.value < 4) {
+    applyTeachingStep(nextMonth === 6 ? 2 : 3)
   } else {
-    // 最后阶段的“从头演示”是明确的重新开始，因此仍从阶段一启动。
-    startAutoDemo({ restartFromBeginning: true })
+    month.value = nextMonth
+    neutralSeason.value = false
   }
 }
 
-function prevStage() {
-  if (currentStage.value > 0) {
-    goToStage(currentStage.value - 1)
-  }
+function nextStep() {
+  stopAutoDemo()
+  const next = getNextTeachingPosition(currentStage.value, currentStep.value)
+  if (!next) startAutoDemo({ restartFromBeginning: true })
+  else if (next.stage === currentStage.value) applyTeachingStep(next.step)
+  else goToStage(next.stage, { step: next.step })
 }
 
-function toggleStep(index: number) {
-  stepDone.value[index] = !stepDone.value[index]
+function previousStep() {
+  stopAutoDemo()
+  const previous = getPreviousTeachingPosition(currentStage.value, currentStep.value)
+  if (!previous) return
+  if (previous.stage === currentStage.value) applyTeachingStep(previous.step)
+  else goToStage(previous.stage, { step: previous.step })
 }
 
 // ==================== Resize ====================
@@ -3606,6 +3738,10 @@ onBeforeUnmount(() => {
 
   surfaceClimate?.dispose()
   surfaceClimate = null
+  singleTeaching = null
+  windForces = null
+  polarReference = null
+  rotationGuide = null
   seasonalWarp = null
 
   if (scene) {
@@ -3643,12 +3779,91 @@ onBeforeUnmount(() => {
 })
 </script>
 <style scoped>
-.climate-label { border: 1px solid currentColor; }
-.climate-contour-label { font-size: 9px !important; padding: 1px 3px !important; background: #06122199 !important; border: none !important; }
-.pressure-key { display: grid; gap: 6px; margin-top: 10px; font-size: 11px; color: #bcd3e7; }
-.pressure-key-colors { display: flex; overflow: hidden; border-radius: 3px; }
-.pressure-key-colors span { flex: 1; padding: 5px 2px; font-size: 10px; color: white; text-shadow: 0 1px 3px #000; text-align: center; }
-.pressure-key small { font-size: 10px; }
+.climate-label {
+  border: 1px solid currentColor;
+}
+
+.scene-label.climate-monsoon-label {
+  white-space: pre-line;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.climate-contour-label {
+  font-size: 11px !important;
+  padding: 2px 4px !important;
+  background: #06122199 !important;
+  border: none !important;
+}
+
+.pressure-key {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  font-size: 11px;
+  color: #bcd3e7;
+}
+
+.pressure-key-title {
+  display: grid;
+  gap: 2px;
+  line-height: 1.4;
+}
+
+.pressure-key-title strong {
+  color: #dceaf3;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pressure-key-title span {
+  color: #a5bdcf;
+  font-size: 10px;
+}
+
+.pressure-key-colors {
+  position: relative;
+}
+
+.pressure-key-ramp {
+  display: grid;
+  grid-auto-rows: 18px;
+  width: 22px;
+  height: 100%;
+}
+
+.pressure-key-swatch {
+  display: block;
+  height: 100%;
+}
+
+.pressure-key-value {
+  position: absolute;
+  left: 30px;
+  transform: translateY(-50%);
+  color: #e1edf5;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 12px;
+}
+
+.pressure-key-value::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  width: 5px;
+  height: 1px;
+  background: #b6c6d4;
+}
+
+.pressure-key-source {
+  display: block;
+  margin-top: 9px;
+  color: #8eacbd;
+  font-size: 9px;
+  line-height: 1.4;
+}
 
 /* 季节切换标签 */
 .page-subtitle {
@@ -3901,18 +4116,44 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   border: 2px solid;
   text-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+  transition: none;
+}
+
+.latitude-reference-label {
+  position: absolute;
+  transform: translate(-100%, -50%);
+  white-space: nowrap;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(3, 12, 25, .72);
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
+  text-shadow: 0 1px 3px #000;
+  transition: none;
+}
+
+.latitude-label-leaders {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke-width: .75;
+  opacity: .55;
 }
 
 .scene-label.label-low {
-  color: #d4caff;
-  border-color: rgba(198, 184, 255, 0.66);
-  box-shadow: 0 0 14px rgba(198, 184, 255, 0.16);
+  color: #f6aa3a;
+  border-color: rgba(246, 170, 58, 0.66);
+  box-shadow: 0 0 14px rgba(246, 170, 58, 0.16);
 }
 
 .scene-label.label-high {
-  color: #b7f4e4;
-  border-color: rgba(166, 234, 216, 0.66);
-  box-shadow: 0 0 14px rgba(166, 234, 216, 0.16);
+  color: #927bd4;
+  border-color: rgba(146, 123, 212, 0.66);
+  box-shadow: 0 0 14px rgba(146, 123, 212, 0.16);
 }
 
 .scene-label.label-trade {
@@ -4010,11 +4251,11 @@ onBeforeUnmount(() => {
 }
 
 .wind-item.pressure-low .wind-icon {
-  color: #c6b8ff;
+  color: #f6aa3a;
 }
 
 .wind-item.pressure-high .wind-icon {
-  color: #a6ead8;
+  color: #927bd4;
 }
 
 /* 图例 */
@@ -5136,80 +5377,304 @@ body.geo-panel-resizing {
   height: 100% !important;
 }
 
-/* ===================== 右侧悬浮卡与代表月份 ===================== */
+/* ===================== 两侧悬浮卡与代表月份 ===================== */
 .general-atmospheric-circulation-container .floating-feature-card {
   max-width: calc(100vw - 20px);
-  max-height: calc(100dvh - 154px);
+  max-height: min(620px, calc(100dvh - 172px));
 }
 
-.general-atmospheric-circulation-container .layer-feature-card {
-  max-height: min(72dvh, 760px);
+.general-atmospheric-circulation-container .floating-feature-card:not(.collapsed) {
+  width: min(340px, calc(100vw - 32px));
+}
+
+.general-atmospheric-circulation-container .floating-feature-card :deep(.feature-card-content) {
+  padding-bottom: 25px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(94, 199, 225, .45) transparent;
 }
 
 .general-atmospheric-circulation-container .floating-teaching-content,
 .general-atmospheric-circulation-container .floating-layer-content {
   display: grid;
+  gap: 16px;
+  box-sizing: border-box;
+  padding: 14px 14px 8px;
+}
+
+.general-atmospheric-circulation-container .panel-control-group {
+  min-width: 0;
+  margin: 0;
+}
+
+.general-atmospheric-circulation-container .panel-control-group h3 {
+  margin: 0 0 5px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(114, 202, 226, .17);
+  color: #80dcec;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 650;
+  letter-spacing: .06em;
+}
+
+.general-atmospheric-circulation-container .panel-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  box-sizing: border-box;
-  padding: 12px 14px 8px;
+  padding: 7px 0;
+  min-width: 0;
 }
 
-.general-atmospheric-circulation-container .floating-layer-content .control-section {
-  width: 100%;
-  margin: 0;
-  box-sizing: border-box;
+.general-atmospheric-circulation-container .panel-control-row.is-stage-disabled {
+  opacity: .44;
 }
 
-.general-atmospheric-circulation-container .floating-layer-content .section-title {
-  color: #e9f8ff;
+.general-atmospheric-circulation-container .panel-control-row :deep(.el-switch) {
+  flex-shrink: 0;
 }
 
-.general-atmospheric-circulation-container .floating-layer-content .switch-row {
-  min-height: 40px;
+.general-atmospheric-circulation-container .panel-control-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
 }
 
-.general-atmospheric-circulation-container .floating-layer-content .control-copy strong {
-  color: #cce8f5;
+.general-atmospheric-circulation-container .panel-control-copy strong {
+  color: #e3f1f8;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 550;
 }
 
-.general-atmospheric-circulation-container .floating-stage-nav {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 10px;
-  overflow: visible;
-  background: transparent;
+.general-atmospheric-circulation-container .panel-control-copy span {
+  color: #8faebd;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
-.general-atmospheric-circulation-container .floating-stage-nav .stage-nav-item,
-.general-atmospheric-circulation-container .floating-stage-card .step-point {
-  border: 1px solid transparent;
-  color: inherit;
-  font: inherit;
+.general-atmospheric-circulation-container .lesson-stage-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.general-atmospheric-circulation-container .lesson-stage-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 39px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(123, 187, 211, .18);
+  border-radius: 8px;
+  color: #a8c4d3;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.4;
   text-align: left;
+  background: rgba(6, 25, 40, .55);
+  cursor: pointer;
 }
 
-.general-atmospheric-circulation-container .floating-stage-nav .stage-nav-item {
-  min-width: 0;
+.general-atmospheric-circulation-container .lesson-stage-tab.active {
+  color: #e7fcff;
+  border-color: rgba(88, 216, 235, .64);
+  background: rgba(25, 102, 128, .35);
 }
 
-.general-atmospheric-circulation-container .floating-stage-card {
-  min-width: 0;
-  padding: 2px 0 8px;
+.general-atmospheric-circulation-container .lesson-stage-number {
+  color: #6dd8e9;
+  font-size: 11px;
+  font-weight: 700;
 }
 
-.general-atmospheric-circulation-container .floating-stage-card .stage-header {
-  align-items: flex-start;
+.general-atmospheric-circulation-container .lesson-current-step {
+  padding: 0 2px;
 }
 
-.general-atmospheric-circulation-container .floating-stage-card .section-title {
-  min-width: 0;
+.general-atmospheric-circulation-container .lesson-step-progress {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #8eaebb;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.general-atmospheric-circulation-container .lesson-step-progress span:first-child {
+  color: #72dae9;
+}
+
+.general-atmospheric-circulation-container .lesson-current-step h3 {
+  margin: 8px 0 6px;
+  color: #f0f8fc;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.general-atmospheric-circulation-container .lesson-current-step p {
   margin: 0;
-  line-height: 1.35;
+  color: #abc3cf;
+  font-size: 12px;
+  line-height: 1.7;
 }
 
-.general-atmospheric-circulation-container .floating-stage-card .step-point {
+.general-atmospheric-circulation-container .lesson-step-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid rgba(114, 202, 226, .15);
+  list-style: none;
+}
+
+.general-atmospheric-circulation-container .lesson-step-row {
+  position: relative;
+}
+
+.general-atmospheric-circulation-container .lesson-step-row:has(.lesson-step-focus) .lesson-step-button {
+  min-height: 58px;
+  padding-right: 45px;
+}
+
+.general-atmospheric-circulation-container .lesson-step-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.general-atmospheric-circulation-container .lesson-step-copy strong {
+  color: inherit;
+  font-weight: 600;
+}
+
+.general-atmospheric-circulation-container .lesson-step-copy>span {
+  font-size: 11px;
+  opacity: .85;
+}
+
+.general-atmospheric-circulation-container .lesson-step-focus {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(114, 202, 226, .28);
+  border-radius: 7px;
+  color: #8ae2f0;
+  background: rgba(24, 86, 108, .28);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.general-atmospheric-circulation-container .lesson-step-focus:hover {
+  color: #e4fbff;
+  border-color: #80dcec;
+  background: rgba(42, 139, 166, .36);
+}
+
+.general-atmospheric-circulation-container .lesson-step-focus:focus-visible {
+  outline: 2px solid #7edff1;
+  outline-offset: 2px;
+}
+
+.general-atmospheric-circulation-container .lesson-step-button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #9db7c7;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.general-atmospheric-circulation-container .lesson-step-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 21px;
+  height: 21px;
+  border: 1px solid rgba(114, 177, 203, .3);
+  border-radius: 50%;
+  font-size: 10px;
+}
+
+.general-atmospheric-circulation-container .lesson-step-button.active {
+  color: #ebfbff;
+  border-color: rgba(93, 201, 225, .24);
+  background: rgba(29, 119, 146, .23);
+}
+
+.general-atmospheric-circulation-container .lesson-step-button.active .lesson-step-number {
+  border-color: #6edbeb;
+  color: #092d3b;
+  background: #6edbeb;
+  font-weight: 700;
+}
+
+.general-atmospheric-circulation-container .lesson-step-button.passed .lesson-step-number {
+  color: #82c8d6;
+  border-color: rgba(105, 208, 220, .5);
+}
+
+.general-atmospheric-circulation-container .lesson-step-navigation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.general-atmospheric-circulation-container .lesson-step-navigation button {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid rgba(111, 182, 209, .28);
+  border-radius: 8px;
+  color: #c2d9e4;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(8, 33, 50, .85);
+  cursor: pointer;
+}
+
+.general-atmospheric-circulation-container .lesson-step-navigation .lesson-next-step {
+  border-color: rgba(96, 208, 230, .65);
+  color: #f1fcff;
+  background: #195e7a;
+}
+
+.general-atmospheric-circulation-container .lesson-step-navigation button:disabled {
+  opacity: .36;
+  cursor: not-allowed;
+}
+
+.general-atmospheric-circulation-container .lesson-stage-tab:hover,
+.general-atmospheric-circulation-container .lesson-step-button:hover {
+  border-color: rgba(113, 215, 234, .52);
+}
+
+.general-atmospheric-circulation-container .lesson-stage-tab:focus-visible,
+.general-atmospheric-circulation-container .lesson-step-button:focus-visible,
+.general-atmospheric-circulation-container .lesson-step-navigation button:focus-visible {
+  outline: 2px solid #7edff1;
+  outline-offset: 2px;
 }
 
 .general-atmospheric-circulation-container .timeline-dock {
@@ -5271,7 +5736,7 @@ body.geo-panel-resizing {
   left: clamp(18px, 2vw, 34px);
   bottom: clamp(118px, 13vh, 170px);
   z-index: 38;
-  width: min(270px, calc(100vw - 36px));
+  width: min(224px, calc(100vw - 36px));
   max-height: min(44vh, 470px);
   padding: 10px 14px 12px;
   box-sizing: border-box;
@@ -5293,6 +5758,33 @@ body.geo-panel-resizing {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 8px;
+}
+
+.general-atmospheric-circulation-container .corner-legend.has-pressure-key {
+  width: min(224px, calc(100vw - 36px));
+  max-height: none;
+  overflow: visible;
+}
+
+.general-atmospheric-circulation-container .has-pressure-key .corner-legend-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  align-items: start;
+  gap: 8px;
+}
+
+.general-atmospheric-circulation-container .has-pressure-key .legend-groups {
+  max-height: clamp(180px, 30vh, 280px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74, 216, 240, .5) transparent;
+}
+
+.general-atmospheric-circulation-container .circulation-model-note {
+  color: #8aafc2;
+  font-size: 10px;
+  line-height: 1.4;
+  margin: 4px 0 10px;
 }
 
 .general-atmospheric-circulation-container .corner-legend-heading strong {
@@ -5406,11 +5898,22 @@ body.geo-panel-resizing {
   clip-path: polygon(0 34%, 64% 34%, 64% 0, 100% 50%, 64% 100%, 64% 66%, 0 66%);
 }
 
+.general-atmospheric-circulation-container .legend-symbol.legend-curved-arrow {
+  width: 26px;
+  height: 16px;
+}
+
+.general-atmospheric-circulation-container .legend-curved-arrow svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 @media (max-width: 1180px) {
   .general-atmospheric-circulation-container .corner-legend {
     left: 12px;
     bottom: 132px;
-    width: min(238px, calc(100vw - 24px));
+    width: min(224px, calc(100vw - 24px));
     max-height: 34vh;
   }
 
@@ -5440,5 +5943,14 @@ body.geo-panel-resizing {
   .general-atmospheric-circulation-container .speed-control-label {
     display: none;
   }
+}
+
+.general-atmospheric-circulation-container .scene-label.label-wind-force {
+  background: transparent;
+  border: 0 !important;
+  box-shadow: none;
+  padding: 1px 3px !important;
+  font-size: 11px !important;
+  text-shadow: 0 1px 4px #000, 0 0 7px #001124;
 }
 </style>

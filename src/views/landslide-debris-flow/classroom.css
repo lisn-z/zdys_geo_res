@@ -1,0 +1,224 @@
+.hazard-classroom {
+  --hazard-accent:#315c4e; --hazard-ink:#264c48; --hazard-muted:#6d7b70; --hazard-paper:#f5f3ec; --hazard-line:#d9dfd3;
+  position:fixed; inset:0; isolation:isolate; display:grid; grid-template-rows:88px minmax(0,1fr) auto;
+  width:100%; height:100dvh; overflow:hidden; color:var(--hazard-ink); background:var(--hazard-paper);
+  font:16px/1.55 "PingFang SC","Microsoft YaHei",sans-serif; color-scheme:light;
+  user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; overscroll-behavior:none;
+}
+.hazard-classroom:fullscreen{width:100%;height:100dvh;overflow:hidden}
+.app-container:has(.hazard-classroom)>.back-home-btn{display:none}
+.hazard-classroom *,.hazard-classroom *::before,.hazard-classroom *::after{box-sizing:border-box}
+.hazard-classroom p,.hazard-classroom h1,.hazard-classroom h2,.hazard-classroom h3{margin:0}
+.hazard-classroom button{font:inherit;color:inherit;background:transparent;border:0;cursor:pointer;min-height:40px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.hazard-classroom button:disabled{opacity:.42;cursor:default}
+.hazard-classroom button:focus-visible,.hazard-classroom input:focus-visible,.hazard-classroom textarea:focus-visible,.hazard-classroom a:focus-visible{outline:3px solid #34848c;outline-offset:3px}
+.hazard-classroom button:hover:not(:disabled){filter:brightness(.96)}
+.hazard-classroom a{color:inherit;text-decoration:none;touch-action:manipulation}
+.hazard-classroom input,.hazard-classroom textarea{font:inherit}
+
+.hazard-header{display:flex;align-items:center;gap:25px;padding:12px 28px;border-bottom:1px solid #dfe3d8;background:#f8f6f0;z-index:4}
+.hazard-brand{width:180px;height:62px;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.hazard-brand img{display:block;width:100%;height:60px;object-fit:contain;transform:scale(1.6);pointer-events:none}
+.hazard-brand span,.hazard-brand strong{color:#448aaa;font-size:26px;letter-spacing:2px}
+.hazard-heading{border-left:1px solid var(--hazard-line);padding-left:24px;flex-shrink:0}
+.hazard-heading p{font-size:12px;letter-spacing:2px;color:var(--hazard-muted)}
+.hazard-heading h1{font:500 27px/1.5 "Noto Serif SC","Songti SC","SimSun",serif;letter-spacing:1px}
+.hazard-mode-switch{display:flex;margin-left:auto;gap:23px;align-self:stretch;align-items:center}
+.hazard-classroom .hazard-mode-switch button{height:52px;border-bottom:2px solid transparent;padding:5px 2px;color:#75837b;font-size:16px;white-space:nowrap}
+.hazard-classroom .hazard-mode-switch button.active{border-color:#40756b;color:#244d48;font-weight:600}
+.hazard-header-actions{display:flex;align-items:center;gap:6px}
+.hazard-header-actions button{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px;border-radius:8px;white-space:nowrap;font-size:13px}
+.hazard-header-actions button:hover{background:#e7ece1}
+.hazard-classroom .hazard-icon-btn{width:40px;height:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center;padding:0;border-radius:8px;flex-shrink:0}
+.hazard-icon-btn svg{width:19px;height:19px}
+
+.hazard-stage-area{position:relative;min-height:0;min-width:0;overflow:hidden;background:#e4e9de}
+.hazard-toolbar{height:64px;display:flex;align-items:center;justify-content:center;gap:14px;padding:8px 20px;position:relative;z-index:3;background:var(--hazard-paper)}
+.hazard-view-tools{display:flex;align-items:center;padding:3px;border:1px solid #d5ded0;border-radius:30px;background:#fcfbf6;gap:2px;box-shadow:0 3px 14px #2f4c3710}
+.hazard-view-tools button{display:flex;align-items:center;justify-content:center;gap:7px;padding:7px 16px;border-radius:24px;white-space:nowrap;font-size:14px}
+.hazard-view-tools button.active{background:#2c554e;color:#fffdf5}
+.hazard-toolbar>button{padding:6px 10px;border-radius:7px;font-size:14px;white-space:nowrap}
+.hazard-divider{height:24px;width:1px;flex-shrink:0;background:#d5ded0;margin:0 3px}
+.hazard-toolbar>label{display:flex;gap:6px;align-items:center;min-height:40px;font-size:13px;color:#54715e;cursor:pointer;white-space:nowrap}
+.hazard-toolbar>label input{width:15px;height:15px;accent-color:#537760;cursor:pointer}
+.hazard-toggles{display:flex;align-items:center;gap:17px;padding-left:14px;border-left:1px solid #d5ded0;font-size:13px;color:#54715e}
+.hazard-toggles label{display:flex;gap:6px;align-items:center;min-height:40px;cursor:pointer;white-space:nowrap}
+.hazard-toggles input{width:15px;height:15px;accent-color:#537760;cursor:pointer}
+.hazard-scene{position:absolute;inset:64px 0 0;overflow:hidden;touch-action:none;overscroll-behavior:none}
+.hazard-scene canvas{display:block;width:100%;height:100%;outline:none}
+.hazard-scene-title{position:absolute;left:24px;top:80px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;max-width:calc(100% - 48px);padding:9px 13px;border:1px solid #ffffffb8;border-left:3px solid #728e7d;border-radius:3px 10px 10px 3px;background:#fffef2de;box-shadow:0 4px 18px #243a3510;backdrop-filter:blur(10px);font-size:15px;color:#305447;pointer-events:none}
+.hazard-scene-title strong{font-weight:600}
+.hazard-scene-title small{font-size:11px;line-height:1.6;color:#6d7d70}
+.hazard-live-dot{width:6px;height:6px;flex-shrink:0;border-radius:50%;background:#728e7d}
+.hazard-model-hint{position:absolute;left:24px;bottom:16px;background:#fcfbf4e8;border:1px solid #dbe2d4;padding:7px 11px;border-radius:7px;font-size:11px;color:#6c7b64;pointer-events:none}
+.hazard-scene-error{position:absolute;inset:64px 0 0;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;background:#f5f3ed;color:#6e8070;font-size:17px;z-index:6}
+
+.hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light {
+  --feature-bg:#fffdf7; --feature-head-bg:#ecefe5; --feature-border:#d2dbca; --feature-divider:#dce3d4;
+  --feature-title:#31574b; --feature-text:#36574b; --feature-muted:#74816d; --feature-button-bg:#f4f6ed; --feature-button-border:#cbd7c1;
+  width:310px;height:calc(100dvh - 370px);min-height:210px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 300px);
+  color:#36574b;background:#fffdf7;border:1px solid #d2dbca;border-radius:12px;box-shadow:0 8px 30px #34472a12;backdrop-filter:none;
+}
+.hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light.collapsed{width:190px;min-height:0;height:auto}
+.hazard-lesson-card .feature-card-head{padding:5px 9px 5px 16px;min-height:49px;background:#ecefe5;gap:4px}
+.hazard-lesson-card .feature-card-title-label{font-size:16px;letter-spacing:.5px;font-weight:600;color:#31574b}
+.hazard-lesson-card .feature-card-content{padding:0;height:100%;min-height:0;overflow:hidden}
+.hazard-lesson-card .collapse-btn{min-height:34px;width:34px;height:34px;color:#31574b;background:#f4f6ed;border-color:#cbd7c1}
+.hazard-lesson-card .feature-resize-handle{min-height:30px;width:30px;height:30px;background:#e7eddf;box-shadow:none;opacity:.8}
+.hazard-classroom .hazard-panel-reset{width:30px;height:30px;min-height:30px;padding:0;font-size:18px;color:#54705a}
+.hazard-panel-body{height:100%;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:#cbd6c3 transparent;padding:18px 20px 32px}
+.hazard-section-label{font-size:12px;letter-spacing:.6px;color:#8c7b5a}
+.hazard-current-stage{padding-bottom:17px;margin-bottom:19px;border-bottom:1px solid #dce3d4}
+.hazard-current-stage h2{font:500 22px/1.5 "Noto Serif SC","Songti SC","SimSun",serif;color:#2c5146;margin-top:9px}
+.hazard-current-stage p{font-size:14px;line-height:1.85;color:#6c7a68;margin-top:12px}
+.hazard-panel-body h3{font-size:14px;line-height:1.6;font-weight:600;color:#54705a;margin-bottom:8px}
+.hazard-lesson-copy>p,.hazard-record>p{font-size:14px;line-height:1.85;color:#6c7a68;margin-bottom:20px}
+.hazard-lesson-copy ul{padding-left:18px;margin:8px 0 20px;color:#6c7a68;font-size:13px;line-height:1.8}
+.hazard-lesson-copy li+li{margin-top:9px}
+.hazard-prompt{border-left:3px solid #819e6c;background:#eef2e5;padding:11px 13px;margin-top:18px;color:#476143}
+.hazard-prompt>span{font-size:12px;color:#7b8969;font-weight:600}
+.hazard-prompt p{font-size:13px;line-height:1.8;margin-top:6px}
+.hazard-classroom .hazard-text-link{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:10px 0;margin-top:13px;min-height:44px;font-size:13px;color:#3d6b54;text-align:left}
+.hazard-legend{display:grid;gap:7px;margin-top:13px;font-size:11px;color:#7c886e}
+.hazard-legend span{display:flex;align-items:center;gap:7px}.hazard-legend i{width:10px;height:8px;border-radius:2px;display:inline-block}.hazard-legend .soil{background:#9b7449}.hazard-legend .risk{background:#e79c4c70;border:1px solid #d58731}
+.hazard-panel-footer{margin-top:20px;padding-top:13px;border-top:1px solid #dce3d4;color:#82907d;font-size:11px}
+
+.hazard-question-top{display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:11px;color:#7c886e;margin-bottom:15px}
+.hazard-question-top strong{font-weight:500;white-space:nowrap}
+.hazard-inquiry h3{font-size:15px;line-height:1.8;margin-bottom:14px}
+.hazard-options{display:grid;gap:8px}
+.hazard-classroom .hazard-options button{display:flex;align-items:flex-start;gap:9px;min-height:40px;padding:10px 11px;text-align:left;line-height:1.7;font-size:13px;background:#f6f5eb;border:1px solid #d8dfce;border-radius:6px}
+.hazard-options button>span{flex-shrink:0;font-size:11px;line-height:22px;color:#83917e}
+.hazard-classroom .hazard-options .selected.correct{background:#e7efdd;border-color:#92ac78}
+.hazard-classroom .hazard-options .selected.incorrect{background:#f9efe0;border-color:#c6a580}
+.hazard-feedback{font-size:13px;line-height:1.8;background:#f9efe0;color:#8f673c;padding:11px 13px;margin-top:12px;border-radius:6px}
+.hazard-feedback.correct{background:#edf3e5;color:#4a6c42}.hazard-feedback p{margin-top:5px}.hazard-feedback strong{font-weight:600}
+.hazard-question-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px}
+.hazard-question-nav button{font-size:13px;color:#3d6b54;padding:5px 0}
+.hazard-record textarea{width:100%;resize:vertical;min-height:130px;max-height:260px;border:1px solid #cbd7c1;border-radius:6px;padding:11px 12px;background:#fcfbf5;color:#36574b;font-size:14px;line-height:1.85;user-select:text;-webkit-user-select:text;touch-action:pan-y}
+.hazard-record-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:#82907d;margin-top:5px}
+.hazard-score{display:flex;align-items:center;gap:20px;padding:17px 0}
+.hazard-score strong{font:400 30px/1.4 Georgia,serif;color:#3b6047}.hazard-score small{font:12px/1.5 "Microsoft YaHei",sans-serif;color:#7c886e}.hazard-score>span{font-size:12px;color:#7c886e}
+.hazard-classroom .hazard-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;border-radius:7px;border:1px solid #315c4e;background:#315c4e;color:#fffcf4;padding:9px 13px;font-size:13px}
+
+.hazard-footer{z-index:6;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);column-gap:28px;row-gap:10px;padding:14px 28px 14px;background:#faf9f4;border-top:1px solid #d8dfd0;box-shadow:0 -6px 28px #2b493607}
+.hazard-environment-group,.hazard-controls{min-width:0}
+.hazard-controls{padding-left:28px;border-left:1px solid #dce2d7}
+.hazard-control-heading{display:flex;gap:12px;align-items:baseline;margin-bottom:9px;min-height:20px}
+.hazard-control-heading h2,.hazard-control-heading strong{font-size:14px;font-weight:600;letter-spacing:.3px;color:#31574e}
+.hazard-control-heading>span{font-size:11px;color:#829184}
+.hazard-kind-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.hazard-classroom .hazard-kind-switch button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:51px;padding:7px 12px;text-align:center;border:1px solid #d9e0d4;border-radius:7px;background:#fffef9;transition:background .15s,border-color .15s}
+.hazard-kind-switch button>span:nth-child(2){display:flex;flex-direction:column;gap:2px;min-width:0}
+.hazard-kind-switch strong{display:block;font-size:14px;line-height:1.4;font-weight:500;white-space:nowrap}
+.hazard-kind-switch small{display:block;font-size:10px;line-height:1.4;color:#82907d;white-space:nowrap}
+.hazard-kind-switch .hazard-number{font-size:11px;color:#9aa58f;flex-shrink:0}
+.hazard-kind-switch button>span:last-child:not(:nth-child(2)){font-size:13px;color:#83917e}
+.hazard-classroom .hazard-kind-switch button.active{background:#e5eee4;border-color:#76937c;box-shadow:inset 0 -2px #66856d}
+.hazard-kind-switch button.active strong{font-weight:600;color:#315c47}
+.hazard-playback{display:flex;align-items:center;gap:15px;min-height:51px}
+.hazard-classroom .hazard-play{display:flex;align-items:center;justify-content:center;border:1px solid #305a4c;background:#305a4c;color:#fffef6;border-radius:50%;width:40px;height:40px;min-height:40px;flex-shrink:0;padding:0;font-size:14px}
+.hazard-timeline{flex:1;min-width:50px}
+.hazard-timeline>input{display:block;width:100%;height:24px;margin:0;accent-color:#537760;cursor:pointer}
+.hazard-timeline>div{display:flex;justify-content:space-between;gap:5px;line-height:1.3}
+.hazard-classroom .hazard-timeline button{min-height:22px;padding:2px 0;font-size:10px;white-space:nowrap;color:#84907d}
+.hazard-classroom .hazard-timeline button.active{color:#315c47;font-weight:600}
+.hazard-classroom .hazard-reset{border:1px solid #bbcab9;background:#fffef9;border-radius:7px;padding:7px 12px;min-height:40px;white-space:nowrap;font-size:13px;color:#315c4e}
+.hazard-classroom .hazard-control-heading .hazard-reset{margin-left:auto;min-height:25px;padding:2px 8px;font-size:11px;line-height:20px}
+.hazard-footer-note{grid-column:1/-1;font-size:10px;color:#82907d;line-height:1.6}
+.hazard-model-note{font-size:10px;line-height:1.6;color:#82907d;margin-top:7px}
+
+.hazard-notice{position:fixed;bottom:180px;left:50%;transform:translateX(-50%);z-index:100;max-width:calc(100vw - 32px);width:max-content;padding:11px 16px;background:#f4f8eff5;border:1px solid #c6d7bb;border-radius:9px;box-shadow:0 5px 20px #283f3120;color:#3c624c;font-size:14px;pointer-events:none}
+.hazard-classroom .hazard-source-dialog{position:fixed;inset:0;margin:auto;padding:24px 26px 26px;border:1px solid #cbd7c4;border-radius:14px;width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 40px);color:#2c5146;background:#fffdf6;box-shadow:0 24px 90px #14382c35;overflow:auto;user-select:text;-webkit-user-select:text}
+.hazard-source-dialog::backdrop{background:#233b355e;backdrop-filter:blur(5px)}
+.hazard-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:15px;padding-bottom:19px;border-bottom:1px solid #dbe3d2;margin-bottom:19px}
+.hazard-dialog-header h2{font:500 24px/1.6 "Songti SC","SimSun",serif;color:#315346;margin-top:3px}
+.hazard-dialog-header>button{font-size:27px;width:36px;flex-shrink:0}
+.hazard-source-dialog h3{font-size:16px;font-weight:600;color:#345b46;margin-top:20px}
+.hazard-source-dialog p,.hazard-source-dialog li{font-size:14px;line-height:1.9;color:#6c7b64;margin-top:7px}
+.hazard-source-dialog ul{padding-left:20px}
+.hazard-source-dialog>a{display:block;padding:12px 0;border-bottom:1px solid #dce2d4;font-size:13px;color:#3d7a61;text-underline-offset:3px}
+.hazard-source-dialog>a:hover{text-decoration:underline}.hazard-source-dialog small{display:block;margin-top:4px;color:#87917e;font-size:12px;line-height:1.8}
+
+@media(min-width:1600px){
+  .hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light{width:340px}
+  .hazard-panel-body{padding:22px 24px 36px}.hazard-current-stage h2{font-size:24px}.hazard-current-stage p,.hazard-lesson-copy>p,.hazard-lesson-copy ul{font-size:16px}
+  .hazard-footer{column-gap:40px;padding:18px 42px 17px}.hazard-controls{padding-left:40px}.hazard-kind-switch strong{font-size:16px}.hazard-kind-switch small{font-size:12px}.hazard-control-heading h2{font-size:16px}.hazard-control-heading>span{font-size:12px}.hazard-classroom .hazard-kind-switch button,.hazard-playback{min-height:56px}
+}
+@media(max-width:1100px){
+  .hazard-header{gap:17px;padding:12px 20px}.hazard-brand{width:154px}.hazard-heading{padding-left:18px}.hazard-heading h1{font-size:24px}.hazard-mode-switch{gap:17px}
+  .hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light{width:290px}.hazard-footer{column-gap:16px;padding-left:18px;padding-right:18px}.hazard-controls{padding-left:16px}.hazard-kind-switch strong{font-size:13px}.hazard-kind-switch small{font-size:9px}.hazard-playback{gap:10px}
+}
+@media(max-width:959px){
+  .hazard-classroom{grid-template-rows:78px minmax(0,1fr) auto}.hazard-header{padding:9px 16px;gap:14px}.hazard-brand{width:132px;height:55px}.hazard-brand img{height:55px}.hazard-heading{padding-left:14px}.hazard-heading h1{font-size:22px}.hazard-heading p{font-size:10px}.hazard-mode-switch{gap:12px}.hazard-classroom .hazard-mode-switch button{font-size:14px}.hazard-header-actions{gap:2px}.hazard-header-actions button{font-size:12px;padding:5px}
+  .hazard-footer{grid-template-columns:minmax(0,1fr);padding:10px 18px 11px;row-gap:8px}.hazard-environment-group{display:flex;gap:16px;align-items:center}.hazard-environment-group .hazard-control-heading{width:70px;flex-shrink:0;margin:0}.hazard-control-heading>span{display:none}.hazard-kind-switch{flex:1}.hazard-controls{padding:8px 0 0;border-left:0;border-top:1px solid #e2e7dc;display:flex;gap:16px;align-items:center}.hazard-controls .hazard-control-heading{width:70px;flex-shrink:0;margin:0}.hazard-playback{flex:1;min-width:0;min-height:44px}.hazard-classroom .hazard-kind-switch button{min-height:44px}.hazard-footer-note{font-size:9px}
+  .hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light{height:min(380px,calc(100dvh - 370px));max-height:calc(100dvh - 300px)}
+}
+@media(max-width:640px){
+  .hazard-classroom{grid-template-rows:108px minmax(0,1fr) auto}.hazard-header{position:relative;align-items:flex-start;gap:12px;padding:9px 12px}.hazard-brand{width:108px;height:47px}.hazard-brand img{height:47px}.hazard-heading{padding-left:12px;margin-top:1px}.hazard-heading h1{font-size:20px;letter-spacing:0}.hazard-heading p{font-size:9px;letter-spacing:1px}.hazard-mode-switch{position:absolute;bottom:0;left:16px;gap:22px;height:42px}.hazard-classroom .hazard-mode-switch button{height:40px;min-height:40px;font-size:14px}.hazard-header-actions{position:absolute;bottom:1px;right:10px;gap:0}.hazard-header-actions button{padding:5px 7px;min-height:40px;font-size:12px}.hazard-header-actions .hazard-icon-btn{width:32px}
+  .hazard-toolbar{height:56px;padding:6px 10px;gap:8px}.hazard-view-tools button{font-size:12px;padding:6px 10px;min-height:36px}.hazard-view-tools button:last-child{font-size:17px;padding-left:8px;padding-right:8px}.hazard-toggles{gap:9px;padding-left:9px;font-size:11px}.hazard-toggles label{gap:4px}.hazard-toggles input{width:13px;height:13px}.hazard-scene{top:56px}.hazard-scene-error{top:56px}.hazard-scene-title{left:12px;top:68px;padding:7px 10px;gap:6px;max-width:calc(100% - 24px);font-size:13px}.hazard-scene-title small{font-size:9px}.hazard-model-hint{left:10px;bottom:10px;font-size:9px;padding:5px 8px;max-width:calc(100% - 20px)}
+  .hazard-footer{padding:8px 10px 9px;row-gap:7px}.hazard-environment-group{gap:10px}.hazard-environment-group .hazard-control-heading{width:48px}.hazard-control-heading h2,.hazard-control-heading strong{font-size:12px}.hazard-kind-switch{gap:5px}.hazard-classroom .hazard-kind-switch button{padding:6px;gap:5px;min-height:43px}.hazard-kind-switch strong{font-size:12px}.hazard-kind-switch small{font-size:8px}.hazard-kind-switch .hazard-number,.hazard-kind-switch button>span:last-child:not(:nth-child(2)){display:none}.hazard-controls{gap:10px;padding-top:7px}.hazard-controls .hazard-control-heading{width:48px}.hazard-playback{gap:8px}.hazard-classroom .hazard-play{width:34px;height:34px;min-height:34px;font-size:12px}.hazard-classroom .hazard-reset{font-size:11px;padding:6px 8px;min-height:34px}.hazard-classroom .hazard-timeline button{font-size:8px;min-height:19px}.hazard-timeline>input{height:22px}.hazard-footer-note{font-size:8px;line-height:1.6}
+  .hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light{width:280px;max-width:calc(100vw - 24px);min-height:210px;max-height:calc(100dvh - 300px)}.hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light.collapsed{width:153px}.hazard-lesson-card .feature-card-title-label{font-size:14px}.hazard-panel-body{padding:15px 17px 30px}.hazard-current-stage h2{font-size:21px}.hazard-current-stage p,.hazard-lesson-copy>p,.hazard-record>p{font-size:13px}.hazard-classroom .hazard-source-dialog{padding:17px 19px 22px}.hazard-dialog-header h2{font-size:21px}.hazard-notice{bottom:180px;font-size:12px;padding:9px 12px}
+}
+@media(max-width:360px){.hazard-brand{width:93px}.hazard-heading{padding-left:9px}.hazard-heading h1{font-size:18px}.hazard-header{gap:9px}.hazard-toolbar{gap:5px;padding-left:6px;padding-right:6px}.hazard-view-tools button{padding-left:8px;padding-right:8px}.hazard-toggles{gap:6px;padding-left:6px;font-size:10px}.hazard-controls .hazard-control-heading{width:40px}.hazard-classroom .hazard-timeline button{font-size:7px}.hazard-playback{gap:6px}}
+@media(max-height:620px) and (min-width:960px){
+  .hazard-classroom{grid-template-rows:68px minmax(0,1fr) auto}.hazard-header{padding:5px 20px}.hazard-brand{height:54px}.hazard-heading h1{font-size:23px}.hazard-toolbar{height:53px}.hazard-scene{top:53px}.hazard-scene-error{top:53px}.hazard-scene-title{top:65px}.hazard-footer{padding-top:8px;padding-bottom:9px;row-gap:5px}.hazard-control-heading{margin-bottom:5px}.hazard-classroom .hazard-kind-switch button,.hazard-playback{min-height:44px}.hazard-kind-switch small{display:none}.hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light{height:280px;max-height:calc(100dvh - 235px);min-height:160px}
+}
+@media(prefers-reduced-motion:reduce){.hazard-classroom *{scroll-behavior:auto}.hazard-kind-switch button{transition:none}}
+
+@media(max-width:959px){.hazard-controls .hazard-control-heading{flex-direction:column;align-items:flex-start;gap:2px}.hazard-classroom .hazard-controls .hazard-reset{margin-left:0;padding:1px 6px;min-height:23px;font-size:10px;line-height:19px}}
+@media(max-width:640px){.hazard-view-tools button:last-child{font-size:12px;padding:6px 10px}.hazard-toolbar>button{padding:5px 4px;font-size:11px}.hazard-divider{margin:0}.hazard-toolbar>label{font-size:11px;gap:3px}.hazard-toolbar>label input{width:12px;height:12px}.hazard-toolbar{gap:8px}.hazard-classroom .hazard-kind-switch button{gap:2px}}
+@media(max-width:360px){.hazard-toolbar{gap:5px}.hazard-view-tools button,.hazard-view-tools button:last-child{padding:6px;font-size:11px}.hazard-toolbar>label{font-size:10px}.hazard-toolbar>button{font-size:10px}}
+.hazard-report-dialog>img{display:block;width:100%;height:auto;border:1px solid #d2dbca}.hazard-report-dialog>a.hazard-primary{display:block;text-align:center;margin-top:16px;color:white}
+.hazard-icon-btn svg{width:20px;height:20px}.hazard-classroom .hazard-info-dialog{padding:0}.hazard-info-dialog article>header{display:flex;align-items:center;justify-content:space-between;padding:22px 25px;border-bottom:1px solid #dbe3d2;background:#f5f6ec}.hazard-info-dialog header p{font-size:12px;color:#859276;letter-spacing:1px;margin:0}.hazard-info-dialog h2{font:500 24px/1.6 "Songti SC","SimSun",serif;color:#315346}.hazard-source-body{padding:6px 26px 26px}.hazard-source-body section{padding-top:20px}.hazard-source-body h3{margin:0;font-size:16px;font-weight:600;color:#345b46}.hazard-source-body p{font-size:14px;line-height:1.9;color:#6c7b64;margin-top:7px}.hazard-source-body a{display:inline-block;margin-top:8px;font-size:13px;color:#3d7a61;text-underline-offset:3px}.hazard-source-body .hazard-model-note{padding:15px;background:#eff3e6;border-radius:8px;margin-top:20px}@media(max-width:640px){.hazard-info-dialog article>header{padding:16px 18px}.hazard-info-dialog h2{font-size:21px}}
+
+.hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:356px}
+.hazard-mode-switch{gap:18px}
+.hazard-experiment{font-size:12px;line-height:1.65}
+.hazard-experiment-intro h3{font-size:17px;margin:6px 0;color:#31574b}
+.hazard-experiment-intro p{color:#74816d;font-size:12px}
+.hazard-factor-heading{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;color:#74816d;font-size:11px}
+.hazard-classroom .hazard-factor-heading button{min-height:28px;padding:2px 0;font-size:11px;text-decoration:underline;text-underline-offset:3px}
+.hazard-preset-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.hazard-classroom .hazard-preset-options button{min-height:35px;padding:5px 2px;border:1px solid #d7dfcf;border-radius:5px;background:#fafbf3;font-size:11px;line-height:1.4}
+.hazard-classroom .hazard-preset-options button.active{background:#e4edde;border-color:#809d73;color:#315b42;font-weight:600}
+.hazard-preset-hint{font-size:10px;color:#859276;line-height:1.7;margin:7px 0 12px!important}
+.hazard-variables{display:grid;gap:11px}
+.hazard-variables fieldset{margin:0;padding:8px 10px 9px;min-width:0;border:1px solid #d9e1d0;border-radius:8px;background:#fafbf4}
+.hazard-variables legend{padding:0 5px;font-size:12px;font-weight:600;color:#42614e}
+.hazard-variables legend small{margin-left:9px;font-size:10px;font-weight:400;color:#859276}
+.hazard-variables legend small.changed{color:#42684e}
+.hazard-variables fieldset>p{font-size:10px;color:#859276;margin-top:5px}
+.hazard-levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.hazard-classroom .hazard-levels button{min-height:31px;padding:4px 5px;border:1px solid #d8dfcf;background:#fffef8;border-radius:5px;font-size:12px}
+.hazard-classroom .hazard-levels button.active{background:#e4edde;border-color:#809d73;color:#315b42;font-weight:600}
+.hazard-run-actions{display:grid;grid-template-columns:1.6fr 1fr;gap:8px;margin-top:16px}
+.hazard-classroom .hazard-secondary{border:1px solid #bacaaf;border-radius:7px;background:#f9faf2;padding:7px 8px;font-size:12px}
+.hazard-run-status{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;margin-top:9px;color:#7a886d;font-size:10px}
+.hazard-run-status strong{font-weight:500;color:#4d6b45}
+.hazard-outcome{margin-top:12px;padding:11px 12px;background:#edf2e4;border-radius:7px}
+.hazard-outcome p{font-size:11px;color:#66775c;line-height:1.8}
+.hazard-outcome>div{display:flex;justify-content:space-between;gap:6px;border-top:1px solid #d6e0ca;margin-top:9px;padding-top:8px;font-size:10px;color:#526c46}
+.hazard-outcome b{font-size:16px;font-weight:500}
+.hazard-classroom .hazard-save-baseline{width:100%;border:1px dashed #9eb78b;border-radius:7px;margin-top:12px;padding:8px;font-size:12px;background:#f3f7ec}
+.hazard-comparison{margin-top:18px;padding-top:15px;border-top:1px solid #d9e1ce}
+.hazard-comparison-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hazard-comparison-heading h3{margin:0;font-size:14px}
+.hazard-comparison-heading>div{display:flex;gap:5px}
+.hazard-classroom .hazard-comparison-heading button{font-size:11px;min-height:28px;padding:2px 7px;border:1px solid #c6d5ba;border-radius:5px}
+.hazard-baseline-conditions{font-size:10px;color:#78896b;margin-top:6px!important}
+.hazard-comparison table{width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;table-layout:fixed}
+.hazard-comparison th,.hazard-comparison td{padding:8px 4px;text-align:center;border-bottom:1px solid #e0e6d8;overflow-wrap:anywhere}
+.hazard-comparison th{font-weight:500}.hazard-comparison th:first-child{text-align:left;width:34%}
+.hazard-comparison thead{background:#edf2e5;color:#506b43}
+.hazard-comparison .changed td:last-child{background:#e6eedc;font-weight:600;color:#3c613d}
+.hazard-comparison-hint{font-size:10px;color:#7a886e;margin-top:9px!important;line-height:1.8}
+.hazard-experiment-note{margin-top:16px!important;color:#8a947f;font-size:10px;line-height:1.8}
+.hazard-run-history{margin-bottom:22px;border-bottom:1px solid #dce3d3;padding-bottom:16px}
+.hazard-classroom .hazard-run-history button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;padding:8px 0;border-bottom:1px solid #edf0e7;font-size:11px}
+.hazard-run-history small{display:block;font-size:10px;color:#829079;margin-top:3px}.hazard-run-history b{font-weight:400;color:#5b7b4d;white-space:nowrap}
+@media(min-width:1600px){.hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:380px}}
+@media(max-width:1100px){.hazard-mode-switch{gap:11px}.hazard-classroom .hazard-mode-switch button{font-size:14px}.hazard-header{gap:14px}.hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:326px}}
+@media(min-width:641px) and (max-width:959px){.hazard-brand{width:110px}.hazard-heading{padding-left:10px}.hazard-heading h1{font-size:20px}.hazard-mode-switch{gap:8px}.hazard-classroom .hazard-mode-switch button{font-size:12px}.hazard-header{gap:10px;padding-left:12px;padding-right:12px}}
+@media(max-width:640px){.hazard-mode-switch{left:12px;gap:12px}.hazard-classroom .hazard-mode-switch button{font-size:12px}.hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:310px}.hazard-experiment-intro h3{font-size:16px}.hazard-panel-body{padding-left:15px;padding-right:15px}}
+@media(max-width:360px){.hazard-mode-switch{gap:8px}.hazard-classroom .hazard-mode-switch button{font-size:11px}.hazard-header-actions{right:6px}.hazard-classroom .hazard-lesson-card.floating-feature-card.theme-light:not(.collapsed){width:296px}}

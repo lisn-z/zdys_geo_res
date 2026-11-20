@@ -1,15 +1,19 @@
 // Surface layers ported from 三圈环流-self; destination palette and stage adapter only.
 import * as THREE from 'three'
-import { createSurfaceArrowGeometry, updateSurfaceArrow, createWindCurve, surfaceArrowFrame, WIND_ARROW_PHASES } from './surface-arrows.ts'
+import { createSurfaceArrowGeometry, updateSurfaceArrow, createWindCurve, surfaceArrowFrame, WIND_ARROW_PHASES, surfaceWindArrowFragment, setCrossEquatorialArrowColors } from './surface-arrows.ts'
+import { createMonsoonLaunch, advanceMonsoonLaunch, monsoonLaunchPhase, monsoonDestinationAnchor, overlapsMonsoonSource, type MonsoonLaunch } from './monsoon-crossing.ts'
 import { PressureField } from './PressureField.ts'
 import { PressureCenterText } from './PressureCenterText.ts'
+import { PressureValueText } from './PressureValueText.ts'
+import { CurrentNameText, projectTextPatchBounds, type CurrentNameState } from './CurrentNameText.ts'
 import { Sunlight } from './Sunlight.ts'
+import { resolveSeasonTargets, type SeasonPoint } from './seasonal-controls.ts'
 import { createGeographicCurve } from './geographic-paths.ts'
 import { createCurrentLineGeometry, advancePulse, flowMotionDirection } from './flow-effects.ts'
-import { contourAnchors, formatPressure, pressureCenterAnchors, pressureColors, type PressureMonth } from './pressure-data.ts'
+import { contourAnchors, formatPressure, pressureCenterAnchors, pressureLabelLevels, pressureColors, type PressureMonth } from './pressure-data.ts'
 import { flowFragment, flowVertex, pressureFragment, currentPulseFragment } from './shaders.ts'
 import { damp, formatAngle, oceanCurrents, currentVisibleInMonth, monsoonWinds, monsoonStrength, seasonalDirection,
-  palette, pressureDefinitions, seasonalShift, shiftLatitude, windDefinitions,
+  palette, pressureDefinitions, shiftLatitude, seasonalShift, windDefinitions,
   type SeasonalRegime, type MonsoonSeason, type Basin, type Layers, type Selection } from './model.ts'
 const R = 2.5
 const rad = Math.PI / 180
@@ -22,9 +26,105 @@ export interface ClimateState {
   playing: boolean
   speed: number
   layers: Record<string, boolean>
+  neutralSeason?: boolean
+  seasonPoint?: SeasonPoint
 }
-export interface ClimateLabel { text: string; x: number; y: number; visible: boolean; cls: string; color: string; opacity: number }
+export interface ClimateLabel { id?: string; text: string; x: number; y: number; visible: boolean; cls: string; color: string; opacity: number }
+export interface PressureLabelCandidate extends ClimateLabel { id: string; value: number; lat: number; lon: number; contourId: string }
+export interface LabelBounds { left: number; right: number; top: number; bottom: number }
+const labelTextWidth = (text: string) => Math.max(...text.split('\n').map(line =>
+  [...line].reduce((width, char) => width + (char.charCodeAt(0) > 255 ? 12 : 7), 20)))
+const labelTextHeight = (text: string) => text.split('\n').length * 16 + 6
+const labelBounds = (label: ClimateLabel, padding = 4): LabelBounds => ({
+  left: label.x - labelTextWidth(label.text) / 2 - padding,
+  right: label.x + labelTextWidth(label.text) / 2 + padding,
+  top: label.y - labelTextHeight(label.text) / 2 - padding,
+  bottom: label.y + labelTextHeight(label.text) / 2 + padding,
+})
+const boundsOverlap = (a: LabelBounds, b: LabelBounds) =>
+  a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+
+/** Spread labels across the visible pressure levels before repeating a value. */
+export function selectPressureLabelCandidates(
+  candidates: readonly PressureLabelCandidate[], occupied: readonly LabelBounds[], width: number, height: number,
+  retainedIds: readonly string[] = [],
+) {
+  const limit = width < 900 ? 9 : 14
+  const repeatedValueLimit = width < 900 ? 2 : 3
+  const selected: PressureLabelCandidate[] = []
+  const boxes: LabelBounds[] = []
+  const selectedIds = new Set<string>()
+  const counts = new Map<number, number>()
+  const add = (candidate: PressureLabelCandidate) => {
+    selected.push(candidate)
+    boxes.push(labelBounds(candidate, 2))
+    selectedIds.add(candidate.id)
+    counts.set(candidate.value, (counts.get(candidate.value) ?? 0) + 1)
+  }
+  // Existing labels keep their geographic anchors. A smaller exit clearance than
+  // entrance clearance prevents alternating labels near a collision boundary.
+  const byId = new Map(candidates.map(candidate => [candidate.id, candidate]))
+  for (const id of retainedIds) {
+    const candidate = byId.get(id)
+    if (!candidate || selected.length >= limit) continue
+    const box = labelBounds(candidate, 2)
+    if (box.left < 2 || box.right > width - 2 || box.top < 2 || box.bottom > height - 2) continue
+    if (occupied.some(other => boundsOverlap(box, other)) || boxes.some(other => boundsOverlap(box, other))) continue
+    add(candidate)
+  }
+  const levels = new Map<number, PressureLabelCandidate[]>()
+  for (const candidate of candidates) {
+    if (selectedIds.has(candidate.id)) continue
+    const box = labelBounds(candidate, 6)
+    if (box.left < 12 || box.right > width - 12 || box.top < 12 || box.bottom > height - 12) continue
+    if (occupied.some(other => boundsOverlap(box, other))) continue
+    const bucket = levels.get(candidate.value) ?? []
+    bucket.push(candidate)
+    levels.set(candidate.value, bucket)
+  }
+  // Give rare high/low levels a chance. Candidate ordering is fixed geographically,
+  // not re-ranked by camera distance on every frame.
+  for (const bucket of levels.values()) bucket.sort((a, b) => a.id.localeCompare(b.id))
+  const buckets = [...levels.values()].sort((a, b) => a.length - b.length || a[0]!.value - b[0]!.value)
+  for (let round = 0; round < repeatedValueLimit && selected.length < limit; round++) {
+    for (const bucket of buckets) {
+      if ((counts.get(bucket[0]!.value) ?? 0) > round) continue
+      for (const candidate of bucket) {
+        if (selectedIds.has(candidate.id)) continue
+        const box = labelBounds(candidate, 6)
+        if (boxes.some(other => boundsOverlap(box, other))) continue
+        const distance = selected.length ? Math.min(...selected.map(other =>
+          ((other.x - candidate.x) / 100) ** 2 + ((other.y - candidate.y) / 52) ** 2)) : 1
+        if (distance < 1) continue
+        add(candidate)
+        break
+      }
+      if (selected.length >= limit) break
+    }
+  }
+  return selected
+}
+
+// Sample a fixed geographic set once per month; do not slide a number between
+// neighboring source-grid intersections as the globe turns.
+function fixedPressureLabelAnchors(month: PressureMonth) {
+  const allowed = new Set(pressureLabelLevels(month))
+  const bins = new Map<string, ReturnType<typeof contourAnchors>[number]>()
+  for (const anchor of contourAnchors(month)) {
+    if (!allowed.has(anchor.value)) continue
+    const row = Math.floor((anchor.lat + 90) / 6)
+    const lonStep = 6 / Math.max(.4, Math.cos((row * 6 - 87) * rad))
+    const col = Math.floor((anchor.lon + 180) / lonStep)
+    const key = `${anchor.contourId}:${row}:${col}`
+    const previous = bins.get(key)
+    const distance = (point: typeof anchor) => (point.lat - (row * 6 - 87)) ** 2 +
+      ((point.lon - ((col + .5) * lonStep - 180)) * Math.cos(point.lat * rad)) ** 2
+    if (!previous || distance(anchor) < distance(previous)) bins.set(key, anchor)
+  }
+  return [...bins.values()].sort((a, b) => a.id.localeCompare(b.id))
+}
 interface LabelAnchor {
+  cls?: string
   surfaceMonths?: readonly number[]
   id: string
   text: string
@@ -43,6 +143,7 @@ interface LabelAnchor {
   contourId?: string
 }
 interface Flow {
+  replacedByCrossEquatorialMonths?: readonly number[]
   surfaceMonths?: readonly number[]
   pulse?: boolean
   wasAvailable?: boolean
@@ -61,19 +162,30 @@ export class SurfaceClimate {
   readonly group = new THREE.Group()
   readonly shift = { value: 0 }
   readonly pressureField = new PressureField(R + .027)
+  readonly pressureValues = new PressureValueText(R + .06)
+  readonly currentNames = new CurrentNameText(R + .085)
   readonly sunlight = new Sunlight(R)
   private pressureText = { january: new PressureCenterText(R + .065), july: new PressureCenterText(R + .065) }
   private time = { value: 0 }
   private flows: Flow[] = []
   private labels: LabelAnchor[] = []
-  private surfaceArrows: { flow: Flow; curve: THREE.Curve<THREE.Vector3>; progress: number; span: number; speed: number; halfWidth: number; direction: number; inset: number }[] = []
+  private pressureLabelMonth: PressureMonth | null = null
+  private pressureLabelIds: string[] = []
+  private pressureLabelAnchors = new Map<PressureMonth, ReturnType<typeof fixedPressureLabelAnchors>>()
+  private surfaceArrows: {
+    flow: Flow; curve: THREE.Curve<THREE.Vector3>; progress: number; span: number; speed: number; halfWidth: number; direction: number; inset: number
+    monsoonLaunch?: { clock: MonsoonLaunch; ordinal: number; count: number; activeMonth: 1 | 7 }
+  }[] = []
+  private monsoonLaunches: {
+    clock: MonsoonLaunch; rate: number; activeMonth: 1 | 7; season: MonsoonSeason; regime?: SeasonalRegime
+  }[] = []
   private seasonalDirections: Record<SeasonalRegime, { value: number }> = {
     eastAsia: { value: 1 }, southAsia: { value: 1 }, northIndian: { value: 1 }, somali: { value: 1 },
   }
 
   constructor() {
     this.group.name = 'surface-climate-self'
-    this.group.add(this.pressureField.mesh, this.pressureText.january.group, this.pressureText.july.group, this.sunlight.group)
+    this.group.add(this.pressureField.mesh, this.pressureText.january.group, this.pressureText.july.group, this.pressureValues.group, this.currentNames.group, this.sunlight.group)
     this.createPressure()
     this.createWinds()
     this.createMonsoons()
@@ -92,19 +204,24 @@ export class SurfaceClimate {
   }
 
   update(dt: number, state: ClimateState) {
-    this.shift.value = damp(this.shift.value, state.stage >= 2 ? seasonalShift(state.month) : 0, dt)
-    this.sunlight.update(state.month, state.stage < 2, this.enabled('sunlight', state), state.playing, state.speed, dt)
+    const targets = resolveSeasonTargets(state.stage, state.month, state.seasonPoint, state.neutralSeason)
+    this.shift.value = damp(this.shift.value, targets.latitudeShift, dt)
+    this.sunlight.update(state.month, state.stage < 2 || !!state.neutralSeason, this.enabled('sunlight', state), state.playing, state.speed, dt, false, targets.solarLatitude)
     this.pressureField.summerMix.value = damp(this.pressureField.summerMix.value, state.month === 7 ? 1 : 0, dt)
     this.pressureField.fill.value = damp(this.pressureField.fill.value, this.enabled('pressureField', state) ? 1 : 0, dt)
     this.pressureField.lines.value = damp(this.pressureField.lines.value, this.enabled('isobars', state) ? 1 : 0, dt)
     this.pressureField.mesh.visible = this.pressureField.fill.value + this.pressureField.lines.value > .005
+    if (!state.layers.textAnnotations || !(this.enabled('pressureField', state) || this.enabled('isobars', state)) ||
+      !(state.month === 7 ? this.pressureField.summerMix.value > .985 : this.pressureField.summerMix.value < .015)) this.pressureValues.hide()
     for (const regime of Object.keys(this.seasonalDirections) as SeasonalRegime[])
       this.seasonalDirections[regime].value = damp(this.seasonalDirections[regime].value, seasonalDirection(state.month, regime), dt)
     if (state.playing) this.time.value += dt * state.speed
+    const currentNameStates: CurrentNameState[] = []
     for (const flow of this.flows) {
       const inSeason = currentVisibleInMonth(flow, state.month)
-      const available = this.enabled(flow.layer, state) && inSeason
-      const seasonOpacity = flow.monsoonSeason ? monsoonStrength(this.seasonalDirections[flow.regime!].value, flow.monsoonSeason) : 1
+      const replaced = flow.replacedByCrossEquatorialMonths?.includes(state.month) && this.enabled('monsoons', state)
+      const available = this.enabled(flow.layer, state) && inSeason && !replaced
+      const seasonOpacity = flow.monsoonSeason && flow.regime ? monsoonStrength(this.seasonalDirections[flow.regime].value, flow.monsoonSeason) : 1
       const uniforms = flow.mesh.material.uniforms
       if (flow.seasonalTemperature)
         (uniforms.color!.value as THREE.Color).set(palette.warm).lerp(new THREE.Color(palette.cold), (this.seasonalDirections.somali.value + 1) / 2)
@@ -116,12 +233,27 @@ export class SurfaceClimate {
         uniforms.travel!.value = THREE.MathUtils.euclideanModulo(advancePulse(uniforms.travel!.value, dt, state.speed, direction, state.playing), uniforms.spacing!.value)
         if (Math.abs(direction) > .035) uniforms.direction!.value = Math.sign(direction)
         uniforms.strength!.value = Math.min(1, Math.abs(direction) * 3)
+        currentNameStates.push({ id: flow.focus,
+          visible: available && !!state.layers.textAnnotations,
+          opacity: flow.currentOpacity * uniforms.strength!.value,
+          direction, color: uniforms.color!.value as THREE.Color })
       }
+    }
+    this.currentNames.update(currentNameStates)
+    for (const launch of this.monsoonLaunches) {
+      const launchEnabled = this.enabled('monsoons', state) && state.month === launch.activeMonth &&
+        (!launch.regime || monsoonStrength(this.seasonalDirections[launch.regime].value, launch.season) > .03)
+      advanceMonsoonLaunch(launch.clock, launchEnabled, dt, state.speed, launch.rate, state.playing)
     }
     for (const arrow of this.surfaceArrows) {
       if (!arrow.flow.mesh.visible) continue
       const signedSpeed = flowMotionDirection(arrow.flow, arrow.flow.regime ? this.seasonalDirections[arrow.flow.regime].value : 1)
-      if (state.playing) arrow.progress = THREE.MathUtils.euclideanModulo(arrow.progress + dt * state.speed * arrow.speed * signedSpeed, 1)
+      if (arrow.monsoonLaunch) {
+        const { clock, ordinal, count } = arrow.monsoonLaunch
+        const phase = monsoonLaunchPhase(clock, ordinal, count)
+        if (phase === null) { arrow.flow.mesh.visible = false; continue }
+        arrow.progress = phase
+      } else if (state.playing) arrow.progress = THREE.MathUtils.euclideanModulo(arrow.progress + dt * state.speed * arrow.speed * signedSpeed, 1)
       if (Math.abs(signedSpeed) > .035) arrow.direction = signedSpeed < 0 ? -1 : 1
       const frame = surfaceArrowFrame(arrow.progress, arrow.span, arrow.direction, arrow.inset)
       updateSurfaceArrow(arrow.flow.mesh.geometry, arrow.curve, frame.start, arrow.span, arrow.direction,
@@ -136,9 +268,16 @@ export class SurfaceClimate {
   }
 
   projectLabels(camera: THREE.Camera, width: number, height: number, state: ClimateState): ClimateLabel[] {
-    if (!state.layers.textAnnotations) return []
-    this.group.updateWorldMatrix(true, false)
-    const entries = [...this.labels]
+    if (this.pressureLabelMonth !== state.month) {
+      this.pressureLabelMonth = state.month
+      this.pressureLabelIds = []
+    }
+    if (!state.layers.textAnnotations) { this.pressureValues.hide(); this.currentNames.hide(); return [] }
+    if (!this.enabled('currents', state)) this.currentNames.hide()
+    this.group.updateWorldMatrix(true, true)
+    // Regional monsoon branches carry the current lesson; give them room before
+    // generic wind-belt names, while retaining the same globe occlusion checks.
+    const entries = [...this.labels].sort((a, b) => Number(b.layer === 'monsoons') - Number(a.layer === 'monsoons'))
     const solar = this.sunlight.latitude
     if (this.enabled('sunlight', state)) {
       const view = this.group.worldToLocal(camera.getWorldPosition(new THREE.Vector3()))
@@ -146,48 +285,87 @@ export class SurfaceClimate {
         lat: solar, lon: Math.atan2(-view.z, view.x) / rad, radius: R + .09, color: palette.solar, layer: 'sunlight', seasonal: false, selection: {} as Selection })
     }
     const mix = this.pressureField.summerMix.value
-    if (this.enabled('isobars', state) && (mix < .015 || mix > .985)) {
-      const month: PressureMonth = mix > .5 ? 7 : 1
-      for (const anchor of contourAnchors(month)) entries.push({ ...anchor, text: formatPressure(anchor.value), radius: R + .045,
-        color: pressureColors.line, layer: 'isobars', seasonal: false, selection: {} as Selection })
-    }
     const visible: ClimateLabel[] = []
-    const contourLimit = width < 900 ? 6 : 8
-    const contourValues = new Map<string, number>()
-    const visibleContours: ClimateLabel[] = []
     const planetCenter = this.group.getWorldPosition(new THREE.Vector3())
     const eye = camera.getWorldPosition(new THREE.Vector3())
     for (const label of entries) {
       if (!this.enabled(label.layer, state) || !currentVisibleInMonth(label, state.month)) continue
-      const contour = label.layer === 'isobars'
-      // Allow a second, well-separated annotation of the same pressure value,
-      // while keeping a screen-wide budget instead of labeling every grid point.
-      if (contour && (visibleContours.length >= contourLimit || (contourValues.get(label.text) ?? 0) >= 2)) continue
-      const opacity = label.monsoonSeason ? monsoonStrength(this.seasonalDirections[label.regime!].value, label.monsoonSeason) : 1
+      const opacity = label.monsoonSeason && label.regime ? monsoonStrength(this.seasonalDirections[label.regime].value, label.monsoonSeason) : 1
       if (opacity < .03) continue
       const world = geo(label.seasonal ? shiftLatitude(label.lat, this.shift.value) : label.lat, label.lon, label.radius).applyMatrix4(this.group.matrixWorld)
       if (world.clone().sub(planetCenter).normalize().dot(eye.clone().sub(world).normalize()) < .1) continue
       const p = world.project(camera)
       if (Math.abs(p.x) > .96 || Math.abs(p.y) > .94 || p.z < -1 || p.z > 1) continue
       const x = (p.x + 1) * width / 2, y = (1 - p.y) * height / 2
-      const textWidth = (text: string) => [...text].reduce((w, c) => w + (c.charCodeAt(0) > 255 ? 12 : 7), 20)
-      if (visible.some(other => Math.abs(other.x - x) < (textWidth(other.text) + textWidth(label.text)) / 2 + 8 && Math.abs(other.y - y) < 29)) continue
-      if (contour && visibleContours.some(other => Math.hypot((other.x - x) / 140, (other.y - y) / 85) < 1)) continue
       const color = label.seasonalTemperature
         ? new THREE.Color(palette.warm).lerp(new THREE.Color(palette.cold), (this.seasonalDirections.somali.value + 1) / 2).getStyle() : label.color
-      const projected = { text: label.text, x, y, visible: true, cls: contour ? 'climate-contour-label' : 'climate-label', color, opacity }
+      const projected = { id: label.id, text: label.text, x, y, visible: true, cls: label.cls ?? 'climate-label', color, opacity }
+      if (visible.some(other => boundsOverlap(labelBounds(projected), labelBounds(other)))) continue
       visible.push(projected)
-      if (contour) {
-        visibleContours.push(projected)
-        contourValues.set(label.text, (contourValues.get(label.text) ?? 0) + 1)
+    }
+
+    const occupied = visible.map(label => labelBounds(label))
+    // Geographic pressure centers cannot move. Reserve their actual text patches
+    // (including both endpoint months while fading) before placing current names.
+    for (const centerGroup of [this.pressureText.january.group, this.pressureText.july.group]) {
+      if (!centerGroup.visible) continue
+      for (const child of centerGroup.children) {
+        if (!(child instanceof THREE.Mesh) || !child.visible || child.material.opacity < .05) continue
+        const center = child.userData.center
+        if (!center) continue
+        const world = geo(center.lat, center.lon, R + .065).applyMatrix4(this.group.matrixWorld)
+        if (world.clone().sub(planetCenter).normalize().dot(eye.clone().sub(world).normalize()) < .1) continue
+        occupied.push(projectTextPatchBounds(child, camera, width, height, 6))
       }
     }
+    this.currentNames.orientForCamera(camera, width, height, occupied)
+    const currentBounds = this.currentNames.active.flatMap(label => label.screenBounds ? [label.screenBounds] : [])
+    occupied.push(...currentBounds)
+    const pressureEnabled = this.enabled('pressureField', state) || this.enabled('isobars', state)
+    // Values belong to a settled monthly field. Never label interpolated weather
+    // or leave July's values visible immediately after January is selected.
+    const settled = state.month === 7 ? mix > .985 : mix < .015
+    const pressureOpacity = Math.max(this.pressureField.fill.value, this.pressureField.lines.value)
+    if (!pressureEnabled || !settled || pressureOpacity < .03) { this.pressureValues.hide(); return visible }
+    const month: PressureMonth = state.month
+    const pressureTextCenters = pressureCenterAnchors(month)
+    if (!this.pressureLabelAnchors.has(month)) this.pressureLabelAnchors.set(month, fixedPressureLabelAnchors(month))
+    const retained = new Set(this.pressureLabelIds)
+    const candidates: PressureLabelCandidate[] = []
+    for (const anchor of this.pressureLabelAnchors.get(month)!) {
+      const id = `pressure-${month}-${anchor.id}`
+      if (pressureTextCenters.some(center => Math.abs(anchor.lat - center.lat) < 6 &&
+        Math.abs(((anchor.lon - center.lon + 540) % 360) - 180) * Math.cos(center.lat * rad) < 14)) continue
+      const world = geo(anchor.lat, anchor.lon, R + .045).applyMatrix4(this.group.matrixWorld)
+      const facing = world.clone().sub(planetCenter).normalize().dot(eye.clone().sub(world).normalize())
+      const keep = retained.has(id)
+      if (facing < (keep ? .06 : .16)) continue
+      const p = world.project(camera)
+      if (Math.abs(p.x) > (keep ? .99 : .95) || Math.abs(p.y) > (keep ? .98 : .93) || p.z < -1 || p.z > 1) continue
+      candidates.push({ id, text: formatPressure(anchor.value), x: (p.x + 1) * width / 2, y: (1 - p.y) * height / 2,
+        visible: true, cls: 'climate-contour-label', color: pressureColors.line,
+        opacity: pressureOpacity * THREE.MathUtils.smoothstep(facing, .06, .16),
+        value: anchor.value, lat: anchor.lat, lon: anchor.lon, contourId: anchor.contourId })
+    }
+    const selected = selectPressureLabelCandidates(candidates, occupied, width, height, this.pressureLabelIds)
+    this.pressureValues.update(selected)
+    // At close zoom the numeric mesh is larger than its nominal screen label.
+    // Give current names room using the real spherical text footprint as well.
+    const overlapping = new Set(this.pressureValues.active.filter(patch => {
+      const bounds = projectTextPatchBounds(patch.mesh, camera, width, height, 4)
+      return currentBounds.some(other => boundsOverlap(bounds, other))
+    }).map(patch => patch.label.id))
+    const cleared = selected.filter(label => !overlapping.has(label.id))
+    if (overlapping.size) this.pressureValues.update(cleared)
+    this.pressureLabelIds = cleared.map(label => label.id)
     return visible
   }
 
   dispose() {
     this.pressureText.january.dispose()
     this.pressureText.july.dispose()
+    this.pressureValues.dispose()
+    this.currentNames.dispose()
     // Parent scene traversal releases geometries and materials.
   }
   private material(color: string, seasonal = true, pressure = false) {
@@ -300,11 +478,16 @@ export class SurfaceClimate {
     extras: Partial<Flow> = {},
     phase?: number,
   ) {
+    const atmosphericWind = layer === 'wind' || layer === 'monsoons'
     const geometry = createSurfaceArrowGeometry()
-    const flow = this.addFlow(geometry, this.material(color, seasonal), layer, focus, extras)
+    geometry.userData.taperedTail = atmosphericWind
+    const material = this.material(color, seasonal)
+    if (atmosphericWind) material.fragmentShader = surfaceWindArrowFragment
+    const flow = this.addFlow(geometry, material, layer, focus, extras)
     const length = curve.getLength()
     const ocean = layer === 'currents'
-    const span = Math.min(ocean ? 0.65 : 0.31, (ocean ? 0.62 : 0.3) / Math.max(length, 0.01))
+    const span = Math.min(ocean ? 0.65 : atmosphericWind ? .66 : 0.31,
+      (ocean ? 0.62 : atmosphericWind ? .72 : 0.3) / Math.max(length, 0.01))
     const arrow = {
       flow,
       curve,
@@ -313,7 +496,7 @@ export class SurfaceClimate {
       speed: layer === 'wind' || layer === 'single' || layer === 'monsoons' ? 0.32 : 0.085,
       halfWidth: ocean ? 0.012 : 0.027,
       direction: 1,
-      inset: layer === 'wind' ? 0 : 0.06,
+      inset: atmosphericWind ? 0 : 0.06,
     }
     this.surfaceArrows.push(arrow)
     updateSurfaceArrow(
@@ -357,52 +540,69 @@ export class SurfaceClimate {
     }
   }
   private createMonsoons() {
+    const crossEquatorialRoutes: {
+      route: THREE.Curve<THREE.Vector3>; activeMonth: 1 | 7; sourceHemisphere: 'north' | 'south'
+    }[] = []
     monsoonWinds.forEach((def, index) => {
-      const points: THREE.Vector3[] = []
-      for (let segment = 0; segment < def.points.length - 1; segment++) {
-        const a = def.points[segment]!,
-          b = def.points[segment + 1]!
-        for (let i = 0; i < 20; i++)
-          points.push(
-            geo(THREE.MathUtils.lerp(a[0], b[0], i / 20), THREE.MathUtils.lerp(a[1], b[1], i / 20), R + 0.105),
-          )
-      }
-      const end = def.points[def.points.length - 1]!
-      points.push(geo(end[0], end[1], R + 0.105))
-      const route = new THREE.CatmullRomCurve3(points)
-      const color = def.season === 'summer'
+      // Smooth the original geographic waypoints without splitting the route into
+      // short pieces. A long tapered arrow can then visibly follow its curvature.
+      const route = createGeographicCurve(def.points, R + .105)
+      const crossEquatorial = def.crossEquatorial
+      const launch = crossEquatorial ? createMonsoonLaunch() : undefined
+      const surfaceMonths = crossEquatorial ? [crossEquatorial.activeMonth] : undefined
+      if (crossEquatorial) crossEquatorialRoutes.push({ route, activeMonth: crossEquatorial.activeMonth,
+        sourceHemisphere: crossEquatorial.destinationHemisphere === 'north' ? 'south' : 'north' })
+      const color = def.color ?? (def.season === 'summer'
         ? (def.regime === 'eastAsia' ? palette.summerMonsoon : palette.southSummerMonsoon)
-        : (def.regime === 'eastAsia' ? palette.winterMonsoon : palette.southWinterMonsoon)
-      for (let section = 0; section < 3; section++) {
-        const curve = new THREE.CatmullRomCurve3(
-          Array.from({ length: 24 }, (_, j) => route.getPoint((section + j / 23) / 3)),
+        : (def.regime === 'eastAsia' ? palette.winterMonsoon : palette.southWinterMonsoon))
+      const count = Math.max(2, Math.ceil((route.getLength() + .72) / .95))
+      for (let arrow = 0; arrow < count; arrow++) {
+        const flow = this.arrow(
+          route,
+          color,
+          'monsoons',
+          `monsoon-${index}`,
+          false,
+          { monsoonSeason: def.season, regime: def.regime, surfaceMonths },
+          launch ? 0 : (arrow / count + index * .13) % 1,
         )
-        for (const phase of WIND_ARROW_PHASES)
-          this.arrow(
-            curve,
-            color,
-            'monsoons',
-            `monsoon-${index}`,
-            false,
-            { monsoonSeason: def.season, regime: def.regime },
-            (phase + section * 0.13) % 1,
-          )
+        if (launch && crossEquatorial) {
+          const motion = this.surfaceArrows[this.surfaceArrows.length - 1]!
+          motion.monsoonLaunch = { clock: launch, ordinal: arrow, count, activeMonth: crossEquatorial.activeMonth }
+          if (arrow === 0) this.monsoonLaunches.push({ clock: launch, rate: motion.speed,
+            activeMonth: crossEquatorial.activeMonth, season: def.season, regime: def.regime })
+          setCrossEquatorialArrowColors(flow.mesh.geometry, flow.mesh.material, palette.hadley, color, crossEquatorial.destinationHemisphere)
+          const frame = surfaceArrowFrame(0, motion.span, 1, motion.inset)
+          updateSurfaceArrow(flow.mesh.geometry, route, frame.start, motion.span, 1, R + .105,
+            motion.halfWidth, frame.clipMin, frame.clipMax)
+        }
       }
       const center = def.points[2]!
+      const label = crossEquatorial ? monsoonDestinationAnchor(route, crossEquatorial.labelLatitude) : { lat: center[0], lon: center[1] }
       this.labels.push({
         id: `monsoon-${index}`,
-        text: def.name,
-        lat: center[0],
-        lon: center[1],
+        text: def.label ?? def.name,
+        cls: crossEquatorial ? 'climate-label climate-monsoon-label' : undefined,
+        lat: label.lat,
+        lon: label.lon,
         radius: R + 0.14,
         layer: 'monsoons',
         color,
         seasonal: false,
         monsoonSeason: def.season,
         regime: def.regime,
+        surfaceMonths,
         selection: { title: def.name, text: def.note, color, tag: '亚洲季风 · 近地面风' },
       })
     })
+    // Only geographically overlapping source trade routes yield to the same air
+    // continuing across the equator, and only in that destination's summer month.
+    for (const arrow of this.surfaceArrows) {
+      if (arrow.flow.layer !== 'wind' || !['wind--28', 'wind-28'].includes(arrow.flow.focus)) continue
+      arrow.flow.replacedByCrossEquatorialMonths = [...new Set(crossEquatorialRoutes.filter(crossing =>
+        overlapsMonsoonSource(arrow.curve, [crossing.route], seasonalShift(crossing.activeMonth), crossing.sourceHemisphere))
+        .map(crossing => crossing.activeMonth))]
+    }
   }
   private createCurrents() {
     oceanCurrents.forEach((def, index) => {
@@ -422,20 +622,10 @@ export class SurfaceClimate {
         seasonalTemperature: def.seasonalTemperature, pulse: true,
       })
       this.glowHalo(flow, createCurrentLineGeometry(curve, R + .059, .055))
-      const center = def.points[Math.floor(def.points.length / 2)]!
-      this.labels.push({
+      this.currentNames.add({
         id: `current-${index}`,
         text: def.name,
-        lat: center[0],
-        lon: center[1],
-        radius: R + 0.1,
-        color,
-        layer: 'currents',
-        seasonal: false,
-        basin: def.basin,
-        regime: def.regime,
-        surfaceMonths: def.surfaceMonths,
-        seasonalTemperature: def.seasonalTemperature,
+        curve,
         selection: {
           title: def.name,
           text: def.note,

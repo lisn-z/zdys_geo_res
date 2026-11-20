@@ -37,8 +37,8 @@ export class Sunlight {
       .applyQuaternion(this.group.getWorldQuaternion(this.worldRotation)).normalize()
   }
 
-  update(month: number, ideal: boolean, enabled: boolean, _playing: boolean, _speed: number, dt: number, selected = false) {
-    this.latitude = damp(this.latitude, ideal ? 0 : subsolarLatitude(month), dt)
+  update(month: number, ideal: boolean, enabled: boolean, _playing: boolean, _speed: number, dt: number, selected = false, latitudeOverride?: number) {
+    this.latitude = damp(this.latitude, latitudeOverride ?? (ideal ? 0 : subsolarLatitude(month)), dt)
     this.highlight.value = damp(this.highlight.value, selected ? 1 : 0, dt)
     this.intensity.value = damp(this.intensity.value, enabled ? 1 : 0, dt)
     this.group.visible = this.intensity.value > .005

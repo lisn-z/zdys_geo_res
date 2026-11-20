@@ -1,28 +1,14 @@
 import { sampleNcepSlp } from '../ncep-slp-climatology.ts'
 import { traceContourAnchors, type ContourAnchor } from './contour-labels.ts'
+import { pressureLabelLevels } from './pressure-palette.ts'
 
-// Same levels and climatological source as general-atmospheric-circulation.
-export const pressureLevels = [980, 988, 996, 1004, 1012, 1020, 1028, 1036, 1044] as const
-export const pressurePalette = [
-  '#374ada',
-  '#374ada',
-  '#5b7ee8',
-  '#91caf6',
-  '#d9e1dc',
-  '#f6c27d',
-  '#f47d42',
-  '#e9482b',
-  '#e9482b',
-]
-export const pressureColors = {
-  low: pressurePalette[0]!,
-  middle: pressurePalette[4]!,
-  high: pressurePalette[8]!,
-  line: '#fff7df',
-  highText: '#ffdc9e',
-  lowText: '#b6edff',
-}
-export const formatPressure = (value: number) => `${Number(value.toFixed(1))} hPa`
+// Optional contours follow 4 hPa main levels; July additionally shows 1026 hPa.
+// Textbook legend ticks and region-value labels have their own monthly lists.
+export const pressureContourInterval = 4
+export const pressureMajorInterval = 4
+export const pressureLevels = Array.from({ length: 20 }, (_, i) => 980 + i * pressureContourInterval)
+export { pressurePalette, pressureFillLevels, pressureColors, pressureScaleForMonth, pressureFillScaleForMonth, pressureLabelLevels } from './pressure-palette.ts'
+export const formatPressure = (value: number) => `${Math.round(value)} hPa`
 export const pressureMonths = [1, 7] as const
 export type PressureMonth = (typeof pressureMonths)[number]
 export function samplePressure(lon: number, lat: number, month: PressureMonth) {
@@ -103,10 +89,7 @@ const contourCache = new Map<PressureMonth, ContourAnchor[]>()
 export function contourAnchors(month: PressureMonth) {
   let anchors = contourCache.get(month)
   if (!anchors) {
-    anchors = traceContourAnchors((lon, lat) => samplePressure(lon, lat, month), pressureLevels)
-      // With a small label budget, show representative high/low values around
-      // normal pressure before spending the budget on only the lowest levels.
-      .sort((a, b) => Math.abs(a.value - 1012) - Math.abs(b.value - 1012) || b.value - a.value)
+    anchors = traceContourAnchors((lon, lat) => samplePressure(lon, lat, month), pressureLabelLevels(month))
     contourCache.set(month, anchors)
   }
   return anchors

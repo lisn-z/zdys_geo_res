@@ -30,18 +30,14 @@ export class AtmosphericCellCurve extends THREE.Curve<THREE.Vector3> {
 
     const surfaceFromLat = shiftLatitude(definition.surfaceFromLat, latitudeOffset)
     const surfaceToLat = shiftLatitude(definition.surfaceToLat, latitudeOffset)
-    const riseLat = shiftLatitude(definition.riseLat, latitudeOffset)
-    const upperFromLat = shiftLatitude(definition.upperFromLat, latitudeOffset)
-    const upperToLat = shiftLatitude(definition.upperToLat, latitudeOffset)
-    const sinkLat = shiftLatitude(definition.sinkLat, latitudeOffset)
 
     const surfaceRadius = EARTH_RADIUS + 0.09
 
     const upperHeightByType: Record<CellPathDefinition['type'], number> = {
-      single: 0.95,
-      hadley: 0.78,
+      single: 0.90,
+      hadley: 0.74,
       ferrel: 0.68,
-      polar: 0.76,
+      polar: 0.58,
     }
 
     const upperRadius = EARTH_RADIUS + upperHeightByType[definition.type]
@@ -50,33 +46,25 @@ export class AtmosphericCellCurve extends THREE.Curve<THREE.Vector3> {
     const point = (lat: number, radius: number) =>
       latLonToVec3(lat, centerLon, radius)
 
-    /*
-     * 按真实气流方向组织控制点：
-     * 近地面支 → 上升圆角 → 高空支 → 下沉圆角 → 起点。
-     * 在升降转折处同时改变纬度和半径，再交给闭合 CatmullRomCurve3
-     * 做连续切线插值，避免“直角”和分段折线感。
-     */
-    const controls = [
-      point(surfaceFromLat, surfaceRadius),
-      point(lerpValue(surfaceFromLat, surfaceToLat, 0.28), surfaceRadius),
-      point(lerpValue(surfaceFromLat, surfaceToLat, 0.68), surfaceRadius),
-      point(lerpValue(surfaceFromLat, surfaceToLat, 0.93), surfaceRadius + 0.025),
-
-      point(riseLat, surfaceRadius + (upperRadius - surfaceRadius) * 0.16),
-      point(riseLat, middleRadius),
-      point(riseLat, upperRadius - (upperRadius - surfaceRadius) * 0.16),
-
-      point(lerpValue(upperFromLat, upperToLat, 0.07), upperRadius - 0.025),
-      point(lerpValue(upperFromLat, upperToLat, 0.34), upperRadius),
-      point(lerpValue(upperFromLat, upperToLat, 0.72), upperRadius),
-      point(lerpValue(upperFromLat, upperToLat, 0.94), upperRadius - 0.025),
-
-      point(sinkLat, upperRadius - (upperRadius - surfaceRadius) * 0.16),
-      point(sinkLat, middleRadius),
-      point(sinkLat, surfaceRadius + (upperRadius - surfaceRadius) * 0.16),
-
-      point(lerpValue(sinkLat, surfaceFromLat, 0.82), surfaceRadius + 0.025),
-    ]
+    // Annular capsule: both long branches hug the globe; semicircular returns
+    // remove the straight radial walls and rectangular corners at the poles.
+    const halfHeight = (upperRadius - surfaceRadius) / 2
+    const direction = Math.sign(surfaceToLat - surfaceFromLat)
+    const capAngle = Math.min(Math.abs(surfaceToLat - surfaceFromLat) * .18,
+      THREE.MathUtils.radToDeg(halfHeight / middleRadius))
+    const from = surfaceFromLat + direction * capAngle
+    const to = surfaceToLat - direction * capAngle
+    const controls: THREE.Vector3[] = []
+    for (let i = 0; i < 64; i++) controls.push(point(lerpValue(from, to, i / 64), surfaceRadius))
+    for (let i = 0; i < 32; i++) {
+      const a = -Math.PI / 2 + Math.PI * i / 32
+      controls.push(point(to + direction * capAngle * Math.cos(a), middleRadius + halfHeight * Math.sin(a)))
+    }
+    for (let i = 0; i < 64; i++) controls.push(point(lerpValue(to, from, i / 64), upperRadius))
+    for (let i = 0; i < 32; i++) {
+      const a = Math.PI / 2 + Math.PI * i / 32
+      controls.push(point(from + direction * capAngle * Math.cos(a), middleRadius + halfHeight * Math.sin(a)))
+    }
 
     this.smoothCurve = new THREE.CatmullRomCurve3(
       controls,

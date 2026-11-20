@@ -31,7 +31,7 @@ export class PressureCenterText {
         const context = canvas.getContext('2d')!
         context.font = '600 60px "Microsoft YaHei", sans-serif'
         const titleWidth = context.measureText(`${center.symbol}  ${center.name}`).width
-        context.font = '500 46px "Microsoft YaHei", sans-serif'
+        context.font = '500 58px "Microsoft YaHei", sans-serif'
         const valueWidth = context.measureText(formatPressure(center.value)).width
         canvas.width = Math.ceil(Math.max(titleWidth, valueWidth) + 48)
         canvas.height = 192
@@ -76,7 +76,7 @@ export class PressureCenterText {
         const title = `${center.symbol}  ${center.name}`
         ctx.strokeText(title, x, 63)
         ctx.fillText(title, x, 63)
-        ctx.font = '500 46px "Microsoft YaHei", sans-serif'
+        ctx.font = '500 58px "Microsoft YaHei", sans-serif'
         ctx.fillStyle = '#fff9ec'
         ctx.strokeText(pressure, x, 133)
         ctx.fillText(pressure, x, 133)

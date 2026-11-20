@@ -1,0 +1,193 @@
+#seawater-classroom.seawater-classroom{--sw-ink:#234d64;--sw-muted:#577b90;--sw-line:#9fc6db9c;--sw-blue:#217eaa;--sw-panel:#e1f2fbf5;--sw-dock-height:154px;position:fixed;inset:0;isolation:isolate;overflow:hidden;background:#a6c6da;color:var(--sw-ink);font:14px/1.5 "Microsoft YaHei","PingFang SC",sans-serif;color-scheme:light}
+#seawater-classroom *,#seawater-classroom *::before,#seawater-classroom *::after{box-sizing:border-box}
+#seawater-classroom button,#seawater-classroom select{font:inherit;color:var(--sw-ink);cursor:pointer;border:1px solid var(--sw-line);background:#e6f5fc;border-radius:7px;line-height:1.45;margin:0;box-shadow:none;text-transform:none;letter-spacing:0;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+#seawater-classroom button{padding:8px 12px;transition:background .16s,color .16s,border-color .16s}
+#seawater-classroom button:hover{background:#c7e8f7;border-color:#7bacc7}
+#seawater-classroom button:disabled{opacity:.4;cursor:not-allowed}
+#seawater-classroom button:focus-visible,#seawater-classroom select:focus-visible{outline:2px solid #147ca8;outline-offset:3px}
+#seawater-classroom h1,#seawater-classroom h2,#seawater-classroom h3,#seawater-classroom p{margin:0;color:inherit}
+#seawater-classroom svg{display:block;max-width:100%}
+#seawater-classroom .sw-header{position:absolute;inset:0 0 auto;height:70px;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 24px;background:linear-gradient(110deg,#e4f2faf5,#c5e5f6f2);backdrop-filter:blur(16px);border-bottom:1px solid #dff0f8;box-shadow:0 4px 24px #173d5015}
+#seawater-classroom .sw-brand{display:flex;align-items:center;gap:18px;flex-shrink:0}
+#seawater-classroom .sw-logo{display:block;position:relative;width:166px;height:48px;overflow:hidden;flex-shrink:0;pointer-events:none}
+#seawater-classroom .sw-logo img{position:absolute;left:-4.8%;top:-54.4%;width:110.8%;height:auto;max-width:none;object-fit:initial}
+#seawater-classroom .sw-divider{width:1px;height:30px;background:#7e9eaf80}
+#seawater-classroom .sw-brand small{display:block;color:#5c7d8e;font-size:10px;letter-spacing:2px;margin-bottom:4px}
+#seawater-classroom .sw-brand h1{font-size:23px;font-weight:600;letter-spacing:2px;line-height:1.3}
+#seawater-classroom .sw-header-actions{display:flex;align-items:center;gap:9px}
+#seawater-classroom .sw-header-actions button{font-size:13px;background:#e5f4fb9e;white-space:nowrap}
+#seawater-classroom .sw-icon-button{display:grid;place-items:center;width:36px;height:36px;padding:8px;background:transparent}
+#seawater-classroom .sw-icon-button svg{width:19px;height:19px}
+#seawater-classroom .sw-mode{display:flex;align-items:center;gap:7px;color:#48728a;font-size:12px;margin-right:6px;white-space:nowrap}
+#seawater-classroom .sw-mode i{width:6px;height:6px;border-radius:50%;background:#2c9390}
+#seawater-classroom .sw-stage{position:absolute;inset:70px 0 0}
+#seawater-classroom .sw-scene{position:absolute;inset:0}
+#seawater-classroom .sw-scene canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
+
+
+
+
+#seawater-classroom .sw-segment{display:flex;align-items:stretch;gap:4px;padding:4px;border:1px solid #afd0e1;border-radius:9px;background:#d3eaf5ed}
+#seawater-classroom .sw-segment button{flex:1;min-width:0;white-space:nowrap;border:0;background:transparent;border-radius:6px;font-size:13px;padding:8px 4px}
+#seawater-classroom .sw-segment button.active,#seawater-classroom .sw-primary{background:#227fa9;color:#fff;border-color:#227fa9;box-shadow:0 2px 6px #1a59731a}
+
+
+
+
+
+/* Root id plus local classes keep custom panel colours above host/Astro theme rules. */
+#seawater-classroom .floating-feature-card.sw-panel{color-scheme:light;--feature-bg:linear-gradient(145deg,#e7f5fcf5,#cce7f5f5);--feature-head-bg:#d9effaf2;--feature-title:#27566d;--feature-text:#2a5066;--feature-border:#91bdd5c9;--feature-divider:#9fc6db8c;--feature-muted:#5a7e91;--feature-button-bg:#e5f6ff;--feature-button-border:#9cc8df;color:var(--sw-ink);background:var(--feature-bg);border:1px solid var(--feature-border);border-radius:12px;box-shadow:0 10px 36px #163a5026;max-height:calc(100dvh - var(--sw-dock-height) - 115px);backdrop-filter:blur(16px)}
+#seawater-classroom .floating-feature-card.sw-course-panel:not(.collapsed){width:306px}
+#seawater-classroom .floating-feature-card.sw-readings-panel:not(.collapsed){width:334px}
+#seawater-classroom .sw-panel .feature-card-head{min-height:51px;background:var(--feature-head-bg);border-bottom:1px solid var(--feature-divider);color:var(--feature-title)}
+#seawater-classroom .sw-panel .feature-card-title-label{font-size:16px;color:var(--feature-title);font-weight:600}
+#seawater-classroom .sw-panel .feature-card-title strong{font-size:11px;color:var(--feature-muted);font-weight:400;margin-top:3px}
+#seawater-classroom .sw-panel .feature-card-content{padding-bottom:23px;scrollbar-width:thin;scrollbar-color:#91b5c7 transparent;color:var(--feature-text)}
+#seawater-classroom .sw-panel .collapse-btn{display:grid;place-items:center;width:27px;height:27px;padding:0;border-radius:6px;border:1px solid var(--feature-button-border);background:var(--feature-button-bg);color:var(--feature-title);font-size:17px}
+#seawater-classroom .sw-panel .feature-resize-handle{width:25px;height:25px;padding:0;background:#e3f5fc;color:#416c82;border:1px solid #aacddc}
+#seawater-classroom .sw-panel-body{padding:14px}
+#seawater-classroom .sw-section-label{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--sw-muted);font-size:12px;margin-bottom:10px}
+#seawater-classroom .sw-section-label small{font-size:11px;color:#7193a5}
+#seawater-classroom .sw-chapters{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+#seawater-classroom .sw-chapters button{display:flex;align-items:center;gap:7px;text-align:left;padding:10px 8px;min-height:60px;background:#e9f5fb94;border-color:#afcddd}
+#seawater-classroom .sw-chapters button>span{font-size:11px;color:#6d93a9}
+#seawater-classroom .sw-chapters button strong{display:block;font-size:14px;font-weight:600;white-space:nowrap}
+#seawater-classroom .sw-chapters button small{display:block;font-size:10px;margin-top:4px;color:#64879b}
+#seawater-classroom .sw-chapters button.active{background:#afdbee;border-color:#70accb;color:#175b7b}
+#seawater-classroom .sw-step-label{margin-top:19px}
+#seawater-classroom .sw-steps{display:flex;flex-direction:column;gap:4px}
+#seawater-classroom .sw-steps button{display:flex;align-items:flex-start;gap:9px;text-align:left;border:1px solid transparent;border-left:3px solid transparent;background:transparent;line-height:1.65;padding:8px 7px;border-radius:5px;font-size:14px;color:#426e85}
+#seawater-classroom .sw-steps button>span{flex-shrink:0;display:block;width:20px;height:22px;line-height:22px;border-radius:50%;text-align:center;font-size:11px;color:#6b93a8}
+#seawater-classroom .sw-steps button.active{background:#abd7ed9e;border-left-color:#2987b3;color:#155875}
+#seawater-classroom .sw-steps button.active>span{background:#d7f1fd;color:#246e90}
+#seawater-classroom .sw-steps button em{display:inline-block;font-size:10px;line-height:1.5;font-style:normal;background:#dfddf180;color:#6c6591;border:1px solid #b1aec9;border-radius:3px;padding:1px 4px;margin-left:5px}
+#seawater-classroom .sw-view-section{border-top:1px solid var(--sw-line);margin-top:16px;padding-top:14px}
+#seawater-classroom .sw-views{padding:3px;background:#bbddeb55}
+#seawater-classroom .sw-views button{font-size:12px;padding:7px 2px}
+#seawater-classroom .sw-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;font-size:13px}
+#seawater-classroom .sw-toggle small{display:block;font-size:11px;color:#6b8c9e;margin-top:3px}
+#seawater-classroom .el-switch{--el-switch-on-color:#2c87aa;--el-switch-off-color:#9ebfcc}
+#seawater-classroom .sw-task{padding:10px 12px;border-left:3px solid #5b9fb3;border-radius:0 7px 7px 0;background:#c0e5f476;margin-bottom:16px}
+#seawater-classroom .sw-task small{color:#2e7e91;font-size:11px;letter-spacing:1px}
+#seawater-classroom .sw-task p{font-size:14px;line-height:1.8;margin-top:6px;color:#315f75}
+#seawater-classroom .sw-region-picks{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+#seawater-classroom .sw-region-picks button{font-size:12px;padding:6px;background:#edf8fba3}
+#seawater-classroom .sw-region-picks button.active{border-color:#639fae;background:#b9e1e8;color:#216c77}
+#seawater-classroom .sw-point-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px;margin:13px 0 9px;font-size:12px}
+#seawater-classroom .sw-point-heading strong{font-weight:500;color:#3a6c83}
+#seawater-classroom .sw-point-heading span{color:#5b8398;font-size:11px;font-variant-numeric:tabular-nums}
+#seawater-classroom .sw-readings{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+#seawater-classroom .sw-readings button{padding:9px 3px 7px;display:flex;align-items:center;flex-direction:column;background:#eaf8fcc7;border-color:#a3c5d8}
+#seawater-classroom .sw-readings button.active{background:#d3edf7;border-color:#568faa}
+#seawater-classroom .sw-readings small{font-size:11px;color:#577d91}
+#seawater-classroom .sw-readings strong{font-size:21px;line-height:1.5;font-weight:500;color:#24617f;font-variant-numeric:tabular-nums;letter-spacing:-.7px}
+#seawater-classroom .sw-readings button>span{font-size:10px;color:#6d8e9f}
+#seawater-classroom .sw-reading-note{color:#68899a;font-size:11px;line-height:1.7;margin:8px 0 14px}
+#seawater-classroom .sw-depth-comparison{margin-top:10px}
+#seawater-classroom .sw-depth-comparison table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;font-variant-numeric:tabular-nums;text-align:right;color:var(--sw-ink)}
+#seawater-classroom .sw-depth-comparison th,#seawater-classroom .sw-depth-comparison td{border:0;border-bottom:1px solid #accddb8c;padding:6px 5px;background:transparent;white-space:nowrap}
+#seawater-classroom .sw-depth-comparison th{font-weight:500;text-align:center}
+#seawater-classroom .sw-depth-comparison thead th{padding:0 1px 6px;font-size:12px}
+#seawater-classroom .sw-depth-comparison small{display:block;font-size:10px;font-weight:400;color:#577b90;margin-top:3px}
+#seawater-classroom .sw-depth-comparison button{display:block;width:100%;padding:5px 3px;font-size:inherit;font-weight:500;border:1px solid #91b9cc;border-radius:5px;background:#eaf7fc;color:#285f79}
+#seawater-classroom .sw-depth-comparison thead button.active{background:#c5e6f4;border-color:#3c8db1;color:#1e5670}
+#seawater-classroom .sw-depth-comparison tbody th{padding:3px 2px}
+#seawater-classroom .sw-depth-comparison tbody button{padding:4px 3px}
+#seawater-classroom .sw-depth-comparison tr.selected th,#seawater-classroom .sw-depth-comparison tr.selected td{background:#c3e3f0}
+#seawater-classroom .sw-depth-comparison tr.selected button{background:#287c9e;border-color:#287c9e;color:#fff}
+#seawater-classroom .sw-depth-comparison td.sw-active-property{font-weight:600;color:#215d79}
+#seawater-classroom .sw-depth-comparison>p{margin:8px 0 0;font-size:11px;color:#52798c;line-height:1.6}
+#seawater-classroom .sw-slice-context{display:flex;align-items:baseline;flex-wrap:wrap;gap:5px 12px;padding:8px 17px;background:#c3dfec70;border-bottom:1px solid #98bdd080;color:#355f74;font-size:12px;line-height:1.6}
+#seawater-classroom .sw-slice-context strong{font-size:13px;color:#245d79;white-space:nowrap}
+#seawater-classroom .sw-profile-heading{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--sw-line);padding-top:11px;font-size:12px}
+#seawater-classroom .sw-profile-heading strong{font-weight:500}
+#seawater-classroom .sw-profile-heading>span{color:#3d8a9a}
+#seawater-classroom .sw-profile{width:100%;height:auto;margin:10px 0 0;overflow:visible}
+#seawater-classroom .sw-profile text{fill:#628197;font-size:10px;font-family:inherit;font-variant-numeric:tabular-nums}
+#seawater-classroom .sw-profile .sw-axis-title{fill:#52778b;font-size:10px}
+#seawater-classroom .sw-profile .sw-grid{stroke:#a9c6d6;stroke-width:.65;stroke-dasharray:3 3}
+#seawater-classroom .sw-profile .sw-depth-leader{fill:none;stroke:#739bae;stroke-width:.8}
+#seawater-classroom .sw-profile .sw-profile-line{fill:none;stroke:#328ea6;stroke-width:2.2}
+#seawater-classroom .sw-profile circle{fill:#e8f7fb;stroke:#2b89a2;stroke-width:1.6}
+#seawater-classroom .sw-profile circle.selected{fill:#277c9c;stroke:#e8f7fb;stroke-width:2}
+#seawater-classroom .sw-fine{font-size:11px;line-height:1.7;color:#66869a}
+#seawater-classroom .sw-density-note{padding:8px 10px;border:1px solid #94becb;background:#c7e7ed6b;border-radius:6px;color:#3e7988;font-size:12px;line-height:1.7;margin-top:12px}
+
+#seawater-classroom .sw-legend-title{display:flex;justify-content:space-between;gap:12px;font-size:12px;margin-bottom:9px}
+#seawater-classroom .sw-legend-title strong{font-weight:600}
+#seawater-classroom .sw-legend-title small{font-size:11px;font-weight:400;color:#51798e}
+#seawater-classroom .sw-legend-title>span{color:#598096;font-size:11px}
+#seawater-classroom .sw-color-bands{display:flex;height:10px;border-radius:4px;overflow:hidden}
+#seawater-classroom .sw-color-bands i{display:block;flex:1}
+#seawater-classroom .sw-band-labels{position:relative;height:21px;font-size:10px;color:#3f6f86;font-variant-numeric:tabular-nums}
+#seawater-classroom .sw-band-labels span{position:absolute;transform:translateX(-50%);top:4px}
+#seawater-classroom .sw-legend p{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:10px;color:#688799;line-height:1.5}
+#seawater-classroom .sw-legend p i{display:inline-block;width:11px;height:7px;margin-right:3px;border-radius:2px;background:repeating-linear-gradient(135deg,#c7d4dc 0px,#c7d4dc 3px,#a6bac7 3px,#a6bac7 4px);vertical-align:baseline}
+#seawater-classroom .sw-natural-note{position:absolute;z-index:3;bottom:calc(var(--sw-dock-height) + 40px);left:50%;transform:translateX(-50%);white-space:nowrap;padding:7px 12px;border:1px solid #c3dfed85;border-radius:7px;background:#cee8f2c9;color:#426d83;font-size:12px}
+#seawater-classroom .sw-lesson-dock{position:absolute;z-index:45;bottom:18px;left:50%;transform:translateX(-50%);width:min(1130px,calc(100% - 120px));max-height:45dvh;overflow:auto;scrollbar-width:thin;border:1px solid #9cc4dce3;border-radius:12px;background:linear-gradient(115deg,#e4f3fbf7,#cae6f5f5);box-shadow:0 8px 32px #14364e29;backdrop-filter:blur(18px)}
+#seawater-classroom .sw-lesson-heading{display:flex;align-items:center;gap:12px;padding:12px 17px 7px}
+#seawater-classroom .sw-lesson-heading>span{flex-shrink:0;padding:3px 7px;border-radius:4px;background:#abd6e97d;font-size:11px;color:#2f6984}
+#seawater-classroom .sw-lesson-heading h2{font-size:16px;font-weight:600;line-height:1.5}
+#seawater-classroom .sw-lesson-heading button{display:inline-flex;align-items:center;justify-content:center;gap:5px;margin-left:auto;flex-shrink:0;font-size:12px;line-height:1.4;padding:3px 6px;border:0;border-radius:5px;background:#e8f7ff7a;color:#326c88;white-space:nowrap}
+#seawater-classroom .sw-lesson-heading button svg{width:14px;height:14px;flex-shrink:0}
+#seawater-classroom .sw-takeaway{display:flex;align-items:baseline;gap:10px;font-size:14px;line-height:1.7;padding:0 17px 10px;color:#315b73}
+#seawater-classroom .sw-takeaway b{flex-shrink:0;display:block;font-size:11px;line-height:1.5;font-weight:500;background:#2b83a7;color:#fff;border-radius:4px;padding:3px 7px}
+#seawater-classroom .sw-explanation{padding:11px 18px 13px;border-top:1px solid #aad0e1b0;background:#edf9fc6b;line-height:1.85;font-size:14px;color:#456b81}
+#seawater-classroom .sw-navigation{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:8px 17px;background:#add6ed40;border-top:1px solid #a0c8de99}
+#seawater-classroom .sw-progress{display:flex;align-items:center;gap:6px;flex:1;min-width:100px}
+#seawater-classroom .sw-progress button{flex:1;min-width:15px;text-align:left;padding:2px 0 0;background:transparent;border:0;font-size:10px;color:#6c92a8;border-radius:0}
+#seawater-classroom .sw-progress button>i{display:block;height:4px;background:#94bed482;border-radius:3px;overflow:hidden}
+#seawater-classroom .sw-progress button.active>i{background:#368aaf}
+#seawater-classroom .sw-progress button.active{color:#22789c}
+#seawater-classroom .sw-progress button.past>i{background:#82b5cb}
+#seawater-classroom .sw-progress button>i>b{display:block;height:100%;background:#10465d;transition:width .2s linear}
+#seawater-classroom .sw-progress button>span{display:block;margin-top:4px}
+#seawater-classroom .sw-page-number{white-space:nowrap;color:#60869b;font-size:11px;font-variant-numeric:tabular-nums}
+#seawater-classroom .sw-page-number strong{font-size:21px;font-weight:400;color:#2e708f}
+#seawater-classroom .sw-depth-control{display:flex;align-items:center;gap:7px;flex-shrink:0;color:#426f87;font-size:12px;white-space:nowrap}
+#seawater-classroom .sw-depth-control select{padding:6px 8px;font-size:12px;background:#e8f7ff;border-color:#99c5da;max-width:136px}
+#seawater-classroom .sw-navigation-buttons{display:flex;gap:6px;align-items:center}
+#seawater-classroom .sw-navigation-buttons button{font-size:12px;padding:7px 10px;white-space:nowrap}
+#seawater-classroom .sw-navigation-buttons button.active{background:#b5dfe9;border-color:#77b1bf;color:#216e7c}
+#seawater-classroom .sw-navigation-buttons .sw-primary:hover{background:#146d98}
+#seawater-classroom .sw-loading{position:absolute;inset:0;z-index:35;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:#d3e8f2f7;color:#3b6c83;padding:30px;text-align:center}
+#seawater-classroom .sw-loading h2{font-size:22px;font-weight:500}
+#seawater-classroom .sw-loading p{font-size:13px;line-height:1.8}
+#seawater-classroom .sw-spinner{width:40px;height:40px;border:2px solid #abcbd9;border-top-color:#2f82a5;border-radius:50%;animation:sw-spin 1.2s linear infinite}
+@keyframes sw-spin{to{transform:rotate(360deg)}}
+.el-dialog.seawater-data-dialog{color-scheme:light;--el-dialog-bg-color:#e6f4fb;--el-text-color-primary:#244e65;--el-text-color-regular:#456d84;--el-text-color-secondary:#638294;--el-color-primary:#267fa3;--el-color-info:#638294;background:var(--el-dialog-bg-color);color:var(--el-text-color-regular);border:1px solid #a8ccdf;border-radius:14px;padding:24px;box-shadow:0 24px 80px #183a5655;font-family:"Microsoft YaHei","PingFang SC",sans-serif}
+.el-dialog.seawater-data-dialog .el-dialog__title{color:#244e65;font-size:21px;font-weight:600;line-height:1.5}
+.el-dialog.seawater-data-dialog .el-dialog__body{max-height:73dvh;overflow:auto;color:#456d84;scrollbar-width:thin;font-size:14px;line-height:1.85}
+.el-dialog.seawater-data-dialog .el-dialog__headerbtn .el-dialog__close{color:#527b91}
+.el-dialog.seawater-data-dialog .sw-data-content p{font-size:14px;line-height:1.85;color:#456d84;margin:9px 0}
+.el-dialog.seawater-data-dialog .sw-data-content h3{font-size:16px;color:#2c647e;margin:20px 0 7px;font-weight:600}
+.el-dialog.seawater-data-dialog .sw-data-content .sw-data-lead{margin-top:0;background:#cde8f57d;border-left:3px solid #4f97af;padding:11px 14px;border-radius:0 6px 6px 0;color:#315f78}
+.el-dialog.seawater-data-dialog .sw-data-facts{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:9px;margin:16px 0}
+.el-dialog.seawater-data-dialog .sw-data-facts>div{padding:11px;background:#d3eaf586;border:1px solid #b1d1df;border-radius:7px}
+.el-dialog.seawater-data-dialog .sw-data-facts small{display:block;font-size:11px;color:#7193a4}
+.el-dialog.seawater-data-dialog .sw-data-facts strong{display:block;font-size:13px;color:#2b6580;font-weight:500;margin-top:4px}
+.el-dialog.seawater-data-dialog .sw-source{border-top:1px solid #b3d1df;padding-top:11px;margin-top:13px}
+.el-dialog.seawater-data-dialog .sw-source a{font-size:14px;color:#257e9e;text-decoration:none}
+.el-dialog.seawater-data-dialog .sw-source a:hover{text-decoration:underline}
+.el-dialog.seawater-data-dialog .sw-source p{font-size:13px;color:#5d8093;margin:5px 0}
+.el-dialog.seawater-data-dialog summary{cursor:pointer;color:#3c768d;margin-top:18px}
+.el-dialog.seawater-data-dialog .sw-data-content .sw-data-limit{border-top:1px solid #b3d1df;font-size:12px;padding-top:13px;color:#7390a1}
+.app-container:has(#seawater-classroom)>.back-home-btn{width:36px;height:36px;right:17px;bottom:24px;background:#4389ab;box-shadow:0 3px 16px #254b642b}
+@media(min-width:1700px){#seawater-classroom .floating-feature-card.sw-course-panel:not(.collapsed){width:330px}#seawater-classroom .floating-feature-card.sw-readings-panel:not(.collapsed){width:354px}#seawater-classroom .sw-steps button,#seawater-classroom .sw-task p{font-size:15px}#seawater-classroom .sw-lesson-dock{width:min(1240px,calc(100% - 150px))}}
+@media(max-width:1200px){#seawater-classroom .floating-feature-card.sw-course-panel:not(.collapsed){width:282px}#seawater-classroom .floating-feature-card.sw-readings-panel:not(.collapsed){width:310px}#seawater-classroom .sw-readings strong{font-size:19px}#seawater-classroom .sw-mode{display:none}#seawater-classroom .sw-legend p{font-size:9px}#seawater-classroom .sw-lesson-heading h2{font-size:15px}}
+@media(max-width:1000px){#seawater-classroom .sw-header{padding:0 16px;gap:10px}#seawater-classroom .sw-logo{width:143px;height:42px}#seawater-classroom .sw-brand{gap:12px}#seawater-classroom .sw-brand h1{font-size:20px}#seawater-classroom .sw-header-actions button{font-size:12px;padding:7px 9px}#seawater-classroom .sw-lesson-heading{gap:8px;flex-wrap:wrap}#seawater-classroom .sw-lesson-heading h2{order:3;flex-basis:100%}#seawater-classroom .sw-lesson-dock{width:calc(100% - 80px);left:18px;transform:none}#seawater-classroom .sw-navigation{gap:9px}#seawater-classroom .sw-navigation-buttons button{padding:7px 8px;font-size:11px}#seawater-classroom .sw-takeaway{font-size:13px}#seawater-classroom .sw-natural-note{font-size:11px}}
+
+@media(min-width:701px) and (max-width:1000px){}
+@media(max-width:700px){#seawater-classroom .sw-header{height:104px;flex-wrap:wrap;padding:7px 12px;gap:4px}#seawater-classroom .sw-brand small{font-size:8px}#seawater-classroom .sw-brand h1{font-size:18px}#seawater-classroom .sw-header-actions{width:100%;justify-content:flex-end;gap:7px}#seawater-classroom .sw-header-actions button{font-size:11px;padding:5px 9px}#seawater-classroom .sw-header-actions .sw-icon-button{width:28px;height:28px;padding:5px}#seawater-classroom .sw-stage{top:104px}#seawater-classroom .sw-panel.floating-feature-card{max-height:calc(100dvh - var(--sw-dock-height) - 140px)}#seawater-classroom .sw-lesson-dock{bottom:10px;left:10px;width:calc(100% - 20px);max-height:42dvh}#seawater-classroom .sw-lesson-heading{padding:8px 11px 5px}#seawater-classroom .sw-lesson-heading h2{font-size:14px}#seawater-classroom .sw-lesson-heading>span{font-size:10px}#seawater-classroom .sw-lesson-heading button{font-size:11px}#seawater-classroom .sw-takeaway{padding:0 11px 8px;gap:7px;font-size:12px}#seawater-classroom .sw-takeaway b{font-size:10px;padding:3px 5px}#seawater-classroom .sw-navigation{padding:7px 10px;gap:6px;flex-wrap:wrap}#seawater-classroom .sw-progress{display:none}#seawater-classroom .sw-navigation-buttons{margin-left:auto;gap:4px}#seawater-classroom .sw-navigation-buttons button{font-size:10px;padding:6px 7px}#seawater-classroom .sw-page-number{font-size:10px}#seawater-classroom .sw-page-number strong{font-size:18px}#seawater-classroom .sw-natural-note{white-space:normal;text-align:center;width:80%}#seawater-classroom .sw-explanation{padding:9px 12px;font-size:12px}.el-dialog.seawater-data-dialog{padding:18px}.el-dialog.seawater-data-dialog .sw-data-facts{grid-template-columns:1fr 1fr}.el-dialog.seawater-data-dialog .sw-data-facts>div:last-child{grid-column:1/-1}.app-container:has(#seawater-classroom)>.back-home-btn{width:29px;height:29px;bottom:calc(43dvh + 12px);right:12px}}
+@media(prefers-reduced-motion:reduce){#seawater-classroom button,#seawater-classroom .sw-progress button>i>b{transition:none}#seawater-classroom .sw-spinner{animation:none}}
+
+@media(max-width:1000px){#seawater-classroom .sw-navigation .sw-progress{display:none}#seawater-classroom .sw-navigation .sw-depth-control{margin-right:auto}#seawater-classroom .sw-navigation .sw-navigation-buttons{margin-left:auto;flex-wrap:wrap;justify-content:flex-end}}
+@media(max-width:700px){#seawater-classroom .sw-navigation .sw-depth-control{font-size:11px}#seawater-classroom .sw-depth-control select{padding:5px 7px;font-size:11px}#seawater-classroom .sw-navigation .sw-navigation-buttons{width:100%}#seawater-classroom .sw-lesson-heading button svg{width:14px;height:14px}}
+
+/* Keep the scale with the depth control, clear of the ocean's latitude labels. */
+#seawater-classroom .sw-lesson-dock .sw-legend{display:flex;align-items:center;gap:18px;width:100%;padding:9px 17px 6px;background:#e5f5fd80;border-bottom:1px solid #9ac3d66b}
+#seawater-classroom .sw-legend-title{flex-direction:column;align-items:flex-start;flex-shrink:0;gap:4px;margin:0}
+#seawater-classroom .sw-legend-ramp{flex:1;min-width:160px;max-width:380px}
+#seawater-classroom .sw-legend p{flex-direction:column;gap:4px;margin-left:auto}
+@media(max-width:1000px){#seawater-classroom .sw-lesson-dock .sw-legend{gap:13px}#seawater-classroom .sw-legend-title>span{font-size:10px}}
+@media(max-width:700px){#seawater-classroom .sw-lesson-dock .sw-legend{flex-wrap:wrap;padding:8px 12px 5px;gap:7px 13px}#seawater-classroom .sw-legend-ramp{max-width:none}#seawater-classroom .sw-legend p{width:100%;flex-direction:row;justify-content:space-between;font-size:9px}}
