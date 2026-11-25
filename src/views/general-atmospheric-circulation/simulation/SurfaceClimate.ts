@@ -1,7 +1,7 @@
 // Surface layers ported from 三圈环流-self; destination palette and stage adapter only.
 import * as THREE from 'three'
 import { createSurfaceArrowGeometry, updateSurfaceArrow, createWindCurve, surfaceArrowFrame, WIND_ARROW_PHASES, surfaceWindArrowFragment, setCrossEquatorialArrowColors } from './surface-arrows.ts'
-import { createMonsoonLaunch, advanceMonsoonLaunch, monsoonLaunchPhase, monsoonDestinationAnchor, overlapsMonsoonSource, type MonsoonLaunch } from './monsoon-crossing.ts'
+import { createMonsoonLaunch, advanceMonsoonLaunch, monsoonLaunchPhase, monsoonPausedPreviewPhase, monsoonDestinationAnchor, overlapsMonsoonSource, type MonsoonLaunch } from './monsoon-crossing.ts'
 import { PressureField } from './PressureField.ts'
 import { PressureCenterText } from './PressureCenterText.ts'
 import { PressureValueText } from './PressureValueText.ts'
@@ -192,6 +192,14 @@ export class SurfaceClimate {
     this.createCurrents()
   }
 
+  /** Settle a newly created globe at its actual month before its first frame.
+   * The stationary update resolves date/layer transitions without advancing
+   * moving arrows, launch clocks or shader time. Subsequent updates remain smooth.
+   */
+  initialize(state: ClimateState) {
+    this.update(10, { ...state, playing: false })
+  }
+
   private enabled(layer: keyof Layers, state: ClimateState) {
     const map: Partial<Record<keyof Layers, string>> = {
       pressure: 'pressureBands', wind: 'surfaceWinds', monsoons: 'monsoonWinds',
@@ -199,7 +207,8 @@ export class SurfaceClimate {
     }
     if (layer === 'sunlight') return !!state.layers.subsolarLine
     if (state.stage === 0) return false
-    if (['monsoons', 'currents', 'pressureField', 'isobars'].includes(layer) && state.stage !== 3) return false
+    if (['pressureField', 'isobars'].includes(layer) && state.stage !== 3) return false
+    if (['monsoons', 'currents'].includes(layer) && state.stage < 3) return false
     return !!state.layers[map[layer] ?? '']
   }
 
@@ -548,7 +557,10 @@ export class SurfaceClimate {
       // short pieces. A long tapered arrow can then visibly follow its curvature.
       const route = createGeographicCurve(def.points, R + .105)
       const crossEquatorial = def.crossEquatorial
-      const launch = crossEquatorial ? createMonsoonLaunch() : undefined
+      const span = Math.min(.66, .72 / Math.max(route.getLength(), .01))
+      const launch = crossEquatorial ? createMonsoonLaunch(monsoonPausedPreviewPhase(
+        span, monsoonDestinationAnchor(route, 0).progress,
+      )) : undefined
       const surfaceMonths = crossEquatorial ? [crossEquatorial.activeMonth] : undefined
       if (crossEquatorial) crossEquatorialRoutes.push({ route, activeMonth: crossEquatorial.activeMonth,
         sourceHemisphere: crossEquatorial.destinationHemisphere === 'north' ? 'south' : 'north' })

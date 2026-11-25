@@ -4,10 +4,21 @@ import { shiftLatitude } from './model.ts'
 export interface MonsoonLaunch {
   active: boolean
   travel: number
+  readonly pausedPreviewTravel: number
 }
 
-export function createMonsoonLaunch(): MonsoonLaunch {
-  return { active: false, travel: 0 }
+/** Show the leading source arrow without placing a parcel beyond the equator. */
+export function monsoonPausedPreviewPhase(span: number, sourceEndProgress: number) {
+  const safeSpan = Number.isFinite(span) ? Math.max(0, span) : 0
+  const sourceEnd = Number.isFinite(sourceEndProgress) ? THREE.MathUtils.clamp(sourceEndProgress, 0, 1) : 0
+  // At this phase the leading tip reaches one arrow-length along the route.
+  // For an unusually short source branch, retain a margin before the equator.
+  return Math.min(safeSpan, sourceEnd * .8) / (1 + safeSpan)
+}
+
+export function createMonsoonLaunch(pausedPreviewTravel = .12): MonsoonLaunch {
+  return { active: false, travel: 0,
+    pausedPreviewTravel: Number.isFinite(pausedPreviewTravel) ? THREE.MathUtils.clamp(pausedPreviewTravel, 0, .5) : .12 }
 }
 
 /** Start at the source when this region's summer layer enters, then circulate. */
@@ -15,7 +26,13 @@ export function advanceMonsoonLaunch(
   launch: MonsoonLaunch, enabled: boolean, dt: number, speed: number, rate: number, playing: boolean,
 ) {
   if (!enabled) { launch.active = false; return }
-  if (!launch.active) { launch.travel = 0; launch.active = true }
+  if (!launch.active) {
+    // Date/layer changes may happen while paused. A zero phase is entirely
+    // clipped at the source; use a static source preview only on this entrance.
+    // Resuming playback continues from that position, without a second reset.
+    launch.travel = playing ? 0 : launch.pausedPreviewTravel
+    launch.active = true
+  }
   if (playing) launch.travel += Math.max(0, dt) * Math.max(0, speed) * rate
 }
 

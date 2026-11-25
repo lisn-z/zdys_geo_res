@@ -10,7 +10,7 @@
       <h1 class="page-title">大气环流</h1>
 
       <div class="toolbar-actions">
-        <button type="button" class="theme-btn toolbar-btn header-action-btn replay-btn"
+        <button v-if="teachingFeatures.autoDemo" type="button" class="theme-btn toolbar-btn header-action-btn replay-btn"
           :class="{ 'auto-demo-active': isAutoDemo }" :aria-pressed="isAutoDemo"
           :aria-label="isAutoDemo ? '关闭自动演示' : '开启自动演示'" @click="toggleAutoDemo">
           <span class="replay-icon">{{ isAutoDemo ? '■' : '▶' }}</span>
@@ -33,8 +33,8 @@
       <!-- ===== 中心舞台 ===== -->
       <section class="center-stage">
         <div class="stage-content">
-          <div ref="threeContainerRef" class="scene-host three-host"></div>
-          <div class="labels-overlay" ref="labelsOverlayRef">
+          <div v-show="!climateLesson.comparisonActive" ref="threeContainerRef" class="scene-host three-host"></div>
+          <div v-show="!climateLesson.comparisonActive" class="labels-overlay" ref="labelsOverlayRef">
             <div v-for="(l, i) in labelScreenData" :key="l.id ?? i" v-show="l.visible" class="scene-label"
               :class="l.cls" :style="{ left: l.x + 'px', top: l.y + 'px', color: l.color, opacity: l.opacity }">{{
                 l.text }}</div>
@@ -59,7 +59,8 @@
             </el-icon>
           </button>
           <div class="timeline-spacer" aria-hidden="true"></div>
-          <div v-if="currentStage === 2" class="month-control-group season-point-controls">
+          <div v-if="climateLesson.comparisonActive" class="month-control-group"><span class="month-control-label">并排对比 · 旋转与缩放联动</span></div>
+          <div v-else-if="currentStage === 2" class="month-control-group season-point-controls">
             <span class="month-control-label">二分二至</span>
             <div class="month-options" role="group" aria-label="选择二分二至">
               <button v-for="point in seasonPoints" :key="point.id" type="button" class="theme-btn month-btn"
@@ -67,14 +68,19 @@
                 @click="setSeasonPoint(point.id)">{{ point.label }}</button>
             </div>
           </div>
-          <div v-else class="month-control-group" :class="{ disabled: currentStage !== 3 }">
+          <div v-else class="month-control-group" :class="{ disabled: currentStage < 3 }">
             <span class="month-control-label">代表月份</span>
             <div class="month-options" role="group" aria-label="选择季节代表月份">
               <button type="button" class="theme-btn month-btn" :class="{ active: !neutralSeason && month === 0 }"
-                :disabled="currentStage !== 3" @click="setRepresentativeMonth(0)">1月</button>
+                :disabled="currentStage < 3" @click="setRepresentativeMonth(0)">1月</button>
               <button type="button" class="theme-btn month-btn" :class="{ active: !neutralSeason && month === 6 }"
-                :disabled="currentStage !== 3" @click="setRepresentativeMonth(6)">7月</button>
+                :disabled="currentStage < 3" @click="setRepresentativeMonth(6)">7月</button>
             </div>
+          </div>
+          <div v-if="currentStage >= 3" class="month-comparison-control" :class="{ disabled: !isMonthComparisonAvailable }">
+            <span>1月 / 7月对比</span>
+            <el-switch :model-value="climateLesson.comparisonActive" :disabled="!isMonthComparisonAvailable"
+              aria-label="1月与7月对比" @change="toggleMonthComparison" />
           </div>
           <div class="speed-control-group">
             <span class="speed-control-label">动画倍数</span>
@@ -87,7 +93,13 @@
       </section>
     </main>
 
-    <section v-if="visibleLegendGroups.length" class="corner-legend"
+    <ClimateComparison v-if="climateLesson.comparisonActive" :left="climateLesson.comparisonLeft" :right="climateLesson.comparisonRight"
+      :playing="isPlaying" :speed="playbackSpeed" :opacity="climateLesson.opacity" :stage="currentStage" :layers="layers"
+      :season-point="seasonPoint" :neutral-season="neutralSeason" :get-circulation-sources="getComparisonSources"
+      :get-base-texture="getComparisonBaseTexture" />
+    <ClimateLessonOverlay v-if="!climateLesson.comparisonActive" :lesson="climateLesson" />
+
+    <section v-if="visibleLegendGroups.length && currentStage !== 4 && !climateLesson.comparisonActive" class="corner-legend"
       :class="{ 'has-pressure-key': currentStage === 3 && layers.regionalPressureCenters }" aria-label="当前图例">
       <div class="corner-legend-heading">
         <strong>当前图例</strong>
@@ -133,18 +145,31 @@
         ncepSlpMetadata.climatology }} · {{ month === 0 ? '1月' : '7月' }}气候平均</small>
     </section>
 
-    <FloatingFeatureCard v-show="floatingPanelsVisible" v-model:collapsed="layerCardCollapsed"
-      class="layer-feature-card" title="图层面板" subtitle="分层查看大气环流" variant="data" :initial-top="90" :initial-right="16"
+    <FloatingFeatureCard key="layer-card-lower" v-show="floatingPanelsVisible" :collapsed="layerCardCollapsed"
+      @update:collapsed="handleLayerPanelToggle"
+      class="layer-feature-card" title="图层面板" subtitle="分层查看大气环流" variant="data" :initial-top="160" :initial-right="16"
       :bottom-inset="82" :min-width="320" :min-height="320">
       <div class="floating-layer-content">
+        <section v-if="currentStage === 4" class="panel-control-group climate-layer-controls">
+          <h3>气候专题图</h3>
+          <div class="climate-layer-options" role="group" aria-label="气候专题图层，单选">
+            <button v-for="item in climateLesson.topics" :key="item.id" type="button" :class="{ active: climateLesson.layer === item.id }"
+              :aria-pressed="climateLesson.layer === item.id" @click="handleClimateTopicSelect(item.id)">{{ item.title }}</button>
+          </div>
+          <div v-if="!climateLesson.comparisonActive" class="panel-control-row"><div class="panel-control-copy"><strong>图册12个地点</strong><span>点击编号查看气温与降水图</span></div>
+            <el-switch :model-value="climateLesson.showStations" aria-label="图册12个地点" @change="handleStationLayerToggle" /></div>
+          <div class="panel-control-row"><div class="panel-control-copy"><strong>分区颜色浓度</strong><span>保留底图地形与海陆位置</span></div>
+            <input v-model.number="climateLesson.opacity" type="range" min="0.25" max="1" step="0.05" aria-label="气候图层透明度"
+              @pointerdown="beginClimateOpacityInteraction" @focus="beginClimateOpacityInteraction" @change="commitClimateOpacityInteraction" /></div>
+        </section>
         <section v-if="currentStage === 0 ? singleCellLayerDefs.length : visibleCellLayerDefs.length"
           class="panel-control-group">
           <h3>{{ currentStage === 0 ? '单圈环流' : '环流结构' }}</h3>
           <div v-for="l in (currentStage === 0 ? singleCellLayerDefs : visibleCellLayerDefs)" :key="l.key"
             class="panel-control-row" :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
             <div class="panel-control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
-            <el-switch v-model="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
-              @change="handleLayerControlChange(l.key)" />
+            <el-switch :model-value="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
+              @change="handleLayerControlChange(l.key, $event)" />
           </div>
         </section>
 
@@ -153,8 +178,8 @@
           <div v-for="l in visibleWindLayerDefs" :key="l.key" class="panel-control-row"
             :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
             <div class="panel-control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
-            <el-switch v-model="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
-              @change="handleLayerControlChange(l.key)" />
+            <el-switch :model-value="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
+              @change="handleLayerControlChange(l.key, $event)" />
           </div>
         </section>
 
@@ -163,8 +188,8 @@
           <div v-for="l in visiblePressureLayerDefs" :key="l.key" class="panel-control-row"
             :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
             <div class="panel-control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
-            <el-switch v-model="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
-              @change="handleLayerControlChange(l.key)" />
+            <el-switch :model-value="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
+              @change="handleLayerControlChange(l.key, $event)" />
           </div>
         </section>
 
@@ -173,19 +198,19 @@
           <div v-for="l in visibleOtherLayerDefs" :key="l.key" class="panel-control-row"
             :class="{ 'is-stage-disabled': !isLayerAvailable(l.key) }">
             <div class="panel-control-copy"><strong>{{ l.label }}</strong><span>{{ l.desc }}</span></div>
-            <el-switch v-model="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
-              @change="handleLayerControlChange(l.key)" />
+            <el-switch :model-value="layers[l.key]" :aria-label="l.label" :disabled="!isLayerAvailable(l.key)"
+              @change="handleLayerControlChange(l.key, $event)" />
           </div>
           <div class="panel-control-row">
             <div class="panel-control-copy"><strong>纬度标注</strong><span>0°、30°、60°、回归线与极圈</span></div>
-            <el-switch v-model="latitudeLabelsEnabled" aria-label="纬度标注" @change="updateLabels" />
+            <el-switch :model-value="latitudeLabelsEnabled" aria-label="纬度标注" @change="handleLatitudeLabelToggle" />
           </div>
         </section>
       </div>
     </FloatingFeatureCard>
 
-    <FloatingFeatureCard v-show="floatingPanelsVisible" v-model:collapsed="teachingCardCollapsed" title="阶段面板"
-      class="teaching-feature-card" subtitle="按步骤观察与推理" variant="data" :initial-top="160" :initial-right="16"
+    <FloatingFeatureCard key="stage-card-upper" v-show="floatingPanelsVisible" v-model:collapsed="teachingCardCollapsed" title="阶段面板"
+      class="teaching-feature-card" subtitle="按步骤观察与推理" variant="data" :initial-top="90" :initial-right="16"
       :bottom-inset="82" :min-width="320" :min-height="320">
       <div class="floating-teaching-content">
         <nav class="lesson-stage-tabs" aria-label="选择教学阶段">
@@ -233,7 +258,7 @@
         <footer class="lesson-step-navigation">
           <button type="button" :disabled="isFirstTeachingStep" @click="previousStep">← 上一步</button>
           <button type="button" class="lesson-next-step" @click="nextStep">
-            {{ isLastTeachingStep ? '从头演示' : '下一步 →' }}
+            {{ isLastTeachingStep ? '从头开始' : '下一步 →' }}
           </button>
         </footer>
       </div>
@@ -251,10 +276,16 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useGeoPanelLayout } from '@/hooks/useGeoPanelLayout'
 import FloatingFeatureCard from '@/components/common/FloatingFeatureCard.vue'
 import SolarRayIndicator from './components/SolarRayIndicator.vue'
+import ClimateLessonOverlay from './components/ClimateLessonOverlay.vue'
+import ClimateComparison from './components/ClimateComparison.vue'
+import { useClimateLesson } from './simulation/useClimateLesson'
+import { createInteractionTelemetry, type InteractionValue } from './simulation/interaction-telemetry'
 import { ncepSlpMetadata } from './ncep-slp-climatology'
 import { SurfaceClimate, type ClimateState } from './simulation/SurfaceClimate'
+import { ThermalZones } from './simulation/ThermalZones'
+import { ClimateCameraFlight, type ClimateFocusRequest } from './simulation/climate-focus'
 import { SeasonalWarp } from './simulation/seasonal-warp'
-import { stages, getNextTeachingPosition, getPreviousTeachingPosition } from './simulation/teaching-flow'
+import { visibleStages as stages, teachingFeatures, getNextTeachingPosition, getPreviousTeachingPosition } from './simulation/teaching-flow'
 import { createSingleCellTeachingVisuals, updateSingleCellTeachingVisuals } from './simulation/single-cell-teaching'
 import { createWindForceVisuals, updateWindForceVisuals, windForceColors, windForceDescription } from './simulation/wind-forces'
 import { createPolarEquatorReference, updatePolarEquatorReference } from './simulation/polar-reference'
@@ -267,6 +298,7 @@ import { createCirculationVolumeGeometry } from './simulation/circulation-volume
 import { createCirculationEdgeGlow } from './simulation/circulation-glow'
 import { createCirculationFormation } from './simulation/circulation-formation'
 import { createEarthRim } from './simulation/earth-rim'
+import { earthTextureUvScale } from './simulation/earth-texture-registration'
 import { getCellFocusView } from './simulation/circulation-focus'
 import { CellFocusReplay } from './simulation/cell-focus-replay'
 import { resolveSeasonTargets, seasonPoints, type SeasonPoint } from './simulation/seasonal-controls'
@@ -498,6 +530,7 @@ const pressureLayerDefs = [
 ]
 
 const otherLayerDefs = [
+  { key: 'thermalZones', label: '全球五带', desc: '热带、南北温带与寒带 · 以回归线和极圈为界' },
   { key: 'rotationGuide', label: '自转方向示意圈', desc: '从北极俯视为逆时针' },
   { key: 'latLines', label: '经纬网', desc: '经度每15°·回归线·极圈' },
   { key: 'subsolarLine', label: '太阳直射纬线', desc: '每月15日参考纬度 · 非整圈同时直射' },
@@ -587,6 +620,7 @@ const layers = reactive<Record<string, boolean>>({
   isobars: false,
   latLines: true,
   subsolarLine: false,
+  thermalZones: false,
   textAnnotations: true,
 })
 
@@ -596,17 +630,122 @@ const neutralSeason = ref(true)
 const floatingPanelsVisible = ref(true)
 const teachingCardCollapsed = ref(true)
 const layerCardCollapsed = ref(true)
+const climateFlight = new ClimateCameraFlight()
+const climateLesson = useClimateLesson(() => { stopAutoDemo(); isPlaying.value = false }, focusClimateLocation)
+function focusClimateLocation(request: ClimateFocusRequest) {
+  if (currentStage.value !== 4 || climateLesson.comparisonActive || !camera || !earthMesh || !orbitControls) return
+  if (isCloseView.value) setCloseViewState(false, true)
+  climateFlight.start(request, earthMesh, camera, orbitControls)
+}
+function cancelClimateFlight() { climateFlight.cancel() }
+const interactionTelemetry = createInteractionTelemetry(() => ({
+  stage_number: currentStage.value + 1,
+  stage_id: stages[currentStage.value]?.id ?? '',
+  step_number: currentStep.value + 1,
+  step_id: stages[currentStage.value]?.steps[currentStep.value]?.id ?? '',
+  month: currentStage.value >= 3 ? (month.value === 0 ? 1 : 7) : null,
+  season_point: currentStage.value === 2 ? seasonPoint.value : null,
+  comparison_active: climateLesson.comparisonActive,
+  climate_topic: currentStage.value === 4 ? climateLesson.layer : null,
+  playing: isPlaying.value,
+  playback_speed: playbackSpeed.value,
+  enabled_layers: Object.keys(layers).filter(key => layers[key]).sort(),
+}))
+let opacityBeforeInteraction = climateLesson.opacity
+
+function recordLayerControl(controlId: string, controlLabel: string, previousValue: InteractionValue, value: InteractionValue) {
+  interactionTelemetry.track('layer_control_change', {
+    source: 'layer_panel', control_id: controlId, control_label: controlLabel,
+    control_type: 'switch', previous_value: previousValue, value, changed: previousValue !== value,
+  })
+}
+function handleLayerPanelToggle(collapsed: boolean) {
+  const previousValue = !layerCardCollapsed.value
+  layerCardCollapsed.value = collapsed
+  interactionTelemetry.track('layer_panel_toggle', {
+    source: 'layer_panel', control_id: 'layer_panel_expanded', control_label: collapsed ? '收起图层面板' : '展开图层面板',
+    control_type: 'button', previous_value: previousValue, value: !collapsed, changed: previousValue !== !collapsed,
+  })
+}
+function handleClimateTopicSelect(topic: 'climate' | 'temperature' | 'precipitation') {
+  const previousValue = climateLesson.layer
+  climateLesson.setLayer(topic)
+  interactionTelemetry.track('climate_topic_select', {
+    source: 'layer_panel', control_id: 'climate_topic', control_label: climateLesson.topics.find(item => item.id === topic)?.title ?? topic,
+    control_type: 'button', previous_value: previousValue, value: topic, changed: previousValue !== topic,
+  })
+}
+function handleStationLayerToggle(value: string | number | boolean) {
+  const previousValue = climateLesson.showStations
+  climateLesson.showStations = value === true
+  recordLayerControl('climateStations', '图册12个地点', previousValue, climateLesson.showStations)
+}
+function handleLatitudeLabelToggle(value: string | number | boolean) {
+  const previousValue = latitudeLabelsEnabled.value
+  latitudeLabelsEnabled.value = value === true
+  updateLabels()
+  recordLayerControl('latitudeLabels', '纬度标注', previousValue, latitudeLabelsEnabled.value)
+}
+function beginClimateOpacityInteraction() { opacityBeforeInteraction = climateLesson.opacity }
+function commitClimateOpacityInteraction() {
+  const value = climateLesson.opacity
+  if (opacityBeforeInteraction === value) return
+  interactionTelemetry.track('climate_opacity_change', {
+    source: 'layer_panel', control_id: 'climate_opacity', control_label: '分区颜色浓度', control_type: 'range',
+    previous_value: opacityBeforeInteraction, value, changed: true,
+  })
+  opacityBeforeInteraction = value
+}
+watch([currentStage, month], () => {
+  climateLesson.active = currentStage.value === 4
+  climateLesson.month = month.value === 0 ? 1 : 7
+})
+watch(() => climateLesson.month, value => {
+  if (currentStage.value === 4) month.value = value === 1 ? 0 : 6
+})
+watch(() => climateLesson.comparisonActive, async comparing => {
+  climateFlight.cancel()
+  if (!comparing) { await nextTick(); resizeThreeSceneNow() }
+})
 
 function toggleFloatingPanelsVisibility() {
+  const previousValue = floatingPanelsVisible.value
   floatingPanelsVisible.value = !floatingPanelsVisible.value
+  interactionTelemetry.track('panels_visibility_change', {
+    source: 'top_toolbar', control_id: 'floating_panels', control_label: floatingPanelsVisible.value ? '显示面板' : '隐藏面板',
+    control_type: 'button', previous_value: previousValue, value: floatingPanelsVisible.value, changed: true,
+  })
+}
+function toggleMonthComparison() {
+  if (!isMonthComparisonAvailable.value) return
+  stopAutoDemo()
+  if (isCloseView.value) setCloseViewState(false, true)
+  climateLesson.toggleComparison()
+}
+function getComparisonSources(): THREE.Object3D[] {
+  const roots: (THREE.Object3D | null | undefined)[] = [currentStage.value === 0 ? singleCellRoot : threeCellRoot,
+    currentStage.value === 0 ? singleTeaching?.heating : null,
+    currentStage.value === 0 ? singleTeaching?.vertical : null,
+    windForces?.group, rotationGuide?.group,
+  ]
+  return roots.filter((group): group is THREE.Object3D => !!group)
+}
+function getComparisonBaseTexture(): THREE.Texture | null {
+  const material = earthMesh?.material
+  if (!(material instanceof THREE.ShaderMaterial)) return null
+  const texture = material.uniforms.uMap?.value
+  return texture instanceof THREE.Texture && texture.image?.naturalWidth > 0 ? texture : null
 }
 
 const currentStageData = computed(() => stages[currentStage.value])
 const currentStepData = computed(() => currentStageData.value?.steps[currentStep.value])
+const isMonthComparisonAvailable = computed(() => currentStage.value === 3
+  || (currentStage.value === 4 && climateLesson.layer === 'temperature'))
+watch(isMonthComparisonAvailable, enabled => { if (!enabled) climateLesson.comparisonActive = false })
 const isFirstTeachingStep = computed(() => currentStage.value === 0 && currentStep.value === 0)
 const isLastTeachingStep = computed(() => !getNextTeachingPosition(currentStage.value, currentStep.value))
 const visibleCellLayerDefs = computed(() => currentStage.value === 0 ? [] : cellLayerDefs)
-const visibleWindLayerDefs = computed(() => currentStage.value === 0 ? [] : windLayerDefs.filter(layer => currentStage.value === 3 || ['surfaceWinds', 'windForces'].includes(layer.key)))
+const visibleWindLayerDefs = computed(() => currentStage.value === 0 ? [] : windLayerDefs.filter(layer => currentStage.value >= 3 || ['surfaceWinds', 'windForces'].includes(layer.key)))
 const visiblePressureLayerDefs = computed(() => currentStage.value === 0 ? [] : pressureLayerDefs.filter(layer => currentStage.value === 3 || !['regionalPressureCenters', 'isobars'].includes(layer.key)))
 const visibleOtherLayerDefs = computed(() => otherLayerDefs.map(layer =>
   layer.key === 'subsolarLine' && currentStage.value === 2
@@ -735,6 +874,7 @@ const solarScreenData = ref({ visible: false, x: 0, y: 0, reach: 100 })
 
 // ==================== Three.js 变量 ====================
 let surfaceClimate: SurfaceClimate | null = null
+let thermalZones: ThermalZones | null = null
 let seasonalWarp: SeasonalWarp | null = null
 function climateState(): ClimateState {
   return {
@@ -1018,6 +1158,7 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uMap: { value: texture },
+      uMapUvScale: { value: new THREE.Vector2(1, 1) },
       uBrightness: { value: 0.30 },
       uSaturation: { value: 0.72 },
       uContrast: { value: 1.04 },
@@ -1037,6 +1178,7 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
     `,
     fragmentShader: `
       uniform sampler2D uMap;
+      uniform vec2 uMapUvScale;
       uniform float uBrightness;
       uniform float uSaturation;
       uniform float uContrast;
@@ -1047,7 +1189,7 @@ function createEarthShaderMaterial(texture: THREE.Texture) {
       varying vec3 vEarthView;
 
       void main() {
-        vec3 textureColor = texture2D(uMap, vUv).rgb;
+        vec3 textureColor = texture2D(uMap, vUv * uMapUvScale).rgb;
         float luminance = dot(textureColor, vec3(0.2126, 0.7152, 0.0722));
         vec3 color = mix(vec3(luminance), textureColor, uSaturation);
         color = (color - 0.5) * uContrast + 0.5;
@@ -2832,6 +2974,7 @@ function initScene() {
   container.appendChild(renderer.domElement)
 
   orbitControls = new OrbitControls(camera, renderer.domElement)
+  orbitControls.addEventListener('start', cancelClimateFlight)
   orbitControls.enableDamping = true
   orbitControls.dampingFactor = 0.08
   orbitControls.minDistance = 4.5
@@ -2862,6 +3005,9 @@ function initScene() {
       }
 
       texture.colorSpace = THREE.SRGBColorSpace
+      const image = texture.image as { width: number; height: number }
+      const [uvScaleX, uvScaleY] = earthTextureUvScale(image.width, image.height)
+      ;(earthMaterial.uniforms.uMapUvScale!.value as THREE.Vector2).set(uvScaleX, uvScaleY)
       const previousTexture = earthMaterial.uniforms.uMap!.value as THREE.Texture
       earthMaterial.uniforms.uMap!.value = texture
 
@@ -2894,15 +3040,17 @@ function initScene() {
   threeCellRoot = createThreeCellSystem(0)
   latLineGroup = createLatLines()
   surfaceClimate = new SurfaceClimate()
+  thermalZones = new ThermalZones(EARTH_RADIUS)
   singleTeaching = createSingleCellTeachingVisuals(EARTH_RADIUS)
   windForces = createWindForceVisuals(EARTH_RADIUS)
   polarReference = createPolarEquatorReference(EARTH_RADIUS)
   rotationGuide = createRotationGuide(EARTH_RADIUS)
   seasonalWarp = new SeasonalWarp(surfaceClimate.shift)
   seasonalWarp.attach(threeCellRoot)
-  earthMesh.add(singleCellRoot, threeCellRoot, latLineGroup, surfaceClimate.group)
+  earthMesh.add(singleCellRoot, threeCellRoot, latLineGroup, surfaceClimate.group, thermalZones.group)
   earthMesh.add(singleTeaching.heating, singleTeaching.vertical, windForces.group, polarReference.group)
   earthMesh.add(rotationGuide.group)
+  climateLesson.attach(earthMesh, camera, renderer.domElement)
 
   resizeThreeSceneNow()
 
@@ -3072,6 +3220,7 @@ function animate() {
   updateViewTransition(deltaTime)
   if (!viewTransitionActive) {
     orbitControls?.update()
+    climateFlight.update(deltaTime)
     if (isCloseView.value && camera && camera.position.length() < EARTH_RADIUS + .08) {
       camera.position.setLength(EARTH_RADIUS + .08)
       camera.lookAt(orbitControls!.target)
@@ -3084,8 +3233,9 @@ function animate() {
     updatePolarEquatorReference(polarReference, localEye, !!layers.latLines)
   }
 
-  if (renderer && scene && camera) {
+  if (renderer && scene && camera && !climateLesson.comparisonActive) {
     renderer.render(scene, camera)
+    climateLesson.project()
   }
 
   labelUpdateElapsed += deltaTime
@@ -3242,6 +3392,7 @@ function updateLabels() {
     }
   })
   labelScreenData.value.push(...(surfaceClimate?.projectLabels(camera, width, height, climateState()) ?? []))
+  labelScreenData.value.push(...(thermalZones?.projectLabels(camera, width, height) ?? []))
   appendTeachingLabels(width, height)
 }
 
@@ -3337,7 +3488,9 @@ function syncStageView() {
   scheduleSceneResize(0)
 }
 
-function handleLayerControlChange(key: string) {
+function handleLayerControlChange(key: string, value: string | number | boolean) {
+  const previousValue = !!layers[key]
+  layers[key] = value === true
   stopAutoDemo()
   if (simMode.value === 'single' && layers[key] && key === 'airflowRibbons') {
     layers.singleCell = true
@@ -3349,12 +3502,16 @@ function handleLayerControlChange(key: string) {
     if (layers.airflowRibbons) circulationRevealProgress = 1
   }
   applyLayerVisibility()
+  const definition = [...singleCellLayerDefs, ...cellLayerDefs, ...windLayerDefs, ...pressureLayerDefs, ...otherLayerDefs]
+    .find(layer => layer.key === key)
+  recordLayerControl(key, definition?.label ?? key, previousValue, !!layers[key])
 }
 
 function applyLayerVisibility() {
   if (!sceneReady || !earthMesh) return
 
   earthMesh.visible = !!layers.earth
+  thermalZones?.setVisible(!!layers.thermalZones)
 
   const singleMode = simMode.value === 'single'
 
@@ -3430,8 +3587,9 @@ function applyLayerVisibility() {
 }
 
 function isLayerAvailable(key: string) {
-  if (['latLines', 'textAnnotations', 'subsolarLine', 'earth'].includes(key)) return true
-  if (['regionalPressureCenters', 'isobars', 'monsoonWinds', 'oceanCurrents'].includes(key)) return currentStage.value === 3
+  if (['latLines', 'textAnnotations', 'subsolarLine', 'earth', 'thermalZones'].includes(key)) return true
+  if (['regionalPressureCenters', 'isobars'].includes(key)) return currentStage.value === 3
+  if (['monsoonWinds', 'oceanCurrents'].includes(key)) return currentStage.value >= 3
   if (['airflowRibbons', 'circulationEnvelope'].includes(key)) return true
   if (key === 'singleCell') return currentStage.value === 0
   return currentStage.value > 0
@@ -3443,6 +3601,8 @@ function applyTeachingStep(index: number, keepFocus = false, preserveForceChoice
   if (!keepFocus && cellFocusReplay.kind) setCloseViewState(false)
   const retainedWindForces = currentStage.value === 1 && preserveForceChoice ? layers.windForces : undefined
   currentStep.value = index
+  if (currentStage.value === 4) climateLesson.setPreset(step.climateLayer ?? 'climate', !!step.climateStations)
+  if (!step.monthComparison) climateLesson.comparisonActive = false
   teachingStepStartedAt = isPlaying.value ? timeAccum : timeAccum - 2.8
   Object.keys(layers).forEach(key => { layers[key] = !!step.layers[key] })
   // Keep the teacher's force-illustration choice throughout this stage, including
@@ -3482,12 +3642,14 @@ function stopAutoDemo() {
 }
 
 function goToStage(stageIndex: number, options: { fromAutoDemo?: boolean; step?: number } = {}) {
+  climateFlight.cancel()
   if (!options.fromAutoDemo) stopAutoDemo()
   currentStage.value = clamp(stageIndex, 0, stages.length - 1)
   applyStage(currentStage.value, options.step ?? 0)
 }
 
 function goToStep(index: number) {
+  climateFlight.cancel()
   stopAutoDemo()
   applyTeachingStep(index)
 }
@@ -3507,7 +3669,7 @@ function focusAndReplayStep(index: number) {
 
 function scheduleNextAutoDemoStep() {
   clearReplayTimers()
-  if (!isAutoDemo.value || componentDestroyed) return
+  if (!teachingFeatures.autoDemo || !isAutoDemo.value || componentDestroyed) return
   const scheduledStage = currentStage.value
   const scheduledStep = currentStep.value
   const timer = setTimeout(() => {
@@ -3530,6 +3692,7 @@ function scheduleNextAutoDemoStep() {
 }
 
 function startAutoDemo(options: { restartFromBeginning?: boolean } = {}) {
+  if (!teachingFeatures.autoDemo) return
   clearReplayTimers()
   isAutoDemo.value = true
   isPlaying.value = true
@@ -3552,27 +3715,32 @@ function setSeasonPoint(point: SeasonPoint) {
   if (currentStage.value !== 2) return
   stopAutoDemo()
   const stepIndex = stages[2]!.steps.findIndex(step => step.seasonPoint === point && step.layers.subsolarLine)
-  if (stepIndex >= 0) applyTeachingStep(stepIndex)
+  // Calendar controls change the date, not the teacher's chosen layer visibility.
+  if (stepIndex >= 0) currentStep.value = stepIndex
+  seasonPoint.value = point
+  neutralSeason.value = false
 }
 
 function setRepresentativeMonth(nextMonth: 0 | 6) {
-  if (currentStage.value !== 3) return
+  if (currentStage.value < 3) return
   stopAutoDemo()
+  if (currentStage.value === 4) { month.value = nextMonth; neutralSeason.value = false; return }
   // Keep the active lesson description aligned with the displayed month.
+  // Do not applyTeachingStep here: its full preset would hide manually enabled
+  // circulation, wind and pressure layers and restart their formation animation.
   if (currentStep.value < 2) {
-    applyTeachingStep(nextMonth === 0 ? 0 : 1)
+    currentStep.value = nextMonth === 0 ? 0 : 1
   } else if (currentStep.value < 4) {
-    applyTeachingStep(nextMonth === 6 ? 2 : 3)
-  } else {
-    month.value = nextMonth
-    neutralSeason.value = false
+    currentStep.value = nextMonth === 6 ? 2 : 3
   }
+  month.value = nextMonth
+  neutralSeason.value = false
 }
 
 function nextStep() {
   stopAutoDemo()
   const next = getNextTeachingPosition(currentStage.value, currentStep.value)
-  if (!next) startAutoDemo({ restartFromBeginning: true })
+  if (!next) goToStage(0)
   else if (next.stage === currentStage.value) applyTeachingStep(next.step)
   else goToStage(next.stage, { step: next.step })
 }
@@ -3596,6 +3764,8 @@ function resizeThreeSceneNow() {
   ) {
     return
   }
+
+  if (climateLesson.comparisonActive || container.clientWidth <= 0 || container.clientHeight <= 0) return
 
   const width = Math.max(
     1,
@@ -3734,10 +3904,14 @@ onBeforeUnmount(() => {
   )
 
   orbitControls?.dispose()
+  climateFlight.cancel()
   orbitControls = null
 
   surfaceClimate?.dispose()
   surfaceClimate = null
+  thermalZones?.dispose()
+  thermalZones = null
+  climateLesson.dispose()
   singleTeaching = null
   windForces = null
   polarReference = null
@@ -3779,6 +3953,15 @@ onBeforeUnmount(() => {
 })
 </script>
 <style scoped>
+.climate-layer-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; }
+.climate-layer-options button { flex: 1; padding: 7px 4px; cursor: pointer; border: 1px solid #32556c; border-radius: 6px; background: #0a2435; color: #b2cad9; font-size: 11px; }
+.climate-layer-options button.active { border-color: #72d2e4; background: #16465a; color: #b0f3fc; }
+.climate-layer-options button:disabled { opacity: .38; cursor: default; }
+.climate-selection-note { margin: 5px 0; color: #88afc1; font-size: 11px; }
+.climate-compare-shortcut { width: 100%; margin-bottom: 8px; border: 1px solid #41778f; border-radius: 6px; padding: 7px; background: #12384b; color: #8cdeea; cursor: pointer; font-size: 11px; }
+.month-comparison-control { display: flex; align-items: center; gap: 8px; font-size: 11px; white-space: nowrap; color: #a4d4e2; }
+.month-comparison-control.disabled { opacity: .38; }
+.climate-layer-controls input[type=range] { width: 95px; accent-color: #5cc8df; }
 .climate-label {
   border: 1px solid currentColor;
 }
@@ -4117,6 +4300,15 @@ onBeforeUnmount(() => {
   border: 2px solid;
   text-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
   transition: none;
+}
+
+.scene-label.thermal-zone-label {
+  padding: 4px 10px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  background: rgba(3, 15, 30, .72);
+  font-size: 12px;
+  letter-spacing: .12em;
 }
 
 .latitude-reference-label {

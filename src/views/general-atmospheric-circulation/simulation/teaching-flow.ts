@@ -3,7 +3,7 @@ import type { SeasonPoint } from './seasonal-controls.ts'
 export const teachingLayerKeys = [
   'earth', 'singleCell', 'circulationEnvelope', 'airflowRibbons', 'hadleyCell', 'ferrelCell', 'polarCell', 'windForces',
   'surfaceWinds', 'pressureBands', 'regionalPressureCenters', 'monsoonWinds',
-  'oceanCurrents', 'isobars', 'latLines', 'subsolarLine', 'textAnnotations', 'rotationGuide',
+  'oceanCurrents', 'isobars', 'latLines', 'subsolarLine', 'textAnnotations', 'rotationGuide', 'thermalZones',
 ] as const
 
 export type TeachingLayerKey = typeof teachingLayerKeys[number]
@@ -17,6 +17,9 @@ export interface TeachingStep {
   month?: 0 | 6
   seasonPoint?: SeasonPoint
   neutralSeason?: boolean
+  climateLayer?: 'climate' | 'temperature' | 'precipitation'
+  climateStations?: boolean
+  monthComparison?: boolean
   durationMs: number
 }
 export interface TeachingStage {
@@ -50,6 +53,7 @@ function layerPreset(enabled: Partial<Record<TeachingLayerKey, boolean>> = {}): 
     subsolarLine: false,
     textAnnotations: true,
     rotationGuide: false,
+    thermalZones: false,
     ...enabled,
   }
 }
@@ -185,6 +189,37 @@ const stageDefinitions: TeachingStage[] = [
       },
     ],
   },
+  {
+    id: 'climate', shortName: '环流与气候', title: '阶段五：大气环流与气候',
+    desc: '结合世界气候分布、气温和降水，联系气压带、风带及季风，比较图册第30—31页的12个地点。',
+    steps: [
+      {
+        id: 'climate-distribution', title: '辨认世界气候分布',
+        description: '点击图例或陆地分区，查看气候特征、分布与典型景观。比较纬度地带性和大陆东西岸差异。地图采用原始12类分区，信息卡保留图册的细分类型。',
+        layers: layerPreset(), climateLayer: 'climate', month: 0, durationMs: 14000,
+      },
+      {
+        id: 'climate-temperature', title: '比较1月、7月气温',
+        description: '以回归线、极圈划分全球五带，切换1月、7月或打开底部对比开关，比较同一带内南北半球、海陆和高原的气温差异。五带边界不随月份移动，也不是等温线；可在图层面板独立关闭。空白海域不代表0 ℃。',
+        layers: layerPreset({ thermalZones: true }), climateLayer: 'temperature', monthComparison: true, month: 0, durationMs: 14000,
+      },
+      {
+        id: 'climate-precipitation', title: '观察年降水分布',
+        description: '辨认赤道附近、回归线附近和中纬度地区的降水差异。年降水图不随1月、7月切换，结合气流的上升、下沉与水汽来源解释分布。',
+        layers: layerPreset(), climateLayer: 'precipitation', durationMs: 14000,
+      },
+      {
+        id: 'climate-circulation', title: '联系气压带、风带与气候',
+        description: '叠加理想气压带和风向，比较热带雨林、沙漠、温带海洋性及地中海气候。注意环流控制与季节交替，还要结合海陆位置、地形和洋流。',
+        layers: layerPreset({ pressureBands: true, surfaceWinds: true, monsoonWinds: true }), climateLayer: 'climate', month: 6, durationMs: 16000,
+      },
+      {
+        id: 'climate-stations', title: '比较12地气候图与景观',
+        description: '点击地球上的编号，或在图例中打开“12地气候图”。先读最冷月、最热月和年温差，再比较降水总量与季节分配。月值由图册曲线、柱形估读；年值按图册标注。',
+        layers: layerPreset(), climateLayer: 'climate', climateStations: true, durationMs: 20000,
+      },
+    ],
+  },
 ]
 
 // The single-cell stage assumes a nonrotating Earth. All later stages retain a
@@ -194,25 +229,31 @@ export const stages: TeachingStage[] = stageDefinitions.map((stage, stageIndex) 
   ...stage,
   steps: stage.steps.map(step => ({
     ...step,
+    monthComparison: stageIndex === 3
+      || (stageIndex === 4 && step.id === 'climate-temperature'),
     layers: { ...step.layers, rotationGuide: stageIndex > 0, windForces: stageIndex === 1 || !!step.layers.windForces },
   })),
 }))
 
+// Temporarily unavailable in class; retain the lessons and demo for later use.
+export const teachingFeatures = { climateStage: false, autoDemo: false }
+export const visibleStages = stages.filter(stage => teachingFeatures.climateStage || stage.id !== 'climate')
+
 function isTeachingPosition(stage: number, step: number): boolean {
   return Number.isInteger(stage) && Number.isInteger(step)
-    && stage >= 0 && stage < stages.length && step >= 0 && step < stages[stage]!.steps.length
+    && stage >= 0 && stage < visibleStages.length && step >= 0 && step < visibleStages[stage]!.steps.length
 }
 
 /** At the last step return null; callers decide whether to stop or explicitly replay. */
 export function getNextTeachingPosition(stage: number, step: number): TeachingPosition | null {
   if (!isTeachingPosition(stage, step)) return null
-  if (step + 1 < stages[stage]!.steps.length) return { stage, step: step + 1 }
-  return stage + 1 < stages.length ? { stage: stage + 1, step: 0 } : null
+  if (step + 1 < visibleStages[stage]!.steps.length) return { stage, step: step + 1 }
+  return stage + 1 < visibleStages.length ? { stage: stage + 1, step: 0 } : null
 }
 
 /** Crossing a stage boundary returns the previous stage's last step, not its first. */
 export function getPreviousTeachingPosition(stage: number, step: number): TeachingPosition | null {
   if (!isTeachingPosition(stage, step)) return null
   if (step > 0) return { stage, step: step - 1 }
-  return stage > 0 ? { stage: stage - 1, step: stages[stage - 1]!.steps.length - 1 } : null
+  return stage > 0 ? { stage: stage - 1, step: visibleStages[stage - 1]!.steps.length - 1 } : null
 }
